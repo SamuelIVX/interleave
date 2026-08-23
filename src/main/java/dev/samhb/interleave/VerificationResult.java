@@ -13,7 +13,7 @@ public final class VerificationResult {
     private final List<Trace> deadlockedTraces;
     private final List<Trace> completedTraces;
 
-    public VerificationResult(Strategy strategy, long statesExplored, long wallTimeMs, long heapDeltaBytes,
+    VerificationResult(Strategy strategy, long statesExplored, long wallTimeMs, long heapDeltaBytes,
                               List<Trace> failingTraces, List<Trace> deadlockedTraces, List<Trace> completedTraces) {
         this.strategy = strategy;
         this.statesExplored = statesExplored;
