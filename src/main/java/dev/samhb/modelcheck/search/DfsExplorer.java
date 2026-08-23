@@ -36,10 +36,13 @@ public final class DfsExplorer {
                      List<Integer> currentThreadIds, 
                      List<StepOutcome> currentOutcomes,
                      Invariant invariant) {
-        String key = canonicalKey(config.state());
+        String key = canonicalKey(config);
         
         if (stateStore.isVisited(config.state())) {
-            return;
+            // Also check if we've seen this exact configuration before
+            if (visitedStates.containsKey(key)) {
+                return;
+            }
         }
         
         stateStore.markVisited(config.state());
@@ -58,10 +61,8 @@ public final class DfsExplorer {
         
         for (int threadId : config.enabledThreadIds()) {
             ModelThread thread = program.threads().get(threadId);
-            Step step = thread.nextStep();
-            if (step == null) {
-                continue;
-            }
+            int pc = config.programCounters().get(threadId);
+            Step step = thread.steps().get(pc);
             
             SharedState nextState = config.state().deepCopy();
             StepOutcome outcome = step.execute(nextState);
@@ -72,7 +73,7 @@ public final class DfsExplorer {
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
             
-            Configuration nextConfig = config.successor(threadId, outcome, program.threads());
+            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
             
             dfs(program, nextConfig, nextThreadIds, nextOutcomes, invariant);
         }
@@ -82,7 +83,7 @@ public final class DfsExplorer {
         }
     }
     
-    private String canonicalKey(SharedState state) {
-        return state.toString();
+    private String canonicalKey(Configuration config) {
+        return config.state().toString() + "|" + config.programCounters();
     }
 }

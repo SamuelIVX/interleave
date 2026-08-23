@@ -1,6 +1,7 @@
 package dev.samhb.modelcheck.core;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 public final class BusyWaitStep implements Step {
@@ -28,14 +29,23 @@ public final class BusyWaitStep implements Step {
     @Override
     public boolean enabled(SharedState state) {
         if (!(state instanceof PetersonState ps)) return false;
-        return ps.flag(otherId) && ps.turn() == otherId;
+        return !(ps.flag(otherId) && ps.turn() == otherId);
     }
 
     @Override
     public StepOutcome execute(SharedState state) {
-        if (enabled(state)) {
-            return StepOutcome.BLOCKED;
-        }
         return StepOutcome.ADVANCED;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof BusyWaitStep that)) return false;
+        return threadId == that.threadId && otherId == that.otherId;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(threadId, otherId);
     }
 }

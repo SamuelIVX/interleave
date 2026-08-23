@@ -1,6 +1,7 @@
 package dev.samhb.modelcheck.core;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 public final class CSEnterStep implements Step {
@@ -30,5 +31,17 @@ public final class CSEnterStep implements Step {
         PetersonState ps = (PetersonState) state;
         ps.setInCriticalSection(threadId);
         return StepOutcome.ADVANCED;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof CSEnterStep that)) return false;
+        return threadId == that.threadId;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(threadId);
     }
 }

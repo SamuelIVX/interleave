@@ -23,7 +23,7 @@ public final class ModelThread {
         return pc;
     }
 
-    List<Step> steps() {
+    public List<Step> steps() {
         return steps;
     }
 

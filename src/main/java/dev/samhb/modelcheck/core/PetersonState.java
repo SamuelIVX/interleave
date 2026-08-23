@@ -58,6 +58,23 @@ public final class PetersonState implements SharedState {
     }
 
     @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PetersonState that)) return false;
+        return turn == that.turn &&
+               inCriticalSection == that.inCriticalSection &&
+               java.util.Arrays.equals(flag, that.flag);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = java.util.Arrays.hashCode(flag);
+        result = 31 * result + turn;
+        result = 31 * result + inCriticalSection;
+        return result;
+    }
+
+    @Override
     public String toString() {
         String cs = inCriticalSection == -1 ? "none" : ("t" + inCriticalSection);
         return String.format("PetersonState{flag=[%b, %b], turn=%d, cs=%s}", 

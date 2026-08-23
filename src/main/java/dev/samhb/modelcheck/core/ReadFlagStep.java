@@ -1,6 +1,7 @@
 package dev.samhb.modelcheck.core;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 public final class ReadFlagStep implements Step {
@@ -29,8 +30,18 @@ public final class ReadFlagStep implements Step {
 
     @Override
     public StepOutcome execute(SharedState state) {
-        PetersonState ps = (PetersonState) state;
-        boolean value = ps.flag(flagIndex);
         return StepOutcome.ADVANCED;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof ReadFlagStep that)) return false;
+        return readerId == that.readerId && flagIndex == that.flagIndex;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(readerId, flagIndex);
     }
 }

@@ -1,6 +1,7 @@
 package dev.samhb.modelcheck.core;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 public final class WriteTurnStep implements Step {
@@ -30,5 +31,17 @@ public final class WriteTurnStep implements Step {
         PetersonState ps = (PetersonState) state;
         ps.setTurn(turnValue);
         return StepOutcome.ADVANCED;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof WriteTurnStep that)) return false;
+        return turnValue == that.turnValue;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(turnValue);
     }
 }

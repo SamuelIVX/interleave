@@ -21,13 +21,15 @@ public final class PersistentSetComputer {
         for (int threadId : enabled) {
             boolean dependent = false;
             ModelThread thread = threads.get(threadId);
-            Step step = thread.nextStep();
+            int pc = config.programCounters().get(threadId);
+            Step step = thread.steps().get(pc);
             if (step == null) continue;
             
             for (int otherId : enabled) {
                 if (otherId == threadId) continue;
                 ModelThread other = threads.get(otherId);
-                Step otherStep = other.nextStep();
+                int otherPc = config.programCounters().get(otherId);
+                Step otherStep = other.steps().get(otherPc);
                 if (otherStep == null) continue;
                 
                 if (!relation.areIndependent(step, otherStep)) {

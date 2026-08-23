@@ -1,6 +1,7 @@
 package dev.samhb.modelcheck.core;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 public final class WriteFlagStep implements Step {
@@ -32,5 +33,17 @@ public final class WriteFlagStep implements Step {
         PetersonState ps = (PetersonState) state;
         ps.setFlag(writerId, value);
         return StepOutcome.ADVANCED;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof WriteFlagStep that)) return false;
+        return writerId == that.writerId && value == that.value;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(writerId, value);
     }
 }

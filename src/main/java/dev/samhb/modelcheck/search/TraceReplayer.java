@@ -11,13 +11,11 @@ public final class TraceReplayer {
             StepOutcome outcome = trace.outcomes().get(i);
             
             ModelThread thread = program.threads().get(threadId);
-            Step step = thread.nextStep();
-            if (step == null) {
-                continue;
-            }
+            int pc = config.programCounters().get(threadId);
+            Step step = thread.steps().get(pc);
             
             step.execute(config.state());
-            config = config.successor(threadId, outcome, program.threads());
+            config = config.successor(threadId, outcome, program.threads(), config.state());
         }
         
         return config;

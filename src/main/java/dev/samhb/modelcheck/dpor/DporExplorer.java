@@ -5,14 +5,6 @@ import dev.samhb.modelcheck.search.*;
 import java.util.*;
 
 public final class DporExplorer {
-    private final HappensBefore happensBefore;
-    private final SleepSet sleepSet;
-
-    public DporExplorer() {
-        this.happensBefore = new HappensBefore();
-        this.sleepSet = new SleepSet();
-    }
-
     public DfsResult explore(Program program) {
         return explore(program, null);
     }
@@ -25,7 +17,7 @@ public final class DporExplorer {
         Configuration initial = program.initialConfiguration();
         dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                 visitedStates, traces, invariant, statesExplored, 
-                new HappensBefore(), new SleepSet());
+                new SleepSet());
 
         return new DfsResult(visitedStates, traces, statesExplored[0]);
     }
@@ -37,9 +29,8 @@ public final class DporExplorer {
                          List<Trace> traces,
                          Invariant invariant,
                          long[] statesExplored,
-                         HappensBefore hb,
                          SleepSet sleepSet) {
-        String key = config.state().toString();
+        String key = config.state().toString() + "|" + config.programCounters();
         
         if (visitedStates.containsKey(key)) {
             return;
@@ -66,7 +57,8 @@ public final class DporExplorer {
         
         for (int threadId : enabled) {
             ModelThread thread = program.threads().get(threadId);
-            Step step = thread.nextStep();
+            int pc = config.programCounters().get(threadId);
+            Step step = thread.steps().get(pc);
             if (step == null || sleepSet.contains(step)) {
                 continue;
             }
@@ -80,21 +72,23 @@ public final class DporExplorer {
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
             
-            Configuration nextConfig = config.successor(threadId, outcome, program.threads());
+            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
             
-            HappensBefore nextHb = hb.copy();
+            SleepSet nextSleepSet = sleepSet.copy();
             for (int otherId : enabled) {
                 if (otherId != threadId) {
-                    nextHb.record(threadId, otherId);
+                    ModelThread otherThread = program.threads().get(otherId);
+                    int otherPc = config.programCounters().get(otherId);
+                    Step otherStep = otherThread.steps().get(otherPc);
+                    if (otherStep != null) {
+                        nextSleepSet.add(otherStep);
+                    }
                 }
             }
             
-            SleepSet nextSleepSet = sleepSet.copy();
-            nextSleepSet.clear();
-            
             dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                     visitedStates, traces, invariant, statesExplored,
-                    nextHb, nextSleepSet);
+                    nextSleepSet);
         }
     }
 }

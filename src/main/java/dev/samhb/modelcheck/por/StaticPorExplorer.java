@@ -36,7 +36,7 @@ public final class StaticPorExplorer {
                         List<Trace> traces,
                         Invariant invariant,
                         long[] statesExplored) {
-        String key = config.state().toString();
+        String key = config.state().toString() + "|" + config.programCounters();
         
         if (visitedStates.containsKey(key)) {
             return;
@@ -61,10 +61,8 @@ public final class StaticPorExplorer {
         
         for (int threadId : persistentSet) {
             ModelThread thread = program.threads().get(threadId);
-            Step step = thread.nextStep();
-            if (step == null) {
-                continue;
-            }
+            int pc = config.programCounters().get(threadId);
+            Step step = thread.steps().get(pc);
             
             SharedState nextState = config.state().deepCopy();
             StepOutcome outcome = step.execute(nextState);
@@ -75,7 +73,7 @@ public final class StaticPorExplorer {
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
             
-            Configuration nextConfig = config.successor(threadId, outcome, program.threads());
+            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
             
             porDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                    visitedStates, traces, invariant, statesExplored);

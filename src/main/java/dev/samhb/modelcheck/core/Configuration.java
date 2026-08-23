@@ -85,23 +85,30 @@ public final class Configuration {
         return lastOutcome;
     }
 
-    public Configuration successor(int threadId, StepOutcome outcome, List<ModelThread> threads) {
+    public Configuration successor(int threadId, StepOutcome outcome, List<ModelThread> threads, SharedState nextState) {
         List<Integer> nextPcs = new ArrayList<>(this.programCounters);
-        nextPcs.set(threadId, nextPcs.get(threadId) + 1);
+        if (outcome != StepOutcome.BLOCKED) {
+            nextPcs.set(threadId, nextPcs.get(threadId) + 1);
+        }
 
         List<Integer> nextEnabled = new ArrayList<>();
-        for (int id : this.enabledThreadIds) {
-            if (id == threadId && outcome == StepOutcome.BLOCKED) {
-                continue;
+        for (int i = 0; i < threads.size(); i++) {
+            ModelThread t = threads.get(i);
+            int currentPc = (i == threadId && outcome != StepOutcome.BLOCKED) 
+                ? nextPcs.get(i) 
+                : this.programCounters.get(i);
+            
+            if (currentPc < t.steps().size()) {
+                Step nextStep = t.steps().get(currentPc);
+                if (nextStep.enabled(nextState)) {
+                    nextEnabled.add(i);
+                }
             }
-            nextEnabled.add(id);
         }
 
         boolean allTerm = true;
         for (int i = 0; i < threads.size(); i++) {
-            ModelThread t = threads.get(i);
-            int currentPc = (i == threadId) ? nextPcs.get(i) : this.programCounters.get(i);
-            if (currentPc < t.steps().size()) {
+            if (nextPcs.get(i) < threads.get(i).steps().size()) {
                 allTerm = false;
                 break;
             }
@@ -110,7 +117,7 @@ public final class Configuration {
         boolean deadlock = !allTerm && nextEnabled.isEmpty();
 
         return new Configuration(
-                this.state,
+                nextState,
                 nextPcs,
                 this.lockOwnership,
                 this.waitQueues,

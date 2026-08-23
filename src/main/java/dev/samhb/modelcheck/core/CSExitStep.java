@@ -1,6 +1,7 @@
 package dev.samhb.modelcheck.core;
 
 import java.util.Collections;
+import java.util.Objects;
 import java.util.Set;
 
 public final class CSExitStep implements Step {
@@ -24,5 +25,15 @@ public final class CSExitStep implements Step {
         PetersonState ps = (PetersonState) state;
         ps.setInCriticalSection(-1);
         return StepOutcome.ADVANCED;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        return this == o;
+    }
+
+    @Override
+    public int hashCode() {
+        return 1;
     }
 }
