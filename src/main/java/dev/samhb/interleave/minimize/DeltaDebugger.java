@@ -9,10 +9,11 @@ public final class DeltaDebugger {
     public Trace minimize(Program program, Trace failingTrace) {
         List<Integer> threadIds = new ArrayList<>(failingTrace.threadIds());
         List<StepOutcome> outcomes = new ArrayList<>(failingTrace.outcomes());
+        TraceOutcome outcome = failingTrace.outcome();
         
         int n = threadIds.size();
         if (n <= 1) {
-            return Trace.of(threadIds, outcomes);
+            return Trace.of(threadIds, outcomes, outcome);
         }
         
         for (int m = 2; m <= n; m = m * 2) {
@@ -35,14 +36,14 @@ public final class DeltaDebugger {
                     }
                 }
                 
-                Trace reducedTrace = Trace.of(reducedThreadIds, reducedOutcomes);
+                Trace reducedTrace = Trace.of(reducedThreadIds, reducedOutcomes, outcome);
                 if (isStillFailing(program, reducedTrace)) {
                     return minimize(program, reducedTrace);
                 }
             }
         }
         
-        return Trace.of(threadIds, outcomes);
+        return Trace.of(threadIds, outcomes, outcome);
     }
     
     private boolean isStillFailing(Program program, Trace trace) {

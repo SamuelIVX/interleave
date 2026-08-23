@@ -40,18 +40,18 @@ public final class DporExplorer {
         statesExplored[0]++;
         
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes)));
+            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
             return;
         }
         
         if (config.allTerminated()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes)));
+            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED));
             return;
         }
         
         List<Integer> enabled = config.enabledThreadIds();
         if (enabled.isEmpty()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes)));
+            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
             return;
         }
         

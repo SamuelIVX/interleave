@@ -46,12 +46,12 @@ public final class StaticPorExplorer {
         statesExplored[0]++;
         
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes)));
+            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
             return;
         }
         
         if (config.allTerminated()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes)));
+            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED));
             return;
         }
         
@@ -80,7 +80,7 @@ public final class StaticPorExplorer {
         }
         
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes)));
+            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
         }
     }
 }
