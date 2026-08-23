@@ -9,7 +9,7 @@ description = "interleave — explicit-state model checker for concurrent progra
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(17)
+        languageVersion = JavaLanguageVersion.of(26)
     }
 }
 
@@ -37,7 +37,7 @@ tasks.test {
 
 tasks.withType<JavaCompile> {
     options.encoding = Charsets.UTF_8.name()
-    options.release.set(17)
+    options.release.set(26)
 }
 
 tasks.withType<Test> {
