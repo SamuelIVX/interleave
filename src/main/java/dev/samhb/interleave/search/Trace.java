@@ -12,6 +12,9 @@ public final class Trace {
         if (threadIds == null) throw new IllegalArgumentException("threadIds must not be null");
         if (outcomes == null) throw new IllegalArgumentException("outcomes must not be null");
         if (outcome == null) throw new IllegalArgumentException("outcome must not be null");
+        if (threadIds.size() != outcomes.size()) {
+            throw new IllegalArgumentException("threadIds and outcomes must have the same size");
+        }
         this.threadIds = List.copyOf(threadIds);
         this.outcomes = List.copyOf(outcomes);
         this.outcome = outcome;

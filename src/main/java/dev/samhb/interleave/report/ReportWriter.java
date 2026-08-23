@@ -39,7 +39,7 @@ public final class ReportWriter {
             sb.append(String.format("      \"strategy\": \"%s\",\n", result.strategy()));
             sb.append(String.format("      \"statesExplored\": %d,\n", result.statesExplored()));
             sb.append(String.format("      \"wallTimeMs\": %d,\n", result.wallTimeMs()));
-            sb.append(String.format("      \"peakMemoryBytes\": %d,\n", result.peakMemoryBytes()));
+            sb.append(String.format("      \"heapDeltaBytes\": %d,\n", result.heapDeltaBytes()));
             sb.append(String.format("      \"verdict\": \"%s\"\n", result.verdict()));
             sb.append("    }");
             if (i < results.size() - 1) sb.append(",");

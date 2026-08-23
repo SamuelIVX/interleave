@@ -4,7 +4,6 @@ import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.state.CanonicalEncoder;
 import dev.samhb.interleave.state.HashingStateStore;
-import java.lang.reflect.Field;
 import java.util.*;
 
 public final class Interleave {
@@ -27,13 +26,13 @@ public final class Interleave {
         runtime.gc();
         long memBefore = runtime.totalMemory() - runtime.freeMemory();
 
-        DfsResult result = strategy.explore(program);
+        DfsResult result = strategy.explore(program, invariant);
 
         long memAfter = runtime.totalMemory() - runtime.freeMemory();
         long wallTime = System.currentTimeMillis() - start;
-        long peakMemory = Math.max(0, memAfter - memBefore);
+        long heapDelta = Math.max(0, memAfter - memBefore);
 
-        return VerificationResult.from(result, strategy, wallTime, peakMemory);
+        return VerificationResult.from(result, strategy, wallTime, heapDelta);
     }
 
     public static Configuration replay(Program program, Trace trace) {

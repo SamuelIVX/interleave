@@ -41,7 +41,7 @@ class DeltaDebuggerTest {
         Trace failingTrace = result.traces().get(0);
         
         DeltaDebugger debugger = new DeltaDebugger();
-        Trace minimized = debugger.minimize(program, failingTrace);
+        Trace minimized = debugger.minimize(program, failingTrace, failingTrace.outcome());
         
         assertTrue(minimized.length() <= failingTrace.length(),
             "Minimized trace should be <= original length");
@@ -80,7 +80,7 @@ class DeltaDebuggerTest {
         Trace failingTrace = result.traces().get(0);
         
         DeltaDebugger debugger = new DeltaDebugger();
-        Trace minimized = debugger.minimize(program, failingTrace);
+        Trace minimized = debugger.minimize(program, failingTrace, failingTrace.outcome());
         
         assertNotNull(minimized);
         assertTrue(minimized.length() > 0, "Minimized trace should not be empty");
@@ -119,7 +119,7 @@ class DeltaDebuggerTest {
         Trace failingTrace = result.traces().get(0);
         
         DeltaDebugger debugger = new DeltaDebugger();
-        Trace minimized = debugger.minimize(program, failingTrace);
+        Trace minimized = debugger.minimize(program, failingTrace, failingTrace.outcome());
         
         List<Integer> originalThreadIds = failingTrace.threadIds();
         List<Integer> minimizedThreadIds = minimized.threadIds();

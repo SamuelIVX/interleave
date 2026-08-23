@@ -8,23 +8,23 @@ public final class VerificationResult {
     private final Strategy strategy;
     private final long statesExplored;
     private final long wallTimeMs;
-    private final long peakMemoryBytes;
+    private final long heapDeltaBytes;
     private final List<Trace> failingTraces;
     private final List<Trace> deadlockedTraces;
     private final List<Trace> completedTraces;
 
-    public VerificationResult(Strategy strategy, long statesExplored, long wallTimeMs, long peakMemoryBytes,
+    public VerificationResult(Strategy strategy, long statesExplored, long wallTimeMs, long heapDeltaBytes,
                               List<Trace> failingTraces, List<Trace> deadlockedTraces, List<Trace> completedTraces) {
         this.strategy = strategy;
         this.statesExplored = statesExplored;
         this.wallTimeMs = wallTimeMs;
-        this.peakMemoryBytes = peakMemoryBytes;
+        this.heapDeltaBytes = heapDeltaBytes;
         this.failingTraces = List.copyOf(failingTraces);
         this.deadlockedTraces = List.copyOf(deadlockedTraces);
         this.completedTraces = List.copyOf(completedTraces);
     }
 
-    public static VerificationResult from(DfsResult result, Strategy strategy, long wallTimeMs, long peakMemoryBytes) {
+    public static VerificationResult from(DfsResult result, Strategy strategy, long wallTimeMs, long heapDeltaBytes) {
         List<Trace> failing = new ArrayList<>();
         List<Trace> deadlocked = new ArrayList<>();
         List<Trace> completed = new ArrayList<>();
@@ -37,7 +37,7 @@ public final class VerificationResult {
             }
         }
 
-        return new VerificationResult(strategy, result.statesExplored(), wallTimeMs, peakMemoryBytes,
+        return new VerificationResult(strategy, result.statesExplored(), wallTimeMs, heapDeltaBytes,
                                       failing, deadlocked, completed);
     }
 
@@ -65,8 +65,8 @@ public final class VerificationResult {
         return wallTimeMs;
     }
 
-    public long peakMemoryBytes() {
-        return peakMemoryBytes;
+    public long heapDeltaBytes() {
+        return heapDeltaBytes;
     }
 
     public Strategy strategyUsed() {
@@ -79,7 +79,7 @@ public final class VerificationResult {
         sb.append("  \"strategy\": \"").append(strategy).append("\",\n");
         sb.append("  \"statesExplored\": ").append(statesExplored).append(",\n");
         sb.append("  \"wallTimeMs\": ").append(wallTimeMs).append(",\n");
-        sb.append("  \"peakMemoryBytes\": ").append(peakMemoryBytes).append(",\n");
+        sb.append("  \"heapDeltaBytes\": ").append(heapDeltaBytes).append(",\n");
         sb.append("  \"hasViolation\": ").append(hasViolation()).append(",\n");
         sb.append("  \"failingTraces\": ").append(jsonTraces(failingTraces)).append(",\n");
         sb.append("  \"deadlockedTraces\": ").append(jsonTraces(deadlockedTraces)).append(",\n");
