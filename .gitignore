@@ -1,0 +1,14 @@
+.gradle
+build/
+out/
+*.log
+*.iml
+.idea/
+.vscode/
+.DS_Store
+*.swp
+*.swo
+*~
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
