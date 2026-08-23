@@ -3,7 +3,7 @@ plugins {
     application
 }
 
-group = "dev.samhb.modelcheck"
+group = "dev.samhb.interleave"
 version = "1.0-SNAPSHOT"
 description = "interleave — explicit-state model checker for concurrent programs"
 
@@ -24,7 +24,7 @@ dependencies {
 }
 
 application {
-    mainClass = "dev.samhb.modelcheck.cli.Main"
+    mainClass = "dev.samhb.interleave.cli.Main"
 }
 
 tasks.test {

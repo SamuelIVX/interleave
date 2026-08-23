@@ -61,7 +61,7 @@ Minimized trace: (t0, set-flag) -> (t1, set-flag) -> (t0, enter-cs) -> (t1, ente
 ## Project structure
 
 ```
-src/main/java/dev/samhb/modelcheck/
+src/main/java/dev/samhb/interleave/
   core/        SharedState, Step, ModelThread, Program, Configuration, ExecutionDriver
   search/      DfsExplorer, Invariant, Trace, TraceReplayer
   state/       CanonicalEncoder, HashingStateStore, BitstateStore
@@ -90,7 +90,7 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 See [`docs/plans/future-work.md`](docs/plans/future-work.md) for the full list. The main candidates are:
 
-- **JSON/YAML/DSL program definition format** — describe concurrent programs declaratively instead of hand-writing Java `Step` objects.
+- **JSON/YAML/DSL program definition format** — describe concurrent programs declaratively instead of hand-writing Java `Step` objects. See `docs/plans/future-work.md` for the full ranked list.
 - **Concurrent-program parser** — parse a small imperative language with threads, shared variables, and atomic sections.
 - **Library/API mode** — expose the checker as a Java library for external tools to construct programs and invoke verification programmatically.
 - **Real Java bytecode instrumentation** — analyze actual concurrent Java programs instead of modeled ones.
