@@ -93,7 +93,3 @@ This is a personal learning project, but issues and suggestions are welcome. Ple
 ## License
 
 MIT
-
-## Topics
-
-model-checking, concurrency, java, formal-methods, explicit-state, partial-order-reduction, dpor, differential-testing, educational
