@@ -85,7 +85,7 @@ public enum Strategy {
 }
 ```
 - Maps 1:1 to existing explorers: `DfsExplorer`, `StaticPorExplorer`, `DporExplorer`.
-- `HASHING` is not a strategy — it's a state-store choice orthogonal to exploration. Drop it from the enum.
+- State stores (hashing, bitstate) are orthogonal to exploration strategies and are not exposed in this API.
 - `Strategy.explorer()` returns the corresponding explorer instance.
 
 ### 5. Invariant API
