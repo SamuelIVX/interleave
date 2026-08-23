@@ -1,18 +1,14 @@
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.*;
-import dev.samhb.interleave.state.CanonicalEncoder;
-import dev.samhb.interleave.state.HashingStateStore;
 import java.util.*;
 
 public final class DfsExplorer {
-    private final HashingStateStore stateStore;
     private final Map<String, Configuration> visitedStates;
     private final List<Trace> traces;
     private long statesExplored;
 
     public DfsExplorer() {
-        this.stateStore = new HashingStateStore();
         this.visitedStates = new LinkedHashMap<>();
         this.traces = new ArrayList<>();
         this.statesExplored = 0;
@@ -23,7 +19,6 @@ public final class DfsExplorer {
     }
 
     public DfsResult explore(Program program, Invariant invariant) {
-        stateStore.clear();
         visitedStates.clear();
         traces.clear();
         statesExplored = 0;
@@ -40,11 +35,10 @@ public final class DfsExplorer {
                      Invariant invariant) {
         String key = config.state().toString() + "|" + config.programCounters();
         
-        if (stateStore.isVisited(config.state())) {
+        if (visitedStates.containsKey(key)) {
             return;
         }
         
-        stateStore.markVisited(config.state());
         visitedStates.put(key, config);
         statesExplored++;
         
