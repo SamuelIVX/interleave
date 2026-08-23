@@ -59,7 +59,8 @@ public final class PetersonState implements SharedState {
 
     @Override
     public String toString() {
-        return String.format("PetersonState{flag=[%b, %b], turn=%d, cs=%d}", 
-            flag[0], flag[1], turn, inCriticalSection == -1 ? "none" : "t" + inCriticalSection);
+        String cs = inCriticalSection == -1 ? "none" : ("t" + inCriticalSection);
+        return String.format("PetersonState{flag=[%b, %b], turn=%d, cs=%s}", 
+            flag[0], flag[1], turn, cs);
     }
 }

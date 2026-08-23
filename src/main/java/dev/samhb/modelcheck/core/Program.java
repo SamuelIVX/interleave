@@ -21,7 +21,7 @@ public final class Program {
         return threads.size();
     }
 
-    List<ModelThread> threads() {
+    public List<ModelThread> threads() {
         return threads;
     }
 }
