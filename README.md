@@ -22,7 +22,7 @@ The project is built as a clean, spec-driven proof-of-concept. It is not a produ
 
 ### Prerequisites
 
-- JDK 17 or later
+- JDK 26 or later
 - Gradle 8.11+ (wrapper included)
 
 ### Build
@@ -81,7 +81,7 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 ## Tech stack
 
-- **Language:** Java 17+
+- **Language:** Java 26+
 - **Build:** Gradle 8.11+
 - **Testing:** JUnit 5
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)

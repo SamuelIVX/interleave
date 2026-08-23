@@ -1,10 +1,12 @@
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.*;
+import dev.samhb.interleave.state.CanonicalEncoder;
+import dev.samhb.interleave.state.HashingStateStore;
 import java.util.*;
 
 public final class DfsExplorer {
-    private final StateStore stateStore;
+    private final HashingStateStore stateStore;
     private final Map<String, Configuration> visitedStates;
     private final List<Trace> traces;
     private long statesExplored;
@@ -36,13 +38,10 @@ public final class DfsExplorer {
                      List<Integer> currentThreadIds, 
                      List<StepOutcome> currentOutcomes,
                      Invariant invariant) {
-        String key = canonicalKey(config);
+        String key = config.state().toString() + "|" + config.programCounters();
         
         if (stateStore.isVisited(config.state())) {
-            // Also check if we've seen this exact configuration before
-            if (visitedStates.containsKey(key)) {
-                return;
-            }
+            return;
         }
         
         stateStore.markVisited(config.state());
@@ -81,9 +80,5 @@ public final class DfsExplorer {
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
             traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes)));
         }
-    }
-    
-    private String canonicalKey(Configuration config) {
-        return config.state().toString() + "|" + config.programCounters();
     }
 }

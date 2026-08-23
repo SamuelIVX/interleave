@@ -1,9 +1,10 @@
 package dev.samhb.interleave.state;
 
 import dev.samhb.interleave.core.SharedState;
+import dev.samhb.interleave.search.StateStore;
 import java.util.*;
 
-public final class HashingStateStore {
+public final class HashingStateStore implements StateStore {
     private final CanonicalEncoder encoder;
     private final Set<Integer> visitedHashes;
     private final Set<String> visitedStates;
@@ -14,6 +15,7 @@ public final class HashingStateStore {
         this.visitedStates = new HashSet<>();
     }
 
+    @Override
     public boolean isVisited(SharedState state) {
         int hash = encoder.hashCode(state);
         if (!visitedHashes.contains(hash)) {
@@ -23,6 +25,7 @@ public final class HashingStateStore {
         return visitedStates.contains(encoded);
     }
 
+    @Override
     public void markVisited(SharedState state) {
         int hash = encoder.hashCode(state);
         visitedHashes.add(hash);
@@ -30,6 +33,7 @@ public final class HashingStateStore {
         visitedStates.add(encoded);
     }
 
+    @Override
     public void clear() {
         visitedHashes.clear();
         visitedStates.clear();
