@@ -6,13 +6,13 @@ import java.util.*;
 
 public final class DeltaDebugger {
     
-    public Trace minimize(Program program, Trace failingTrace) {
+    public Trace minimize(Program program, Trace failingTrace, TraceOutcome expectedOutcome) {
         List<Integer> threadIds = new ArrayList<>(failingTrace.threadIds());
         List<StepOutcome> outcomes = new ArrayList<>(failingTrace.outcomes());
         
         int n = threadIds.size();
         if (n <= 1) {
-            return Trace.of(threadIds, outcomes);
+            return Trace.of(threadIds, outcomes, expectedOutcome);
         }
         
         for (int m = 2; m <= n; m = m * 2) {
@@ -35,21 +35,27 @@ public final class DeltaDebugger {
                     }
                 }
                 
-                Trace reducedTrace = Trace.of(reducedThreadIds, reducedOutcomes);
-                if (isStillFailing(program, reducedTrace)) {
-                    return minimize(program, reducedTrace);
+                Trace reducedTrace = Trace.of(reducedThreadIds, reducedOutcomes, expectedOutcome);
+                if (isStillFailing(program, reducedTrace, expectedOutcome)) {
+                    return minimize(program, reducedTrace, expectedOutcome);
                 }
             }
         }
         
-        return Trace.of(threadIds, outcomes);
+        return Trace.of(threadIds, outcomes, expectedOutcome);
     }
     
-    private boolean isStillFailing(Program program, Trace trace) {
+    private boolean isStillFailing(Program program, Trace trace, TraceOutcome expectedOutcome) {
         try {
             ExecutionDriver driver = new ExecutionDriver();
             Configuration config = driver.run(program, new Schedule(trace.threadIds()));
-            return config != null;
+            if (config == null) return false;
+            
+            return switch (expectedOutcome) {
+                case COMPLETED -> config.allTerminated();
+                case DEADLOCK -> config.isDeadlockCandidate();
+                case VIOLATION -> !config.allTerminated() && !config.isDeadlockCandidate();
+            };
         } catch (Exception e) {
             return false;
         }

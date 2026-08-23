@@ -20,7 +20,7 @@ public final class StatesExploredTable {
                 result.strategy(),
                 result.statesExplored(),
                 result.wallTimeMs(),
-                result.peakMemoryBytes(),
+                result.heapDeltaBytes(),
                 result.verdict()));
         }
         

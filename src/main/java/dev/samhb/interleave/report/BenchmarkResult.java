@@ -7,16 +7,16 @@ public final class BenchmarkResult {
     private final String bugName;
     private final long statesExplored;
     private final long wallTimeMs;
-    private final long peakMemoryBytes;
+    private final long heapDeltaBytes;
     private final String verdict;
 
     public BenchmarkResult(String strategy, String bugName, long statesExplored, 
-                           long wallTimeMs, long peakMemoryBytes, String verdict) {
+                           long wallTimeMs, long heapDeltaBytes, String verdict) {
         this.strategy = strategy;
         this.bugName = bugName;
         this.statesExplored = statesExplored;
         this.wallTimeMs = wallTimeMs;
-        this.peakMemoryBytes = peakMemoryBytes;
+        this.heapDeltaBytes = heapDeltaBytes;
         this.verdict = verdict;
     }
 
@@ -36,8 +36,8 @@ public final class BenchmarkResult {
         return wallTimeMs;
     }
 
-    public long peakMemoryBytes() {
-        return peakMemoryBytes;
+    public long heapDeltaBytes() {
+        return heapDeltaBytes;
     }
 
     public String verdict() {
