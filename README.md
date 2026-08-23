@@ -85,3 +85,13 @@ Specs: [`docs/specs/active`](docs/specs/active)
 - **Build:** Gradle 8.11+
 - **Testing:** JUnit 5
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)
+
+## Future Extensions
+
+See [`docs/plans/future-work.md`](docs/plans/future-work.md) for the full list. The main candidates are:
+
+- **JSON/YAML/DSL program definition format** — describe concurrent programs declaratively instead of hand-writing Java `Step` objects.
+- **Concurrent-program parser** — parse a small imperative language with threads, shared variables, and atomic sections.
+- **Library/API mode** — expose the checker as a Java library for external tools to construct programs and invoke verification programmatically.
+- **Real Java bytecode instrumentation** — analyze actual concurrent Java programs instead of modeled ones.
+- **Web UI / visualizer** — render interleaving trees, state-space DAGs, or failing traces.
