@@ -25,7 +25,7 @@ public final class DporExplorer {
         if (invariant == null) {
             dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                     visitedStates, traces, invariant, statesExplored, 
-                    new SleepSet());
+                    new SleepSet(), new HappensBefore());
         } else {
             dfsDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                     visitedStates, traces, invariant, statesExplored);
@@ -41,10 +41,14 @@ public final class DporExplorer {
                          List<Trace> traces,
                          Invariant invariant,
                          long[] statesExplored,
-                         SleepSet sleepSet) {
+                         SleepSet sleepSet,
+                         HappensBefore happensBefore) {
         String key = config.state().toString() + "|" + config.programCounters();
         
         if (visitedStates.containsKey(key)) {
+            wakeUp(program, config, currentThreadIds, currentOutcomes,
+                   visitedStates, traces, invariant, statesExplored,
+                   sleepSet, happensBefore);
             return;
         }
         
@@ -72,7 +76,7 @@ public final class DporExplorer {
             ModelThread thread = program.threads().get(threadId);
             int pc = config.programCounters().get(threadId);
             Step step = thread.steps().get(pc);
-            if (step == null || sleepSet.contains(step)) {
+            if (step == null || sleepSet.contains(threadId, step)) {
                 continue;
             }
             explored = true;
@@ -88,6 +92,13 @@ public final class DporExplorer {
             
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
             
+            HappensBefore nextHappensBefore = happensBefore.copy();
+            for (int otherId : enabled) {
+                if (otherId != threadId) {
+                    nextHappensBefore.record(threadId, otherId);
+                }
+            }
+            
             SleepSet nextSleepSet = sleepSet.copy();
             for (int otherId : enabled) {
                 if (otherId != threadId) {
@@ -98,7 +109,7 @@ public final class DporExplorer {
                         boolean independent = relation.areIndependent(step, otherStep);
                         boolean noInterference = !relation.hasEnableDisableInterference(config, threadId, otherId, program.threads());
                         if (independent && noInterference) {
-                            nextSleepSet.add(otherStep);
+                            nextSleepSet.add(otherId, otherStep);
                         }
                     }
                 }
@@ -106,7 +117,7 @@ public final class DporExplorer {
             
             dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                     visitedStates, traces, invariant, statesExplored,
-                    nextSleepSet);
+                    nextSleepSet, nextHappensBefore);
         }
         
         if (!explored) {
@@ -129,8 +140,72 @@ public final class DporExplorer {
                 
                 dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                         visitedStates, traces, invariant, statesExplored,
-                        new SleepSet());
+                        new SleepSet(), new HappensBefore());
             }
+        }
+    }
+
+    private void wakeUp(Program program, Configuration config,
+                        List<Integer> currentThreadIds,
+                        List<StepOutcome> currentOutcomes,
+                        Map<String, Configuration> visitedStates,
+                        List<Trace> traces,
+                        Invariant invariant,
+                        long[] statesExplored,
+                        SleepSet sleepSet,
+                        HappensBefore happensBefore) {
+        List<Integer> toWake = new ArrayList<>();
+        Map<Integer, Step> toWakeSteps = new LinkedHashMap<>();
+        
+        for (Map.Entry<Integer, Step> entry : sleepSet.entries()) {
+            int threadId = entry.getKey();
+            Step step = entry.getValue();
+            
+            Set<Integer> predecessors = happensBefore.getThreadsThatHappenBefore(threadId);
+            boolean dependent = false;
+            for (int pred : predecessors) {
+                ModelThread predThread = program.threads().get(pred);
+                int predPc = config.programCounters().get(pred);
+                Step predStep = predThread.steps().get(predPc);
+                if (predStep != null && !relation.areIndependent(step, predStep)) {
+                    dependent = true;
+                    break;
+                }
+            }
+            
+            if (dependent) {
+                toWake.add(threadId);
+                toWakeSteps.put(threadId, step);
+            }
+        }
+        
+        if (toWake.isEmpty()) {
+            return;
+        }
+        
+        SleepSet newSleepSet = sleepSet.copy();
+        for (int threadId : toWake) {
+            newSleepSet.remove(threadId);
+        }
+        
+        for (int threadId : toWake) {
+            Step step = toWakeSteps.get(threadId);
+            if (step == null) continue;
+            
+            SharedState nextState = config.state().deepCopy();
+            StepOutcome outcome = step.execute(nextState);
+            
+            List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
+            nextThreadIds.add(threadId);
+            
+            List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
+            nextOutcomes.add(outcome);
+            
+            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
+            
+            dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
+                    visitedStates, traces, invariant, statesExplored,
+                    newSleepSet, happensBefore);
         }
     }
 

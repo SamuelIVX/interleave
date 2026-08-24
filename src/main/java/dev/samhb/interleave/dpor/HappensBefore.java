@@ -21,8 +21,37 @@ public final class HappensBefore {
         if (sourceThreadId == targetThreadId) {
             return true;
         }
-        Set<Integer> direct = edges.get(sourceThreadId);
-        return direct != null && direct.contains(targetThreadId);
+        Set<Integer> visited = new LinkedHashSet<>();
+        Deque<Integer> stack = new ArrayDeque<>();
+        stack.push(sourceThreadId);
+        while (!stack.isEmpty()) {
+            int current = stack.pop();
+            if (current == targetThreadId) {
+                return true;
+            }
+            if (!visited.add(current)) {
+                continue;
+            }
+            Set<Integer> next = edges.get(current);
+            if (next != null) {
+                for (int nextId : next) {
+                    if (!visited.contains(nextId)) {
+                        stack.push(nextId);
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    public Set<Integer> getThreadsThatHappenBefore(int threadId) {
+        Set<Integer> result = new LinkedHashSet<>();
+        for (Map.Entry<Integer, Set<Integer>> entry : edges.entrySet()) {
+            if (entry.getValue().contains(threadId) && happensBefore(entry.getKey(), threadId)) {
+                result.add(entry.getKey());
+            }
+        }
+        return result;
     }
 
     public int getThreadLocalCounter(int threadId) {
