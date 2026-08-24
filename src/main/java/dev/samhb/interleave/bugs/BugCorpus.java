@@ -8,6 +8,8 @@ public final class BugCorpus {
         List<BenchmarkProgram> programs = new ArrayList<>();
         programs.add(peterson());
         programs.add(dekker());
+        programs.add(brokenPeterson());
+        programs.add(brokenDekker());
         return programs;
     }
 
@@ -65,5 +67,13 @@ public final class BugCorpus {
         
         Program program = new Program(initial, List.of(t0, t1));
         return new BenchmarkProgram("dekker", program, "PASS");
+    }
+
+    public static BenchmarkProgram brokenPeterson() {
+        return BrokenPeterson.program();
+    }
+
+    public static BenchmarkProgram brokenDekker() {
+        return BrokenDekker.program();
     }
 }
