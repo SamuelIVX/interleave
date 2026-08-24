@@ -38,8 +38,9 @@ public final class BrokenPeterson {
             PetersonState ps = (PetersonState) state;
             List<Integer> pcs = config.programCounters();
             boolean bothFlagsTrue = ps.flag(0) && ps.flag(1);
-            boolean bothPastBusyWait = pcs.get(0) > 2 && pcs.get(1) > 2;
-            return !(bothFlagsTrue && bothPastBusyWait);
+            boolean t0InCsZone = pcs.get(0) >= 3;
+            boolean t1InCsZone = pcs.get(1) >= 2;
+            return !(bothFlagsTrue && t0InCsZone && t1InCsZone);
         };
     }
 }

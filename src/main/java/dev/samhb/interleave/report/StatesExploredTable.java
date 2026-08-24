@@ -11,7 +11,7 @@ public final class StatesExploredTable {
 
     public String formatMarkdown() {
         StringBuilder sb = new StringBuilder();
-        sb.append("| Bug | Strategy | States Explored | Wall Time (ms) | Peak Memory (bytes) | Verdict |\n");
+        sb.append("| Bug | Strategy | States Explored | Wall Time (ms) | Heap Delta (bytes) | Verdict |\n");
         sb.append("|-----|----------|-----------------|----------------|---------------------|---------|\n");
         
         for (BenchmarkResult result : results) {

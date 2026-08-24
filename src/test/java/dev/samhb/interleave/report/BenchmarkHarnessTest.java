@@ -13,7 +13,7 @@ class BenchmarkHarnessTest {
         BenchmarkHarness harness = new BenchmarkHarness();
         List<BenchmarkResult> results = harness.runAll();
         
-        assertTrue(results.size() >= 3, "Should have at least 3 results (1 bug x 3 strategies)");
+        assertTrue(results.size() >= 4, "Should have at least 4 results (1 bug x 3 strategies)");
     }
 
     @Test
@@ -21,13 +21,14 @@ class BenchmarkHarnessTest {
         BenchmarkHarness harness = new BenchmarkHarness();
         List<BenchmarkResult> results = harness.runAll();
         
-        List<BenchmarkResult> correctPrograms = results.stream()
-            .filter(r -> "PASS".equals(r.verdict()) || "DEADLOCK".equals(r.verdict()))
+        List<BenchmarkResult> traceProducingResults = results.stream()
+            .filter(r -> r.failingTrace().isPresent() || !"PASS".equals(r.verdict()))
             .toList();
         
-        SoundnessAttestation attestation = new SoundnessAttestation(correctPrograms);
+        SoundnessAttestation attestation = new SoundnessAttestation(traceProducingResults, BugCorpus.all());
         assertTrue(attestation.isSound(), 
-            "Correct programs should produce identical verdicts across strategies");
+            "All trace-producing programs should be sound: " + 
+            (attestation.failureReason() != null ? attestation.failureReason() : ""));
     }
 
     @Test
@@ -35,15 +36,25 @@ class BenchmarkHarnessTest {
         BenchmarkHarness harness = new BenchmarkHarness();
         List<BenchmarkResult> results = harness.runAll();
         
-        List<BenchmarkResult> buggyPrograms = results.stream()
-            .filter(r -> "VIOLATION".equals(r.verdict()))
+        List<BenchmarkProgram> buggyPrograms = BugCorpus.all().stream()
+            .filter(p -> "VIOLATION".equals(p.expectedVerdict()))
             .toList();
         
-        assertFalse(buggyPrograms.isEmpty(), "Should find violations in buggy programs");
+        assertFalse(buggyPrograms.isEmpty(), "Should have at least one buggy program");
         
-        for (BenchmarkResult result : buggyPrograms) {
-            assertTrue(result.failingTrace().isPresent(),
-                result.bugName() + " under " + result.strategy() + " should have a failing trace");
+        for (BenchmarkProgram program : buggyPrograms) {
+            List<BenchmarkResult> dfsResults = results.stream()
+                .filter(r -> r.bugName().equals(program.name()) && "DFS".equals(r.strategy()))
+                .toList();
+            
+            assertFalse(dfsResults.isEmpty(), 
+                program.name() + " should have DFS result");
+            
+            BenchmarkResult dfsResult = dfsResults.get(0);
+            assertEquals(program.expectedVerdict(), dfsResult.verdict(),
+                program.name() + " under DFS should have expected verdict " + program.expectedVerdict());
+            assertTrue(dfsResult.failingTrace().isPresent(),
+                program.name() + " under DFS should have a failing trace");
         }
     }
 

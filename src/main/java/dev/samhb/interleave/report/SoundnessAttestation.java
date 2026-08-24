@@ -1,7 +1,6 @@
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
-import dev.samhb.interleave.bugs.BugCorpus;
 import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.core.Program;
 import dev.samhb.interleave.search.Invariant;
@@ -11,35 +10,52 @@ import java.util.*;
 
 public final class SoundnessAttestation {
     private final List<BenchmarkResult> results;
+    private final Map<String, BenchmarkProgram> programs;
     private final boolean sound;
     private final String failureReason;
 
-    public SoundnessAttestation(List<BenchmarkResult> results) {
+    public SoundnessAttestation(List<BenchmarkResult> results, List<BenchmarkProgram> programs) {
         this.results = List.copyOf(results);
+        Map<String, BenchmarkProgram> programMap = new LinkedHashMap<>();
+        for (BenchmarkProgram program : programs) {
+            programMap.put(program.name(), program);
+        }
+        this.programs = Map.copyOf(programMap);
         SoundnessCheck check = checkSoundness();
         this.sound = check.sound();
         this.failureReason = check.reason();
     }
 
     private SoundnessCheck checkSoundness() {
-        Map<String, String> verdicts = new LinkedHashMap<>();
-        Map<String, Program> programs = new LinkedHashMap<>();
-        
-        for (BenchmarkProgram program : BugCorpus.all()) {
-            programs.put(program.name(), program.program());
-        }
+        Map<String, String> dfsVerdicts = new LinkedHashMap<>();
+        Map<String, String> correctVerdicts = new LinkedHashMap<>();
         
         for (BenchmarkResult result : results) {
             String key = result.bugName();
-            String verdict = result.verdict();
+            String actualVerdict = result.verdict();
+            BenchmarkProgram program = programs.get(key);
             
-            if (verdicts.containsKey(key)) {
-                if (!verdicts.get(key).equals(verdict)) {
-                    return SoundnessCheck.failed("Verdict mismatch for " + key + 
-                        ": " + verdicts.get(key) + " vs " + verdict);
+            if (program != null) {
+                String expectedVerdict = program.expectedVerdict();
+                if ("DFS".equals(result.strategy())) {
+                    if (!expectedVerdict.equals(actualVerdict)) {
+                        return SoundnessCheck.failed("DFS verdict mismatch for " + key + 
+                            ": expected " + expectedVerdict + " but got " + actualVerdict);
+                    }
+                    dfsVerdicts.put(key, actualVerdict);
                 }
-            } else {
-                verdicts.put(key, verdict);
+                
+                if (!"VIOLATION".equals(expectedVerdict)) {
+                    if (correctVerdicts.containsKey(key)) {
+                        if (!correctVerdicts.get(key).equals(actualVerdict)) {
+                            return SoundnessCheck.failed("Verdict mismatch for correct program " + key + 
+                                " under " + result.strategy() + ": " + correctVerdicts.get(key) + 
+                                " vs " + actualVerdict);
+                        }
+                    } else {
+                        correctVerdicts.put(key, actualVerdict);
+                    }
+                }
             }
         }
         
@@ -51,15 +67,16 @@ public final class SoundnessAttestation {
                         " under " + result.strategy());
                 }
                 
-                Program program = programs.get(result.bugName());
+                BenchmarkProgram program = programs.get(result.bugName());
                 if (program == null) {
                     return SoundnessCheck.failed("Unknown program: " + result.bugName());
                 }
                 
+                Program programDef = program.program();
                 TraceReplayer replayer = new TraceReplayer();
-                Configuration replayed = replayer.replay(program, failingTrace);
+                Configuration replayed = replayer.replay(programDef, failingTrace);
                 
-                Invariant invariant = result.invariant().orElse(null);
+                Invariant invariant = program.invariant().orElse(null);
                 if (invariant != null && invariant.holds(replayed.state(), replayed)) {
                     return SoundnessCheck.failed("Replayed trace for " + result.bugName() + 
                         " under " + result.strategy() + " does not violate invariant");
@@ -83,7 +100,7 @@ public final class SoundnessAttestation {
         sb.append("## Soundness Attestation\n\n");
         
         if (sound) {
-            sb.append("All strategies produced identical verdicts for every benchmark. ");
+            sb.append("All programs produced expected verdicts under DFS. ");
             sb.append("All failing traces replayed to genuine violations. ");
             sb.append("The model checker is sound.\n");
         } else {

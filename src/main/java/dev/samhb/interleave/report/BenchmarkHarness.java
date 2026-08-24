@@ -40,10 +40,13 @@ public final class BenchmarkHarness {
         long peakMemory = Math.max(0, memAfter - memBefore);
         
         String dfsVerdict = actualVerdict(dfsResult);
+        if (!program.expectedVerdict().equals(dfsVerdict)) {
+            throw new IllegalStateException("Expected verdict " + program.expectedVerdict() + 
+                " for " + program.name() + " but got " + dfsVerdict);
+        }
         Trace dfsFailing = findFailingTrace(dfsResult);
         results.add(new BenchmarkResult("DFS", program.name(), dfsResult.statesExplored(), 
-                                        wallTime, peakMemory, dfsVerdict,
-                                        dfsFailing, invariant));
+                                        wallTime, peakMemory, dfsVerdict, dfsFailing));
         
         StaticPorExplorer porExplorer = new StaticPorExplorer();
         start = System.currentTimeMillis();
@@ -59,8 +62,7 @@ public final class BenchmarkHarness {
         String porVerdict = actualVerdict(porResult);
         Trace porFailing = findFailingTrace(porResult);
         results.add(new BenchmarkResult("STATIC_POR", program.name(), porResult.statesExplored(), 
-                                        wallTime, peakMemory, porVerdict,
-                                        porFailing, invariant));
+                                        wallTime, peakMemory, porVerdict, porFailing));
         
         DporExplorer dporExplorer = new DporExplorer();
         start = System.currentTimeMillis();
@@ -76,8 +78,7 @@ public final class BenchmarkHarness {
         String dporVerdict = actualVerdict(dporResult);
         Trace dporFailing = findFailingTrace(dporResult);
         results.add(new BenchmarkResult("DPOR", program.name(), dporResult.statesExplored(), 
-                                        wallTime, peakMemory, dporVerdict,
-                                        dporFailing, invariant));
+                                        wallTime, peakMemory, dporVerdict, dporFailing));
         
         return results;
     }
