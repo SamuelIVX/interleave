@@ -105,4 +105,17 @@ class DporExplorerTest {
         
         assertTrue(result.statesExplored() > 0, "Should explore some states");
     }
+
+    @Test
+    void happensBefore_computesTransitiveClosure() {
+        HappensBefore hb = new HappensBefore();
+        Step step = new WriteFlagStep(0, true);
+        hb.record(0, 1, step);
+        hb.record(1, 2, step);
+        
+        assertTrue(hb.happensBefore(0, 1), "Direct edge should hold");
+        assertTrue(hb.happensBefore(1, 2), "Direct edge should hold");
+        assertTrue(hb.happensBefore(0, 2), "Transitive edge should hold");
+        assertFalse(hb.happensBefore(2, 0), "Reverse edge should not hold");
+    }
 }
