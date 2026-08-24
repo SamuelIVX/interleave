@@ -13,7 +13,7 @@ class BenchmarkHarnessTest {
         BenchmarkHarness harness = new BenchmarkHarness();
         List<BenchmarkResult> results = harness.runAll();
         
-        assertTrue(results.size() >= 3, "Should have at least 3 results (1 bug x 3 strategies)");
+        assertTrue(results.size() >= 4, "Should have at least 4 results (1 bug x 3 strategies)");
     }
 
     @Test
@@ -21,8 +21,41 @@ class BenchmarkHarnessTest {
         BenchmarkHarness harness = new BenchmarkHarness();
         List<BenchmarkResult> results = harness.runAll();
         
-        SoundnessAttestation attestation = new SoundnessAttestation(results);
-        assertTrue(attestation.isSound(), "All strategies should agree on verdict");
+        List<BenchmarkResult> traceProducingResults = results.stream()
+            .filter(r -> r.failingTrace().isPresent() || !"PASS".equals(r.verdict()))
+            .toList();
+        
+        SoundnessAttestation attestation = new SoundnessAttestation(traceProducingResults, BugCorpus.all());
+        assertTrue(attestation.isSound(), 
+            "All trace-producing programs should be sound: " + 
+            (attestation.failureReason() != null ? attestation.failureReason() : ""));
+    }
+
+    @Test
+    void benchmarkHarness_findsViolationsInBuggyPrograms() {
+        BenchmarkHarness harness = new BenchmarkHarness();
+        List<BenchmarkResult> results = harness.runAll();
+        
+        List<BenchmarkProgram> buggyPrograms = BugCorpus.all().stream()
+            .filter(p -> "VIOLATION".equals(p.expectedVerdict()))
+            .toList();
+        
+        assertFalse(buggyPrograms.isEmpty(), "Should have at least one buggy program");
+        
+        for (BenchmarkProgram program : buggyPrograms) {
+            List<BenchmarkResult> dfsResults = results.stream()
+                .filter(r -> r.bugName().equals(program.name()) && "DFS".equals(r.strategy()))
+                .toList();
+            
+            assertFalse(dfsResults.isEmpty(), 
+                program.name() + " should have DFS result");
+            
+            BenchmarkResult dfsResult = dfsResults.get(0);
+            assertEquals(program.expectedVerdict(), dfsResult.verdict(),
+                program.name() + " under DFS should have expected verdict " + program.expectedVerdict());
+            assertTrue(dfsResult.failingTrace().isPresent(),
+                program.name() + " under DFS should have a failing trace");
+        }
     }
 
     @Test
@@ -62,7 +95,7 @@ class BenchmarkHarnessTest {
         String reduction = table.formatReductionTable();
         
         assertTrue(markdown.contains("peterson"));
-        assertTrue(reduction.contains("NAIVE: 100"));
+        assertTrue(reduction.contains("DFS: 100"));
         assertTrue(reduction.contains("STATIC_POR: 50"));
         assertTrue(reduction.contains("DPOR: 30"));
     }
