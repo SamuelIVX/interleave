@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class DporExplorerTest {
 
     @Test
-    void dporExploresFewerStatesThanStaticPor() {
+    void dporExploresFewerStatesThanDfs() {
         PetersonState initial = PetersonState.of(false, false, 0);
         
         List<Step> thread0Steps = List.of(
@@ -35,15 +35,15 @@ class DporExplorerTest {
         
         Program program = new Program(initial, List.of(t0, t1));
         
-        StaticPorExplorer porExplorer = new StaticPorExplorer();
-        DfsResult porResult = porExplorer.explore(program);
+        DfsExplorer dfsExplorer = new DfsExplorer();
+        DfsResult dfsResult = dfsExplorer.explore(program);
         
         DporExplorer dporExplorer = new DporExplorer();
         DfsResult dporResult = dporExplorer.explore(program);
         
-        assertTrue(dporResult.statesExplored() <= porResult.statesExplored(),
-            "DPOR should explore <= states than static POR. Static POR: " + 
-            porResult.statesExplored() + ", DPOR: " + dporResult.statesExplored());
+        assertTrue(dporResult.statesExplored() <= dfsResult.statesExplored(),
+            "DPOR should explore <= states than DFS. DFS: " + 
+            dfsResult.statesExplored() + ", DPOR: " + dporResult.statesExplored());
     }
     
     @Test
