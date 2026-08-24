@@ -95,7 +95,7 @@ public final class DporExplorer {
             HappensBefore nextHappensBefore = happensBefore.copy();
             for (int otherId : enabled) {
                 if (otherId != threadId) {
-                    nextHappensBefore.record(threadId, otherId);
+                    nextHappensBefore.record(threadId, otherId, step);
                 }
             }
             
@@ -165,8 +165,11 @@ public final class DporExplorer {
             boolean dependent = false;
             for (int pred : predecessors) {
                 ModelThread predThread = program.threads().get(pred);
-                int predPc = config.programCounters().get(pred);
-                Step predStep = predThread.steps().get(predPc);
+                Step predStep = happensBefore.getStep(pred, threadId);
+                if (predStep == null) {
+                    int predPc = config.programCounters().get(pred);
+                    predStep = predThread.steps().get(predPc);
+                }
                 if (predStep != null && !relation.areIndependent(step, predStep)) {
                     dependent = true;
                     break;
