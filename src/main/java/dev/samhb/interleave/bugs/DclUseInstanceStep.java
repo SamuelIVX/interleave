@@ -22,7 +22,7 @@ public final class DclUseInstanceStep implements Step {
 
     @Override
     public Set<MemoryLocation> writes() {
-        return Set.of(MemoryLocation.of("control"));
+        return Set.of(MemoryLocation.of("observedInstance"));
     }
 
     @Override
