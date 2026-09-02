@@ -10,6 +10,7 @@ public final class DclState implements SharedState {
     private boolean locked;
     private int lockOwner; // -1 if unlocked, 0 or 1 for thread ID
     private boolean control;
+    private Object observedInstance; // what T1 has observed via DclUseInstanceStep
 
     public DclState(boolean initialized) {
         this.initialized = initialized;
@@ -17,6 +18,7 @@ public final class DclState implements SharedState {
         this.locked = false;
         this.lockOwner = -1;
         this.control = false;
+        this.observedInstance = null;
     }
 
     public static DclState of(boolean initialized) {
@@ -37,6 +39,14 @@ public final class DclState implements SharedState {
 
     public void setInstance(Object instance) {
         this.instance = instance;
+    }
+
+    public Object observedInstance() {
+        return observedInstance;
+    }
+
+    public void setObservedInstance(Object observedInstance) {
+        this.observedInstance = observedInstance;
     }
 
     public boolean locked() {
@@ -74,6 +84,7 @@ public final class DclState implements SharedState {
         copy.locked = this.locked;
         copy.lockOwner = this.lockOwner;
         copy.control = this.control;
+        copy.observedInstance = this.observedInstance;
         return copy;
     }
 
@@ -84,6 +95,7 @@ public final class DclState implements SharedState {
         out.writeBoolean(locked);
         out.writeInt(lockOwner);
         out.writeBoolean(control);
+        out.writeBoolean(observedInstance != null);
     }
 
     @Override
@@ -91,20 +103,21 @@ public final class DclState implements SharedState {
         if (this == o) return true;
         if (!(o instanceof DclState that)) return false;
         return initialized == that.initialized 
-            && Objects.equals(instance, that.instance)
+            && (instance != null) == (that.instance != null)
             && locked == that.locked
             && lockOwner == that.lockOwner
-            && control == that.control;
+            && control == that.control
+            && (observedInstance != null) == (that.observedInstance != null);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(initialized, instance, locked, lockOwner, control);
+        return Objects.hash(initialized, instance != null, locked, lockOwner, control, observedInstance != null);
     }
 
     @Override
     public String toString() {
-        return String.format("DclState{initialized=%b, instance=%s, locked=%b, lockOwner=%d, control=%b}", 
-            initialized, instance, locked, lockOwner, control);
+        return String.format("DclState{initialized=%b, instance=%s, locked=%b, lockOwner=%d, control=%b, observedInstance=%s}", 
+            initialized, instance, locked, lockOwner, control, observedInstance);
     }
 }

@@ -26,11 +26,14 @@ public final class TornCounter {
 
         // Invariant: if high == 2 (T0 has written high), then low must also be 2
         // The torn write bug: T1 reads high=2, low=0 (observed high without low)
+        // Gate on T1 actually performing the read and observing the torn state
         Invariant invariant = (state, config) -> {
             PairState ps = (PairState) state;
-            // Check at every configuration
-            if (ps.high() == 2 && ps.low() != 2) {
-                return false; // VIOLATION: torn write observed
+            // Only check if T1 has performed the read
+            if (ps.hasObservation()) {
+                if (ps.observedHigh() == 2 && ps.observedLow() != 2) {
+                    return false; // VIOLATION: T1 observed torn write
+                }
             }
             return true;
         };

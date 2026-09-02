@@ -33,6 +33,8 @@ public final class DclUseInstanceStep implements Step {
 
     @Override
     public StepOutcome execute(SharedState state) {
+        DclState ds = (DclState) state;
+        ds.setObservedInstance(ds.instance());
         return StepOutcome.ADVANCED;
     }
 

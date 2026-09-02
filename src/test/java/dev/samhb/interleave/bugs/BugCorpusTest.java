@@ -7,9 +7,9 @@ import static org.junit.jupiter.api.Assertions.*;
 class BugCorpusTest {
 
     @Test
-    void corpusHasAtLeastSixPrograms() {
-        assertTrue(BugCorpus.all().size() >= 6,
-            "Expected at least 6 programs in corpus, got " + BugCorpus.all().size());
+    void corpusHasExactlySevenPrograms() {
+        assertEquals(7, BugCorpus.all().size(),
+            "Expected exactly 7 programs in corpus, got " + BugCorpus.all().size());
     }
 
     @Test

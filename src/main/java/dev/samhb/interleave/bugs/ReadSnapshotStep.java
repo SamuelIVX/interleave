@@ -33,6 +33,8 @@ public final class ReadSnapshotStep implements Step {
 
     @Override
     public StepOutcome execute(SharedState state) {
+        PairState ps = (PairState) state;
+        ps.recordObservation(ps.high(), ps.low());
         return StepOutcome.ADVANCED;
     }
 

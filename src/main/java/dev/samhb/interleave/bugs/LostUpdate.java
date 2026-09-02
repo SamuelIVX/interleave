@@ -12,12 +12,10 @@ public final class LostUpdate {
         // The lost update happens when both threads read 0, both write 1
         List<Step> thread0Steps = List.of(
             new ReadCounterStep(0),
-            new ReadCounterStep(0),
             new WriteCounterStep(0)
         );
 
         List<Step> thread1Steps = List.of(
-            new ReadCounterStep(1),
             new ReadCounterStep(1),
             new WriteCounterStep(1)
         );

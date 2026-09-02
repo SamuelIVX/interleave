@@ -48,10 +48,11 @@ public final class DoubleCheckedLocking {
         
         // Invariant: if instance is non-null, it must be fully initialized
         // The bug: T1 can see instance != null while initialized == false
+        // Gate on T1 actually observing the half-constructed state
         Invariant invariant = (s, config) -> {
             DclState state = (DclState) s;
-            if (state.instance() != null && !state.initialized()) {
-                return false; // VIOLATION: observed half-constructed object
+            if (state.observedInstance() != null && !state.initialized()) {
+                return false; // VIOLATION: T1 observed half-constructed object
             }
             return true;
         };
