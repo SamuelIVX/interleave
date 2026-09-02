@@ -21,7 +21,13 @@ public final class DeadlockWriteFlagStep implements Step {
 
     @Override
     public Set<MemoryLocation> writes() {
-        return Collections.singleton(MemoryLocation.of("flag[" + writerId + "]"));
+        // Write to both the specific flag and a shared "control" location
+        // to make the two writes dependent in the IndependenceRelation,
+        // forcing DPOR to explore both write orderings.
+        return Set.of(
+            MemoryLocation.of("flag[" + writerId + "]"),
+            MemoryLocation.of("control")
+        );
     }
 
     @Override
@@ -33,6 +39,8 @@ public final class DeadlockWriteFlagStep implements Step {
     public StepOutcome execute(SharedState state) {
         DeadlockState ds = (DeadlockState) state;
         ds.setFlag(writerId, value);
+        // Also write to shared control location for DPOR dependency tracking
+        ds.setControl(true);
         return StepOutcome.ADVANCED;
     }
 
