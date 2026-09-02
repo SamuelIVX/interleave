@@ -10,6 +10,9 @@ public final class BugCorpus {
         programs.add(brokenPeterson());
         programs.add(brokenPetersonV2());
         programs.add(deadlock());
+        programs.add(doubleCheckedLocking());
+        programs.add(lostUpdate());
+        programs.add(tornCounter());
         return programs;
     }
 
@@ -51,5 +54,17 @@ public final class BugCorpus {
 
     public static BenchmarkProgram deadlock() {
         return DeadlockProgram.program();
+    }
+
+    public static BenchmarkProgram doubleCheckedLocking() {
+        return DoubleCheckedLocking.program();
+    }
+
+    public static BenchmarkProgram lostUpdate() {
+        return LostUpdate.program();
+    }
+
+    public static BenchmarkProgram tornCounter() {
+        return TornCounter.program();
     }
 }
