@@ -99,7 +99,7 @@ public final class DporExplorer {
                 }
             }
             
-            SleepSet nextSleepSet = sleepSet.copy();
+            SleepSet nextSleepSet = sleepSet.copyFiltering(relation, step);
             for (int otherId : enabled) {
                 if (otherId != threadId) {
                     ModelThread otherThread = program.threads().get(otherId);
@@ -166,8 +166,6 @@ public final class DporExplorer {
             for (int pred : predecessors) {
                 Step predStep = happensBefore.getStep(pred, threadId);
                 if (predStep == null) {
-                    // No step directly recorded; look up the step at the PC
-                    // where the happens-before edge was originally recorded.
                     int recordedPc = happensBefore.getPcAtRecord(pred, threadId);
                     if (recordedPc < 0) {
                         continue; // truly no record
