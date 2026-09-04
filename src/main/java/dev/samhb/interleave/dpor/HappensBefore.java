@@ -5,15 +5,21 @@ import java.util.*;
 
 public final class HappensBefore {
     private final Map<Integer, Map<Integer, Step>> edges;
+    private final Map<Integer, Map<Integer, Integer>> edgePcs;
     private final Map<Integer, Integer> threadLocalCounters;
 
     public HappensBefore() {
         this.edges = new LinkedHashMap<>();
+        this.edgePcs = new LinkedHashMap<>();
         this.threadLocalCounters = new LinkedHashMap<>();
     }
 
-    public void record(int sourceThreadId, int targetThreadId, Step sourceStep) {
-        edges.computeIfAbsent(sourceThreadId, k -> new LinkedHashMap<>()).put(targetThreadId, sourceStep);
+    public void record(int sourceThreadId, int targetThreadId, Step sourceStep, int sourcePc) {
+        // Only record the first (earliest) PC for each edge pair
+        edges.computeIfAbsent(sourceThreadId, k -> new LinkedHashMap<>())
+             .putIfAbsent(targetThreadId, sourceStep);
+        edgePcs.computeIfAbsent(sourceThreadId, k -> new LinkedHashMap<>())
+               .putIfAbsent(targetThreadId, sourcePc);
         threadLocalCounters.merge(sourceThreadId, 1, Integer::sum);
     }
 
@@ -62,6 +68,15 @@ public final class HappensBefore {
         return targets.get(targetThreadId);
     }
 
+    public int getPcAtRecord(int sourceThreadId, int targetThreadId) {
+        Map<Integer, Integer> targets = edgePcs.get(sourceThreadId);
+        if (targets == null) {
+            return -1;
+        }
+        Integer pc = targets.get(targetThreadId);
+        return pc == null ? -1 : pc;
+    }
+
     public int getThreadLocalCounter(int threadId) {
         return threadLocalCounters.getOrDefault(threadId, 0);
     }
@@ -70,6 +85,9 @@ public final class HappensBefore {
         HappensBefore copy = new HappensBefore();
         for (Map.Entry<Integer, Map<Integer, Step>> entry : edges.entrySet()) {
             copy.edges.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
+        }
+        for (Map.Entry<Integer, Map<Integer, Integer>> entry : edgePcs.entrySet()) {
+            copy.edgePcs.put(entry.getKey(), new LinkedHashMap<>(entry.getValue()));
         }
         for (Map.Entry<Integer, Integer> entry : threadLocalCounters.entrySet()) {
             copy.threadLocalCounters.put(entry.getKey(), entry.getValue());

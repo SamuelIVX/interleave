@@ -110,8 +110,8 @@ class DporExplorerTest {
     void happensBefore_computesTransitiveClosure() {
         HappensBefore hb = new HappensBefore();
         Step step = new WriteFlagStep(0, true);
-        hb.record(0, 1, step);
-        hb.record(1, 2, step);
+        hb.record(0, 1, step, 0);
+        hb.record(1, 2, step, 0);
         
         assertTrue(hb.happensBefore(0, 1), "Direct edge should hold");
         assertTrue(hb.happensBefore(1, 2), "Direct edge should hold");

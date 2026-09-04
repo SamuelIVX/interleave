@@ -1,5 +1,6 @@
 package dev.samhb.interleave.dpor;
 
+import dev.samhb.interleave.por.IndependenceRelation;
 import dev.samhb.interleave.core.Step;
 import java.util.*;
 
@@ -25,6 +26,16 @@ public final class SleepSet {
 
     public SleepSet copy() {
         return new SleepSet(new LinkedHashMap<>(sleepingSteps));
+    }
+
+    public SleepSet copyFiltering(dev.samhb.interleave.por.IndependenceRelation relation, Step currentStep) {
+        SleepSet filtered = new SleepSet();
+        for (Map.Entry<Integer, Step> entry : sleepingSteps.entrySet()) {
+            if (relation.areIndependent(currentStep, entry.getValue())) {
+                filtered.sleepingSteps.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return filtered;
     }
 
     public void remove(int threadId) {
