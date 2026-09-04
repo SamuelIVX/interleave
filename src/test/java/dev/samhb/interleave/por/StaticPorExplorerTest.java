@@ -1,8 +1,10 @@
 package dev.samhb.interleave.por;
 
+import dev.samhb.interleave.bugs.*;
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.DfsExplorer;
 import dev.samhb.interleave.search.DfsResult;
+import dev.samhb.interleave.search.Invariant;
 import org.junit.jupiter.api.Test;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -92,5 +94,40 @@ class StaticPorExplorerTest {
             "Writes to different flags should be independent");
         assertFalse(relation.areIndependent(writeFlag0, busyWaitOn0),
             "Write to flag[0] and busy-wait on flag[0] should be dependent");
+    }
+
+    @Test
+    void staticPorReducesStatesWhenInvariantPresent() {
+        // Use a buggy program from the corpus that has an invariant
+        // Static POR should reduce states compared to DFS even with an invariant
+        BenchmarkProgram program = BugCorpus.all().stream()
+            .filter(p -> "lost-update".equals(p.name()))
+            .findFirst()
+            .orElseThrow();
+        
+        Invariant invariant = program.invariant().orElseThrow();
+        
+        DfsExplorer dfsExplorer = new DfsExplorer();
+        DfsResult dfsResult = dfsExplorer.explore(program.program(), invariant);
+        
+        StaticPorExplorer porExplorer = new StaticPorExplorer();
+        DfsResult porResult = porExplorer.explore(program.program(), invariant);
+        
+        // With the bug, Static POR falls back to plain DFS and explores same states
+        // After fix, Static POR should explore strictly fewer states
+        assertTrue(porResult.statesExplored() < dfsResult.statesExplored(),
+            "Static POR should reduce states with invariant. DFS: " + 
+            dfsResult.statesExplored() + ", POR: " + porResult.statesExplored());
+        
+        // Both should still produce the same verdict
+        String dfsVerdict = dfsResult.traces().stream()
+            .anyMatch(t -> t.outcome() == dev.samhb.interleave.search.TraceOutcome.VIOLATION) ? "VIOLATION" :
+            dfsResult.traces().stream()
+            .anyMatch(t -> t.outcome() == dev.samhb.interleave.search.TraceOutcome.DEADLOCK) ? "DEADLOCK" : "PASS";
+        String porVerdict = porResult.traces().stream()
+            .anyMatch(t -> t.outcome() == dev.samhb.interleave.search.TraceOutcome.VIOLATION) ? "VIOLATION" :
+            porResult.traces().stream()
+            .anyMatch(t -> t.outcome() == dev.samhb.interleave.search.TraceOutcome.DEADLOCK) ? "DEADLOCK" : "PASS";
+        assertEquals(dfsVerdict, porVerdict, "Verdicts must match");
     }
 }

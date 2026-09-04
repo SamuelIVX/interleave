@@ -14,15 +14,12 @@ public final class ReadCounterStep implements Step {
 
     @Override
     public Set<MemoryLocation> reads() {
-        return Set.of(
-            MemoryLocation.of("counter"),
-            MemoryLocation.of("control")
-        );
+        return Set.of(MemoryLocation.of("counter"));
     }
 
     @Override
     public Set<MemoryLocation> writes() {
-        return Set.of(MemoryLocation.of("control"));
+        return Collections.emptySet();
     }
 
     @Override
@@ -34,7 +31,6 @@ public final class ReadCounterStep implements Step {
     public StepOutcome execute(SharedState state) {
         CounterState cs = (CounterState) state;
         cs.setRegister(threadId, cs.counter());
-        cs.setControl(true);
         return StepOutcome.ADVANCED;
     }
 

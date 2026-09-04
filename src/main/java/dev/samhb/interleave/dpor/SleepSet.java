@@ -27,6 +27,16 @@ public final class SleepSet {
         return new SleepSet(new LinkedHashMap<>(sleepingSteps));
     }
 
+    public SleepSet copyFiltering(dev.samhb.interleave.por.IndependenceRelation relation, Step currentStep) {
+        SleepSet filtered = new SleepSet();
+        for (Map.Entry<Integer, Step> entry : sleepingSteps.entrySet()) {
+            if (relation.areIndependent(currentStep, entry.getValue())) {
+                filtered.sleepingSteps.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return filtered;
+    }
+
     public void remove(int threadId) {
         sleepingSteps.remove(threadId);
     }
