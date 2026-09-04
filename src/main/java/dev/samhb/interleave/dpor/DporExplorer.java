@@ -167,10 +167,15 @@ public final class DporExplorer {
             for (int pred : predecessors) {
                 Step predStep = happensBefore.getStep(pred, threadId);
                 if (predStep == null) {
-                    // No recorded dependency edge; treat as not dependent.
-                    // Falling back to current PC is incorrect because the predecessor
-                    // may have moved past the step that caused the dependency.
-                    continue;
+                    int recordedPc = happensBefore.getPcAtRecord(pred, threadId);
+                    if (recordedPc < 0) {
+                        continue; // truly no record
+                    }
+                    ModelThread predThread = program.threads().get(pred);
+                    if (recordedPc >= predThread.steps().size()) {
+                        continue; // predecessor already finished
+                    }
+                    predStep = predThread.steps().get(recordedPc);
                 }
                 if (!relation.areIndependent(step, predStep)) {
                     dependent = true;

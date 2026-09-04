@@ -81,8 +81,13 @@ public final class StaticPorExplorer {
                    visitedStates, traces, invariant, statesExplored);
         }
         
-if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+        if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
+            // Check invariant before reporting deadlock
+            if (invariant != null && !invariant.holds(config.state(), config)) {
+                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
+            } else {
+                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+            }
         }
     }
 }

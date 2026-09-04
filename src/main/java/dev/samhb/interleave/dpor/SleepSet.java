@@ -1,5 +1,6 @@
 package dev.samhb.interleave.dpor;
 
+import dev.samhb.interleave.por.IndependenceRelation;
 import dev.samhb.interleave.core.Step;
 import java.util.*;
 

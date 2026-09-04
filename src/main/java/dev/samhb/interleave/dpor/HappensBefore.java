@@ -15,8 +15,11 @@ public final class HappensBefore {
     }
 
     public void record(int sourceThreadId, int targetThreadId, Step sourceStep, int sourcePc) {
-        edges.computeIfAbsent(sourceThreadId, k -> new LinkedHashMap<>()).put(targetThreadId, sourceStep);
-        edgePcs.computeIfAbsent(sourceThreadId, k -> new LinkedHashMap<>()).put(targetThreadId, sourcePc);
+        // Only record the first (earliest) PC for each edge pair
+        edges.computeIfAbsent(sourceThreadId, k -> new LinkedHashMap<>())
+             .putIfAbsent(targetThreadId, sourceStep);
+        edgePcs.computeIfAbsent(sourceThreadId, k -> new LinkedHashMap<>())
+               .putIfAbsent(targetThreadId, sourcePc);
         threadLocalCounters.merge(sourceThreadId, 1, Integer::sum);
     }
 
