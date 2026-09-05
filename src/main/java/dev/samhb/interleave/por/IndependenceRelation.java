@@ -10,16 +10,16 @@ public final class IndependenceRelation {
         Set<dev.samhb.interleave.core.MemoryLocation> bReads = b.reads();
         Set<dev.samhb.interleave.core.MemoryLocation> bWrites = b.writes();
         
-        Set<dev.samhb.interleave.core.MemoryLocation> aTotal = new HashSet<>();
-        aTotal.addAll(aReads);
-        aTotal.addAll(aWrites);
-        
-        Set<dev.samhb.interleave.core.MemoryLocation> bTotal = new HashSet<>();
-        bTotal.addAll(bReads);
-        bTotal.addAll(bWrites);
-        
-        for (dev.samhb.interleave.core.MemoryLocation loc : aTotal) {
-            if (bTotal.contains(loc)) {
+        // Two steps are independent if:
+        // 1. Neither writes to a location the other reads or writes
+        // (Read-read is independent; write-read and write-write are conflicts)
+        for (dev.samhb.interleave.core.MemoryLocation loc : aWrites) {
+            if (bReads.contains(loc) || bWrites.contains(loc)) {
+                return false;
+            }
+        }
+        for (dev.samhb.interleave.core.MemoryLocation loc : bWrites) {
+            if (aReads.contains(loc) || aWrites.contains(loc)) {
                 return false;
             }
         }

@@ -1,9 +1,11 @@
 package dev.samhb.interleave.dpor;
 
+import dev.samhb.interleave.bugs.*;
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.por.StaticPorExplorer;
 import dev.samhb.interleave.search.DfsExplorer;
 import dev.samhb.interleave.search.DfsResult;
+import dev.samhb.interleave.search.Invariant;
 import org.junit.jupiter.api.Test;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;

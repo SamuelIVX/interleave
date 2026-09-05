@@ -67,7 +67,12 @@ public final class DporExplorer {
         
         List<Integer> enabled = config.enabledThreadIds();
         if (enabled.isEmpty()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+            // Check invariant before reporting deadlock
+            if (invariant != null && !invariant.holds(config.state(), config)) {
+                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
+            } else {
+                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+            }
             return;
         }
         
@@ -212,7 +217,7 @@ public final class DporExplorer {
             
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
             
-            dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
+dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                     visitedStates, traces, invariant, statesExplored,
                     newSleepSet, happensBefore);
         }
@@ -246,7 +251,12 @@ public final class DporExplorer {
         
         List<Integer> enabled = config.enabledThreadIds();
         if (enabled.isEmpty()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+            // Check invariant before reporting deadlock
+            if (invariant != null && !invariant.holds(config.state(), config)) {
+                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
+            } else {
+                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+            }
             return;
         }
         
