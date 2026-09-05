@@ -121,15 +121,18 @@ class DporExplorerTest {
 
     @Test
     void wakeUp_usesRecordedPcNotCurrentPc() {
-        // This test demonstrates the bug where wakeUp falls back to current PC
-        // when no step is recorded, instead of using the PC at which the
-        // happens-before edge was originally recorded.
-        
-        // Program where T0 writes to A, then T0 writes to B, then T1 reads A.
-        // The happens-before edge T0->T1 is recorded at T0's PC=0 (write to A).
-        // But by the time T1 runs, T0 has moved to PC=2 (write to B).
-        // If T1 is sleeping and wakeUp is triggered, it should check against
-        // the step at recorded PC=0 (write to A), not current PC=2 (write to B).
+        // This test verifies that wakeUp correctly wakes a sleeping thread
+        // using the recorded PC at the time the happens-before edge was created.
+        // 
+        // Scenario: T0 writes to A (PC 0), then writes to B (PC 1).
+        // T1 reads A. The happens-before edge T0->T1 is recorded at T0's PC=0 (write to A).
+        // By the time T1 runs, T0 has moved to PC=1 (write to B).
+        // If wakeUp incorrectly used T0's current PC (write to B), it would see
+        // write B and read A as independent, and incorrectly NOT wake T1.
+        // With the fix (recording PC at edge creation via putIfAbsent),
+        // the recorded step is write A (PC 0), so wakeUp correctly wakes T1.
+        // The test verifies this by asserting DPOR explores the interleaving
+        // where T1 reads after T0's write A (at least 3 states explored).
         
         // Shared state with two fields A and B
         class TestState implements SharedState {
@@ -270,12 +273,15 @@ class DporExplorerTest {
         
         // With invariant that always passes, we just check that DPOR
         // explores the interleaving where T0's write A comes before T1's read A
+        // (validating that wakeUp correctly uses the recorded PC, not the current PC)
         DporExplorer dporExplorer = new DporExplorer();
         DfsResult result = dporExplorer.explore(program);
         
         // The key assertion: DPOR should find both orderings of T0's writes
         // relative to T1's read, meaning it should explore at least 3 states
-        // (T0-PC0 then T1, T0-PC1 then T1, and T1 then T0)
+        // (T0-PC0 then T1, T0-PC1 then T1, and T1 then T0).
+        // This directly validates that wakeUp correctly woke the sleeping thread
+        // using the recorded PC (write A at PC 0), not the current PC (write B at PC 1).
         assertTrue(result.statesExplored() >= 3, 
             "DPOR should explore interleavings where T1's read happens after T0's write to A. " +
             "States explored: " + result.statesExplored());
