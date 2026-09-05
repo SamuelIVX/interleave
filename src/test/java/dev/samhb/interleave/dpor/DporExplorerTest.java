@@ -138,7 +138,6 @@ class DporExplorerTest {
         class TestState implements SharedState {
             int a = 0;
             int b = 0;
-            boolean control = false;
             
             public TestState() {}
             
@@ -146,12 +145,10 @@ class DporExplorerTest {
                 TestState copy = new TestState();
                 copy.a = this.a;
                 copy.b = this.b;
-                copy.control = this.control;
                 return copy;
             }
             
             @Override public void encodeTo(java.io.DataOutput out) throws java.io.IOException {
-                out.writeBoolean(control);
                 out.writeInt(a);
                 out.writeInt(b);
             }
@@ -159,15 +156,15 @@ class DporExplorerTest {
             @Override public boolean equals(Object o) {
                 if (this == o) return true;
                 if (!(o instanceof TestState that)) return false;
-                return a == that.a && b == that.b && control == that.control;
+                return a == that.a && b == that.b;
             }
             
             @Override public int hashCode() {
-                return Objects.hash(a, b, control);
+                return Objects.hash(a, b);
             }
             
             @Override public String toString() {
-                return String.format("TestState{a=%d, b=%d, control=%b}", a, b, control);
+                return String.format("TestState{a=%d, b=%d}", a, b);
             }
         }
         
@@ -176,10 +173,10 @@ class DporExplorerTest {
             private final int threadId;
             public WriteAStep(int threadId) { this.threadId = threadId; }
             @Override public Set<MemoryLocation> reads() { 
-                return Set.of(MemoryLocation.of("control")); 
+                return Collections.emptySet(); 
             }
             @Override public Set<MemoryLocation> writes() { 
-                return Set.of(MemoryLocation.of("a"), MemoryLocation.of("control")); 
+                return Set.of(MemoryLocation.of("a")); 
             }
             @Override public boolean enabled(SharedState state) { 
                 return state instanceof TestState; 
@@ -187,7 +184,6 @@ class DporExplorerTest {
             @Override public StepOutcome execute(SharedState state) {
                 TestState ts = (TestState) state;
                 ts.a = 1;
-                ts.control = true;
                 return StepOutcome.ADVANCED;
             }
             @Override public boolean equals(Object o) {
@@ -203,10 +199,10 @@ class DporExplorerTest {
             private final int threadId;
             public WriteBStep(int threadId) { this.threadId = threadId; }
             @Override public Set<MemoryLocation> reads() { 
-                return Set.of(MemoryLocation.of("control")); 
+                return Collections.emptySet(); 
             }
             @Override public Set<MemoryLocation> writes() { 
-                return Set.of(MemoryLocation.of("b"), MemoryLocation.of("control")); 
+                return Set.of(MemoryLocation.of("b")); 
             }
             @Override public boolean enabled(SharedState state) { 
                 return state instanceof TestState; 
@@ -214,7 +210,6 @@ class DporExplorerTest {
             @Override public StepOutcome execute(SharedState state) {
                 TestState ts = (TestState) state;
                 ts.b = 1;
-                ts.control = true;
                 return StepOutcome.ADVANCED;
             }
             @Override public boolean equals(Object o) {
@@ -230,10 +225,10 @@ class DporExplorerTest {
             private final int threadId;
             public ReadAStep(int threadId) { this.threadId = threadId; }
             @Override public Set<MemoryLocation> reads() { 
-                return Set.of(MemoryLocation.of("a"), MemoryLocation.of("control")); 
+                return Set.of(MemoryLocation.of("a")); 
             }
             @Override public Set<MemoryLocation> writes() { 
-                return Set.of(MemoryLocation.of("control")); 
+                return Collections.emptySet(); 
             }
             @Override public boolean enabled(SharedState state) { 
                 return state instanceof TestState; 
