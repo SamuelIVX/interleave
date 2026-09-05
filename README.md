@@ -2,7 +2,7 @@
 
 An explicit-state model checker for small shared-memory concurrent programs, written in Java. It explores every possible thread interleaving, checks invariants, and prints a deterministic, replayable failing trace when it finds a bug.
 
-The headline artifact is a states-explored reduction table: naive DFS → +hashing → +static POR → +DPOR (for example, `4.2M → 31K`).
+The headline artifact is a states-explored reduction table: naive DFS → +hashing → +static POR → +DPOR.
 
 ## Why this exists
 
@@ -34,8 +34,10 @@ The project is built as a clean, spec-driven proof-of-concept. It is not a produ
 ### Run
 
 ```bash
-./gradlew run
+./gradlew run --args=<bug-name>
 ```
+
+Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`, `double-checked-locking`, `lost-update`, `torn-counter`
 
 ### Test
 
@@ -43,20 +45,21 @@ The project is built as a clean, spec-driven proof-of-concept. It is not a produ
 ./gradlew test
 ```
 
-## Example output
+## Current benchmark results (2026-09-04)
 
-```
-$ ./gradlew run
+| Program | DFS | Static POR | DPOR | Verdict |
+|---------|-----|------------|------|---------|
+| peterson | 42 | 18 (57%↓) | 33 | PASS |
+| broken-peterson | 46 | 15 (67%↓) | 46 | VIOLATION |
+| broken-peterson-v2 | 46 | 12 (74%↓) | 46 | VIOLATION |
+| deadlock | 15 | 15 | 15 | DEADLOCK |
+| double-checked-locking | 23 | 20 (13%↓) | 23 | VIOLATION |
+| lost-update | 13 | 9 (31%↓) | 13* | VIOLATION |
+| torn-counter | 8 | 8 | 8 | VIOLATION |
 
-Program: broken-peterson
-  NAIVE:       4,201,003 states  |  2.4s  |  128MB
-  HASHING:         31,004 states  |  0.3s  |   12MB
-  STATIC_POR:      4,203 states  |  0.2s  |    8MB
-  DPOR:              901 executions |  0.2s  |    7MB
+*DPOR has a known soundness limitation for `lost-update` (sleep-set pruning misses the violation interleaving). Uses exhaustive DFS for invariants.
 
-Verdict: ASSERTION_VIOLATION
-Minimized trace: (t0, set-flag) -> (t1, set-flag) -> (t0, enter-cs) -> (t1, enter-cs)
-```
+Soundness attestation: all failing traces replay to genuine violations.
 
 ## Project structure
 
@@ -67,7 +70,7 @@ src/main/java/dev/samhb/interleave/
   state/       CanonicalEncoder, HashingStateStore, BitstateStore
   por/         IndependenceRelation, PersistentSetComputer, CycleProviso
   dpor/        DporExplorer, HappensBefore, SleepSet
-  bugs/        Concurrency classics corpus
+  bugs/        Concurrency classics corpus (7 programs)
   minimize/    DeltaDebugger (ddmin)
   report/      BenchmarkHarness, StatesExploredTable, SoundnessAttestation, ReportWriter
   cli/         Main
@@ -83,8 +86,23 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 - **Language:** Java 26+
 - **Build:** Gradle 8.11+
-- **Testing:** JUnit 5
+- **Testing:** JUnit 5 (38 tests passing)
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)
+
+## Recent improvements (2026-09-04)
+
+### PR #8: HappensBefore wake-up fix
+- `HappensBefore.record()` now uses `putIfAbsent` to preserve the first/earliest PC for each edge pair
+- `wakeUp()` uses recorded PC via `getPcAtRecord()` when `getStep()` returns null
+- `SleepSet.copyFiltering()` re-evaluates sleep set entries when current step changes
+- Test fixture updated to isolate recorded-PC dependency
+
+### PR #9: Static POR with invariant support
+- Static POR now always uses `porDfs()` regardless of invariant presence
+- `IndependenceRelation` treats read-read as independent (standard POR semantics)
+- Static POR reduces states with invariants: `broken-peterson` 46→15 (67%), `lost-update` 13→9 (31%)
+- DPOR uses exhaustive DFS path for invariants (`explore(program, invariant)` → `dfsDfs()`)
+- Removed dead `dfsDfs` from `StaticPorExplorer`, restored it in `DporExplorer`
 
 ## Future Extensions
 
