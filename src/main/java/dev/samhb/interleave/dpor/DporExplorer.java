@@ -114,7 +114,18 @@ public final class DporExplorer {
                         boolean independent = relation.areIndependent(step, otherStep);
                         boolean noInterference = !relation.hasEnableDisableInterference(config, threadId, otherId, program.threads());
                         if (independent && noInterference) {
-                            nextSleepSet.add(otherId, otherStep);
+                            boolean hasFutureDependent = false;
+                            List<Step> currentThreadSteps = thread.steps();
+                            for (int futurePc = pc + 1; futurePc < currentThreadSteps.size(); futurePc++) {
+                                Step futureStep = currentThreadSteps.get(futurePc);
+                                if (futureStep != null && !relation.areIndependent(futureStep, otherStep)) {
+                                    hasFutureDependent = true;
+                                    break;
+                                }
+                            }
+                            if (!hasFutureDependent) {
+                                nextSleepSet.add(otherId, otherStep);
+                            }
                         }
                     }
                 }
