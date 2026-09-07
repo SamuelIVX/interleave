@@ -6,6 +6,8 @@ import dev.samhb.interleave.por.StaticPorExplorer;
 import dev.samhb.interleave.search.DfsExplorer;
 import dev.samhb.interleave.search.DfsResult;
 import dev.samhb.interleave.search.Invariant;
+import dev.samhb.interleave.search.Trace;
+import dev.samhb.interleave.search.TraceOutcome;
 import org.junit.jupiter.api.Test;
 import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
@@ -282,5 +284,67 @@ class DporExplorerTest {
         assertTrue(result.statesExplored() >= 3, 
             "DPOR should explore interleavings where T1's read happens after T0's write to A. " +
             "States explored: " + result.statesExplored());
+    }
+
+    @Test
+    void dporWithoutInvariantReturnsPassForLostUpdate() {
+        // The lost-update bug is only detected when an invariant is checked.
+        // Without an invariant, DPOR explores all interleavings but doesn't
+        // check for the lost-update condition, so it reports PASS (no VIOLATION).
+        
+        BenchmarkProgram benchmark = LostUpdate.program();
+        Program program = benchmark.program();
+        
+        DporExplorer dporExplorer = new DporExplorer();
+        // Call explore WITHOUT the invariant parameter - uses pure dporDfs
+        DfsResult result = dporExplorer.explore(program);
+        
+        // Verify no VIOLATION traces found (all should be COMPLETED or DEADLOCK)
+        boolean hasViolation = result.traces().stream()
+                .anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
+        
+        assertFalse(hasViolation, 
+            "DPOR without invariant should not report VIOLATION for lost-update. " +
+            "Found traces: " + result.traces());
+        
+        // Should have some COMPLETED traces (the program terminates)
+        boolean hasCompleted = result.traces().stream()
+                .anyMatch(t -> t.outcome() == TraceOutcome.COMPLETED);
+        assertTrue(hasCompleted, "Should have COMPLETED traces");
+        
+        // Verify states were explored
+        assertTrue(result.statesExplored() > 0, "Should explore some states");
+    }
+
+    @Test
+    void dporFindsLostUpdateViolation() {
+        // The lost-update bug is detected when an invariant is provided.
+        // With an invariant, DPOR uses the exhaustive DFS fallback and
+        // correctly finds the VIOLATION trace where both threads read 0
+        // and both write 1 (final counter = 1 instead of expected 2).
+
+        BenchmarkProgram benchmark = LostUpdate.program();
+        Program program = benchmark.program();
+        Invariant invariant = benchmark.invariant().get();
+
+        DporExplorer dporExplorer = new DporExplorer();
+        // Call explore WITH the invariant parameter - triggers exhaustive DFS fallback
+        DfsResult result = dporExplorer.explore(program, invariant);
+
+        // Verify at least one VIOLATION trace is found
+        boolean hasViolation = result.traces().stream()
+                .anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
+
+        assertTrue(hasViolation,
+            "DPOR with invariant should find VIOLATION for lost-update. " +
+            "Found traces: " + result.traces());
+
+        // Should also have COMPLETED traces (the non-buggy interleavings)
+        boolean hasCompleted = result.traces().stream()
+                .anyMatch(t -> t.outcome() == TraceOutcome.COMPLETED);
+        assertTrue(hasCompleted, "Should have COMPLETED traces");
+
+        // Verify states were explored
+        assertTrue(result.statesExplored() > 0, "Should explore some states");
     }
 }
