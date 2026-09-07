@@ -347,4 +347,43 @@ class DporExplorerTest {
         // Verify states were explored
         assertTrue(result.statesExplored() > 0, "Should explore some states");
     }
+
+    @Test
+    void dporExploresLostUpdateInterleaving() {
+        // This test exercises the pure dporDfs path (no invariant) and verifies
+        // that the sleep set fix allows the critical interleaving to be explored:
+        // T0.read → T1.read → T0.write → T1.write (both threads read 0 before either writes)
+        //
+        // Before the fix: T1's read was incorrectly put to sleep (read-read independent),
+        // but T0's future write depends on T1's read (write-read conflict). The sleep set
+        // prevented the violating interleaving from being explored.
+        //
+        // After the fix: The future-dependency check prevents sleeping T1's read,
+        // allowing the interleaving where both reads happen before both writes.
+
+        BenchmarkProgram benchmark = LostUpdate.program();
+        Program program = benchmark.program();
+
+        DporExplorer dporExplorer = new DporExplorer();
+        // Pure DPOR (no invariant) - exercises dporDfs directly
+        DfsResult result = dporExplorer.explore(program);
+
+        // The fix ensures DPOR explores the interleaving where both reads execute
+        // before either write. This trace should have thread sequence [0, 1, 0, 1]
+        // (T0.read, T1.read, T0.write, T1.write).
+        boolean hasCriticalInterleaving = result.traces().stream()
+                .anyMatch(t -> {
+                    List<Integer> threadIds = t.threadIds();
+                    return threadIds.size() == 4 &&
+                           threadIds.get(0) == 0 &&  // T0.read
+                           threadIds.get(1) == 1 &&  // T1.read
+                           threadIds.get(2) == 0 &&  // T0.write
+                           threadIds.get(3) == 1;    // T1.write
+                });
+
+        assertTrue(hasCriticalInterleaving,
+            "DPOR sleep set fix should allow the critical lost-update interleaving " +
+            "(T0.read -> T1.read -> T0.write -> T1.write) to be explored. " +
+            "Found traces: " + result.traces());
+    }
 }
