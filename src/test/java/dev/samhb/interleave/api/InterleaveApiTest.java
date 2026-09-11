@@ -41,8 +41,8 @@ class InterleaveApiTest {
         assertNotNull(result);
         assertEquals(Strategy.DFS, result.strategyUsed());
         assertTrue(result.statesExplored() > 0);
-        assertNotNull(result.wallTimeMs());
-        assertNotNull(result.heapDeltaBytes());
+        assertTrue(result.wallTimeMs() >= 0);
+        assertTrue(result.heapDeltaBytes() >= 0);
     }
 
     @Test

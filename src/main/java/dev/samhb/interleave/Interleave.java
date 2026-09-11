@@ -2,8 +2,8 @@ package dev.samhb.interleave;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
-import dev.samhb.interleave.state.CanonicalEncoder;
-import dev.samhb.interleave.state.HashingStateStore;
+import dev.samhb.interleave.por.*;
+import dev.samhb.interleave.dpor.*;
 import java.util.*;
 
 public final class Interleave {
@@ -26,7 +26,11 @@ public final class Interleave {
         runtime.gc();
         long memBefore = runtime.totalMemory() - runtime.freeMemory();
 
-        DfsResult result = strategy.explore(program, invariant);
+        DfsResult result = switch (strategy) {
+            case DFS -> new DfsExplorer().explore(program, invariant);
+            case STATIC_POR -> new StaticPorExplorer().explore(program, invariant);
+            case DPOR -> new DporExplorer().explore(program, invariant);
+        };
 
         long memAfter = runtime.totalMemory() - runtime.freeMemory();
         long wallTime = System.currentTimeMillis() - start;

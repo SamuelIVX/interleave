@@ -11,7 +11,7 @@ public final class StatesExploredTable {
 
     public String formatMarkdown() {
         StringBuilder sb = new StringBuilder();
-        sb.append("| Bug | Strategy | States Explored | Wall Time (ms) | Peak Memory (bytes) | Verdict |\n");
+        sb.append("| Bug | Strategy | States Explored | Wall Time (ms) | Heap Delta (bytes) | Verdict |\n");
         sb.append("|-----|----------|-----------------|----------------|---------------------|---------|\n");
         
         for (BenchmarkResult result : results) {
@@ -50,8 +50,7 @@ public final class StatesExploredTable {
             long dpor = dporStates.getOrDefault(bugName, por);
             
             sb.append(String.format("### %s\n\n", bugName));
-            sb.append(String.format("- NAIVE: %,d states\n", dfs));
-            sb.append(String.format("- HASHING: %,d states\n", dfs));
+            sb.append(String.format("- DFS: %,d states\n", dfs));
             sb.append(String.format("- STATIC_POR: %,d states\n", por));
             sb.append(String.format("- DPOR: %,d states\n\n", dpor));
         }

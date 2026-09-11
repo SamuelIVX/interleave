@@ -1,7 +1,6 @@
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.*;
-import dev.samhb.interleave.state.CanonicalEncoder;
 import dev.samhb.interleave.state.HashingStateStore;
 import java.util.*;
 

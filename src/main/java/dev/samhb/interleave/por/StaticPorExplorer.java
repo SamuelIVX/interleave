@@ -76,6 +76,7 @@ public final class StaticPorExplorer {
             ModelThread thread = program.threads().get(threadId);
             int pc = config.programCounters().get(threadId);
             Step step = thread.steps().get(pc);
+            if (step == null) continue;
 
             SharedState nextState = config.state().deepCopy();
             StepOutcome outcome = step.execute(nextState);
@@ -93,7 +94,12 @@ public final class StaticPorExplorer {
         }
 
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+            // Check invariant before reporting deadlock
+            if (invariant != null && !invariant.holds(config.state(), config)) {
+                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
+            } else {
+                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+            }
         }
     }
 }

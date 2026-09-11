@@ -10,7 +10,7 @@ public final class Main {
     public static void main(String[] args) {
         if (args.length == 0) {
             System.out.println("Usage: interleave <bug-name> [--json]");
-            System.out.println("Available bugs: peterson, dekker");
+            System.out.println("Available bugs: " + String.join(", ", BugCorpus.all().stream().map(BenchmarkProgram::name).toList()));
             System.exit(1);
         }
         
@@ -20,7 +20,7 @@ public final class Main {
         BenchmarkProgram program = findProgram(bugName);
         if (program == null) {
             System.out.println("Unknown bug: " + bugName);
-            System.out.println("Available bugs: peterson, dekker");
+            System.out.println("Available bugs: " + String.join(", ", BugCorpus.all().stream().map(BenchmarkProgram::name).toList()));
             System.exit(1);
         }
         

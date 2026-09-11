@@ -50,7 +50,7 @@ public final class Configuration {
         boolean allTerm = threads.stream().allMatch(ModelThread::terminated);
         boolean deadlock = !allTerm && enabled.isEmpty();
 
-        return new Configuration(state, pcs, lockOwnership, waitQueues, enabled, allTerm, deadlock, null);
+        return new Configuration(state.deepCopy(), pcs, lockOwnership, waitQueues, enabled, allTerm, deadlock, null);
     }
 
     public SharedState state() {

@@ -1,5 +1,6 @@
 package dev.samhb.interleave.report;
 
+import dev.samhb.interleave.bugs.BugCorpus;
 import java.util.*;
 
 public final class ReportWriter {
@@ -21,7 +22,7 @@ public final class ReportWriter {
         sb.append(table.formatMarkdown());
         sb.append("\n");
         
-        SoundnessAttestation attestation = new SoundnessAttestation(results);
+        SoundnessAttestation attestation = new SoundnessAttestation(results, BugCorpus.all());
         sb.append(attestation.formatMarkdown());
         
         return sb.toString();
@@ -48,7 +49,7 @@ public final class ReportWriter {
         
         sb.append("  ],\n");
         
-        SoundnessAttestation attestation = new SoundnessAttestation(results);
+        SoundnessAttestation attestation = new SoundnessAttestation(results, BugCorpus.all());
         sb.append("  \"soundness\": ");
         sb.append(attestation.isSound() ? "true" : "false");
         sb.append("\n");

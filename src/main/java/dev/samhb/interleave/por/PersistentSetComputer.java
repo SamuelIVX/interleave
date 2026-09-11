@@ -36,6 +36,11 @@ public final class PersistentSetComputer {
                     dependent = true;
                     break;
                 }
+                
+                if (relation.hasEnableDisableInterference(config, threadId, otherId, threads)) {
+                    dependent = true;
+                    break;
+                }
             }
             
             if (dependent) {

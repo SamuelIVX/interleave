@@ -1,6 +1,7 @@
 package dev.samhb.interleave.report;
 
-import dev.samhb.interleave.search.DfsResult;
+import dev.samhb.interleave.search.Trace;
+import java.util.Optional;
 
 public final class BenchmarkResult {
     private final String strategy;
@@ -9,15 +10,23 @@ public final class BenchmarkResult {
     private final long wallTimeMs;
     private final long heapDeltaBytes;
     private final String verdict;
+    private final Trace failingTrace;
 
     public BenchmarkResult(String strategy, String bugName, long statesExplored, 
                            long wallTimeMs, long heapDeltaBytes, String verdict) {
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null);
+    }
+
+    public BenchmarkResult(String strategy, String bugName, long statesExplored, 
+                           long wallTimeMs, long heapDeltaBytes, String verdict,
+                           Trace failingTrace) {
         this.strategy = strategy;
         this.bugName = bugName;
         this.statesExplored = statesExplored;
         this.wallTimeMs = wallTimeMs;
         this.heapDeltaBytes = heapDeltaBytes;
         this.verdict = verdict;
+        this.failingTrace = failingTrace;
     }
 
     public String strategy() {
@@ -42,5 +51,9 @@ public final class BenchmarkResult {
 
     public String verdict() {
         return verdict;
+    }
+
+    public Optional<Trace> failingTrace() {
+        return Optional.ofNullable(failingTrace);
     }
 }
