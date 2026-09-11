@@ -43,6 +43,12 @@ public final class TraceRecord implements Serializable {
             sb.append(threadIds.get(i));
         }
         sb.append("],\n");
+        sb.append("  \"outcomes\": [");
+        for (int i = 0; i < outcomes.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append("\"").append(outcomes.get(i)).append("\"");
+        }
+        sb.append("],\n");
         sb.append("  \"outcome\": \"").append(outcome).append("\",\n");
         sb.append("  \"programHash\": \"").append(programHash).append("\"\n");
         sb.append("}");

@@ -85,17 +85,11 @@ public final class TestResult implements Serializable {
         StringBuilder sb = new StringBuilder();
         sb.append("[\n");
         for (int i = 0; i < traces.size(); i++) {
-            TraceRecord trace = traces.get(i);
-            sb.append("    {\"threads\": [");
-            for (int j = 0; j < trace.threadIds().size(); j++) {
-                if (j > 0) sb.append(", ");
-                sb.append(trace.threadIds().get(j));
-            }
-            sb.append("], \"outcome\": \"").append(trace.outcome()).append("\"}");
+            sb.append("  ").append(traces.get(i).toJson());
             if (i < traces.size() - 1) sb.append(",");
             sb.append("\n");
         }
-        sb.append("  ]");
+        sb.append("]");
         return sb.toString();
     }
 }

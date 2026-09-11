@@ -23,6 +23,7 @@ public final class DporExplorer {
 
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
+        effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues
         Map<String, Configuration> visitedStates = new LinkedHashMap<>();
         List<Trace> traces = new ArrayList<>();
         long[] statesExplored = new long[1];

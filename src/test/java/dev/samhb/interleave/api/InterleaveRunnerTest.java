@@ -7,6 +7,7 @@ import dev.samhb.interleave.*;
 import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class InterleaveRunnerTest {
@@ -90,28 +91,28 @@ class InterleaveRunnerTest {
     }
 
     @Test
-    void runner_threadSafe_parallelRuns() throws InterruptedException {
+    void runner_threadSafe_parallelRuns() throws InterruptedException, ExecutionException {
         InterleaveRunner runner = InterleaveRunner.builder().build();
         Program program = createPetersonProgram();
         
-        Thread t1 = new Thread(() -> {
-            for (int i = 0; i < 10; i++) {
-                TestResult result = runner.run(program);
-                assertNotNull(result);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Callable<Void> task = () -> {
+                for (int i = 0; i < 10; i++) {
+                    TestResult result = runner.run(program);
+                    assertNotNull(result);
+                }
+                return null;
+            };
+            
+            List<Future<Void>> futures = List.of(executor.submit(task), executor.submit(task));
+            
+            for (Future<Void> future : futures) {
+                future.get(); // Propagates any exception/assertion failure
             }
-        });
-        
-        Thread t2 = new Thread(() -> {
-            for (int i = 0; i < 10; i++) {
-                TestResult result = runner.run(program);
-                assertNotNull(result);
-            }
-        });
-        
-        t1.start();
-        t2.start();
-        t1.join();
-        t2.join();
+        } finally {
+            executor.shutdown();
+        }
     }
 
     @Test
