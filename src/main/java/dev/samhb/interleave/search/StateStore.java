@@ -1,12 +1,11 @@
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.Configuration;
-import dev.samhb.interleave.core.SharedState;
 
 public interface StateStore {
-    boolean isVisited(SharedState state);
+    boolean isVisited(Configuration config);
 
-    void markVisited(SharedState state);
+    void markVisited(Configuration config);
 
     void clear();
 }

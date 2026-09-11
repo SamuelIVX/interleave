@@ -21,8 +21,8 @@ class StateHashingTest {
     @Test
     void hashingStateStore_tracksVisitedStates() {
         HashingStateStore store = new HashingStateStore();
-        PetersonState a = PetersonState.of(false, false, 0);
-        PetersonState b = PetersonState.of(true, false, 0);
+        Configuration a = Configuration.initial(PetersonState.of(false, false, 0), List.of());
+        Configuration b = Configuration.initial(PetersonState.of(true, false, 0), List.of());
         
         assertFalse(store.isVisited(a));
         store.markVisited(a);
@@ -33,8 +33,8 @@ class StateHashingTest {
     @Test
     void bitstateStore_neverFalseNegative() {
         BitstateStore store = new BitstateStore(1024);
-        PetersonState a = PetersonState.of(false, false, 0);
-        PetersonState b = PetersonState.of(true, false, 0);
+        Configuration a = Configuration.initial(PetersonState.of(false, false, 0), List.of());
+        Configuration b = Configuration.initial(PetersonState.of(true, false, 0), List.of());
         
         store.markVisited(a);
         assertTrue(store.isVisited(a));

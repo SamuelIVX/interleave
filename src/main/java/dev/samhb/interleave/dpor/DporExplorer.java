@@ -2,6 +2,7 @@ package dev.samhb.interleave.dpor;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
+import dev.samhb.interleave.state.HashingStateStore;
 import java.util.*;
 
 public final class DporExplorer {
@@ -10,6 +11,11 @@ public final class DporExplorer {
     }
 
     public DfsResult explore(Program program, Invariant invariant) {
+        return explore(program, invariant, null, null);
+    }
+
+    public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
+        StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
         Map<String, Configuration> visitedStates = new LinkedHashMap<>();
         List<Trace> traces = new ArrayList<>();
         long[] statesExplored = new long[1];
@@ -17,7 +23,7 @@ public final class DporExplorer {
         Configuration initial = program.initialConfiguration();
         dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                 visitedStates, traces, invariant, statesExplored, 
-                new SleepSet());
+                new SleepSet(), effectiveStateStore, stateVisitor);
 
         return new DfsResult(visitedStates, traces, statesExplored[0]);
     }
@@ -29,32 +35,39 @@ public final class DporExplorer {
                          List<Trace> traces,
                          Invariant invariant,
                          long[] statesExplored,
-                         SleepSet sleepSet) {
+                         SleepSet sleepSet,
+                         StateStore stateStore,
+                         StateVisitor stateVisitor) {
         String key = config.state().toString() + "|" + config.programCounters();
-        
-        if (visitedStates.containsKey(key)) {
+
+        if (stateStore.isVisited(config)) {
             return;
         }
-        
+
+        stateStore.markVisited(config);
         visitedStates.put(key, config);
         statesExplored[0]++;
-        
+
+        if (stateVisitor != null) {
+            stateVisitor.onStateVisited(config);
+        }
+
         if (invariant != null && !invariant.holds(config.state(), config)) {
             traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
             return;
         }
-        
+
         if (config.allTerminated()) {
             traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED));
             return;
         }
-        
+
         List<Integer> enabled = config.enabledThreadIds();
         if (enabled.isEmpty()) {
             traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
             return;
         }
-        
+
         for (int threadId : enabled) {
             ModelThread thread = program.threads().get(threadId);
             int pc = config.programCounters().get(threadId);
@@ -62,18 +75,18 @@ public final class DporExplorer {
             if (step == null || sleepSet.contains(step)) {
                 continue;
             }
-            
+
             SharedState nextState = config.state().deepCopy();
             StepOutcome outcome = step.execute(nextState);
-            
+
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
-            
+
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
-            
+
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
-            
+
             SleepSet nextSleepSet = sleepSet.copy();
             for (int otherId : enabled) {
                 if (otherId != threadId) {
@@ -85,10 +98,10 @@ public final class DporExplorer {
                     }
                 }
             }
-            
+
             dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                     visitedStates, traces, invariant, statesExplored,
-                    nextSleepSet);
+                    nextSleepSet, stateStore, stateVisitor);
         }
     }
 }

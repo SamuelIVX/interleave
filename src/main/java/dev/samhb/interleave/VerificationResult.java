@@ -2,9 +2,10 @@ package dev.samhb.interleave;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
+import java.io.Serializable;
 import java.util.*;
 
-public final class VerificationResult {
+public final class VerificationResult implements Serializable {
     private final Strategy strategy;
     private final long statesExplored;
     private final long wallTimeMs;
@@ -71,6 +72,25 @@ public final class VerificationResult {
 
     public Strategy strategyUsed() {
         return strategy;
+    }
+
+    public TestResult toTestResult() {
+        List<TraceRecord> failingTraces = new ArrayList<>();
+        List<TraceRecord> deadlockedTraces = new ArrayList<>();
+        List<TraceRecord> completedTraces = new ArrayList<>();
+
+        for (Trace trace : this.failingTraces) {
+            failingTraces.add(trace.toRecord());
+        }
+        for (Trace trace : this.deadlockedTraces) {
+            deadlockedTraces.add(trace.toRecord());
+        }
+        for (Trace trace : this.completedTraces) {
+            completedTraces.add(trace.toRecord());
+        }
+
+        return new TestResult(strategy, statesExplored, wallTimeMs, heapDeltaBytes,
+                              failingTraces, deadlockedTraces, completedTraces, false);
     }
 
     public String toJson() {

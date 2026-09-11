@@ -1,9 +1,10 @@
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.Configuration;
+import java.io.Serializable;
 import java.util.*;
 
-public final class DfsResult {
+public final class DfsResult implements Serializable {
     private final Map<String, Configuration> states;
     private final List<Trace> traces;
     private final long statesExplored;

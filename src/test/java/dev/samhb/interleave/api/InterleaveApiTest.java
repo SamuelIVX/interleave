@@ -169,4 +169,105 @@ class InterleaveApiTest {
             assertTrue(result.statesExplored() > 0);
         }
     }
+
+    // NEW: Tests for quickCheck and builder
+    
+    @Test
+    void quickCheck_returnsTestResult() {
+        PetersonState initial = PetersonState.of(false, false, 0);
+        
+        List<Step> thread0Steps = List.of(new WriteFlagStep(0, true));
+        List<Step> thread1Steps = List.of(new WriteFlagStep(1, true));
+        
+        ModelThread t0 = new ModelThread(0, thread0Steps);
+        ModelThread t1 = new ModelThread(1, thread1Steps);
+        
+        Program program = Interleave.program(initial, t0, t1);
+        
+        TestResult result = Interleave.quickCheck(program);
+        
+        assertNotNull(result);
+        assertInstanceOf(TestResult.class, result);
+        assertEquals(Strategy.DFS, result.strategy());
+        assertTrue(result.statesExplored() > 0);
+    }
+
+    @Test
+    void quickCheck_withStrategy_usesSpecifiedStrategy() {
+        PetersonState initial = PetersonState.of(false, false, 0);
+        
+        List<Step> thread0Steps = List.of(new WriteFlagStep(0, true));
+        List<Step> thread1Steps = List.of(new WriteFlagStep(1, true));
+        
+        ModelThread t0 = new ModelThread(0, thread0Steps);
+        ModelThread t1 = new ModelThread(1, thread1Steps);
+        
+        Program program = Interleave.program(initial, t0, t1);
+        
+        TestResult result = Interleave.quickCheck(program, Strategy.STATIC_POR);
+        
+        assertNotNull(result);
+        assertEquals(Strategy.STATIC_POR, result.strategy());
+    }
+
+    @Test
+    void builder_returnsInterleaveRunner() {
+        InterleaveRunner runner = Interleave.builder().build();
+        
+        assertNotNull(runner);
+    }
+
+    @Test
+    void verificationResult_toTestResult_conversion() {
+        PetersonState initial = PetersonState.of(false, false, 0);
+        
+        List<Step> thread0Steps = List.of(
+            new WriteFlagStep(0, true),
+            new WriteTurnStep(1)
+        );
+        
+        List<Step> thread1Steps = List.of(
+            new WriteFlagStep(1, true),
+            new WriteTurnStep(0)
+        );
+        
+        ModelThread t0 = new ModelThread(0, thread0Steps);
+        ModelThread t1 = new ModelThread(1, thread1Steps);
+        
+        Program program = Interleave.program(initial, t0, t1);
+        
+        VerificationResult vr = Interleave.verify(program, Strategy.DFS);
+        TestResult tr = vr.toTestResult();
+        
+        assertEquals(vr.strategyUsed(), tr.strategy());
+        assertEquals(vr.statesExplored(), tr.statesExplored());
+        assertEquals(vr.wallTimeMs(), tr.wallTimeMs());
+        assertEquals(vr.heapDeltaBytes(), tr.heapDeltaBytes());
+        assertEquals(vr.failingTraces().size(), tr.failingTraces().size());
+        assertEquals(vr.deadlockedTraces().size(), tr.deadlockedTraces().size());
+        assertEquals(vr.completedTraces().size(), tr.completedTraces().size());
+    }
+
+    @Test
+    void trace_toRecord_conversion() {
+        PetersonState initial = PetersonState.of(false, false, 0);
+        
+        List<Step> thread0Steps = List.of(new WriteFlagStep(0, true));
+        List<Step> thread1Steps = List.of(new WriteFlagStep(1, true));
+        
+        ModelThread t0 = new ModelThread(0, thread0Steps);
+        ModelThread t1 = new ModelThread(1, thread1Steps);
+        
+        Program program = Interleave.program(initial, t0, t1);
+        
+        VerificationResult vr = Interleave.verify(program, Strategy.DFS);
+        assertFalse(vr.completedTraces().isEmpty());
+        
+        Trace trace = vr.completedTraces().get(0);
+        TraceRecord record = trace.toRecord();
+        
+        assertEquals(trace.threadIds(), record.threadIds());
+        assertEquals(trace.outcomes(), record.outcomes());
+        assertEquals(trace.outcome(), record.outcome());
+    }
 }
