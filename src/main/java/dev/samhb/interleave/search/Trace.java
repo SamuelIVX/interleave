@@ -1,9 +1,11 @@
 package dev.samhb.interleave.search;
 
+import dev.samhb.interleave.TraceRecord;
 import dev.samhb.interleave.core.StepOutcome;
+import java.io.Serializable;
 import java.util.*;
 
-public final class Trace {
+public final class Trace implements Serializable {
     private final List<Integer> threadIds;
     private final List<StepOutcome> outcomes;
     private final TraceOutcome outcome;
@@ -38,6 +40,11 @@ public final class Trace {
 
     public int length() {
         return threadIds.size();
+    }
+
+    public TraceRecord toRecord() {
+        // programHash is empty for backward compat - could be computed from program if needed
+        return new TraceRecord(threadIds, outcomes, outcome, "");
     }
 
     @Override

@@ -43,4 +43,18 @@ public final class Interleave {
         TraceReplayer replayer = new TraceReplayer();
         return replayer.replay(program, trace);
     }
+
+    // NEW: Ergonomic static entry points returning TestResult
+    public static TestResult quickCheck(Program program) {
+        return InterleaveRunner.builder().build().run(program);
+    }
+
+    public static TestResult quickCheck(Program program, Strategy strategy) {
+        return InterleaveRunner.builder().strategy(strategy).build().run(program);
+    }
+
+    // NEW: Builder access
+    public static InterleaveRunner.Builder builder() {
+        return InterleaveRunner.builder();
+    }
 }

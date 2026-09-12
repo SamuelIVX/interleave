@@ -4,9 +4,10 @@ import dev.samhb.interleave.core.SharedState;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.*;
 
-public final class CanonicalEncoder {
+public final class CanonicalEncoder implements Serializable {
     public byte[] encode(SharedState state) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(baos);
