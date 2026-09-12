@@ -67,12 +67,20 @@ public final class DporExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
+            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+            traces.add(trace);
+            if (stateVisitor != null) {
+                stateVisitor.onTraceCreated(trace);
+            }
             return;
         }
 
         if (config.allTerminated()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED));
+            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED);
+            traces.add(trace);
+            if (stateVisitor != null) {
+                stateVisitor.onTraceCreated(trace);
+            }
             return;
         }
 
@@ -80,9 +88,17 @@ public final class DporExplorer {
         if (enabled.isEmpty()) {
             // Check invariant before reporting deadlock
             if (invariant != null && !invariant.holds(config.state(), config)) {
-                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
+                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
             } else {
-                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
             }
             return;
         }
@@ -271,12 +287,20 @@ public final class DporExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
+            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+            traces.add(trace);
+            if (stateVisitor != null) {
+                stateVisitor.onTraceCreated(trace);
+            }
             return;
         }
 
         if (config.allTerminated()) {
-            traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED));
+            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED);
+            traces.add(trace);
+            if (stateVisitor != null) {
+                stateVisitor.onTraceCreated(trace);
+            }
             return;
         }
 
@@ -284,9 +308,17 @@ public final class DporExplorer {
         if (enabled.isEmpty()) {
             // Check invariant before reporting deadlock
             if (invariant != null && !invariant.holds(config.state(), config)) {
-                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION));
+                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
             } else {
-                traces.add(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK));
+                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
             }
             return;
         }

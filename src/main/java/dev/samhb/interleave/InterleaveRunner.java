@@ -1,6 +1,7 @@
 package dev.samhb.interleave;
 
 import dev.samhb.interleave.core.Program;
+import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.dpor.DporExplorer;
 import dev.samhb.interleave.por.StaticPorExplorer;
@@ -9,18 +10,19 @@ import java.io.Serializable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 public final class InterleaveRunner implements Serializable {
     private final Strategy strategy;
     private final Invariant invariant;
-    private final StateStore stateStoreTemplate;
+    private final Supplier<StateStore> stateStoreFactory;
     private final long maxStates;
     private final Duration maxTime;
 
     private InterleaveRunner(Builder builder) {
         this.strategy = builder.strategy;
         this.invariant = builder.invariant;
-        this.stateStoreTemplate = builder.stateStore;
+        this.stateStoreFactory = builder.stateStoreFactory;
         this.maxStates = builder.maxStates;
         this.maxTime = builder.maxTime;
     }
@@ -31,8 +33,8 @@ public final class InterleaveRunner implements Serializable {
         runtime.gc();
         long memBefore = runtime.totalMemory() - runtime.freeMemory();
 
-        // Create fresh StateStore for this run to avoid cross-run contamination
-        StateStore runStateStore = createFreshStateStore();
+        // Create fresh StateStore for this run using factory to avoid cross-run contamination
+        StateStore runStateStore = stateStoreFactory.get();
         
         LimitState limitState = new LimitState();
         StateVisitor visitor = createLimitEnforcingVisitor(limitState);
@@ -55,7 +57,7 @@ public final class InterleaveRunner implements Serializable {
                 default -> throw new IllegalArgumentException("Unknown strategy: " + strategy);
             }
         } catch (LimitExceededException e) {
-            // Explorer was interrupted by limit - return partial results from limitState
+            // Explorer was interrupted by limit - return partial results including traces
             long memAfter = runtime.totalMemory() - runtime.freeMemory();
             long wallTime = System.currentTimeMillis() - start;
             long heapDelta = Math.max(0, memAfter - memBefore);
@@ -70,37 +72,33 @@ public final class InterleaveRunner implements Serializable {
         return convertToTestResult(result, wallTime, heapDelta, false);
     }
 
-    private StateStore createFreshStateStore() {
-        if (stateStoreTemplate != null) {
-            // Try to create a new instance of the same type
-            if (stateStoreTemplate instanceof HashingStateStore) {
-                return new HashingStateStore();
-            }
-            // For other store types, use the template if it's stateless, 
-            // or fall back to HashingStateStore
-            return new HashingStateStore();
-        }
-        return new HashingStateStore();
-    }
-
     private StateVisitor createLimitEnforcingVisitor(LimitState limitState) {
         long[] stateCount = {0};
         long startTime = System.currentTimeMillis();
         
-        return config -> {
-            stateCount[0]++;
-            limitState.partialResult = new PartialResult(
-                stateCount[0],
-                limitState.partialResult.failingTraces(),
-                limitState.partialResult.deadlockedTraces(),
-                limitState.partialResult.completedTraces()
-            );
-            
-            if (maxStates > 0 && stateCount[0] >= maxStates) {
-                throw new LimitExceededException("Max states limit exceeded: " + maxStates);
+        return new StateVisitor() {
+            @Override
+            public void onStateVisited(Configuration config) {
+                stateCount[0]++;
+                limitState.partialResult = new PartialResult(
+                    stateCount[0],
+                    limitState.partialResult.failingTraces(),
+                    limitState.partialResult.deadlockedTraces(),
+                    limitState.partialResult.completedTraces()
+                );
+                
+                if (maxStates > 0 && stateCount[0] >= maxStates) {
+                    throw new LimitExceededException("Max states limit exceeded: " + maxStates);
+                }
+                if (maxTime != null && System.currentTimeMillis() - startTime >= maxTime.toMillis()) {
+                    throw new LimitExceededException("Max time limit exceeded: " + maxTime);
+                }
             }
-            if (maxTime != null && System.currentTimeMillis() - startTime >= maxTime.toMillis()) {
-                throw new LimitExceededException("Max time limit exceeded: " + maxTime);
+            
+            @Override
+            public void onTraceCreated(Trace trace) {
+                TraceRecord record = trace.toRecord();
+                limitState.partialResult = limitState.partialResult.withTrace(record);
             }
         };
     }
@@ -119,9 +117,23 @@ public final class InterleaveRunner implements Serializable {
         PartialResult(long statesExplored, List<TraceRecord> failingTraces, 
                       List<TraceRecord> deadlockedTraces, List<TraceRecord> completedTraces) {
             this.statesExplored = statesExplored;
-            this.failingTraces = failingTraces;
-            this.deadlockedTraces = deadlockedTraces;
-            this.completedTraces = completedTraces;
+            this.failingTraces = List.copyOf(failingTraces);
+            this.deadlockedTraces = List.copyOf(deadlockedTraces);
+            this.completedTraces = List.copyOf(completedTraces);
+        }
+        
+        PartialResult withTrace(TraceRecord record) {
+            List<TraceRecord> failing = new ArrayList<>(failingTraces);
+            List<TraceRecord> deadlocked = new ArrayList<>(deadlockedTraces);
+            List<TraceRecord> completed = new ArrayList<>(completedTraces);
+            
+            switch (record.outcome()) {
+                case VIOLATION -> failing.add(record);
+                case DEADLOCK -> deadlocked.add(record);
+                case COMPLETED -> completed.add(record);
+            }
+            
+            return new PartialResult(statesExplored, failing, deadlocked, completed);
         }
         
         long statesExplored() { return statesExplored; }
@@ -161,7 +173,7 @@ public final class InterleaveRunner implements Serializable {
     public static class Builder implements Serializable {
         private Strategy strategy = Strategy.DFS;
         private Invariant invariant = null;
-        private StateStore stateStore = null;
+        private Supplier<StateStore> stateStoreFactory = HashingStateStore::new;
         private long maxStates = 0;
         private Duration maxTime = null;
 
@@ -176,7 +188,22 @@ public final class InterleaveRunner implements Serializable {
         }
 
         public Builder stateStore(StateStore stateStore) {
-            this.stateStore = stateStore;
+            // Accept a concrete instance and wrap in supplier for backward compatibility
+            // For true per-run isolation, prefer stateStoreFactory()
+            this.stateStoreFactory = () -> {
+                // Try to create fresh instance of same type
+                if (stateStore instanceof HashingStateStore) {
+                    return new HashingStateStore();
+                }
+                // For other types, we can't easily copy - use the same instance
+                // but clear it before each run (explorers already do this)
+                return stateStore;
+            };
+            return this;
+        }
+
+        public Builder stateStoreFactory(Supplier<StateStore> factory) {
+            this.stateStoreFactory = factory;
             return this;
         }
 
