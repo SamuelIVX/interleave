@@ -38,6 +38,7 @@ public final class ReportWriter {
             sb.append("    {\n");
             sb.append(String.format("      \"bug\": \"%s\",\n", result.bugName()));
             sb.append(String.format("      \"strategy\": \"%s\",\n", result.strategy()));
+            sb.append(String.format("      \"storeType\": \"%s\",\n", result.storeType()));
             sb.append(String.format("      \"statesExplored\": %d,\n", result.statesExplored()));
             sb.append(String.format("      \"wallTimeMs\": %d,\n", result.wallTimeMs()));
             sb.append(String.format("      \"heapDeltaBytes\": %d,\n", result.heapDeltaBytes()));

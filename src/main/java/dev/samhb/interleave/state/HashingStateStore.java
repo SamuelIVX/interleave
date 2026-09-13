@@ -55,4 +55,9 @@ public final class HashingStateStore implements StateStore, Serializable {
         String pcEncoded = config.programCounters().toString();
         return stateEncoded + "|" + pcEncoded;
     }
+
+    @Override
+    public StateStore freshCopy() {
+        return new HashingStateStore();
+    }
 }

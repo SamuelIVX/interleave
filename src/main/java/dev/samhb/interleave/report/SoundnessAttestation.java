@@ -30,7 +30,12 @@ public final class SoundnessAttestation {
         Map<String, String> dfsVerdicts = new LinkedHashMap<>();
         Map<String, String> correctVerdicts = new LinkedHashMap<>();
         
-        for (BenchmarkResult result : results) {
+        // Filter to EXACT results for verdict validation (bitstate is incomplete by design)
+        List<BenchmarkResult> exactResults = results.stream()
+            .filter(r -> r.storeType() == StoreType.EXACT)
+            .toList();
+        
+        for (BenchmarkResult result : exactResults) {
             String key = result.bugName();
             String actualVerdict = result.verdict();
             BenchmarkProgram program = programs.get(key);
@@ -59,12 +64,14 @@ public final class SoundnessAttestation {
             }
         }
         
+        // Trace replay validation: check ALL results (including bitstate) that report violations
+        // Bitstate violations should still be genuine if found
         for (BenchmarkResult result : results) {
             if ("VIOLATION".equals(result.verdict())) {
                 Trace failingTrace = result.failingTrace().orElse(null);
                 if (failingTrace == null) {
                     return SoundnessCheck.failed("Missing failing trace for " + result.bugName() + 
-                        " under " + result.strategy());
+                        " under " + result.strategy() + " (" + result.storeType() + ")");
                 }
                 
                 BenchmarkProgram program = programs.get(result.bugName());
@@ -79,7 +86,7 @@ public final class SoundnessAttestation {
                 Invariant invariant = program.invariant().orElse(null);
                 if (invariant != null && invariant.holds(replayed.state(), replayed)) {
                     return SoundnessCheck.failed("Replayed trace for " + result.bugName() + 
-                        " under " + result.strategy() + " does not violate invariant");
+                        " under " + result.strategy() + " (" + result.storeType() + ") does not violate invariant");
                 }
             }
         }
@@ -100,8 +107,8 @@ public final class SoundnessAttestation {
         sb.append("## Soundness Attestation\n\n");
         
         if (sound) {
-            sb.append("All programs produced expected verdicts under DFS. ");
-            sb.append("All failing traces replayed to genuine violations. ");
+            sb.append("All EXACT programs produced expected verdicts under DFS. ");
+            sb.append("All failing traces (including bitstate) replayed to genuine violations. ");
             sb.append("The model checker is sound.\n");
         } else {
             sb.append("WARNING: ");

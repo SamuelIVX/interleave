@@ -190,14 +190,14 @@ public final class InterleaveRunner implements Serializable {
         public Builder stateStore(StateStore stateStore) {
             // Accept a concrete instance and wrap in supplier for backward compatibility
             // For true per-run isolation, prefer stateStoreFactory()
+            // Uses freshCopy() if available; falls back to shared instance for unsupported types
             this.stateStoreFactory = () -> {
-                // Try to create fresh instance of same type
-                if (stateStore instanceof HashingStateStore) {
-                    return new HashingStateStore();
+                try {
+                    return stateStore.freshCopy();
+                } catch (UnsupportedOperationException e) {
+                    // Fallback for StateStore implementations without freshCopy()
+                    return stateStore;
                 }
-                // For other types, we can't easily copy - use the same instance
-                // but clear it before each run (explorers already do this)
-                return stateStore;
             };
             return this;
         }

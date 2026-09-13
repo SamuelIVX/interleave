@@ -3,6 +3,7 @@ package dev.samhb.interleave.api;
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.state.HashingStateStore;
+import dev.samhb.interleave.state.BitstateStore;
 import dev.samhb.interleave.*;
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.bugs.LostUpdate;
@@ -277,5 +278,47 @@ class InterleaveRunnerTest {
             "DPOR via InterleaveRunner should find lost-update VIOLATION");
         assertFalse(result.failingTraces().isEmpty(),
             "Should have at least one failing trace");
+    }
+
+    @Test
+    void bitstateRunnerFindsLostUpdateViolation() {
+        BenchmarkProgram benchmark = LostUpdate.program();
+        Program program = benchmark.program();
+        Invariant invariant = benchmark.invariant().get();
+
+        InterleaveRunner runner = InterleaveRunner.builder()
+            .strategy(Strategy.DPOR)
+            .invariant(invariant)
+            .stateStoreFactory(() -> new BitstateStore(1_000_003, 4))
+            .build();
+
+        TestResult result = runner.run(program);
+
+        assertTrue(result.hasViolation(),
+            "DPOR via InterleaveRunner with BitstateStore should find lost-update VIOLATION");
+        assertFalse(result.failingTraces().isEmpty(),
+            "Should have at least one failing trace");
+    }
+
+    @Test
+    void bitstateRunner_isolatesPerRun() {
+        // Test that two runs with BitstateStore don't contaminate each other
+        BenchmarkProgram benchmark = LostUpdate.program();
+        Program program = benchmark.program();
+        Invariant invariant = benchmark.invariant().get();
+
+        InterleaveRunner runner = InterleaveRunner.builder()
+            .strategy(Strategy.DPOR)
+            .invariant(invariant)
+            .stateStoreFactory(() -> new BitstateStore(1_000_003, 4))
+            .build();
+
+        TestResult result1 = runner.run(program);
+        TestResult result2 = runner.run(program);
+
+        assertTrue(result1.hasViolation(), "First run should find violation");
+        assertTrue(result2.hasViolation(), "Second run should find violation");
+        assertEquals(result1.statesExplored(), result2.statesExplored(), 
+            "Both runs should explore same number of states (independent)");
     }
 }

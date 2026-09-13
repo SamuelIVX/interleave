@@ -10,9 +10,15 @@ import dev.samhb.interleave.search.DfsResult;
 import dev.samhb.interleave.search.Invariant;
 import dev.samhb.interleave.search.Trace;
 import dev.samhb.interleave.search.TraceOutcome;
+import dev.samhb.interleave.state.BitstateStore;
+import dev.samhb.interleave.state.HashingStateStore;
+import dev.samhb.interleave.search.StateStore;
 import java.util.*;
 
 public final class BenchmarkHarness {
+    private static final int BITSTATE_SIZE = 1_000_003;
+    private static final int BITSTATE_K = 4;
+
     public List<BenchmarkResult> runAll() {
         List<BenchmarkResult> results = new ArrayList<>();
         
@@ -27,60 +33,69 @@ public final class BenchmarkHarness {
         List<BenchmarkResult> results = new ArrayList<>();
         Invariant invariant = program.invariant().orElse(null);
         
+        // Run with exact state store (HashingStateStore)
+        results.addAll(runProgramWithStore(program, invariant, HashingStateStore::new, StoreType.EXACT));
+        
+        // Run with bitstate store (BitstateStore)
+        results.addAll(runProgramWithStore(program, invariant, 
+            () -> new BitstateStore(BITSTATE_SIZE, BITSTATE_K), StoreType.BITSTATE));
+        
+        return results;
+    }
+
+    private List<BenchmarkResult> runProgramWithStore(BenchmarkProgram program, Invariant invariant,
+                                                       java.util.function.Supplier<StateStore> storeFactory,
+                                                       StoreType storeType) {
+        List<BenchmarkResult> results = new ArrayList<>();
+        
+        // DFS
         DfsExplorer dfsExplorer = new DfsExplorer();
+        DfsResultWithTiming dfsResult = runExplorer(() -> dfsExplorer.explore(program.program(), invariant, storeFactory.get(), null));
+        String dfsVerdict = actualVerdict(dfsResult.result());
+        // Only validate verdict for exact store type
+        if (storeType == StoreType.EXACT && !program.expectedVerdict().equals(dfsVerdict)) {
+            throw new IllegalStateException("Expected verdict " + program.expectedVerdict() + 
+                " for " + program.name() + " but got " + dfsVerdict);
+        }
+        Trace dfsFailing = findFailingTrace(dfsResult.result());
+        results.add(new BenchmarkResult("DFS", program.name(), dfsResult.result().statesExplored(), 
+                                        dfsResult.wallTimeMs(), dfsResult.heapDeltaBytes(), 
+                                        dfsVerdict, dfsFailing, storeType));
+        
+        // STATIC_POR
+        StaticPorExplorer porExplorer = new StaticPorExplorer();
+        DfsResultWithTiming porResult = runExplorer(() -> porExplorer.explore(program.program(), invariant, storeFactory.get(), null));
+        String porVerdict = actualVerdict(porResult.result());
+        Trace porFailing = findFailingTrace(porResult.result());
+        results.add(new BenchmarkResult("STATIC_POR", program.name(), porResult.result().statesExplored(), 
+                                        porResult.wallTimeMs(), porResult.heapDeltaBytes(), 
+                                        porVerdict, porFailing, storeType));
+        
+        // DPOR
+        DporExplorer dporExplorer = new DporExplorer();
+        DfsResultWithTiming dporResult = runExplorer(() -> dporExplorer.explore(program.program(), invariant, storeFactory.get(), null));
+        String dporVerdict = actualVerdict(dporResult.result());
+        Trace dporFailing = findFailingTrace(dporResult.result());
+        results.add(new BenchmarkResult("DPOR", program.name(), dporResult.result().statesExplored(), 
+                                        dporResult.wallTimeMs(), dporResult.heapDeltaBytes(), 
+                                        dporVerdict, dporFailing, storeType));
+        
+        return results;
+    }
+
+    private DfsResultWithTiming runExplorer(java.util.function.Supplier<DfsResult> explorer) {
         long start = System.currentTimeMillis();
         Runtime runtime = Runtime.getRuntime();
         runtime.gc();
         long memBefore = runtime.totalMemory() - runtime.freeMemory();
         
-        DfsResult dfsResult = dfsExplorer.explore(program.program(), invariant);
+        DfsResult result = explorer.get();
         
         long memAfter = runtime.totalMemory() - runtime.freeMemory();
         long wallTime = System.currentTimeMillis() - start;
         long peakMemory = Math.max(0, memAfter - memBefore);
         
-        String dfsVerdict = actualVerdict(dfsResult);
-        if (!program.expectedVerdict().equals(dfsVerdict)) {
-            throw new IllegalStateException("Expected verdict " + program.expectedVerdict() + 
-                " for " + program.name() + " but got " + dfsVerdict);
-        }
-        Trace dfsFailing = findFailingTrace(dfsResult);
-        results.add(new BenchmarkResult("DFS", program.name(), dfsResult.statesExplored(), 
-                                        wallTime, peakMemory, dfsVerdict, dfsFailing));
-        
-        StaticPorExplorer porExplorer = new StaticPorExplorer();
-        start = System.currentTimeMillis();
-        runtime.gc();
-        memBefore = runtime.totalMemory() - runtime.freeMemory();
-        
-        DfsResult porResult = porExplorer.explore(program.program(), invariant);
-        
-        memAfter = runtime.totalMemory() - runtime.freeMemory();
-        wallTime = System.currentTimeMillis() - start;
-        peakMemory = Math.max(0, memAfter - memBefore);
-        
-        String porVerdict = actualVerdict(porResult);
-        Trace porFailing = findFailingTrace(porResult);
-        results.add(new BenchmarkResult("STATIC_POR", program.name(), porResult.statesExplored(), 
-                                        wallTime, peakMemory, porVerdict, porFailing));
-        
-        DporExplorer dporExplorer = new DporExplorer();
-        start = System.currentTimeMillis();
-        runtime.gc();
-        memBefore = runtime.totalMemory() - runtime.freeMemory();
-        
-        DfsResult dporResult = dporExplorer.explore(program.program(), invariant);
-        
-        memAfter = runtime.totalMemory() - runtime.freeMemory();
-        wallTime = System.currentTimeMillis() - start;
-        peakMemory = Math.max(0, memAfter - memBefore);
-        
-        String dporVerdict = actualVerdict(dporResult);
-        Trace dporFailing = findFailingTrace(dporResult);
-        results.add(new BenchmarkResult("DPOR", program.name(), dporResult.statesExplored(), 
-                                        wallTime, peakMemory, dporVerdict, dporFailing));
-        
-        return results;
+        return new DfsResultWithTiming(result, wallTime, peakMemory);
     }
 
     private static String actualVerdict(DfsResult result) {
@@ -100,4 +115,7 @@ public final class BenchmarkHarness {
             .findFirst()
             .orElse(null);
     }
+
+    // Helper record to carry timing info from explorer run
+    private record DfsResultWithTiming(DfsResult result, long wallTimeMs, long heapDeltaBytes) {}
 }

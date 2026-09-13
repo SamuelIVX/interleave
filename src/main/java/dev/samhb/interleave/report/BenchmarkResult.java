@@ -11,15 +11,28 @@ public final class BenchmarkResult {
     private final long heapDeltaBytes;
     private final String verdict;
     private final Trace failingTrace;
+    private final StoreType storeType;
 
     public BenchmarkResult(String strategy, String bugName, long statesExplored, 
                            long wallTimeMs, long heapDeltaBytes, String verdict) {
-        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null);
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, StoreType.EXACT);
     }
 
     public BenchmarkResult(String strategy, String bugName, long statesExplored, 
                            long wallTimeMs, long heapDeltaBytes, String verdict,
                            Trace failingTrace) {
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace, StoreType.EXACT);
+    }
+
+    public BenchmarkResult(String strategy, String bugName, long statesExplored, 
+                           long wallTimeMs, long heapDeltaBytes, String verdict,
+                           StoreType storeType) {
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, storeType);
+    }
+
+    public BenchmarkResult(String strategy, String bugName, long statesExplored, 
+                           long wallTimeMs, long heapDeltaBytes, String verdict,
+                           Trace failingTrace, StoreType storeType) {
         this.strategy = strategy;
         this.bugName = bugName;
         this.statesExplored = statesExplored;
@@ -27,6 +40,7 @@ public final class BenchmarkResult {
         this.heapDeltaBytes = heapDeltaBytes;
         this.verdict = verdict;
         this.failingTrace = failingTrace;
+        this.storeType = storeType;
     }
 
     public String strategy() {
@@ -55,5 +69,9 @@ public final class BenchmarkResult {
 
     public Optional<Trace> failingTrace() {
         return Optional.ofNullable(failingTrace);
+    }
+
+    public StoreType storeType() {
+        return storeType;
     }
 }

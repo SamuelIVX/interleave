@@ -5,6 +5,7 @@ import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.por.*;
 import dev.samhb.interleave.dpor.*;
 import java.util.*;
+import java.util.function.Supplier;
 
 public final class Interleave {
     private Interleave() {}
@@ -39,6 +40,26 @@ public final class Interleave {
         return VerificationResult.from(result, strategy, wallTime, heapDelta);
     }
 
+    public static VerificationResult verify(Program program, Strategy strategy, Invariant invariant, Supplier<StateStore> stateStoreFactory) {
+        long start = System.currentTimeMillis();
+        Runtime runtime = Runtime.getRuntime();
+        runtime.gc();
+        long memBefore = runtime.totalMemory() - runtime.freeMemory();
+
+        StateStore store = stateStoreFactory.get();
+        DfsResult result = switch (strategy) {
+            case DFS -> new DfsExplorer().explore(program, invariant, store, null);
+            case STATIC_POR -> new StaticPorExplorer().explore(program, invariant, store, null);
+            case DPOR -> new DporExplorer().explore(program, invariant, store, null);
+        };
+
+        long memAfter = runtime.totalMemory() - runtime.freeMemory();
+        long wallTime = System.currentTimeMillis() - start;
+        long heapDelta = Math.max(0, memAfter - memBefore);
+
+        return VerificationResult.from(result, strategy, wallTime, heapDelta);
+    }
+
     public static Configuration replay(Program program, Trace trace) {
         TraceReplayer replayer = new TraceReplayer();
         return replayer.replay(program, trace);
@@ -51,6 +72,21 @@ public final class Interleave {
 
     public static TestResult quickCheck(Program program, Strategy strategy) {
         return InterleaveRunner.builder().strategy(strategy).build().run(program);
+    }
+
+    public static TestResult quickCheck(Program program, Strategy strategy, java.util.function.Supplier<StateStore> stateStoreFactory) {
+        return InterleaveRunner.builder()
+                .strategy(strategy)
+                .stateStoreFactory(stateStoreFactory)
+                .build()
+                .run(program);
+    }
+
+    public static TestResult quickCheck(Program program, java.util.function.Supplier<StateStore> stateStoreFactory) {
+        return InterleaveRunner.builder()
+                .stateStoreFactory(stateStoreFactory)
+                .build()
+                .run(program);
     }
 
     // NEW: Builder access

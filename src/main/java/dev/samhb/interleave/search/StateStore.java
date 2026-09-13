@@ -8,4 +8,8 @@ public interface StateStore {
     void markVisited(Configuration config);
 
     void clear();
+
+    default StateStore freshCopy() {
+        throw new UnsupportedOperationException("StateStore does not support freshCopy");
+    }
 }
