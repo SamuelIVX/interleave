@@ -1,5 +1,6 @@
 plugins {
     `java-library`
+    `maven-publish`
     java
     application
 }
@@ -43,4 +44,18 @@ tasks.withType<JavaCompile> {
 
 tasks.withType<Test> {
     systemProperty("file.encoding", Charsets.UTF_8.name())
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("mavenJava") {
+            from(components["java"])
+            groupId = "dev.samhb.interleave"
+            artifactId = "interleave"
+            version = "1.0-SNAPSHOT"
+        }
+    }
+    repositories {
+        mavenLocal()
+    }
 }
