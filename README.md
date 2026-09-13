@@ -57,7 +57,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | lost-update | 13 | 9 (31%↓) | 13* | VIOLATION |
 | torn-counter | 8 | 8 | 8 | VIOLATION |
 
-*DPOR has a known soundness limitation for `lost-update` (sleep-set pruning misses the violation interleaving). Uses exhaustive DFS for invariants.
+*DPOR benchmark for lost-update: `LostUpdate.program()` supplies an invariant; `InterleaveRunner` passes it to `DporExplorer`, which selects `dfsDfs` (exhaustive DFS) instead of the sleep-set-filtered `dporDfs` path. The future-dependency sleep-set fix (PR #10) ensures pure DPOR (no invariant) correctly explores the violating interleaving.
 
 Soundness attestation: all failing traces replay to genuine violations.
 
@@ -86,7 +86,7 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 - **Language:** Java 26+
 - **Build:** Gradle 8.11+
-- **Testing:** JUnit 5 (56 tests passing)
+- **Testing:** JUnit 5 (57 tests passing)
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)
 
 ## Library/API Mode
@@ -135,7 +135,6 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 
 ### PR #8: HappensBefore wake-up fix
 - `HappensBefore.record()` now uses `putIfAbsent` to preserve the first/earliest PC for each edge pair
-- `wakeUp()` uses recorded PC via `getPcAtRecord()` when `getStep()` returns null
 - `SleepSet.copyFiltering()` re-evaluates sleep set entries when current step changes
 - Test fixture updated to isolate recorded-PC dependency
 
