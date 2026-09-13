@@ -86,10 +86,52 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 - **Language:** Java 26+
 - **Build:** Gradle 8.11+
-- **Testing:** JUnit 5 (38 tests passing)
+- **Testing:** JUnit 5 (56 tests passing)
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)
 
-## Recent improvements (2026-09-04)
+## Library/API Mode
+
+The checker can now be used as a Java library in other projects:
+
+```java
+// Static ergonomic entry point
+TestResult result = Interleave.quickCheck(program);
+TestResult result = Interleave.quickCheck(program, Strategy.STATIC_POR);
+
+// Instance-based API with fluent builder (reusable, thread-safe)
+InterleaveRunner runner = InterleaveRunner.builder()
+    .strategy(Strategy.DPOR)
+    .invariant(myInvariant)
+    .stateStoreFactory(() -> new HashingStateStore())
+    .maxStates(10_000)
+    .maxTime(Duration.ofSeconds(30))
+    .build();
+
+TestResult result1 = runner.run(program1);
+TestResult result2 = runner.run(program2); // reusable
+
+// Results are immutable and serializable
+if (result.hasViolation()) {
+    for (TraceRecord trace : result.failingTraces()) {
+        System.out.println(trace.toJson());
+    }
+}
+
+// Backward-compatible static facade (returns VerificationResult)
+VerificationResult vr = Interleave.verify(program, Strategy.DFS);
+TestResult tr = vr.toTestResult(); // convert to new API
+TraceRecord record = vr.completedTraces().get(0).toRecord();
+```
+
+**Key features:**
+- **Reusable instances** — runner config is immutable; `run(Program)` can be called multiple times
+- **Fresh state per run** — each `run()` creates a new `StateStore` to avoid cross-run contamination
+- **Limit enforcement** — `maxStates` / `maxTime` stop exploration early and return partial results with `limitExceeded=true`
+- **Trace capture on limit** — traces found before limit are preserved via `StateVisitor.onTraceCreated()`
+- **StateStore factory** — `stateStoreFactory(Supplier<StateStore>)` preserves configured implementation type
+- **Serializable results** — `TestResult`, `TraceRecord` implement `Serializable` for persistence/transport
+
+## Recent improvements (2026-09-11)
 
 ### PR #8: HappensBefore wake-up fix
 - `HappensBefore.record()` now uses `putIfAbsent` to preserve the first/earliest PC for each edge pair
@@ -110,6 +152,5 @@ See [`docs/plans/future-work.md`](docs/plans/future-work.md) for the full list. 
 
 - **JSON/YAML/DSL program definition format** — describe concurrent programs declaratively instead of hand-writing Java `Step` objects. See `docs/plans/future-work.md` for the full ranked list.
 - **Concurrent-program parser** — parse a small imperative language with threads, shared variables, and atomic sections.
-- **Library/API mode** — expose the checker as a Java library for external tools to construct programs and invoke verification programmatically.
 - **Real Java bytecode instrumentation** — analyze actual concurrent Java programs instead of modeled ones.
 - **Web UI / visualizer** — render interleaving trees, state-space DAGs, or failing traces.
