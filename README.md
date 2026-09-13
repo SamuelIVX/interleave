@@ -57,7 +57,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | lost-update | 13 | 9 (31%↓) | 13* | VIOLATION |
 | torn-counter | 8 | 8 | 8 | VIOLATION |
 
-*DPOR explores lost-update via future-dependency sleep-set filtering (PR #10). DPOR with invariants falls back to exhaustive DFS for soundness.
+*DPOR benchmark for lost-update: `LostUpdate.program()` supplies an invariant; `InterleaveRunner` passes it to `DporExplorer`, which selects `dfsDfs` (exhaustive DFS) instead of the sleep-set-filtered `dporDfs` path. The future-dependency sleep-set fix (PR #10) ensures pure DPOR (no invariant) correctly explores the violating interleaving.
 
 Soundness attestation: all failing traces replay to genuine violations.
 
@@ -86,7 +86,7 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 - **Language:** Java 26+
 - **Build:** Gradle 8.11+
-- **Testing:** JUnit 5 (56 tests passing)
+- **Testing:** JUnit 5 (57 tests passing)
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)
 
 ## Library/API Mode
