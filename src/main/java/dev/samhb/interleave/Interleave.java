@@ -7,9 +7,21 @@ import dev.samhb.interleave.dpor.*;
 import java.util.*;
 import java.util.function.Supplier;
 
+/**
+ * Static facade for the interleave model checker.
+ * Provides ergonomic entry points for program construction, verification, and replay.
+ */
 public final class Interleave {
     private Interleave() {}
 
+    /**
+     * Creates a program from an initial state and thread array.
+     *
+     * @param state the initial shared state
+     * @param threads the model threads (must not be empty)
+     * @return a new {@link Program}
+     * @throws IllegalArgumentException if state is null or threads is null/empty
+     */
     public static Program program(SharedState state, ModelThread... threads) {
         if (state == null) throw new IllegalArgumentException("state must not be null");
         if (threads == null || threads.length == 0) throw new IllegalArgumentException("threads must not be empty");
@@ -17,10 +29,26 @@ public final class Interleave {
         return new Program(state, threadList);
     }
 
+    /**
+     * Verifies a program with the given strategy (no invariant).
+     *
+     * @param program the program to verify
+     * @param strategy the exploration strategy
+     * @return the verification result
+     */
     public static VerificationResult verify(Program program, Strategy strategy) {
         return verify(program, strategy, null);
     }
 
+    /**
+     * Verifies a program with the given strategy and invariant.
+     * Uses the default exact state store ({@link HashingStateStore}).
+     *
+     * @param program the program to verify
+     * @param strategy the exploration strategy
+     * @param invariant the invariant to check, or null
+     * @return the verification result
+     */
     public static VerificationResult verify(Program program, Strategy strategy, Invariant invariant) {
         long start = System.currentTimeMillis();
         Runtime runtime = Runtime.getRuntime();
@@ -40,6 +68,16 @@ public final class Interleave {
         return VerificationResult.from(result, strategy, wallTime, heapDelta);
     }
 
+    /**
+     * Verifies a program with the given strategy, invariant, and custom state store factory.
+     * Allows using approximate state stores like {@link BitstateStore}.
+     *
+     * @param program the program to verify
+     * @param strategy the exploration strategy
+     * @param invariant the invariant to check, or null
+     * @param stateStoreFactory a factory for creating a fresh state store per verification
+     * @return the verification result
+     */
     public static VerificationResult verify(Program program, Strategy strategy, Invariant invariant, Supplier<StateStore> stateStoreFactory) {
         long start = System.currentTimeMillis();
         Runtime runtime = Runtime.getRuntime();
@@ -60,20 +98,47 @@ public final class Interleave {
         return VerificationResult.from(result, strategy, wallTime, heapDelta);
     }
 
+    /**
+     * Replays a trace against a program to reconstruct the final configuration.
+     *
+     * @param program the program
+     * @param trace the trace to replay
+     * @return the final {@link Configuration} after replaying the trace
+     */
     public static Configuration replay(Program program, Trace trace) {
         TraceReplayer replayer = new TraceReplayer();
         return replayer.replay(program, trace);
     }
 
-    // NEW: Ergonomic static entry points returning TestResult
+    /**
+     * Quick-check a program with the default strategy ({@link Strategy#DFS}) and exact state store.
+     *
+     * @param program the program to check
+     * @return a {@link TestResult} with states explored, verdict, and traces
+     */
     public static TestResult quickCheck(Program program) {
         return InterleaveRunner.builder().build().run(program);
     }
 
+    /**
+     * Quick-check a program with the specified strategy and default exact state store.
+     *
+     * @param program the program to check
+     * @param strategy the exploration strategy
+     * @return a {@link TestResult}
+     */
     public static TestResult quickCheck(Program program, Strategy strategy) {
         return InterleaveRunner.builder().strategy(strategy).build().run(program);
     }
 
+    /**
+     * Quick-check a program with the specified strategy and custom state store factory.
+     *
+     * @param program the program to check
+     * @param strategy the exploration strategy
+     * @param stateStoreFactory a factory for creating a fresh state store per run
+     * @return a {@link TestResult}
+     */
     public static TestResult quickCheck(Program program, Strategy strategy, java.util.function.Supplier<StateStore> stateStoreFactory) {
         return InterleaveRunner.builder()
                 .strategy(strategy)
@@ -82,6 +147,13 @@ public final class Interleave {
                 .run(program);
     }
 
+    /**
+     * Quick-check a program with the default strategy ({@link Strategy#DFS}) and custom state store factory.
+     *
+     * @param program the program to check
+     * @param stateStoreFactory a factory for creating a fresh state store per run
+     * @return a {@link TestResult}
+     */
     public static TestResult quickCheck(Program program, java.util.function.Supplier<StateStore> stateStoreFactory) {
         return InterleaveRunner.builder()
                 .stateStoreFactory(stateStoreFactory)
@@ -89,7 +161,11 @@ public final class Interleave {
                 .run(program);
     }
 
-    // NEW: Builder access
+    /**
+     * Returns a builder for creating a reusable, thread-safe {@link InterleaveRunner}.
+     *
+     * @return a new {@link InterleaveRunner.Builder}
+     */
     public static InterleaveRunner.Builder builder() {
         return InterleaveRunner.builder();
     }
