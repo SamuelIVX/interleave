@@ -4,6 +4,8 @@ import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.state.HashingStateStore;
 import dev.samhb.interleave.*;
+import dev.samhb.interleave.bugs.BenchmarkProgram;
+import dev.samhb.interleave.bugs.LostUpdate;
 import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.util.*;
@@ -256,5 +258,24 @@ class InterleaveRunnerTest {
         
         // Just verify it completes without crashing
         assertNotNull(result);
+    }
+
+    @Test
+    void dporRunnerFindsLostUpdateViolation() {
+        BenchmarkProgram benchmark = LostUpdate.program();
+        Program program = benchmark.program();
+        Invariant invariant = benchmark.invariant().get();
+
+        InterleaveRunner runner = InterleaveRunner.builder()
+            .strategy(Strategy.DPOR)
+            .invariant(invariant)
+            .build();
+
+        TestResult result = runner.run(program);
+
+        assertTrue(result.hasViolation(),
+            "DPOR via InterleaveRunner should find lost-update VIOLATION");
+        assertFalse(result.failingTraces().isEmpty(),
+            "Should have at least one failing trace");
     }
 }

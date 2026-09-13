@@ -57,7 +57,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | lost-update | 13 | 9 (31%↓) | 13* | VIOLATION |
 | torn-counter | 8 | 8 | 8 | VIOLATION |
 
-*DPOR has a known soundness limitation for `lost-update` (sleep-set pruning misses the violation interleaving). Uses exhaustive DFS for invariants.
+*DPOR explores lost-update via future-dependency sleep-set filtering (PR #10). DPOR with invariants falls back to exhaustive DFS for soundness.
 
 Soundness attestation: all failing traces replay to genuine violations.
 
@@ -135,7 +135,6 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 
 ### PR #8: HappensBefore wake-up fix
 - `HappensBefore.record()` now uses `putIfAbsent` to preserve the first/earliest PC for each edge pair
-- `wakeUp()` uses recorded PC via `getPcAtRecord()` when `getStep()` returns null
 - `SleepSet.copyFiltering()` re-evaluates sleep set entries when current step changes
 - Test fixture updated to isolate recorded-PC dependency
 
