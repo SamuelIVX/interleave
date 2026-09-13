@@ -5,11 +5,20 @@ import dev.samhb.interleave.search.StateStore;
 import java.io.Serializable;
 import java.util.*;
 
+/**
+ * Exact state store using canonical encoding and hash-based deduplication.
+ * Guarantees no false positives: if {@code isVisited} returns true, the configuration
+ * was definitively visited before. Uses a two-level scheme (hash + full encoding)
+ * to avoid hash collisions.
+ */
 public final class HashingStateStore implements StateStore, Serializable {
     private final CanonicalEncoder encoder;
     private final Set<Integer> visitedHashes;
     private final Set<String> visitedStates;
 
+    /**
+     * Creates a new exact state store.
+     */
     public HashingStateStore() {
         this.encoder = new CanonicalEncoder();
         this.visitedHashes = new HashSet<>();
@@ -40,6 +49,11 @@ public final class HashingStateStore implements StateStore, Serializable {
         visitedStates.clear();
     }
 
+    /**
+     * Returns the number of unique configurations stored.
+     *
+     * @return count of visited states
+     */
     public int size() {
         return visitedStates.size();
     }
@@ -54,5 +68,10 @@ public final class HashingStateStore implements StateStore, Serializable {
         String stateEncoded = Base64.getEncoder().encodeToString(encoder.encode(config.state()));
         String pcEncoded = config.programCounters().toString();
         return stateEncoded + "|" + pcEncoded;
+    }
+
+    @Override
+    public StateStore freshCopy() {
+        return new HashingStateStore();
     }
 }

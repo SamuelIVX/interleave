@@ -45,19 +45,17 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 ./gradlew test
 ```
 
-## Current benchmark results (2026-09-04)
+## Current benchmark results (2026-09-13)
 
-| Program | DFS | Static POR | DPOR | Verdict |
-|---------|-----|------------|------|---------|
-| peterson | 42 | 18 (57%↓) | 33 | PASS |
-| broken-peterson | 46 | 15 (67%↓) | 46 | VIOLATION |
-| broken-peterson-v2 | 46 | 12 (74%↓) | 46 | VIOLATION |
-| deadlock | 15 | 15 | 15 | DEADLOCK |
-| double-checked-locking | 23 | 20 (13%↓) | 23 | VIOLATION |
-| lost-update | 13 | 9 (31%↓) | 13* | VIOLATION |
-| torn-counter | 8 | 8 | 8 | VIOLATION |
-
-*DPOR benchmark for lost-update: `LostUpdate.program()` supplies an invariant; `InterleaveRunner` passes it to `DporExplorer`, which selects `dfsDfs` (exhaustive DFS) instead of the sleep-set-filtered `dporDfs` path. The future-dependency sleep-set fix (PR #10) ensures pure DPOR (no invariant) correctly explores the violating interleaving.
+| Program | DFS (exact) | DFS (bitstate) | Static POR (exact) | Static POR (bitstate) | DPOR (exact) | DPOR (bitstate) | Verdict |
+|---------|-------------|----------------|---------------------|------------------------|--------------|-----------------|---------|
+| peterson | 42 | 42 | 18 (57%↓) | 18 (57%↓) | 38 | 38 | PASS |
+| broken-peterson | 46 | 46 | 15 (67%↓) | 15 (67%↓) | 46 | 46 | VIOLATION |
+| broken-peterson-v2 | 46 | 46 | 12 (74%↓) | 12 (74%↓) | 46 | 46 | VIOLATION |
+| deadlock | 15 | 15 | 15 | 15 | 15 | 15 | DEADLOCK |
+| double-checked-locking | 17 | 17 | 14 (18%↓) | 14 (18%↓) | 17 | 17 | VIOLATION |
+| lost-update | 13 | 13 | 9 (31%↓) | 9 (31%↓) | 13 | 13 | VIOLATION |
+| torn-counter | 8 | 8 | 8 | 8 | 8 | 8 | VIOLATION |
 
 Soundness attestation: all failing traces replay to genuine violations.
 
@@ -86,7 +84,7 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 - **Language:** Java 26+
 - **Build:** Gradle 8.11+
-- **Testing:** JUnit 5 (57 tests passing)
+- **Testing:** JUnit 5 (73 tests passing)
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)
 
 ## Library/API Mode

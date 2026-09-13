@@ -43,8 +43,11 @@ class BenchmarkHarnessTest {
         assertFalse(buggyPrograms.isEmpty(), "Should have at least one buggy program");
         
         for (BenchmarkProgram program : buggyPrograms) {
+            // Filter to EXACT store type for verdict validation
             List<BenchmarkResult> dfsResults = results.stream()
-                .filter(r -> r.bugName().equals(program.name()) && "DFS".equals(r.strategy()))
+                .filter(r -> r.bugName().equals(program.name()) 
+                    && "DFS".equals(r.strategy()) 
+                    && r.storeType() == StoreType.EXACT)
                 .toList();
             
             assertFalse(dfsResults.isEmpty(), 
@@ -55,6 +58,57 @@ class BenchmarkHarnessTest {
                 program.name() + " under DFS should have expected verdict " + program.expectedVerdict());
             assertTrue(dfsResult.failingTrace().isPresent(),
                 program.name() + " under DFS should have a failing trace");
+        }
+    }
+
+    @Test
+    void runProgram_includesBothStoreTypes() {
+        BenchmarkHarness harness = new BenchmarkHarness();
+        BenchmarkProgram program = BugCorpus.all().get(0); // peterson
+        List<BenchmarkResult> results = harness.runProgram(program);
+        
+        // Should have 6 results: 3 strategies x 2 store types
+        assertEquals(6, results.size(), "Should have 6 results per program");
+        
+        // Check both store types are present for each strategy
+        String[] strategies = {"DFS", "STATIC_POR", "DPOR"};
+        for (String strategy : strategies) {
+            long exactCount = results.stream()
+                .filter(r -> r.strategy().equals(strategy) && r.storeType() == StoreType.EXACT)
+                .count();
+            long bitstateCount = results.stream()
+                .filter(r -> r.strategy().equals(strategy) && r.storeType() == StoreType.BITSTATE)
+                .count();
+            assertEquals(1, exactCount, "Should have exactly 1 EXACT result for " + strategy);
+            assertEquals(1, bitstateCount, "Should have exactly 1 BITSTATE result for " + strategy);
+        }
+    }
+
+    @Test
+    void runAll_completesAllPrograms() {
+        BenchmarkHarness harness = new BenchmarkHarness();
+        List<BenchmarkResult> results = harness.runAll();
+        
+        int expectedPrograms = BugCorpus.all().size();
+        assertEquals(expectedPrograms * 6, results.size(), 
+            "Should have 6 results per program (" + expectedPrograms + " programs)");
+        
+        // Verify all programs have both store types
+        for (BenchmarkProgram program : BugCorpus.all()) {
+            long programResults = results.stream()
+                .filter(r -> r.bugName().equals(program.name()))
+                .count();
+            assertEquals(6, programResults, program.name() + " should have 6 results");
+            
+            // Check EXACT and BITSTATE both present
+            assertTrue(results.stream()
+                .filter(r -> r.bugName().equals(program.name()))
+                .anyMatch(r -> r.storeType() == StoreType.EXACT), 
+                program.name() + " should have EXACT results");
+            assertTrue(results.stream()
+                .filter(r -> r.bugName().equals(program.name()))
+                .anyMatch(r -> r.storeType() == StoreType.BITSTATE), 
+                program.name() + " should have BITSTATE results");
         }
     }
 
@@ -95,8 +149,8 @@ class BenchmarkHarnessTest {
         String reduction = table.formatReductionTable();
         
         assertTrue(markdown.contains("peterson"));
-        assertTrue(reduction.contains("DFS: 100"));
-        assertTrue(reduction.contains("STATIC_POR: 50"));
-        assertTrue(reduction.contains("DPOR: 30"));
+        assertTrue(reduction.contains("DFS (exact): 100"));
+        assertTrue(reduction.contains("STATIC_POR (exact): 50"));
+        assertTrue(reduction.contains("DPOR (exact): 30"));
     }
 }
