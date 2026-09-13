@@ -31,7 +31,17 @@ public final class JsonHelper {
         if (!elem.isJsonPrimitive() || !elem.getAsJsonPrimitive().isNumber()) {
             throw new RegistryException("Parameter '" + key + "' for " + typeContext + " must be a number, got: " + elem);
         }
-        return elem.getAsInt();
+        // Reject fractional values and out-of-range integers
+        Number number = elem.getAsNumber();
+        double doubleValue = number.doubleValue();
+        if (doubleValue != Math.floor(doubleValue)) {
+            throw new RegistryException("Parameter '" + key + "' for " + typeContext + " must be an integer, got fractional value: " + elem);
+        }
+        long longValue = number.longValue();
+        if (longValue < Integer.MIN_VALUE || longValue > Integer.MAX_VALUE) {
+            throw new RegistryException("Parameter '" + key + "' for " + typeContext + " is out of int range: " + elem);
+        }
+        return number.intValue();
     }
 
     /**
@@ -72,7 +82,17 @@ public final class JsonHelper {
         if (!elem.isJsonPrimitive() || !elem.getAsJsonPrimitive().isNumber()) {
             throw new RegistryException("Parameter '" + key + "' for " + typeContext + " must be a number, got: " + elem);
         }
-        return elem.getAsInt();
+        // Reject fractional values and out-of-range integers
+        Number number = elem.getAsNumber();
+        double doubleValue = number.doubleValue();
+        if (doubleValue != Math.floor(doubleValue)) {
+            throw new RegistryException("Parameter '" + key + "' for " + typeContext + " must be an integer, got fractional value: " + elem);
+        }
+        long longValue = number.longValue();
+        if (longValue < Integer.MIN_VALUE || longValue > Integer.MAX_VALUE) {
+            throw new RegistryException("Parameter '" + key + "' for " + typeContext + " is out of int range: " + elem);
+        }
+        return number.intValue();
     }
 
     /**
@@ -86,13 +106,15 @@ public final class JsonHelper {
      * @param typeContext the step type for error messages
      * @return the thread ID to use
      * @throws RegistryException if {@code thread} is present but doesn't match owningThreadId
+     *                           or is not a valid integer
      */
     public static int getThreadIdOrDefault(JsonObject obj, int owningThreadId, String typeContext) {
         JsonElement elem = obj.get("thread");
         if (elem == null) {
             return owningThreadId;
         }
-        int threadId = elem.getAsInt();
+        // Use getInt to validate the thread parameter properly
+        int threadId = getInt(obj, "thread", typeContext);
         if (threadId != owningThreadId) {
             throw new RegistryException(
                 "Parameter 'thread' for step type '" + typeContext + "' is " + threadId +
@@ -140,5 +162,25 @@ public final class JsonHelper {
             throw new RegistryException("Parameter '" + key + "' for " + typeContext + " must be an array, got: " + elem);
         }
         return elem.getAsJsonArray();
+    }
+
+    /**
+     * Gets a required boolean value from a JSON array at the given index.
+     *
+     * @param array the JSON array
+     * @param index the index in the array
+     * @param typeContext the type context for error messages
+     * @return the boolean value
+     * @throws RegistryException if the index is out of bounds or the element is not a boolean
+     */
+    public static boolean getBoolFromArray(com.google.gson.JsonArray array, int index, String typeContext) {
+        if (index < 0 || index >= array.size()) {
+            throw new RegistryException("Index " + index + " out of bounds for array in " + typeContext);
+        }
+        JsonElement elem = array.get(index);
+        if (!elem.isJsonPrimitive() || !elem.getAsJsonPrimitive().isBoolean()) {
+            throw new RegistryException("Element at index " + index + " for " + typeContext + " must be a boolean, got: " + elem);
+        }
+        return elem.getAsBoolean();
     }
 }

@@ -111,6 +111,12 @@ public final class InvariantRegistry {
      * @throws RegistryException if the type is unknown or parameters are invalid
      */
     public Invariant create(JsonObject invariantJson) {
+        if (invariantJson.get("type") == null || invariantJson.get("type").isJsonNull()) {
+            throw new RegistryException("Invariant 'type' field is required");
+        }
+        if (!invariantJson.get("type").isJsonPrimitive() || !invariantJson.get("type").getAsJsonPrimitive().isString()) {
+            throw new RegistryException("Invariant 'type' must be a string");
+        }
         String type = invariantJson.get("type").getAsString();
         InvariantFactory factory = factories.get(type);
         if (factory == null) {

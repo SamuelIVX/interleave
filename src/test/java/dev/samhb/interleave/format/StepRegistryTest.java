@@ -120,6 +120,39 @@ class StepRegistryTest {
         // Create step with owning thread ID 1
         dev.samhb.interleave.core.Step step = registry.create(json, 1);
         assertNotNull(step);
+        
+        // Verify the step reads from the correct MemoryLocation
+        // ReadCounterStep reads from "counter" MemoryLocation
+        assertEquals("counter", step.reads().iterator().next().toString());
+    }
+
+    @Test
+    void createStep_explicitThreadParamMatchesOwner() {
+        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
+        json.addProperty("type", "write_flag");
+        json.addProperty("value", true);
+        json.addProperty("thread", 1); // Explicit thread param matching owning thread ID
+        
+        dev.samhb.interleave.core.Step step = registry.create(json, 1);
+        assertNotNull(step);
+        
+        // Verify the step uses the correct thread ID
+        // WriteFlagStep writes to flag[threadId]
+        assertTrue(step.writes().iterator().next().toString().contains("[1]"));
+    }
+
+    @Test
+    void createStep_threadParamDefaultsToOwner_writeFlag() {
+        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
+        json.addProperty("type", "write_flag");
+        json.addProperty("value", true);
+        // No explicit thread param - should default to owning thread ID
+        
+        dev.samhb.interleave.core.Step step = registry.create(json, 1);
+        assertNotNull(step);
+        
+        // Verify the step uses the owning thread ID (1) as writer ID
+        assertTrue(step.writes().iterator().next().toString().contains("[1]"));
     }
 
     @Test

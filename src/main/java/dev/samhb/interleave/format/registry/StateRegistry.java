@@ -30,12 +30,12 @@ public final class StateRegistry {
     private void registerBuiltins() {
         // peterson: flags [bool, bool], turn int
         register("peterson", json -> {
-            JsonHelper.getArray(json, "flags", "peterson");
-            if (json.getAsJsonArray("flags").size() != 2) {
+            com.google.gson.JsonArray flagsArray = JsonHelper.getArray(json, "flags", "peterson");
+            if (flagsArray.size() != 2) {
                 throw new RegistryException("peterson state 'flags' must have exactly 2 elements");
             }
-            boolean flag0 = json.getAsJsonArray("flags").get(0).getAsBoolean();
-            boolean flag1 = json.getAsJsonArray("flags").get(1).getAsBoolean();
+            boolean flag0 = JsonHelper.getBoolFromArray(flagsArray, 0, "peterson");
+            boolean flag1 = JsonHelper.getBoolFromArray(flagsArray, 1, "peterson");
             int turn = JsonHelper.getInt(json, "turn", "peterson");
             return PetersonState.of(flag0, flag1, turn);
         });
@@ -54,12 +54,12 @@ public final class StateRegistry {
 
         // deadlock: flags [bool, bool]
         register("deadlock", json -> {
-            JsonHelper.getArray(json, "flags", "deadlock");
-            if (json.getAsJsonArray("flags").size() != 2) {
+            com.google.gson.JsonArray flagsArray = JsonHelper.getArray(json, "flags", "deadlock");
+            if (flagsArray.size() != 2) {
                 throw new RegistryException("deadlock state 'flags' must have exactly 2 elements");
             }
-            boolean flag0 = json.getAsJsonArray("flags").get(0).getAsBoolean();
-            boolean flag1 = json.getAsJsonArray("flags").get(1).getAsBoolean();
+            boolean flag0 = JsonHelper.getBoolFromArray(flagsArray, 0, "deadlock");
+            boolean flag1 = JsonHelper.getBoolFromArray(flagsArray, 1, "deadlock");
             return DeadlockState.of(flag0, flag1);
         });
 

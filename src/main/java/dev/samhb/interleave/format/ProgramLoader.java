@@ -1,6 +1,7 @@
 package dev.samhb.interleave.format;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonSyntaxException;
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.core.Program;
@@ -18,12 +19,15 @@ import dev.samhb.interleave.format.registry.StateRegistry;
 import dev.samhb.interleave.format.registry.InvariantRegistry;
 import dev.samhb.interleave.format.registry.JsonHelper;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonNull;
+import com.google.gson.JsonArray;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -66,8 +70,14 @@ public final class ProgramLoader {
      * @throws RegistryException if the JSON is malformed or invalid
      */
     public BenchmarkProgram load(String jsonContent) {
+        if (jsonContent == null || jsonContent.isBlank()) {
+            throw new RegistryException("JSON content is empty or null");
+        }
         try {
             ProgramDefinition def = gson.fromJson(jsonContent, ProgramDefinition.class);
+            if (def == null) {
+                throw new RegistryException("JSON parsed to null (empty or null input)");
+            }
             return load(def);
         } catch (JsonSyntaxException e) {
             throw new RegistryException("Invalid JSON: " + e.getMessage(), e);
@@ -107,7 +117,7 @@ public final class ProgramLoader {
         if (is == null) {
             throw new RegistryException("Resource not found: " + path);
         }
-        try {
+        try (is) {
             return new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         } catch (IOException e) {
             throw new RegistryException("Failed to read resource: " + path, e);
@@ -129,9 +139,15 @@ public final class ProgramLoader {
         // Validate thread IDs are sequential 0..N-1
         List<ThreadDefinition> threadDefs = def.threads();
         for (int i = 0; i < threadDefs.size(); i++) {
-            if (threadDefs.get(i).id() != i) {
+            Integer threadId = threadDefs.get(i).id();
+            if (threadId == null) {
                 throw new RegistryException(
-                    "Thread ID at index " + i + " must be " + i + ", got " + threadDefs.get(i).id()
+                    "Thread at index " + i + " is missing required 'id' field"
+                );
+            }
+            if (threadId != i) {
+                throw new RegistryException(
+                    "Thread ID at index " + i + " must be " + i + ", got " + threadId
                 );
             }
             if (threadDefs.get(i).steps() == null || threadDefs.get(i).steps().isEmpty()) {
@@ -139,13 +155,27 @@ public final class ProgramLoader {
             }
         }
 
+        // Validate state.type is present and is a string
+        if (def.state().get("type") == null || def.state().get("type").isJsonNull()) {
+            throw new RegistryException("State 'type' field is required");
+        }
+        if (!def.state().get("type").isJsonPrimitive() || !def.state().get("type").getAsJsonPrimitive().isString()) {
+            throw new RegistryException("State 'type' must be a string");
+        }
+
         // Load state
         String stateType = def.state().get("type").getAsString();
         SharedState initialState = stateRegistry.create(def.state());
 
-        // Validate step compatibility with state type
+        // Validate step compatibility with state type + validate step.type
         for (ThreadDefinition threadDef : threadDefs) {
             for (com.google.gson.JsonObject stepJson : threadDef.steps()) {
+                if (stepJson.get("type") == null || stepJson.get("type").isJsonNull()) {
+                    throw new RegistryException("Step is missing required 'type' field");
+                }
+                if (!stepJson.get("type").isJsonPrimitive() || !stepJson.get("type").getAsJsonPrimitive().isString()) {
+                    throw new RegistryException("Step 'type' must be a string");
+                }
                 String stepType = stepJson.get("type").getAsString();
                 stepRegistry.validateCompatibility(stepType, stateType);
             }
@@ -183,15 +213,21 @@ public final class ProgramLoader {
         // Load invariant if present
         Invariant invariant = null;
         if (def.invariant() != null) {
+            if (def.invariant().get("type") == null || def.invariant().get("type").isJsonNull()) {
+                throw new RegistryException("Invariant 'type' field is required");
+            }
+            if (!def.invariant().get("type").isJsonPrimitive() || !def.invariant().get("type").getAsJsonPrimitive().isString()) {
+                throw new RegistryException("Invariant 'type' must be a string");
+            }
             String invariantType = def.invariant().get("type").getAsString();
-            invariantRegistry.validateCompatibility(def.invariant().get("type").getAsString(), def.state().get("type").getAsString());
+            invariantRegistry.validateCompatibility(invariantType, def.state().get("type").getAsString());
             invariant = invariantRegistry.create(def.invariant());
         }
 
         // Expected verdict (optional)
         String expectedVerdict = def.expectedVerdict();
         if (expectedVerdict != null) {
-            String v = expectedVerdict.toUpperCase();
+            String v = expectedVerdict.toUpperCase(Locale.ROOT);
             if (!v.equals("PASS") && !v.equals("VIOLATION") && !v.equals("DEADLOCK")) {
                 throw new RegistryException(
                     "Invalid expected_verdict '" + expectedVerdict + "'. Must be PASS, VIOLATION, or DEADLOCK."

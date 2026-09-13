@@ -19,6 +19,7 @@ class ProgramLoaderTest {
     @Test
     void loadAllSevenPrograms_equivalentToJava() {
         // Load all 7 programs from JSON and compare with Java BugCorpus equivalents
+        // Use Java fixtures as baseline (NOT BugCorpus.all() which loads from JSON)
         List<BenchmarkProgram> jsonPrograms = List.of(
             loader.loadFromResource("programs/peterson.json"),
             loader.loadFromResource("programs/broken-peterson.json"),
@@ -29,7 +30,7 @@ class ProgramLoaderTest {
             loader.loadFromResource("programs/torn-counter.json")
         );
 
-        List<BenchmarkProgram> javaPrograms = BugCorpus.all();
+        List<BenchmarkProgram> javaPrograms = BugCorpus.allJavaFixtures();
 
         assertEquals(7, jsonPrograms.size());
         assertEquals(7, javaPrograms.size());
@@ -143,6 +144,23 @@ class ProgramLoaderTest {
         RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
             () -> loader.load(json));
         assertTrue(ex.getMessage().contains("Thread ID at index 1 must be 1"));
+    }
+
+    @Test
+    void loadMissingThreadId_throwsRegistryException() {
+        String json = """
+            {
+              "name": "test",
+              "state": {"type": "counter", "counter": 0},
+              "threads": [
+                {"id": 0, "steps": [{"type": "read_counter"}]},
+                {"steps": [{"type": "read_counter"}]}
+              ]
+            }
+            """;
+        RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
+            () -> loader.load(json));
+        assertTrue(ex.getMessage().contains("missing required 'id'"));
     }
 
     @Test

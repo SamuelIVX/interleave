@@ -159,6 +159,12 @@ public final class StepRegistry {
      * @throws RegistryException if the type is unknown or parameters are invalid
      */
     public Step create(JsonObject stepJson, int owningThreadId) {
+        if (stepJson.get("type") == null || stepJson.get("type").isJsonNull()) {
+            throw new RegistryException("Step 'type' field is required");
+        }
+        if (!stepJson.get("type").isJsonPrimitive() || !stepJson.get("type").getAsJsonPrimitive().isString()) {
+            throw new RegistryException("Step 'type' must be a string");
+        }
         String type = stepJson.get("type").getAsString();
         StepFactory factory = factories.get(type);
         if (factory == null) {
