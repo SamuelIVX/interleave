@@ -1,0 +1,28 @@
+{
+  "name": "lost-update",
+  "state": {
+    "type": "counter",
+    "counter": 0
+  },
+  "threads": [
+    {
+      "id": 0,
+      "steps": [
+        {"type": "read_counter"},
+        {"type": "write_counter"}
+      ]
+    },
+    {
+      "id": 1,
+      "steps": [
+        {"type": "read_counter"},
+        {"type": "write_counter"}
+      ]
+    }
+  ],
+  "invariant": {
+    "type": "counter_equals",
+    "expected": 2
+  },
+  "expected_verdict": "VIOLATION"
+}

@@ -82,9 +82,10 @@ public final class BenchmarkHarness {
         DfsExplorer dfsExplorer = new DfsExplorer();
         DfsResultWithTiming dfsResult = runExplorer(() -> dfsExplorer.explore(program.program(), invariant, storeFactory.get(), null));
         String dfsVerdict = actualVerdict(dfsResult.result());
-        // Only validate verdict for exact store type
-        if (storeType == StoreType.EXACT && !program.expectedVerdict().equals(dfsVerdict)) {
-            throw new IllegalStateException("Expected verdict " + program.expectedVerdict() +
+        // Only validate verdict for exact store type when expected verdict is provided
+        String expectedVerdict = program.expectedVerdict();
+        if (expectedVerdict != null && storeType == StoreType.EXACT && !expectedVerdict.equals(dfsVerdict)) {
+            throw new IllegalStateException("Expected verdict " + expectedVerdict +
                 " for " + program.name() + " but got " + dfsVerdict);
         }
         Trace dfsFailing = findFailingTrace(dfsResult.result());

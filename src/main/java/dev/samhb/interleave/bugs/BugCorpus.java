@@ -1,9 +1,13 @@
 package dev.samhb.interleave.bugs;
 
-import dev.samhb.interleave.core.*;
-import java.util.*;
+import dev.samhb.interleave.format.ProgramLoader;
+import dev.samhb.interleave.format.registry.RegistryException;
+import java.util.List;
+import java.util.ArrayList;
 
 public final class BugCorpus {
+    private static final ProgramLoader LOADER = new ProgramLoader();
+
     public static List<BenchmarkProgram> all() {
         List<BenchmarkProgram> programs = new ArrayList<>();
         programs.add(peterson());
@@ -17,54 +21,30 @@ public final class BugCorpus {
     }
 
     public static BenchmarkProgram peterson() {
-        PetersonState initial = PetersonState.of(false, false, 0);
-        
-        List<Step> thread0Steps = List.of(
-            new WriteFlagStep(0, true),
-            new WriteTurnStep(1),
-            new BusyWaitStep(0, 1),
-            new CSEnterStep(0),
-            new CSExitStep(),
-            new WriteFlagStep(0, false)
-        );
-        
-        List<Step> thread1Steps = List.of(
-            new WriteFlagStep(1, true),
-            new WriteTurnStep(0),
-            new BusyWaitStep(1, 0),
-            new CSEnterStep(1),
-            new CSExitStep(),
-            new WriteFlagStep(1, false)
-        );
-        
-        ModelThread t0 = new ModelThread(0, thread0Steps);
-        ModelThread t1 = new ModelThread(1, thread1Steps);
-        
-        Program program = new Program(initial, List.of(t0, t1));
-        return new BenchmarkProgram("peterson", program, "PASS");
+        return LOADER.loadFromResource("programs/peterson.json");
     }
 
     public static BenchmarkProgram brokenPeterson() {
-        return BrokenPeterson.program();
+        return LOADER.loadFromResource("programs/broken-peterson.json");
     }
 
     public static BenchmarkProgram brokenPetersonV2() {
-        return BrokenPetersonV2.program();
+        return LOADER.loadFromResource("programs/broken-peterson-v2.json");
     }
 
     public static BenchmarkProgram deadlock() {
-        return DeadlockProgram.program();
+        return LOADER.loadFromResource("programs/deadlock.json");
     }
 
     public static BenchmarkProgram doubleCheckedLocking() {
-        return DoubleCheckedLocking.program();
+        return LOADER.loadFromResource("programs/double-checked-locking.json");
     }
 
     public static BenchmarkProgram lostUpdate() {
-        return LostUpdate.program();
+        return LOADER.loadFromResource("programs/lost-update.json");
     }
 
     public static BenchmarkProgram tornCounter() {
-        return TornCounter.program();
+        return LOADER.loadFromResource("programs/torn-counter.json");
     }
 }
