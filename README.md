@@ -143,11 +143,96 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 - DPOR uses exhaustive DFS path for invariants (`explore(program, invariant)` → `dfsDfs()`)
 - Removed dead `dfsDfs` from `StaticPorExplorer`, restored it in `DporExplorer`
 
+## JSON Program Definition Format
+
+Starting with v1.1, programs can be defined declaratively in JSON instead of writing Java code. This enables rapid prototyping and makes the tool accessible for teaching.
+
+### Format
+
+A program definition is a JSON object with these fields:
+
+```json
+{
+  "name": "lost-update",
+  "state": { "type": "counter", "counter": 0 },
+  "threads": [
+    { "id": 0, "steps": [{"type": "read_counter"}, {"type": "write_counter"}] },
+    { "id": 1, "steps": [{"type": "read_counter"}, {"type": "write_counter"}] }
+  ],
+  "invariant": { "type": "counter_equals", "expected": 2 },
+  "expected_verdict": "VIOLATION"
+}
+```
+
+### State types
+
+| Type | Required fields |
+|---|---|
+| `peterson` | `flags`: [bool, bool], `turn`: int |
+| `counter` | `counter`: int |
+| `dcl` | `initialized`: bool |
+| `deadlock` | `flags`: [bool, bool] |
+| `pair` | `high`: int, `low`: int |
+
+### Step types (19 total)
+
+| type | Required params | Compatible state |
+|---|---|---|
+| `write_flag` | `value`: bool | peterson |
+| `write_turn` | `value`: int | peterson |
+| `busy_wait` | `other`: int | peterson |
+| `read_flag` | `other`: int | peterson |
+| `cs_enter` | — | peterson |
+| `cs_exit` | — | peterson |
+| `read_counter` | — | counter |
+| `write_counter` | — | counter |
+| `write_high` | `value`: int | pair |
+| `write_low` | `value`: int | pair |
+| `read_snapshot` | — | pair |
+| `deadlock_write_flag` | `value`: bool | deadlock |
+| `unconditional_wait` | `other`: int | deadlock |
+| `dcl_lock` | — | dcl |
+| `dcl_unlock` | — | dcl |
+| `dcl_init` | — | dcl |
+| `dcl_create_instance` | — | dcl |
+| `dcl_read_instance` | — | dcl |
+| `dcl_use_instance` | — | dcl |
+
+All step types accept an optional `thread` parameter (defaults to the owning thread's ID). If present, it must match the owning thread's ID. Steps like `busy_wait`, `read_flag`, and `unconditional_wait` also require an `other` parameter (the other thread's ID, must be valid).
+
+### Invariant types
+
+| type | Params | Compatible state |
+|---|---|---|
+| `mutual_exclusion_peterson` | `thread0_cs_pc`, `thread1_cs_pc` | peterson |
+| `counter_equals` | `expected` | counter |
+| `dcl_uninitialized_observed` | (none) | dcl |
+| `torn_read` | `high_value`, `low_value` | pair |
+
+### CLI Usage
+
+```bash
+# Run a built-in bug program (unchanged)
+./gradlew run --args="lost-update --json"
+
+# Run a program from a JSON file
+./gradlew run --args="--file examples/programs/lost-update.json --json"
+```
+
+### Example files
+
+Seven example program definitions are included in `examples/programs/` and `src/main/resources/programs/`:
+
+- `peterson.json` (correct Peterson, expected PASS, no invariant)
+- `broken-peterson.json` (VIOLATION, mutual_exclusion_peterson)
+- `broken-peterson-v2.json` (VIOLATION, mutual_exclusion_peterson)
+- `deadlock.json` (DEADLOCK, no invariant)
+- `double-checked-locking.json` (VIOLATION, dcl_uninitialized_observed)
+- `lost-update.json` (VIOLATION, counter_equals)
+- `torn-counter.json` (VIOLATION, torn_read)
+
+### Migration
+
+The built-in `BugCorpus` programs now load from JSON resources. Load-and-compare tests verify that JSON-loaded programs produce identical results to the original Java implementations.
+
 ## Future Extensions
-
-See [`docs/plans/future-work.md`](docs/plans/future-work.md) for the full list. The main candidates are:
-
-- **JSON/YAML/DSL program definition format** — describe concurrent programs declaratively instead of hand-writing Java `Step` objects. See `docs/plans/future-work.md` for the full ranked list.
-- **Concurrent-program parser** — parse a small imperative language with threads, shared variables, and atomic sections.
-- **Real Java bytecode instrumentation** — analyze actual concurrent Java programs instead of modeled ones.
-- **Web UI / visualizer** — render interleaving trees, state-space DAGs, or failing traces.

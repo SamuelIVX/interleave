@@ -1,0 +1,29 @@
+{
+  "name": "torn-counter",
+  "state": {
+    "type": "pair",
+    "high": 0,
+    "low": 0
+  },
+  "threads": [
+    {
+      "id": 0,
+      "steps": [
+        {"type": "write_high", "value": 2},
+        {"type": "write_low", "value": 2}
+      ]
+    },
+    {
+      "id": 1,
+      "steps": [
+        {"type": "read_snapshot"}
+      ]
+    }
+  ],
+  "invariant": {
+    "type": "torn_read",
+    "high_value": 2,
+    "low_value": 2
+  },
+  "expected_verdict": "VIOLATION"
+}

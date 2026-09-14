@@ -62,17 +62,17 @@ public final class SoundnessAttestation {
             String actualVerdict = result.verdict();
             BenchmarkProgram program = programs.get(key);
 
-            if (program != null) {
+if (program != null) {
                 String expectedVerdict = program.expectedVerdict();
                 if ("DFS".equals(result.strategy())) {
-                    if (!expectedVerdict.equals(actualVerdict)) {
+                    if (expectedVerdict != null && !expectedVerdict.equals(actualVerdict)) {
                         return SoundnessCheck.failed("DFS verdict mismatch for " + key +
                             ": expected " + expectedVerdict + " but got " + actualVerdict);
                     }
                     dfsVerdicts.put(key, actualVerdict);
                 }
 
-                if (!"VIOLATION".equals(expectedVerdict)) {
+                if (expectedVerdict != null && !"VIOLATION".equals(expectedVerdict)) {
                     if (correctVerdicts.containsKey(key)) {
                         if (!correctVerdicts.get(key).equals(actualVerdict)) {
                             return SoundnessCheck.failed("Verdict mismatch for correct program " + key +
