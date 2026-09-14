@@ -221,6 +221,14 @@ public final class ProgramLoader {
             }
             String invariantType = def.invariant().get("type").getAsString();
             invariantRegistry.validateCompatibility(invariantType, def.state().get("type").getAsString());
+
+            // mutual_exclusion_peterson requires exactly two threads
+            if ("mutual_exclusion_peterson".equals(invariantType) && threadDefs.size() != 2) {
+                throw new RegistryException(
+                    "Invariant 'mutual_exclusion_peterson' requires exactly two threads"
+                );
+            }
+
             invariant = invariantRegistry.create(def.invariant());
         }
 

@@ -192,6 +192,58 @@ class ProgramLoaderTest {
     }
 
     @Test
+    void loadMutualExclusionPeterson_oneThread_throwsRegistryException() {
+        String json = """
+            {
+              "name": "test",
+              "state": {"type": "peterson", "flags": [false, false], "turn": 0},
+              "threads": [{"id": 0, "steps": [{"type": "write_flag", "value": true}]}],
+              "invariant": {"type": "mutual_exclusion_peterson", "thread0_cs_pc": 1, "thread1_cs_pc": 1}
+            }
+            """;
+        RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
+            () -> loader.load(json));
+        assertTrue(ex.getMessage().contains("mutual_exclusion_peterson") && ex.getMessage().contains("two threads"));
+    }
+
+    @Test
+    void loadMutualExclusionPeterson_threeThreads_throwsRegistryException() {
+        String json = """
+            {
+              "name": "test",
+              "state": {"type": "peterson", "flags": [false, false], "turn": 0},
+              "threads": [
+                {"id": 0, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 1, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 2, "steps": [{"type": "write_flag", "value": true}]}
+              ],
+              "invariant": {"type": "mutual_exclusion_peterson", "thread0_cs_pc": 1, "thread1_cs_pc": 1}
+            }
+            """;
+        RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
+            () -> loader.load(json));
+        assertTrue(ex.getMessage().contains("mutual_exclusion_peterson") && ex.getMessage().contains("two threads"));
+    }
+
+    @Test
+    void loadMutualExclusionPeterson_twoThreads_succeeds() {
+        String json = """
+            {
+              "name": "test",
+              "state": {"type": "peterson", "flags": [false, false], "turn": 0},
+              "threads": [
+                {"id": 0, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 1, "steps": [{"type": "write_flag", "value": true}]}
+              ],
+              "invariant": {"type": "mutual_exclusion_peterson", "thread0_cs_pc": 1, "thread1_cs_pc": 1}
+            }
+            """;
+        BenchmarkProgram program = loader.load(json);
+        assertNotNull(program);
+        assertEquals("test", program.name());
+    }
+
+    @Test
     void loadMissingState_throwsRegistryException() {
         String json = """
             {
