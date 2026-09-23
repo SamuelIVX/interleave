@@ -47,6 +47,11 @@ class DeltaDebuggerTest {
         assertTrue(minimized.length() > 0, "Minimized trace should not be empty");
         assertEquals(TraceOutcome.VIOLATION, minimized.outcome(),
             "Minimized trace should still be a VIOLATION");
+
+        TraceReplayer replayer = new TraceReplayer();
+        Configuration replayed = replayer.replay(buggyProgram(), minimized);
+        assertFalse(buggyInvariant().holds(replayed.state(), replayed),
+            "Replayed minimized trace must still violate the invariant");
     }
     
     @Test
