@@ -15,6 +15,9 @@ public final class BenchmarkResult {
     private final String verdict;
     private final Trace failingTrace;
     private final StoreType storeType;
+    private final double estimatedFalsePositiveRate;
+    private final int bitstateBitCount;
+    private final double bitstateBitDensity;
 
     /**
      * Creates a result with the exact store type (backward compatible).
@@ -28,7 +31,7 @@ public final class BenchmarkResult {
      */
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict) {
-        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, StoreType.EXACT);
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, StoreType.EXACT, 0.0, 0, 0.0);
     }
 
     /**
@@ -45,7 +48,7 @@ public final class BenchmarkResult {
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict,
                            Trace failingTrace) {
-        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace, StoreType.EXACT);
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace, StoreType.EXACT, 0.0, 0, 0.0);
     }
 
     /**
@@ -62,11 +65,11 @@ public final class BenchmarkResult {
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict,
                            StoreType storeType) {
-        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, storeType);
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, storeType, 0.0, 0, 0.0);
     }
 
     /**
-     * Full constructor with all fields.
+     * Creates a result with an explicit store type and failing trace (no bitstate metrics).
      *
      * @param strategy the strategy name
      * @param bugName the benchmark program name
@@ -80,6 +83,29 @@ public final class BenchmarkResult {
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict,
                            Trace failingTrace, StoreType storeType) {
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace, storeType, 0.0, 0, 0.0);
+    }
+
+    /**
+     * Full constructor with all fields including bitstate metrics.
+     *
+     * @param strategy the strategy name
+     * @param bugName the benchmark program name
+     * @param statesExplored number of states explored
+     * @param wallTimeMs wall-clock time in milliseconds
+     * @param heapDeltaBytes heap memory delta in bytes
+     * @param verdict the verdict
+     * @param failingTrace the failing trace, or null if none
+     * @param storeType the store type (EXACT or BITSTATE)
+     * @param estimatedFalsePositiveRate estimated false-positive rate for bitstate (0 for exact)
+     * @param bitstateBitCount number of bits set in the bit vector (0 for exact)
+     * @param bitstateBitDensity fraction of bits set in [0,1] (0 for exact)
+     */
+    public BenchmarkResult(String strategy, String bugName, long statesExplored,
+                           long wallTimeMs, long heapDeltaBytes, String verdict,
+                           Trace failingTrace, StoreType storeType,
+                           double estimatedFalsePositiveRate, int bitstateBitCount,
+                           double bitstateBitDensity) {
         this.strategy = strategy;
         this.bugName = bugName;
         this.statesExplored = statesExplored;
@@ -88,6 +114,9 @@ public final class BenchmarkResult {
         this.verdict = verdict;
         this.failingTrace = failingTrace;
         this.storeType = storeType;
+        this.estimatedFalsePositiveRate = estimatedFalsePositiveRate;
+        this.bitstateBitCount = bitstateBitCount;
+        this.bitstateBitDensity = bitstateBitDensity;
     }
 
     /**
@@ -160,5 +189,35 @@ public final class BenchmarkResult {
      */
     public StoreType storeType() {
         return storeType;
+    }
+
+    /**
+     * Returns the estimated false-positive rate for bitstate runs.
+     * Zero for exact runs.
+     *
+     * @return estimated FPR in [0, 1]
+     */
+    public double estimatedFalsePositiveRate() {
+        return estimatedFalsePositiveRate;
+    }
+
+    /**
+     * Returns the number of bits set in the bit vector for bitstate runs.
+     * Zero for exact runs.
+     *
+     * @return bit cardinality
+     */
+    public int bitstateBitCount() {
+        return bitstateBitCount;
+    }
+
+    /**
+     * Returns the fraction of bits set for bitstate runs.
+     * Zero for exact runs.
+     *
+     * @return bit density in [0, 1]
+     */
+    public double bitstateBitDensity() {
+        return bitstateBitDensity;
     }
 }
