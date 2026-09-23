@@ -1,6 +1,8 @@
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.bugs.BugCorpus;
+import dev.samhb.interleave.core.StepOutcome;
+import dev.samhb.interleave.search.Trace;
 import java.util.*;
 
 /**
@@ -22,6 +24,7 @@ public final class ReportWriter {
      * Generates a human-readable Markdown report including:
      * <ul>
      *   <li>States Explored Reduction Table (grouped by strategy + store type)</li>
+     *   <li>Bitstate Summary (FPR, bit density for bitstate runs)</li>
      *   <li>Detailed results table (bug, strategy, store type, states, time, memory, verdict)</li>
      *   <li>Soundness Attestation (validates exact results + replays all violation traces)</li>
      * </ul>
@@ -36,6 +39,12 @@ public final class ReportWriter {
         sb.append(table.formatReductionTable());
         sb.append("\n");
 
+        String bitstateSummary = table.formatBitstateSummary();
+        if (!bitstateSummary.isEmpty()) {
+            sb.append(bitstateSummary);
+            sb.append("\n");
+        }
+
         sb.append("## Detailed Results\n\n");
         sb.append(table.formatMarkdown());
         sb.append("\n");
@@ -49,7 +58,8 @@ public final class ReportWriter {
     /**
      * Generates a JSON report with benchmark data and soundness flag.
      * Each benchmark entry includes: bug, strategy, storeType, statesExplored,
-     * wallTimeMs, heapDeltaBytes, verdict.
+     * wallTimeMs, heapDeltaBytes, verdict, failingTrace (if present),
+     * and bitstateMetrics (for bitstate runs).
      *
      * @return the JSON report as a string
      */
@@ -67,6 +77,21 @@ public final class ReportWriter {
             sb.append(String.format("      \"statesExplored\": %d,\n", result.statesExplored()));
             sb.append(String.format("      \"wallTimeMs\": %d,\n", result.wallTimeMs()));
             sb.append(String.format("      \"heapDeltaBytes\": %d,\n", result.heapDeltaBytes()));
+
+            // Failing trace
+            if (result.failingTrace().isPresent()) {
+                sb.append("      \"failingTrace\": ");
+                sb.append(formatFailingTrace(result.failingTrace().get()));
+                sb.append(",\n");
+            }
+
+            // Bitstate metrics
+            if (result.storeType() == StoreType.BITSTATE) {
+                sb.append("      \"bitstateMetrics\": ");
+                sb.append(formatBitstateMetrics(result));
+                sb.append(",\n");
+            }
+
             sb.append(String.format("      \"verdict\": \"%s\"\n", result.verdict()));
             sb.append("    }");
             if (i < results.size() - 1) sb.append(",");
@@ -82,5 +107,44 @@ public final class ReportWriter {
         sb.append("}\n");
 
         return sb.toString();
+    }
+
+    private static String formatFailingTrace(Trace trace) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("{\n");
+        sb.append("        \"threadIds\": [");
+        for (int i = 0; i < trace.threadIds().size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(trace.threadIds().get(i));
+        }
+        sb.append("],\n");
+        sb.append("        \"outcomes\": [");
+        for (int i = 0; i < trace.outcomes().size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(String.format("\"%s\"", trace.outcomes().get(i)));
+        }
+        sb.append("]\n");
+        sb.append("      }");
+        return sb.toString();
+    }
+
+    private static String formatBitstateMetrics(BenchmarkResult result) {
+        return String.format(java.util.Locale.ROOT, """
+            {
+              "falsePositiveRate": %s,
+              "bitCount": %d,
+              "bitDensity": %s
+            }""",
+            formatSmallDouble(result.estimatedFalsePositiveRate()),
+            result.bitstateBitCount(),
+            formatSmallDouble(result.bitstateBitDensity()));
+    }
+
+    private static String formatSmallDouble(double value) {
+        if (value == 0.0) return "0.0";
+        if (Math.abs(value) < 0.001) {
+            return String.format(java.util.Locale.ROOT, "%.2e", value);
+        }
+        return String.format(java.util.Locale.ROOT, "%.6f", value);
     }
 }

@@ -34,10 +34,38 @@ The project is built as a clean, spec-driven proof-of-concept. It is not a produ
 ### Run
 
 ```bash
-./gradlew run --args=<bug-name>
+./gradlew run --args="<bug-name> [flags]"
 ```
 
 Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`, `double-checked-locking`, `lost-update`, `torn-counter`
+
+### CLI Flags
+
+| Flag | Description |
+|------|-------------|
+| `--json` | Output as JSON (default: Markdown) |
+| `--store exact\|bitstate` | Filter by store type (default: both) |
+| `--strategy DFS\|STATIC_POR\|DPOR` | Filter by strategy (default: all) |
+| `--bitstate-size N` | Bitstate bit-array size (default: 1,000,003) |
+| `--bitstate-k N` | Bitstate hash function count (default: 4) |
+| `--all` | Run entire corpus |
+| `--file <path>` | Load program from JSON file |
+
+### Examples
+
+```bash
+# Run all strategies for a program
+./gradlew run --args="peterson"
+
+# Run only bitstate DFS for a program
+./gradlew run --args="peterson --store bitstate --strategy DFS"
+
+# Run entire corpus as JSON
+./gradlew run --args="--all --json"
+
+# Run from JSON file with custom bitstate params
+./gradlew run --args="--file examples/programs/lost-update.json --bitstate-size 500001 --bitstate-k 6"
+```
 
 ### Test
 
@@ -84,8 +112,27 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 - **Language:** Java 26+
 - **Build:** Gradle 8.11+
-- **Testing:** JUnit 5 (73 tests passing)
+- **Testing:** JUnit 5 (143 tests passing)
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)
+
+## Bitstate Mode
+
+Bitstate provides probabilistic state storage using Bloom filters. It trades completeness for memory savings — false positives are possible (states may be incorrectly marked as visited), but false negatives are not (a visited state is never explored twice).
+
+**Tradeoffs:**
+- Memory: O(m) total for m bits (configurable), vs O(n) total for n states in exact hashing
+- Speed: faster due to cache-friendly bit-array access
+- Completeness: may miss violations in rare cases (false positive rate tracked in reports)
+
+**When to use:**
+- Large state spaces where exact hashing exhausts memory
+- Quick initial screening before exhaustive verification
+- Benchmarking and performance analysis
+
+**Reports include:**
+- False-positive rate estimate for each bitstate run
+- Bit density (fraction of bits set) as a health metric
+- Reduction percentages relative to DFS baseline
 
 ## Library/API Mode
 

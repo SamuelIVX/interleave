@@ -22,14 +22,53 @@ import java.util.*;
  * state stores, producing 6 results per program (42 total for the corpus).
  */
 public final class BenchmarkHarness {
-    private static final int BITSTATE_SIZE = 1_000_003;
-    private static final int BITSTATE_K = 4;
+    private static final int DEFAULT_BITSTATE_SIZE = 1_000_003;
+    private static final int DEFAULT_BITSTATE_K = 4;
+
+    private final int bitstateSize;
+    private final int bitstateK;
+    private final Set<StoreType> storeFilter;
+    private final Set<String> strategyFilter;
+
+    /**
+     * Creates a harness with default parameters (all stores, all strategies).
+     */
+    public BenchmarkHarness() {
+        this(DEFAULT_BITSTATE_SIZE, DEFAULT_BITSTATE_K, null, null);
+    }
+
+    /**
+     * Creates a harness with custom bitstate parameters.
+     *
+     * @param bitstateSize the bit-array size for BitstateStore
+     * @param bitstateK the number of hash functions for BitstateStore
+     */
+    public BenchmarkHarness(int bitstateSize, int bitstateK) {
+        this(bitstateSize, bitstateK, null, null);
+    }
+
+    /**
+     * Creates a harness with custom parameters and optional filters.
+     *
+     * @param bitstateSize the bit-array size for BitstateStore
+     * @param bitstateK the number of hash functions for BitstateStore
+     * @param storeFilter the store types to run, or null for all
+     * @param strategyFilter the strategies to run, or null for all
+     */
+    public BenchmarkHarness(int bitstateSize, int bitstateK,
+                            Set<StoreType> storeFilter, Set<String> strategyFilter) {
+        this.bitstateSize = bitstateSize;
+        this.bitstateK = bitstateK;
+        this.storeFilter = storeFilter;
+        this.strategyFilter = strategyFilter;
+    }
 
     /**
      * Runs the complete benchmark suite for all programs in the corpus.
-     * Returns 6 results per program: 3 strategies × 2 store types (EXACT, BITSTATE).
+     * Returns up to 6 results per program: 3 strategies × 2 store types,
+     * filtered by the configured store and strategy filters.
      *
-     * @return list of all {@link BenchmarkResult}s (42 for the default corpus)
+     * @return list of {@link BenchmarkResult}s
      */
     public List<BenchmarkResult> runAll() {
         List<BenchmarkResult> results = new ArrayList<>();
@@ -43,21 +82,29 @@ public final class BenchmarkHarness {
 
     /**
      * Runs all strategies for a single program with both exact and bitstate stores.
-     * Produces 6 results: DFS, STATIC_POR, DPOR × {EXACT, BITSTATE}.
+     * Produces up to 6 results: DFS, STATIC_POR, DPOR × {EXACT, BITSTATE},
+     * filtered by the configured store and strategy filters.
      *
      * @param program the benchmark program
-     * @return list of 6 {@link BenchmarkResult}s
+     * @return list of {@link BenchmarkResult}s
      */
     public List<BenchmarkResult> runProgram(BenchmarkProgram program) {
         List<BenchmarkResult> results = new ArrayList<>();
         Invariant invariant = program.invariant().orElse(null);
 
+        boolean runExact = storeFilter == null || storeFilter.contains(StoreType.EXACT);
+        boolean runBitstate = storeFilter == null || storeFilter.contains(StoreType.BITSTATE);
+
         // Run with exact state store (HashingStateStore)
-        results.addAll(runProgramWithStore(program, invariant, HashingStateStore::new, StoreType.EXACT));
+        if (runExact) {
+            results.addAll(runProgramWithStore(program, invariant, HashingStateStore::new, StoreType.EXACT));
+        }
 
         // Run with bitstate store (BitstateStore)
-        results.addAll(runProgramWithStore(program, invariant,
-            () -> new BitstateStore(BITSTATE_SIZE, BITSTATE_K), StoreType.BITSTATE));
+        if (runBitstate) {
+            results.addAll(runProgramWithStore(program, invariant,
+                () -> new BitstateStore(bitstateSize, bitstateK), StoreType.BITSTATE));
+        }
 
         return results;
     }
@@ -71,47 +118,68 @@ public final class BenchmarkHarness {
      * @param invariant the invariant to check, or null
      * @param storeFactory factory for creating fresh state stores
      * @param storeType the store type for labeling results
-     * @return list of 3 results (one per strategy)
+     * @return list of results (one per selected strategy)
      */
     private List<BenchmarkResult> runProgramWithStore(BenchmarkProgram program, Invariant invariant,
                                                        java.util.function.Supplier<StateStore> storeFactory,
                                                        StoreType storeType) {
         List<BenchmarkResult> results = new ArrayList<>();
 
+        boolean runDfs = strategyFilter == null || strategyFilter.contains("DFS");
+        boolean runPor = strategyFilter == null || strategyFilter.contains("STATIC_POR");
+        boolean runDpor = strategyFilter == null || strategyFilter.contains("DPOR");
+
         // DFS
-        DfsExplorer dfsExplorer = new DfsExplorer();
-        DfsResultWithTiming dfsResult = runExplorer(() -> dfsExplorer.explore(program.program(), invariant, storeFactory.get(), null));
-        String dfsVerdict = actualVerdict(dfsResult.result());
-        // Only validate verdict for exact store type when expected verdict is provided
-        String expectedVerdict = program.expectedVerdict();
-        if (expectedVerdict != null && storeType == StoreType.EXACT && !expectedVerdict.equals(dfsVerdict)) {
-            throw new IllegalStateException("Expected verdict " + expectedVerdict +
-                " for " + program.name() + " but got " + dfsVerdict);
+        if (runDfs) {
+            DfsExplorer dfsExplorer = new DfsExplorer();
+            StateStore dfsStore = storeFactory.get();
+            DfsResultWithTiming dfsResult = runExplorer(() -> dfsExplorer.explore(program.program(), invariant, dfsStore, null));
+            String dfsVerdict = actualVerdict(dfsResult.result());
+            String expectedVerdict = program.expectedVerdict();
+            if (expectedVerdict != null && storeType == StoreType.EXACT && !expectedVerdict.equals(dfsVerdict)) {
+                throw new IllegalStateException("Expected verdict " + expectedVerdict +
+                    " for " + program.name() + " but got " + dfsVerdict);
+            }
+            Trace dfsFailing = findFailingTrace(dfsResult.result());
+            results.add(createResult("DFS", program.name(), dfsResult, dfsVerdict, dfsFailing, storeType, dfsStore));
         }
-        Trace dfsFailing = findFailingTrace(dfsResult.result());
-        results.add(new BenchmarkResult("DFS", program.name(), dfsResult.result().statesExplored(),
-                                        dfsResult.wallTimeMs(), dfsResult.heapDeltaBytes(),
-                                        dfsVerdict, dfsFailing, storeType));
 
         // STATIC_POR
-        StaticPorExplorer porExplorer = new StaticPorExplorer();
-        DfsResultWithTiming porResult = runExplorer(() -> porExplorer.explore(program.program(), invariant, storeFactory.get(), null));
-        String porVerdict = actualVerdict(porResult.result());
-        Trace porFailing = findFailingTrace(porResult.result());
-        results.add(new BenchmarkResult("STATIC_POR", program.name(), porResult.result().statesExplored(),
-                                        porResult.wallTimeMs(), porResult.heapDeltaBytes(),
-                                        porVerdict, porFailing, storeType));
+        if (runPor) {
+            StaticPorExplorer porExplorer = new StaticPorExplorer();
+            StateStore porStore = storeFactory.get();
+            DfsResultWithTiming porResult = runExplorer(() -> porExplorer.explore(program.program(), invariant, porStore, null));
+            String porVerdict = actualVerdict(porResult.result());
+            Trace porFailing = findFailingTrace(porResult.result());
+            results.add(createResult("STATIC_POR", program.name(), porResult, porVerdict, porFailing, storeType, porStore));
+        }
 
         // DPOR
-        DporExplorer dporExplorer = new DporExplorer();
-        DfsResultWithTiming dporResult = runExplorer(() -> dporExplorer.explore(program.program(), invariant, storeFactory.get(), null));
-        String dporVerdict = actualVerdict(dporResult.result());
-        Trace dporFailing = findFailingTrace(dporResult.result());
-        results.add(new BenchmarkResult("DPOR", program.name(), dporResult.result().statesExplored(),
-                                        dporResult.wallTimeMs(), dporResult.heapDeltaBytes(),
-                                        dporVerdict, dporFailing, storeType));
+        if (runDpor) {
+            DporExplorer dporExplorer = new DporExplorer();
+            StateStore dporStore = storeFactory.get();
+            DfsResultWithTiming dporResult = runExplorer(() -> dporExplorer.explore(program.program(), invariant, dporStore, null));
+            String dporVerdict = actualVerdict(dporResult.result());
+            Trace dporFailing = findFailingTrace(dporResult.result());
+            results.add(createResult("DPOR", program.name(), dporResult, dporVerdict, dporFailing, storeType, dporStore));
+        }
 
         return results;
+    }
+
+    private BenchmarkResult createResult(String strategy, String bugName,
+                                          DfsResultWithTiming result, String verdict,
+                                          Trace failingTrace, StoreType storeType,
+                                          StateStore store) {
+        if (store instanceof BitstateStore bs) {
+            return new BenchmarkResult(strategy, bugName, result.result().statesExplored(),
+                result.wallTimeMs(), result.heapDeltaBytes(), verdict,
+                failingTrace, storeType,
+                bs.estimatedFalsePositiveRate(), bs.bitCount(), bs.bitDensity());
+        }
+        return new BenchmarkResult(strategy, bugName, result.result().statesExplored(),
+            result.wallTimeMs(), result.heapDeltaBytes(), verdict,
+            failingTrace, storeType);
     }
 
     /**
