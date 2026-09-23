@@ -155,44 +155,26 @@ public final class Main {
             System.exit(1);
         }
 
-        BenchmarkHarness harness = new BenchmarkHarness(bitstateSize, bitstateK);
-        List<BenchmarkResult> results;
+        // Run benchmarks with filters applied (skip unselected combinations)
+        Set<StoreType> storeFilterSet = storeFilter != null ? Set.of(StoreType.valueOf(storeFilter)) : null;
+        Set<String> strategyFilterSet = strategyFilter != null ? Set.of(strategyFilter) : null;
+        BenchmarkHarness harness = new BenchmarkHarness(bitstateSize, bitstateK, storeFilterSet, strategyFilterSet);
 
+        List<BenchmarkResult> allResults;
         if (all) {
-            results = harness.runAll();
+            allResults = harness.runAll();
         } else {
-            results = harness.runProgram(program);
+            allResults = harness.runProgram(program);
         }
 
-        // Apply filters
-        results = filterResults(results, storeFilter, strategyFilter);
-
-        ReportWriter writer = new ReportWriter(results);
+        // Generate report using all results (preserves soundness attestation and baseline data)
+        ReportWriter writer = new ReportWriter(allResults);
 
         if (json) {
             System.out.println(writer.writeJson());
         } else {
             System.out.println(writer.writeMarkdown());
         }
-    }
-
-    /**
-     * Filters benchmark results by store type and strategy.
-     *
-     * @param results the full list of results
-     * @param storeFilter the store type to filter by, or null for all
-     * @param strategyFilter the strategy to filter by, or null for all
-     * @return filtered list matching the given criteria
-     */
-    private static List<BenchmarkResult> filterResults(List<BenchmarkResult> results,
-                                                         String storeFilter, String strategyFilter) {
-        List<BenchmarkResult> filtered = new ArrayList<>();
-        for (BenchmarkResult r : results) {
-            if (storeFilter != null && !r.storeType().name().equals(storeFilter)) continue;
-            if (strategyFilter != null && !r.strategy().equals(strategyFilter)) continue;
-            filtered.add(r);
-        }
-        return filtered;
     }
 
     /**
