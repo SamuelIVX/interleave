@@ -31,7 +31,7 @@ class DeltaDebuggerTest {
     void minimize_reducesFailingTrace() {
         Trace failing = failingTrace();
         DeltaDebugger debugger = new DeltaDebugger();
-        Trace minimized = debugger.minimize(buggyProgram(), failing, failing.outcome());
+        Trace minimized = debugger.minimize(buggyProgram(), failing, failing.outcome(), buggyInvariant());
         
         assertTrue(minimized.length() <= failing.length(),
             "Minimized trace should be <= original length");
@@ -41,7 +41,7 @@ class DeltaDebuggerTest {
     void minimize_preservesViolation() {
         Trace failing = failingTrace();
         DeltaDebugger debugger = new DeltaDebugger();
-        Trace minimized = debugger.minimize(buggyProgram(), failing, failing.outcome());
+        Trace minimized = debugger.minimize(buggyProgram(), failing, failing.outcome(), buggyInvariant());
         
         assertNotNull(minimized);
         assertTrue(minimized.length() > 0, "Minimized trace should not be empty");
@@ -53,7 +53,7 @@ class DeltaDebuggerTest {
     void minimize_returnsSubsequence() {
         Trace failing = failingTrace();
         DeltaDebugger debugger = new DeltaDebugger();
-        Trace minimized = debugger.minimize(buggyProgram(), failing, failing.outcome());
+        Trace minimized = debugger.minimize(buggyProgram(), failing, failing.outcome(), buggyInvariant());
         
         List<Integer> originalThreadIds = failing.threadIds();
         List<Integer> minimizedThreadIds = minimized.threadIds();
