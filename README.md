@@ -34,7 +34,7 @@ The project is built as a clean, spec-driven proof-of-concept. It is not a produ
 ### Run
 
 ```bash
-./gradlew run --args=<bug-name> [flags]
+./gradlew run --args="<bug-name> [flags]"
 ```
 
 Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`, `double-checked-locking`, `lost-update`, `torn-counter`
@@ -120,7 +120,7 @@ Specs: [`docs/specs/active`](docs/specs/active)
 Bitstate provides probabilistic state storage using Bloom filters. It trades completeness for memory savings — false positives are possible (states may be incorrectly marked as visited), but false negatives are not (a visited state is never explored twice).
 
 **Tradeoffs:**
-- Memory: O(1) per state (vs O(n) for exact hashing)
+- Memory: O(m) total for m bits (configurable), vs O(n) total for n states in exact hashing
 - Speed: faster due to cache-friendly bit-array access
 - Completeness: may miss violations in rare cases (false positive rate tracked in reports)
 

@@ -18,6 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class MainTest {
 
+    /** Verifies that the peterson program produces results. */
     @Test
     void petersonProgramRuns() {
         BenchmarkProgram program = findProgram("peterson");
@@ -30,6 +31,7 @@ class MainTest {
         assertEquals(6, results.size(), "should produce 6 results (3 strategies × 2 stores)");
     }
 
+    /** Verifies that --all flag runs the entire corpus. */
     @Test
     void allFlagRunsFullCorpus() {
         BenchmarkHarness harness = new BenchmarkHarness();
@@ -40,6 +42,7 @@ class MainTest {
             "should produce 6 results per program");
     }
 
+    /** Verifies that --store exact filter works correctly. */
     @Test
     void storeFilterExact() {
         BenchmarkProgram program = findProgram("peterson");
@@ -54,6 +57,7 @@ class MainTest {
         assertTrue(exactOnly.stream().allMatch(r -> r.storeType() == StoreType.EXACT));
     }
 
+    /** Verifies that --store bitstate filter works correctly. */
     @Test
     void storeFilterBitstate() {
         BenchmarkProgram program = findProgram("peterson");
@@ -68,6 +72,7 @@ class MainTest {
         assertTrue(bitstateOnly.stream().allMatch(r -> r.storeType() == StoreType.BITSTATE));
     }
 
+    /** Verifies that --strategy DFS filter works correctly. */
     @Test
     void strategyFilterDfs() {
         BenchmarkProgram program = findProgram("peterson");
@@ -82,6 +87,7 @@ class MainTest {
         assertTrue(dfsOnly.stream().allMatch(r -> r.strategy().equals("DFS")));
     }
 
+    /** Verifies that combining store and strategy filters works correctly. */
     @Test
     void combinedFilterStoreAndStrategy() {
         BenchmarkProgram program = findProgram("peterson");
@@ -97,6 +103,7 @@ class MainTest {
         assertEquals("DFS", filtered.get(0).strategy());
     }
 
+    /** Verifies that JSON output contains bitstate metrics. */
     @Test
     void jsonReportContainsBitstateMetrics() {
         BenchmarkProgram program = findProgram("peterson");
@@ -111,6 +118,7 @@ class MainTest {
         assertTrue(json.contains("bitDensity"), "JSON should contain bitDensity");
     }
 
+    /** Verifies that JSON output contains failing traces for violations. */
     @Test
     void jsonReportContainsFailingTrace() {
         // broken-peterson always has a violation
@@ -128,6 +136,7 @@ class MainTest {
         assertTrue(json.contains("outcomes"), "JSON should contain outcomes in failing trace");
     }
 
+    /** Verifies that Markdown reports include bitstate summary section. */
     @Test
     void markdownReportIncludesBitstateSummary() {
         BenchmarkProgram program = findProgram("peterson");
@@ -141,6 +150,7 @@ class MainTest {
         assertTrue(md.contains("FPR"), "Markdown should include FPR column");
     }
 
+    /** Verifies that reduction table shows percentage reductions. */
     @Test
     void reductionTableShowsPercentages() {
         BenchmarkProgram program = findProgram("peterson");
@@ -152,10 +162,11 @@ class MainTest {
 
         String reductionTable = table.formatReductionTable();
         // POR strategies should show reduction vs DFS
-        assertTrue(reductionTable.contains("%↓") || reductionTable.contains("DFS (exact):"),
-            "Reduction table should show DFS baseline or reductions");
+        assertTrue(reductionTable.contains("DFS (exact):"), "Reduction table should show DFS baseline");
+        assertTrue(reductionTable.contains("%↓"), "Reduction table should show POR reduction percentages");
     }
 
+    /** Verifies that invalid store flag values are rejected. */
     @Test
     void invalidStoreFlagRejected() {
         // Verify that invalid store values would be caught
@@ -173,6 +184,7 @@ class MainTest {
         }
     }
 
+    /** Verifies that invalid strategy flag values are rejected. */
     @Test
     void invalidStrategyFlagRejected() {
         String[] validStrategies = {"DFS", "STATIC_POR", "DPOR"};
@@ -188,6 +200,7 @@ class MainTest {
         }
     }
 
+    /** Verifies that bitstate results have populated metrics. */
     @Test
     void bitstateMetricsPopulatedForBitstateResults() {
         BenchmarkProgram program = findProgram("peterson");
@@ -209,6 +222,7 @@ class MainTest {
         }
     }
 
+    /** Verifies that exact results have zero bitstate metrics. */
     @Test
     void exactResultsHaveZeroBitstateMetrics() {
         BenchmarkProgram program = findProgram("peterson");
@@ -230,6 +244,7 @@ class MainTest {
         }
     }
 
+    /** Verifies that harness works with custom bitstate parameters. */
     @Test
     void harnessWithCustomBitstateParams() {
         BenchmarkHarness harness = new BenchmarkHarness(500_001, 6);

@@ -129,14 +129,22 @@ public final class ReportWriter {
     }
 
     private static String formatBitstateMetrics(BenchmarkResult result) {
-        return String.format("""
+        return String.format(java.util.Locale.ROOT, """
             {
-              "falsePositiveRate": %.6f,
+              "falsePositiveRate": %s,
               "bitCount": %d,
-              "bitDensity": %.6f
+              "bitDensity": %s
             }""",
-            result.estimatedFalsePositiveRate(),
+            formatSmallDouble(result.estimatedFalsePositiveRate()),
             result.bitstateBitCount(),
-            result.bitstateBitDensity());
+            formatSmallDouble(result.bitstateBitDensity()));
+    }
+
+    private static String formatSmallDouble(double value) {
+        if (value == 0.0) return "0.0";
+        if (Math.abs(value) < 0.001) {
+            return String.format(java.util.Locale.ROOT, "%.2e", value);
+        }
+        return String.format(java.util.Locale.ROOT, "%.6f", value);
     }
 }

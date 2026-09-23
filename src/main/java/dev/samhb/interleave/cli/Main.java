@@ -14,9 +14,18 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
+/**
+ * CLI entry point for the interleave model checker.
+ * Parses command-line arguments and runs benchmarks against the concurrency bug corpus.
+ */
 public final class Main {
     private static final ProgramLoader LOADER = new ProgramLoader();
 
+    /**
+     * Main entry point. Parses flags, runs benchmarks, and outputs results.
+     *
+     * @param args command-line arguments (bug name, flags, or --file/--all)
+     */
     public static void main(String[] args) {
         if (args.length == 0) {
             printUsage();
@@ -48,7 +57,7 @@ public final class Main {
                         System.err.println("Error: --store requires a value (exact|bitstate)");
                         System.exit(1);
                     }
-                    storeFilter = args[i + 1].toUpperCase();
+                    storeFilter = args[i + 1].toUpperCase(Locale.ROOT);
                     if (!"EXACT".equals(storeFilter) && !"BITSTATE".equals(storeFilter)) {
                         System.err.println("Error: --store must be 'exact' or 'bitstate'");
                         System.exit(1);
@@ -60,7 +69,7 @@ public final class Main {
                         System.err.println("Error: --strategy requires a value (DFS|STATIC_POR|DPOR)");
                         System.exit(1);
                     }
-                    strategyFilter = args[i + 1].toUpperCase();
+                    strategyFilter = args[i + 1].toUpperCase(Locale.ROOT);
                     if (!"DFS".equals(strategyFilter) && !"STATIC_POR".equals(strategyFilter) && !"DPOR".equals(strategyFilter)) {
                         System.err.println("Error: --strategy must be 'DFS', 'STATIC_POR', or 'DPOR'");
                         System.exit(1);
@@ -100,6 +109,10 @@ public final class Main {
                         System.err.println("Error: --file requires a path argument");
                         System.exit(1);
                     }
+                    if (program != null) {
+                        System.err.println("Error: specify only one bug name or --file");
+                        System.exit(1);
+                    }
                     try {
                         program = LOADER.loadFromFile(Paths.get(args[i + 1]));
                     } catch (RegistryException e) {
@@ -112,6 +125,10 @@ public final class Main {
                     if (args[i].startsWith("-")) {
                         System.err.println("Error: unknown flag '" + args[i] + "'");
                         printUsage();
+                        System.exit(1);
+                    }
+                    if (program != null) {
+                        System.err.println("Error: specify only one bug name or --file");
                         System.exit(1);
                     }
                     program = findProgram(args[i]);
@@ -159,6 +176,14 @@ public final class Main {
         }
     }
 
+    /**
+     * Filters benchmark results by store type and strategy.
+     *
+     * @param results the full list of results
+     * @param storeFilter the store type to filter by, or null for all
+     * @param strategyFilter the strategy to filter by, or null for all
+     * @return filtered list matching the given criteria
+     */
     private static List<BenchmarkResult> filterResults(List<BenchmarkResult> results,
                                                          String storeFilter, String strategyFilter) {
         List<BenchmarkResult> filtered = new ArrayList<>();
@@ -170,6 +195,12 @@ public final class Main {
         return filtered;
     }
 
+    /**
+     * Finds a benchmark program by name in the corpus.
+     *
+     * @param name the program name to find
+     * @return the program, or null if not found
+     */
     private static BenchmarkProgram findProgram(String name) {
         for (BenchmarkProgram program : BugCorpus.all()) {
             if (program.name().equals(name)) {
@@ -179,6 +210,9 @@ public final class Main {
         return null;
     }
 
+    /**
+     * Prints usage information and available bugs to stdout.
+     */
     private static void printUsage() {
         System.out.println("Usage: interleave <bug-name> [flags]");
         System.out.println("       interleave --file <path> [flags]");

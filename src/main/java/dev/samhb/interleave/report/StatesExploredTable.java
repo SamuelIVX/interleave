@@ -124,12 +124,12 @@ public final class StatesExploredTable {
         sb.append("|-----|----------|-----|-----------|-------------|\n");
 
         for (BenchmarkResult result : bitstateResults) {
-            sb.append(String.format("| %s | %s | %.6f | %,d | %.6f |\n",
+            sb.append(String.format("| %s | %s | %s | %,d | %s |\n",
                 result.bugName(),
                 result.strategy(),
-                result.estimatedFalsePositiveRate(),
+                formatSmallDouble(result.estimatedFalsePositiveRate()),
                 result.bitstateBitCount(),
-                result.bitstateBitDensity()));
+                formatSmallDouble(result.bitstateBitDensity())));
         }
 
         sb.append("\n");
@@ -141,6 +141,17 @@ public final class StatesExploredTable {
             return "";
         }
         double pct = (1.0 - (double) states / baseline) * 100.0;
+        if (pct > 0 && pct < 1.0) {
+            return " (<1%↓)";
+        }
         return String.format(" (%.0f%%↓)", pct);
+    }
+
+    private static String formatSmallDouble(double value) {
+        if (value == 0.0) return "0.0";
+        if (Math.abs(value) < 0.001) {
+            return String.format(java.util.Locale.ROOT, "%.2e", value);
+        }
+        return String.format(java.util.Locale.ROOT, "%.6f", value);
     }
 }
