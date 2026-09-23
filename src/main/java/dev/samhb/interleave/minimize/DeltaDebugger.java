@@ -6,6 +6,19 @@ import java.util.*;
 
 public final class DeltaDebugger {
     
+    /**
+     * Minimizes a failing trace using delta debugging (ddmin).
+     *
+     * Iteratively removes chunks from the trace and checks if the reduced
+     * trace still reproduces the expected outcome. Recurses on success
+     * until no further reduction is possible.
+     *
+     * @param program the program to replay traces against
+     * @param failingTrace the original failing trace to minimize
+     * @param expectedOutcome the expected trace outcome (VIOLATION, DEADLOCK, or COMPLETED)
+     * @param invariant the invariant to check for VIOLATION outcomes; may be null
+     * @return a minimal subsequence of the original trace that still reproduces the failure
+     */
     public Trace minimize(Program program, Trace failingTrace, TraceOutcome expectedOutcome, Invariant invariant) {
         List<Integer> threadIds = new ArrayList<>(failingTrace.threadIds());
         List<StepOutcome> outcomes = new ArrayList<>(failingTrace.outcomes());
@@ -45,6 +58,20 @@ public final class DeltaDebugger {
         return Trace.of(threadIds, outcomes, expectedOutcome);
     }
     
+    /**
+     * Checks whether replaying the given trace still produces the expected outcome.
+     *
+     * Replays the trace from the initial state using {@link ExecutionDriver} and
+     * verifies the final configuration matches the expected outcome. For VIOLATION
+     * outcomes, the invariant is re-checked to ensure the trace genuinely reproduces
+     * the bug.
+     *
+     * @param program the program to replay
+     * @param trace the trace to replay
+     * @param expectedOutcome the expected outcome to verify
+     * @param invariant the invariant to check for VIOLATION outcomes; may be null
+     * @return true if the replayed trace reproduces the expected outcome
+     */
     private boolean isStillFailing(Program program, Trace trace, TraceOutcome expectedOutcome, Invariant invariant) {
         try {
             ExecutionDriver driver = new ExecutionDriver();
