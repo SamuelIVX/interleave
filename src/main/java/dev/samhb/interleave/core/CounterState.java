@@ -11,9 +11,13 @@ public final class CounterState implements SharedState {
     private final int[] registers; // thread-local storage for read values
 
     public CounterState(int counter) {
+        this(counter, 2);
+    }
+
+    public CounterState(int counter, int threads) {
         this.counter = counter;
         this.control = false;
-        this.registers = new int[2]; // 2 threads
+        this.registers = new int[Math.max(1, threads)];
     }
 
     private CounterState(int counter, boolean control, int[] registers) {
@@ -24,6 +28,10 @@ public final class CounterState implements SharedState {
 
     public static CounterState of(int counter) {
         return new CounterState(counter);
+    }
+
+    public static CounterState of(int counter, int threads) {
+        return new CounterState(counter, threads);
     }
 
     public int counter() {
