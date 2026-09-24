@@ -4,22 +4,27 @@ import dev.samhb.interleave.core.Program;
 
 /**
  * Result of exploring a generated program with the exact oracle.
+ *
+ * @param program generated program
+ * @param expectedVerdict SAFE, VIOLATION, or TRUNCATED
+ * @param statesExplored number of states explored
+ * @param truncated whether maxStates budget was hit
  */
-public final class CorpusResult {
-    private final Program program;
-    private final String expectedVerdict; // SAFE, VIOLATION, TRUNCATED
-    private final long statesExplored;
-    private final boolean truncated;
-
-    public CorpusResult(Program program, String expectedVerdict, long statesExplored, boolean truncated) {
-        this.program = program;
-        this.expectedVerdict = expectedVerdict;
-        this.statesExplored = statesExplored;
-        this.truncated = truncated;
-    }
-
-    public Program program() { return program; }
-    public String expectedVerdict() { return expectedVerdict; }
-    public long statesExplored() { return statesExplored; }
-    public boolean truncated() { return truncated; }
+public record CorpusResult(Program program, String expectedVerdict, long statesExplored, boolean truncated) {
+    /**
+     * @return generated program
+     */
+    @Override public Program program() { return program; }
+    /**
+     * @return verdict
+     */
+    @Override public String expectedVerdict() { return expectedVerdict; }
+    /**
+     * @return states explored
+     */
+    @Override public long statesExplored() { return statesExplored; }
+    /**
+     * @return true if truncated
+     */
+    @Override public boolean truncated() { return truncated; }
 }

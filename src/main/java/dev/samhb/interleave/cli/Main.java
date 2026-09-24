@@ -213,11 +213,11 @@ public final class Main {
         for (int i = 0; i < args.length; ) {
             switch (args[i]) {
                 case "--template" -> { if (i + 1 >= args.length) { System.err.println("Error: --template requires value"); System.exit(1); } templateId = args[i + 1]; i += 2; }
-                case "--count" -> { if (i + 1 >= args.length) { System.err.println("Error: --count requires value"); System.exit(1); } count = Integer.parseInt(args[i + 1]); i += 2; }
-                case "--seed" -> { if (i + 1 >= args.length) { System.err.println("Error: --seed requires value"); System.exit(1); } seed = Long.parseLong(args[i + 1]); i += 2; }
-                case "--max-steps" -> { if (i + 1 >= args.length) { System.err.println("Error: --max-steps requires value"); System.exit(1); } maxSteps = Integer.parseInt(args[i + 1]); i += 2; }
-                case "--max-states" -> { if (i + 1 >= args.length) { System.err.println("Error: --max-states requires value"); System.exit(1); } maxStates = Integer.parseInt(args[i + 1]); i += 2; }
-                case "--threads" -> { if (i + 1 >= args.length) { System.err.println("Error: --threads requires value"); System.exit(1); } threadCount = Integer.parseInt(args[i + 1]); i += 2; }
+                case "--count" -> { if (i + 1 >= args.length) { System.err.println("Error: --count requires value"); System.exit(1); } try { count = Integer.parseInt(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --count requires an integer"); System.exit(1); } i += 2; }
+                case "--seed" -> { if (i + 1 >= args.length) { System.err.println("Error: --seed requires value"); System.exit(1); } try { seed = Long.parseLong(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --seed requires an integer"); System.exit(1); } i += 2; }
+                case "--max-steps" -> { if (i + 1 >= args.length) { System.err.println("Error: --max-steps requires value"); System.exit(1); } try { maxSteps = Integer.parseInt(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --max-steps requires an integer"); System.exit(1); } i += 2; }
+                case "--max-states" -> { if (i + 1 >= args.length) { System.err.println("Error: --max-states requires value"); System.exit(1); } try { maxStates = Integer.parseInt(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --max-states requires an integer"); System.exit(1); } i += 2; }
+                case "--threads" -> { if (i + 1 >= args.length) { System.err.println("Error: --threads requires value"); System.exit(1); } try { threadCount = Integer.parseInt(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --threads requires an integer"); System.exit(1); } i += 2; }
                 default -> { System.err.println("Error: unknown flag '" + args[i] + "' for generate"); printGenerateUsage(); System.exit(1); }
             }
         }

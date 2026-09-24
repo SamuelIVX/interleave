@@ -34,10 +34,23 @@ class CorpusGeneratorTest {
         List<CorpusEntry> b = gen.generateEntries(cfg);
         assertEquals(a.size(), b.size());
         for (int i = 0; i < a.size(); i++) {
-            assertEquals(a.get(i).totalSteps, b.get(i).totalSteps);
+            // compare full program encoding, not just metadata
+            assertEquals(a.get(i).initialCounter, b.get(i).initialCounter);
+            assertEquals(a.get(i).stepsByThread, b.get(i).stepsByThread);
             assertEquals(a.get(i).expectedVerdict, b.get(i).expectedVerdict);
             assertEquals(a.get(i).threadCount, b.get(i).threadCount);
+            assertEquals(a.get(i).totalSteps, b.get(i).totalSteps);
+            // also verify replay reconstructs same program
+            assertEquals(a.get(i).toProgram().threads().size(), b.get(i).toProgram().threads().size());
         }
+    }
+
+    @Test
+    void lostUpdateProducesViolationWhenNotTruncated() {
+        GeneratorConfig cfg = GeneratorConfig.builder("lost-update").seed(42).count(3).maxStepsPerThread(4).maxStates(10000).build();
+        List<CorpusResult> results = new CorpusGenerator().generate(cfg);
+        // lost-update should be violation due to invariant
+        assertTrue(results.stream().anyMatch(r -> "VIOLATION".equals(r.expectedVerdict())), "lost-update should produce VIOLATION");
     }
 
     @Test
@@ -86,6 +99,10 @@ class CorpusGeneratorTest {
         CorpusEntry[] decoded = gson.fromJson(json, CorpusEntry[].class);
         assertEquals(entries.size(), decoded.length);
         assertEquals(entries.get(0).expectedVerdict, decoded[0].expectedVerdict);
+        assertEquals(entries.get(0).stepsByThread, decoded[0].stepsByThread);
+        assertEquals(entries.get(0).initialCounter, decoded[0].initialCounter);
+        // replay should give same verdict
+        assertEquals(entries.get(0).toProgram().threadCount(), decoded[0].toProgram().threadCount());
     }
 
     @Test

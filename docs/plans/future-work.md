@@ -25,7 +25,7 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 
 ### Item Details
 
-3. **Bitstate / supertrace mode** — replace exact visited sets with a bloom-filter approximation to trade completeness for memory. Already prototyped in `BitstateStore`; needs integration into explorers and reporting.
+3. **Bitstate / supertrace mode** — ✅ Done. Replaces exact visited sets with a bloom-filter approximation (`BitstateStore` with `k` hash functions) to trade completeness for memory. Wired into `DfsExplorer`/`DporExplorer` via `StateStore`, `BenchmarkHarness` (`--store`/`--bitstate-*`), `ReportWriter`, and `Main` CLI (PR #18).
 
 4. **Property-based corpus mining** — instead of hand-written buggy programs, generate concurrent programs from templates. Template design + generation logic; reuses existing explorers.
 
