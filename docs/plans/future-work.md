@@ -2,18 +2,18 @@
 
 These are explicitly out of scope for the 7-spec deliverable, but are natural extensions.
 
-## Items 1–2: Completed
+## Items 1–3: Completed
 
 | # | Item | Status |
 |---|---|---|
 | 1 | Library/API mode | ✅ Done (PR #1) |
 | 2 | JSON program definition format | ✅ Done (PR #15) |
+| 3 | Bitstate / supertrace mode | ✅ Done (PR #18) — CLI `--store`/`--strategy`/`--bitstate-*`, `BitstateStore` + metrics wired into `BenchmarkHarness`/`ReportWriter`, 143 tests |
 
 ## Remaining Items — Ranked by LOE
 
 | # | Item | LOE | Spec Needed? | Why |
 |---|---|---|---|---|
-| 3 | Bitstate / supertrace mode | Low-Medium | No | `BitstateStore` already prototyped; wiring into explorers is mechanical |
 | 4 | Property-based corpus mining | Medium | No | Template design + generation logic; reuses existing types |
 | 5 | General-purpose JSON format | Medium | Yes | New DSL — schema, registries, validation rules need frozen spec before implementation |
 | 6 | Web UI / visualizer | Medium | Maybe | Trace renderer: no. Full state-space DAG viz: yes |
@@ -25,7 +25,7 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 
 ### Item Details
 
-3. **Bitstate / supertrace mode** — replace exact visited sets with a bloom-filter approximation to trade completeness for memory. Already prototyped in `BitstateStore`; needs integration into explorers and reporting.
+3. **Bitstate / supertrace mode** — ✅ Done. Replaces exact visited sets with a bloom-filter approximation (`BitstateStore` with `k` hash functions) to trade completeness for memory. Wired into `DfsExplorer`/`DporExplorer` via `StateStore`, `BenchmarkHarness` (`--store`/`--bitstate-*`), `ReportWriter`, and `Main` CLI (PR #18).
 
 4. **Property-based corpus mining** — instead of hand-written buggy programs, generate concurrent programs from templates. Template design + generation logic; reuses existing explorers.
 

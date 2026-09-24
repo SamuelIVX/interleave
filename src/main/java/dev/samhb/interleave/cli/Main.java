@@ -2,6 +2,10 @@ package dev.samhb.interleave.cli;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.bugs.BugCorpus;
+import dev.samhb.interleave.corpus.CorpusEntry;
+import dev.samhb.interleave.corpus.CorpusGenerator;
+import dev.samhb.interleave.corpus.GeneratorConfig;
+import dev.samhb.interleave.corpus.TemplateRegistry;
 import dev.samhb.interleave.format.ProgramLoader;
 import dev.samhb.interleave.format.registry.RegistryException;
 import dev.samhb.interleave.report.BenchmarkHarness;
@@ -9,6 +13,8 @@ import dev.samhb.interleave.report.BenchmarkResult;
 import dev.samhb.interleave.report.ReportWriter;
 import dev.samhb.interleave.report.StatesExploredTable;
 import dev.samhb.interleave.report.StoreType;
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -30,6 +36,10 @@ public final class Main {
         if (args.length == 0) {
             printUsage();
             System.exit(1);
+        }
+        if ("generate".equals(args[0])) {
+            handleGenerate(Arrays.copyOfRange(args, 1, args.length));
+            return;
         }
 
         // Parse flags
@@ -192,6 +202,58 @@ public final class Main {
         return null;
     }
 
+    private static void handleGenerate(String[] args) {
+        String templateId = null;
+        int count = 10;
+        long seed = 42L;
+        int maxSteps = 5;
+        int maxStates = 10_000;
+        int threadCount = 2;
+
+        for (int i = 0; i < args.length; ) {
+            switch (args[i]) {
+                case "--template" -> { if (i + 1 >= args.length) { System.err.println("Error: --template requires value"); System.exit(1); } templateId = args[i + 1]; i += 2; }
+                case "--count" -> { if (i + 1 >= args.length) { System.err.println("Error: --count requires value"); System.exit(1); } try { count = Integer.parseInt(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --count requires an integer"); System.exit(1); } i += 2; }
+                case "--seed" -> { if (i + 1 >= args.length) { System.err.println("Error: --seed requires value"); System.exit(1); } try { seed = Long.parseLong(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --seed requires an integer"); System.exit(1); } i += 2; }
+                case "--max-steps" -> { if (i + 1 >= args.length) { System.err.println("Error: --max-steps requires value"); System.exit(1); } try { maxSteps = Integer.parseInt(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --max-steps requires an integer"); System.exit(1); } i += 2; }
+                case "--max-states" -> { if (i + 1 >= args.length) { System.err.println("Error: --max-states requires value"); System.exit(1); } try { maxStates = Integer.parseInt(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --max-states requires an integer"); System.exit(1); } i += 2; }
+                case "--threads" -> { if (i + 1 >= args.length) { System.err.println("Error: --threads requires value"); System.exit(1); } try { threadCount = Integer.parseInt(args[i + 1]); } catch (NumberFormatException e) { System.err.println("Error: --threads requires an integer"); System.exit(1); } i += 2; }
+                default -> { System.err.println("Error: unknown flag '" + args[i] + "' for generate"); printGenerateUsage(); System.exit(1); }
+            }
+        }
+        if (templateId == null) { System.err.println("Error: --template is required"); printGenerateUsage(); System.exit(1); }
+        GeneratorConfig cfg;
+        try {
+            cfg = GeneratorConfig.builder(templateId).seed(seed).count(count).maxStepsPerThread(maxSteps).maxStates(maxStates).threadCount(threadCount).build();
+        } catch (IllegalArgumentException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.exit(1);
+            return;
+        }
+        try {
+            TemplateRegistry.get(templateId);
+        } catch (IllegalArgumentException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.exit(1);
+            return;
+        }
+        CorpusGenerator gen = new CorpusGenerator();
+        List<CorpusEntry> entries = gen.generateEntries(cfg);
+        Gson gson = new GsonBuilder().setPrettyPrinting().create();
+        System.out.println(gson.toJson(entries));
+    }
+
+    private static void printGenerateUsage() {
+        System.out.println("Usage: interleave generate --template <id> [flags]");
+        System.out.println("Flags:");
+        System.out.println("  --template <id>           Template id (available: " + String.join(", ", TemplateRegistry.ids()) + ")");
+        System.out.println("  --count N                 Number of programs (1..10000, default 10)");
+        System.out.println("  --seed N                  RNG seed (default 42)");
+        System.out.println("  --max-steps N             Max steps per thread (1..20, default 5)");
+        System.out.println("  --max-states N            Max states before TRUNCATED (default 10000)");
+        System.out.println("  --threads N               Thread count (1..4, default 2)");
+    }
+
     /**
      * Prints usage information and available bugs to stdout.
      */
@@ -199,6 +261,7 @@ public final class Main {
         System.out.println("Usage: interleave <bug-name> [flags]");
         System.out.println("       interleave --file <path> [flags]");
         System.out.println("       interleave --all [flags]");
+        System.out.println("       interleave generate --template <id> [flags]");
         System.out.println();
         System.out.println("Flags:");
         System.out.println("  --json                    Output as JSON (default: Markdown)");
