@@ -2,19 +2,19 @@
 
 These are explicitly out of scope for the 7-spec deliverable, but are natural extensions.
 
-## Items 1–3: Completed
+## Items 1–4: Completed
 
 | # | Item | Status |
 |---|---|---|
 | 1 | Library/API mode | ✅ Done (PR #1) |
 | 2 | JSON program definition format | ✅ Done (PR #15) |
 | 3 | Bitstate / supertrace mode | ✅ Done (PR #18) — CLI `--store`/`--strategy`/`--bitstate-*`, `BitstateStore` + metrics wired into `BenchmarkHarness`/`ReportWriter`, 143 tests |
+| 4 | Property-based corpus mining | ✅ Done (PR #19) — `CorpusGenerator`/`TemplateRegistry` + 2 curated templates, `GeneratorConfig` bounds, budget-aware `DfsExplorer` oracle, `CorpusEntry` JSON persistence, `generate` CLI |
 
 ## Remaining Items — Ranked by LOE
 
 | # | Item | LOE | Spec Needed? | Why |
 |---|---|---|---|---|
-| 4 | Property-based corpus mining | Medium | No | Template design + generation logic; reuses existing types |
 | 5 | General-purpose JSON format | Medium | Yes | New DSL — schema, registries, validation rules need frozen spec before implementation |
 | 6 | Web UI / visualizer | Medium | Maybe | Trace renderer: no. Full state-space DAG viz: yes |
 | 7 | Context-bounding / CHESS-style | Medium-High | Yes | New exploration strategy — correctness depends on bound semantics |
@@ -27,7 +27,7 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 
 3. **Bitstate / supertrace mode** — ✅ Done. Replaces exact visited sets with a bloom-filter approximation (`BitstateStore` with `k` hash functions) to trade completeness for memory. Wired into `DfsExplorer`/`DporExplorer` via `StateStore`, `BenchmarkHarness` (`--store`/`--bitstate-*`), `ReportWriter`, and `Main` CLI (PR #18).
 
-4. **Property-based corpus mining** — instead of hand-written buggy programs, generate concurrent programs from templates. Template design + generation logic; reuses existing explorers.
+4. **Property-based corpus mining** — ✅ Done. Generates programs from curated templates (`lost-update`, `counter-race`) via `CorpusGenerator` with seeded `Random`, bounded `GeneratorConfig`, exact `DfsExplorer` oracle (`TRUNCATED`/`VIOLATION`/`SAFE`), and persisted `CorpusEntry` (PR #19).
 
 5. **General-purpose JSON program format** — extend the existing JSON loader beyond the 5 hardcoded state types and 19 step types. Allow arbitrary state fields, declarative step definitions (read/write sets, enable conditions), and composable invariants — a JSON-based DSL for defining concurrent programs without writing Java. Builds on the `ProgramLoader`/registry infrastructure from item 2; makes the tool accessible for teaching, rapid prototyping, and expressing real-world concurrency patterns (e.g. producer/consumer pipelines).
 
