@@ -27,6 +27,7 @@ public final class ProgramDefinition {
     @SerializedName("expected_verdict")
     private String expectedVerdict;
 
+    /** ProgramDefinition method. */
     public ProgramDefinition() {
         // No-arg constructor for Gson
     }
@@ -40,22 +41,27 @@ public final class ProgramDefinition {
         return format;
     }
 
+    /** name method. */
     public String name() {
         return name;
     }
 
+    /** state method. */
     public JsonObject state() {
         return state;
     }
 
+    /** threads method. */
     public List<ThreadDefinition> threads() {
         return threads;
     }
 
+    /** invariant method. */
     public JsonObject invariant() {
         return invariant;
     }
 
+    /** expectedVerdict method. */
     public String expectedVerdict() {
         return expectedVerdict;
     }

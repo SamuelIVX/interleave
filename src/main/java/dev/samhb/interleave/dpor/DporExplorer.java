@@ -9,18 +9,22 @@ import java.util.*;
 public final class DporExplorer {
     private final IndependenceRelation relation;
 
+    /** DporExplorer method. */
     public DporExplorer() {
         this.relation = new IndependenceRelation();
     }
 
+    /** explore method. */
     public DfsResult explore(Program program) {
         return explore(program, null);
     }
 
+    /** explore method. */
     public DfsResult explore(Program program, Invariant invariant) {
         return explore(program, invariant, null, null);
     }
 
+    /** explore method. */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues

@@ -6,8 +6,11 @@ import dev.samhb.interleave.format.registry.RegistryException;
  * Recursive-descent parser for declarative expression language.
  */
 public final class Parser {
+    private static final int MAX_NESTING = 64;
+
     private final String input;
     private int pos;
+    private int nestingDepth;
 
     /**
      * Creates parser for given input.
@@ -54,6 +57,7 @@ public final class Parser {
         return new Effect(lhs, rhs);
     }
 
+    /** findTopLevelEquals method. */
     private int findTopLevelEquals() {
         // equals not inside brackets; effects lhs is simple so just find first '='
         int depth = 0;
@@ -66,6 +70,7 @@ public final class Parser {
         return -1;
     }
 
+    /** parseLhs method. */
     private Lhs parseLhs(String s) {
         s = s.trim();
         if (s.startsWith("local.")) {
@@ -91,6 +96,7 @@ public final class Parser {
     }
 
     // grammar: or -> and ( "||" and )*
+    /** parseOr method. */
     private Expr parseOr() {
         Expr left = parseAnd();
         while (true) {
@@ -105,6 +111,7 @@ public final class Parser {
     }
 
     // and -> cmp ( "&&" cmp )*
+    /** parseAnd method. */
     private Expr parseAnd() {
         Expr left = parseCmp();
         while (true) {
@@ -119,6 +126,7 @@ public final class Parser {
     }
 
     // cmp -> add ( ("==" | "!=" | "<=" | ">=" | "<" | ">") add )*
+    /** parseCmp method. */
     private Expr parseCmp() {
         Expr left = parseAdd();
         while (true) {
@@ -140,6 +148,7 @@ public final class Parser {
     }
 
     // add -> mul ( ("+" | "-") mul )*
+    /** parseAdd method. */
     private Expr parseAdd() {
         Expr left = parseMul();
         while (true) {
@@ -161,6 +170,7 @@ public final class Parser {
     }
 
     // mul -> unary ( ("*" | "%") unary )*
+    /** parseMul method. */
     private Expr parseMul() {
         Expr left = parseUnary();
         while (true) {
@@ -176,28 +186,49 @@ public final class Parser {
     }
 
     // unary -> ("!" | "-")* primary
+    /** parseUnary method. */
     private Expr parseUnary() {
         skipWs();
         if (peek() == '!' || peek() == '-') {
             char c = consume();
             skipWs();
-            Expr operand = parseUnary();
-            return new Expr.UnaryOp(String.valueOf(c), operand);
+            nestingDepth++;
+            checkNesting();
+            try {
+                Expr operand = parseUnary();
+                return new Expr.UnaryOp(String.valueOf(c), operand);
+            } finally {
+                nestingDepth--;
+            }
         }
         return parsePrimary();
     }
 
+    /** checkNesting method. */
+    private void checkNesting() {
+        if (nestingDepth > MAX_NESTING) {
+            throw new RegistryException("Expression depth exceeds 16");
+        }
+    }
+
+    /** parsePrimary method. */
     private Expr parsePrimary() {
         skipWs();
         if (eof()) throw new RegistryException("Unexpected end of expression");
         char c = peek();
         if (c == '(') {
             consume();
-            Expr inner = parseOr();
-            skipWs();
-            if (eof() || peek() != ')') throw new RegistryException("Missing closing ')'");
-            consume();
-            return inner;
+            nestingDepth++;
+            checkNesting();
+            try {
+                Expr inner = parseOr();
+                skipWs();
+                if (eof() || peek() != ')') throw new RegistryException("Missing closing ')'");
+                consume();
+                return inner;
+            } finally {
+                nestingDepth--;
+            }
         }
         if (c == '"' || c == '\'') throw new RegistryException("String literals not supported");
         // try bool literals and tid and identifiers and int
@@ -225,13 +256,17 @@ public final class Parser {
                 skipWs();
                 if (!eof() && peek() == '[') {
                     consume();
-                    Expr idx = parseOr();
-                    skipWs();
-                    if (eof() || peek() != ']') throw new RegistryException("Missing ']' for local array access");
-                    consume();
-                    // For locals, this will be rejected as type error later, but we still produce an ArrayAccess with special marker?
-                    // Encode as ArrayAccess with prefix "local.<name>"
-                    return new Expr.ArrayAccess("local." + name, idx);
+                    nestingDepth++;
+                    checkNesting();
+                    try {
+                        Expr idx = parseOr();
+                        skipWs();
+                        if (eof() || peek() != ']') throw new RegistryException("Missing ']' for local array access");
+                        consume();
+                        return new Expr.ArrayAccess("local." + name, idx);
+                    } finally {
+                        nestingDepth--;
+                    }
                 }
                 return new Expr.LocalRef(name);
             }
@@ -241,11 +276,17 @@ public final class Parser {
             skipWs();
             if (!eof() && peek() == '[') {
                 consume();
-                Expr idx = parseOr();
-                skipWs();
-                if (eof() || peek() != ']') throw new RegistryException("Missing ']' for array access");
-                consume();
-                return new Expr.ArrayAccess(name, idx);
+                nestingDepth++;
+                checkNesting();
+                try {
+                    Expr idx = parseOr();
+                    skipWs();
+                    if (eof() || peek() != ']') throw new RegistryException("Missing ']' for array access");
+                    consume();
+                    return new Expr.ArrayAccess(name, idx);
+                } finally {
+                    nestingDepth--;
+                }
             }
             return new Expr.VarRef(name);
         }
@@ -259,6 +300,7 @@ public final class Parser {
         throw new RegistryException("Unexpected character '" + c + "' at pos " + pos);
     }
 
+    /** parseIntLit method. */
     private Expr parseIntLit() {
         int start = pos;
         boolean neg = false;
@@ -274,12 +316,14 @@ public final class Parser {
         }
     }
 
+    /** parseWord method. */
     private String parseWord() {
         int start = pos;
         while (!eof() && (Character.isLetterOrDigit(peek()) || peek() == '_')) consume();
         return input.substring(start, pos);
     }
 
+    /** parseIdent method. */
     private String parseIdent() {
         int start = pos;
         if (eof() || !Character.isLetter(peek())) throw new RegistryException("Expected identifier at pos " + pos);
@@ -290,6 +334,7 @@ public final class Parser {
         return ident;
     }
 
+    /** validateIdent method. */
     private void validateIdent(String ident) {
         if (ident == null || ident.isEmpty()) throw new RegistryException("Empty identifier");
         if (ident.length() > 64) throw new RegistryException("Identifier too long (>64): " + ident);
@@ -297,6 +342,7 @@ public final class Parser {
         if ("local".equals(ident) || "tid".equals(ident)) throw new RegistryException("Reserved keyword cannot be used as identifier: " + ident);
     }
 
+    /** skipWs method. */
     private void skipWs() {
         while (!eof() && Character.isWhitespace(peek())) pos++;
     }
@@ -304,6 +350,7 @@ public final class Parser {
     private boolean eof() { return pos >= input.length(); }
     private char peek() { return eof() ? '\0' : input.charAt(pos); }
     private char consume() { char c = input.charAt(pos); pos++; return c; }
+    /** match method. */
     private boolean match(String s) {
         if (input.startsWith(s, pos)) { pos += s.length(); return true; }
         return false;

@@ -1,5 +1,8 @@
 package dev.samhb.interleave.format.dsl;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 /**
  * Shared field declaration for declarative state.
  *
@@ -10,6 +13,38 @@ package dev.samhb.interleave.format.dsl;
  * @param arrayInit initial array contents (for INT_ARRAY), defensive copy on construction
  */
 public record FieldDecl(String name, FieldType type, int intInit, boolean boolInit, int[] arrayInit) {
+    /**
+     * Compact constructor: defensive copy of array init to preserve immutability.
+     */
+    public FieldDecl {
+        if (arrayInit != null) arrayInit = Arrays.copyOf(arrayInit, arrayInit.length);
+    }
+
+    @Override
+    /** arrayInit method. */
+    public int[] arrayInit() {
+        return arrayInit == null ? null : Arrays.copyOf(arrayInit, arrayInit.length);
+    }
+
+    @Override
+    /** equals method. */
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof FieldDecl that)) return false;
+        return intInit == that.intInit
+                && boolInit == that.boolInit
+                && Objects.equals(name, that.name)
+                && type == that.type
+                && Arrays.equals(arrayInit, that.arrayInit);
+    }
+
+    @Override
+    /** hashCode method. */
+    public int hashCode() {
+        int h = Objects.hash(name, type, intInit, boolInit);
+        h = 31 * h + Arrays.hashCode(arrayInit);
+        return h;
+    }
     /**
      * Creates declaration for int field.
      *

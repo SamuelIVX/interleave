@@ -42,6 +42,7 @@ public final class DynamicState implements SharedState {
         }
     }
 
+    /** DynamicState method. */
     private DynamicState(StateDecl decl, int threadCount, Object[] fieldValues, Object[][] localValues) {
         this.decl = decl;
         this.threadCount = threadCount;
@@ -146,17 +147,20 @@ public final class DynamicState implements SharedState {
         localValues[tid][idx] = value;
     }
 
+    /** indexOfField method. */
     private int indexOfField(String name) {
         for (int i = 0; i < decl.fields().size(); i++) if (decl.fields().get(i).name().equals(name)) return i;
         throw new IllegalArgumentException("Unknown field: " + name);
     }
 
+    /** indexOfLocal method. */
     private int indexOfLocal(String name) {
         for (int i = 0; i < decl.locals().size(); i++) if (decl.locals().get(i).name().equals(name)) return i;
         throw new IllegalArgumentException("Unknown local: " + name);
     }
 
     @Override
+    /** deepCopy method. */
     public SharedState deepCopy() {
         Object[] fieldCopy = new Object[fieldValues.length];
         for (int i = 0; i < fieldValues.length; i++) {
@@ -172,6 +176,7 @@ public final class DynamicState implements SharedState {
     }
 
     @Override
+    /** encodeTo method. */
     public void encodeTo(DataOutput out) throws IOException {
         // fields in declaration order: type ordinal, then value
         for (int i = 0; i < decl.fields().size(); i++) {
@@ -198,6 +203,7 @@ public final class DynamicState implements SharedState {
     }
 
     @Override
+    /** equals method. */
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof DynamicState that)) return false;
@@ -223,6 +229,7 @@ public final class DynamicState implements SharedState {
     }
 
     @Override
+    /** hashCode method. */
     public int hashCode() {
         int h = decl.hashCode() * 31 + threadCount;
         for (Object v : fieldValues) {
@@ -234,6 +241,7 @@ public final class DynamicState implements SharedState {
     }
 
     @Override
+    /** toString method. */
     public String toString() {
         StringBuilder sb = new StringBuilder("DynamicState{");
         for (int i = 0; i < decl.fields().size(); i++) {
@@ -243,6 +251,16 @@ public final class DynamicState implements SharedState {
             if (v instanceof int[] arr) sb.append(Arrays.toString(arr));
             else sb.append(v);
             if (i < decl.fields().size() - 1) sb.append(", ");
+        }
+        if (!decl.locals().isEmpty()) {
+            if (!decl.fields().isEmpty()) sb.append(", ");
+            for (int tid = 0; tid < threadCount; tid++) {
+                for (int j = 0; j < decl.locals().size(); j++) {
+                    LocalDecl l = decl.locals().get(j);
+                    sb.append("t").append(tid).append(".").append(l.name()).append("=").append(localValues[tid][j]);
+                    if (tid != threadCount - 1 || j != decl.locals().size() - 1) sb.append(", ");
+                }
+            }
         }
         sb.append("}");
         return sb.toString();

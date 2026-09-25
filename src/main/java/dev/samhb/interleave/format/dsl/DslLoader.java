@@ -12,6 +12,7 @@ import dev.samhb.interleave.format.model.ThreadDefinition;
 import dev.samhb.interleave.format.registry.RegistryException;
 import dev.samhb.interleave.search.Invariant;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -32,7 +33,18 @@ public final class DslLoader {
      * @throws RegistryException on validation error
      */
     public static BenchmarkProgram load(ProgramDefinition def) {
-        // validate state
+        // Defensive top-level validation (also done in ProgramLoader, but DslLoader is public)
+        if (def.name() == null || def.name().isBlank()) throw new RegistryException("Program name is required");
+        if (def.threads() == null || def.threads().isEmpty()) throw new RegistryException("At least one thread is required");
+        for (int i = 0; i < def.threads().size(); i++) {
+            ThreadDefinition td = def.threads().get(i);
+            if (td == null) throw new RegistryException("Thread at index " + i + " is null");
+            Integer tid = td.id();
+            if (tid == null) throw new RegistryException("Thread at index " + i + " is missing required 'id' field");
+            if (tid != i) throw new RegistryException("Thread ID at index " + i + " must be " + i + ", got " + tid);
+            if (td.steps() == null || td.steps().isEmpty()) throw new RegistryException("Thread " + i + " must have at least one step");
+            for (int sIdx = 0; sIdx < td.steps().size(); sIdx++) if (td.steps().get(sIdx) == null) throw new RegistryException("Thread " + i + " step at index " + sIdx + " is null");
+        }
         if (def.state() == null) throw new RegistryException("State definition is required");
         JsonObject stateJson = def.state();
         StateDecl decl = parseStateDecl(stateJson);
@@ -233,6 +245,7 @@ public final class DslLoader {
         else return new BenchmarkProgram(def.name(), program);
     }
 
+    /** containsLocalOrTid method. */
     private static boolean containsLocalOrTid(Expr e) {
         if (e instanceof Expr.LocalRef) return true;
         if (e instanceof Expr.TidRef) return true;
@@ -245,6 +258,7 @@ public final class DslLoader {
         return false;
     }
 
+    /** parseStateDecl method. */
     private static StateDecl parseStateDecl(JsonObject stateJson) {
         if (!stateJson.has("fields")) throw new RegistryException("Missing required 'fields' at state.fields");
         JsonElement fieldsEl = stateJson.get("fields");
@@ -276,7 +290,7 @@ public final class DslLoader {
             switch (typeStr) {
                 case "int" -> {
                     if (!initEl.isJsonPrimitive() || !initEl.getAsJsonPrimitive().isNumber()) throw new RegistryException("'init' must be int at " + path);
-                    int v = initEl.getAsInt();
+                    int v = parseStrictInt(initEl, path + ".init");
                     decl = FieldDecl.ofInt(name, v);
                 }
                 case "bool" -> {
@@ -291,7 +305,7 @@ public final class DslLoader {
                     int[] vals = new int[arr.size()];
                     for (int k = 0; k < arr.size(); k++) {
                         if (!arr.get(k).isJsonPrimitive() || !arr.get(k).getAsJsonPrimitive().isNumber()) throw new RegistryException("Array element must be int at " + path + ".init[" + k + "]");
-                        vals[k] = arr.get(k).getAsInt();
+                        vals[k] = parseStrictInt(arr.get(k), path + ".init[" + k + "]");
                     }
                     decl = FieldDecl.ofArray(name, vals);
                 }
@@ -316,8 +330,12 @@ public final class DslLoader {
                 if (!o.has("name")) throw new RegistryException("Missing 'name' at " + path);
                 if (!o.has("type")) throw new RegistryException("Missing 'type' at " + path);
                 if (!o.has("init")) throw new RegistryException("Missing 'init' at " + path);
-                String name = o.get("name").getAsString();
-                String typeStr = o.get("type").getAsString();
+                JsonElement nameEl = o.get("name");
+                JsonElement typeEl = o.get("type");
+                if (!nameEl.isJsonPrimitive() || !nameEl.getAsJsonPrimitive().isString()) throw new RegistryException("'name' must be string at " + path);
+                if (!typeEl.isJsonPrimitive() || !typeEl.getAsJsonPrimitive().isString()) throw new RegistryException("'type' must be string at " + path);
+                String name = nameEl.getAsString();
+                String typeStr = typeEl.getAsString();
                 JsonElement initEl = o.get("init");
                 validateName(name, path);
                 if (names.contains(name)) throw new RegistryException("Duplicate field/local name '" + name + "' at " + path);
@@ -327,7 +345,7 @@ public final class DslLoader {
                 switch (typeStr) {
                     case "int" -> {
                         if (!initEl.isJsonPrimitive() || !initEl.getAsJsonPrimitive().isNumber()) throw new RegistryException("'init' must be int at " + path);
-                        ld = LocalDecl.ofInt(name, initEl.getAsInt());
+                        ld = LocalDecl.ofInt(name, parseStrictInt(initEl, path + ".init"));
                     }
                     case "bool" -> {
                         if (!initEl.isJsonPrimitive() || !initEl.getAsJsonPrimitive().isBoolean()) throw new RegistryException("'init' must be bool at " + path);
@@ -345,6 +363,17 @@ public final class DslLoader {
         return new StateDecl(fields, locals);
     }
 
+    /** parseStrictInt method. */
+    private static int parseStrictInt(JsonElement el, String path) {
+        String s = el.getAsString();
+        try {
+            return new BigDecimal(s).intValueExact();
+        } catch (ArithmeticException | NumberFormatException e) {
+            throw new RegistryException("'init' must be int in range [-2147483648, 2147483647] without fraction at " + path + ": " + s);
+        }
+    }
+
+    /** validateName method. */
     private static void validateName(String name, String path) {
         if (name == null || name.isBlank()) throw new RegistryException("Name must be non-empty at " + path);
         if (name.length() > 64) throw new RegistryException("Identifier too long (>64) at " + path + ": " + name);

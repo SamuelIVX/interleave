@@ -18,6 +18,7 @@ class DslLoaderTest {
     private final ProgramLoader loader = new ProgramLoader();
 
     @Test
+    /** Tests declarativeLostUpdate_withoutInvariant_isPass. */
     void declarativeLostUpdate_withoutInvariant_isPass() {
         String json = """
             {
@@ -47,6 +48,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests declarativeLostUpdate_withInvariant_matchesTyped. */
     void declarativeLostUpdate_withInvariant_matchesTyped() {
         String json = """
             {
@@ -82,6 +84,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests declarativeGuard_blocksExecution. */
     void declarativeGuard_blocksExecution() {
         String json = """
             {
@@ -110,6 +113,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests formatMissing_throws. */
     void formatMissing_throws() {
         String json = """
             {
@@ -123,6 +127,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests unknownFormat_throws. */
     void unknownFormat_throws() {
         String json = """
             {
@@ -137,20 +142,8 @@ class DslLoaderTest {
     }
 
     @Test
-    void declarativeUnknownField_throws() {
-        String json = """
-            {
-              "format": "declarative",
-              "name": "test",
-              "state": {
-                "fields": [{"name": "x", "type": "int", "init": 0}]
-              },
-              "threads": [{"id": 0, "steps": [{"effects": ["x = 1"]}]}]
-            }
-            """;
-        // Add invalid field key "extra"
-        String bad = json.replace("\"fields\": [", "\"fields\": [{\"name\": \"x\", \"type\": \"int\", \"init\": 0, \"extra\": 1}], \"bad\": 1, \"fields\": [");
-        // Simpler: test duplicate name
+    /** Tests declarativeDuplicateField_throws. */
+    void declarativeDuplicateField_throws() {
         String dup = """
             {
               "format": "declarative",
@@ -169,6 +162,41 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests declarativeFieldUnknownKey_throws. */
+    void declarativeFieldUnknownKey_throws() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "test",
+              "state": {
+                "fields": [{"name": "x", "type": "int", "init": 0, "extra": 1}]
+              },
+              "threads": [{"id": 0, "steps": [{"effects": ["x = 1"]}]}]
+            }
+            """;
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().contains("Unknown field"));
+    }
+
+    @Test
+    /** Tests declarativeStepUnknownKey_throws. */
+    void declarativeStepUnknownKey_throws() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "test",
+              "state": {
+                "fields": [{"name": "x", "type": "int", "init": 0}]
+              },
+              "threads": [{"id": 0, "steps": [{"effects": ["x = 1"], "type": "read_counter"}]}]
+            }
+            """;
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().contains("Unknown field"));
+    }
+
+    @Test
+    /** Tests declarativeTypeMismatch_throws. */
     void declarativeTypeMismatch_throws() {
         String json = """
             {
@@ -185,6 +213,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests declarativeInvariantMustBeBool_throws. */
     void declarativeInvariantMustBeBool_throws() {
         String json = """
             {
@@ -202,6 +231,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests declarativeInvariantForbidsLocal_throws. */
     void declarativeInvariantForbidsLocal_throws() {
         String json = """
             {
@@ -220,6 +250,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests declarativePorDerivation_overApproximate. */
     void declarativePorDerivation_overApproximate() {
         String json = """
             {
@@ -288,6 +319,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests declarativeArrayOob_reportsViolation. */
     void declarativeArrayOob_reportsViolation() {
         String json = """
             {
@@ -307,6 +339,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests declarativeModuloByZero_reportsViolation. */
     void declarativeModuloByZero_reportsViolation() {
         String json = """
             {
@@ -326,6 +359,7 @@ class DslLoaderTest {
     }
 
     @Test
+    /** Tests parserDepthLimit_enforced. */
     void parserDepthLimit_enforced() {
         // build deep expression with 17 unary '!' to exceed depth 16
         StringBuilder sb = new StringBuilder("x");
@@ -341,5 +375,218 @@ class DslLoaderTest {
             """.formatted(expr);
         RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
         assertTrue(ex.getMessage().contains("depth"));
+    }
+
+    @Test
+    /** Tests declarativeFractionalInit_throws. */
+    void declarativeFractionalInit_throws() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "frac",
+              "state": {"fields": [{"name": "x", "type": "int", "init": 1.5}]},
+              "threads": [{"id": 0, "steps": [{"effects": ["x = 1"]}]}]
+            }
+            """;
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().toLowerCase().contains("int"));
+    }
+
+    @Test
+    /** Tests declarativeOverflowInit_throws. */
+    void declarativeOverflowInit_throws() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "overflow",
+              "state": {"fields": [{"name": "x", "type": "int", "init": 3000000000}]},
+              "threads": [{"id": 0, "steps": [{"effects": ["x = 1"]}]}]
+            }
+            """;
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().toLowerCase().contains("int"));
+    }
+
+    @Test
+    /** Tests declarativeArrayElementFractional_throws. */
+    void declarativeArrayElementFractional_throws() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "arr-frac",
+              "state": {"fields": [{"name": "arr", "type": "int[]", "init": [1, 1.5]}]},
+              "threads": [{"id": 0, "steps": [{"effects": ["arr[0] = 1"]}]}]
+            }
+            """;
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().toLowerCase().contains("int"));
+    }
+
+    @Test
+    /** Tests declarativeLocalsNonStringName_throws. */
+    void declarativeLocalsNonStringName_throws() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "bad-local",
+              "state": {
+                "fields": [{"name": "x", "type": "int", "init": 0}],
+                "locals": [{"name": 123, "type": "int", "init": 0}]
+              },
+              "threads": [{"id": 0, "steps": [{"effects": ["x = 1"]}]}]
+            }
+            """;
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().contains("string"));
+    }
+
+    @Test
+    /** Tests dynamicStateToString_includesLocals. */
+    void dynamicStateToString_includesLocals() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "locals-tostring",
+              "state": {
+                "fields": [{"name": "x", "type": "int", "init": 0}],
+                "locals": [{"name": "r", "type": "int", "init": 5}]
+              },
+              "threads": [
+                {"id": 0, "steps": [{"effects": ["local.r = 1"]}]},
+                {"id": 1, "steps": [{"effects": ["x = 1"]}]}
+              ]
+            }
+            """;
+        BenchmarkProgram prog = loader.load(json);
+        String s = prog.program().initialConfiguration().state().toString();
+        assertTrue(s.contains("t0.r="));
+        assertTrue(s.contains("t1.r="));
+    }
+
+    @Test
+    /** Tests dynamicStateToString_distinctForDifferentLocals. */
+    void dynamicStateToString_distinctForDifferentLocals() {
+        StateDecl decl = new StateDecl(
+                java.util.List.of(FieldDecl.ofInt("x", 0)),
+                java.util.List.of(LocalDecl.ofInt("r", 0)));
+        DynamicState s1 = new DynamicState(decl, 2);
+        DynamicState s2 = new DynamicState(decl, 2);
+        s1.setLocalInt(0, "r", 1);
+        s2.setLocalInt(0, "r", 2);
+        assertNotEquals(s1.toString(), s2.toString());
+    }
+
+    @Test
+    /** Tests guardEvalError_isViolationNotDeadlock. */
+    void guardEvalError_isViolationNotDeadlock() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "guard-oob",
+              "state": {"fields": [{"name": "arr", "type": "int[]", "init": [0,0]}]},
+              "threads": [
+                {"id": 0, "steps": [{"guard": "arr[5] == 0", "effects": ["arr[0] = 1"]}]}
+              ]
+            }
+            """;
+        BenchmarkProgram prog = loader.load(json);
+        DfsResult res = new DfsExplorer().explore(prog.program());
+        assertTrue(res.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION));
+        assertFalse(res.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.DEADLOCK));
+    }
+
+    @Test
+    /** Tests fieldDecl_defensiveCopyAndEquals. */
+    void fieldDecl_defensiveCopyAndEquals() {
+        int[] src = new int[]{1, 2, 3};
+        FieldDecl a = FieldDecl.ofArray("arr", src);
+        FieldDecl b = FieldDecl.ofArray("arr", new int[]{1, 2, 3});
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        src[0] = 99;
+        assertEquals(1, a.arrayInit()[0]);
+        int[] out = a.arrayInit();
+        out[0] = 99;
+        assertEquals(1, a.arrayInit()[0]);
+    }
+
+    @Test
+    /** Tests parserDeepNesting_doesNotStackOverflow. */
+    void parserDeepNesting_doesNotStackOverflow() {
+        // 500 nested parens around true
+        StringBuilder sb = new StringBuilder("true");
+        for (int i = 0; i < 500; i++) sb.insert(0, "(").append(")");
+        String expr = sb.toString();
+        String json = """
+            {
+              "format": "declarative",
+              "name": "deep-nest",
+              "state": {"fields": [{"name": "x", "type": "bool", "init": false}]},
+              "threads": [{"id": 0, "steps": [{"effects": ["x = %s"]}]}]
+            }
+            """.formatted(expr);
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().toLowerCase().contains("depth"));
+    }
+
+    @Test
+    /** Tests programLoader_missingName_declarativeThrows. */
+    void programLoader_missingName_declarativeThrows() {
+        String json = """
+            {
+              "format": "declarative",
+              "state": {"fields": [{"name": "x", "type": "int", "init": 0}]},
+              "threads": [{"id": 0, "steps": [{"effects": ["x = 1"]}]}]
+            }
+            """;
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().toLowerCase().contains("name"));
+    }
+
+    @Test
+    /** Tests programLoader_nullStep_declarativeThrows. */
+    void programLoader_nullStep_declarativeThrows() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "null-step",
+              "state": {"fields": [{"name": "x", "type": "int", "init": 0}]},
+              "threads": [{"id": 0, "steps": [null]}]
+            }
+            """;
+        RegistryException ex = assertThrows(RegistryException.class, () -> loader.load(json));
+        assertTrue(ex.getMessage().toLowerCase().contains("null"));
+    }
+
+    @Test
+    /** Tests porousIndependence_mixedDynamicConstant_agreesAcrossExplorers. */
+    void porousIndependence_mixedDynamicConstant_agreesAcrossExplorers() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "por-mixed",
+              "state": {
+                "fields": [
+                  {"name": "arr", "type": "int[]", "init": [0,0]},
+                  {"name": "a", "type": "int", "init": 0}
+                ]
+              },
+              "threads": [
+                {"id": 0, "steps": [{"effects": ["arr[a] = 1"]}]},
+                {"id": 1, "steps": [{"effects": ["arr[0] = 1"]}]},
+                {"id": 2, "steps": [{"effects": ["a = 1"]}]}
+              ],
+              "invariant": {"expr": "false"}
+            }
+            """;
+        BenchmarkProgram prog = loader.load(json);
+        DfsExplorer dfs = new DfsExplorer();
+        dev.samhb.interleave.por.StaticPorExplorer por = new dev.samhb.interleave.por.StaticPorExplorer();
+        dev.samhb.interleave.dpor.DporExplorer dpor = new dev.samhb.interleave.dpor.DporExplorer();
+        boolean dfsViol = dfs.explore(prog.program(), prog.invariant().orElse(null)).traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
+        boolean porViol = por.explore(prog.program(), prog.invariant().orElse(null)).traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
+        boolean dporViol = dpor.explore(prog.program(), prog.invariant().orElse(null)).traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
+        assertEquals(dfsViol, porViol);
+        assertEquals(dfsViol, dporViol);
     }
 }

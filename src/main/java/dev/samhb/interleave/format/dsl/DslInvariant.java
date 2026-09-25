@@ -23,6 +23,7 @@ public final class DslInvariant implements Invariant {
     }
 
     @Override
+    /** holds method. */
     public boolean holds(SharedState state, Configuration config) {
         if (!(state instanceof DynamicState ds)) return true;
         // Match typed invariant semantics: check only at termination

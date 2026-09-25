@@ -18,14 +18,17 @@ public final class ThreadDefinition {
     private Integer id;
     private List<JsonObject> steps;
 
+    /** ThreadDefinition method. */
     public ThreadDefinition() {
         // No-arg constructor for Gson
     }
 
+    /** id method. */
     public Integer id() {
         return id;
     }
 
+    /** steps method. */
     public List<JsonObject> steps() {
         return steps;
     }

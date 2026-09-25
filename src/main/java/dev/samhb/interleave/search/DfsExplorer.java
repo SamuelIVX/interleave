@@ -17,6 +17,7 @@ public final class DfsExplorer {
     private StateVisitor stateVisitor;
     private long maxStatesBudget;
 
+    /** DfsExplorer method. */
     public DfsExplorer() {
         this.defaultStateStore = new HashingStateStore();
         this.visitedStates = new LinkedHashMap<>();
