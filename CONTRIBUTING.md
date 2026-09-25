@@ -39,7 +39,7 @@ Before opening a new issue, please search existing issues to avoid duplicates. W
 - A clear description of the problem or suggestion
 - Steps to reproduce, if applicable
 - Expected vs actual behavior
-- Relevant spec number, if applicable (`docs/specs/active/01-program-representation.md`)
+- Relevant spec number, if applicable (`docs/specs/active/01-peterson.md`)
 
 ### Proposing changes
 
