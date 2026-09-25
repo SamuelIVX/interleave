@@ -1,7 +1,7 @@
 # Spec 09 — JSON DSL Core (Declarative State and Steps)
 
 ## TL;DR
-Introduce `format: "declarative"` as the second program format alongside the existing `format: "typed"` registry form. Authors declare state shape (`fields` + per-thread `locals`), then declare steps as pure guard + effect sequences over a tiny sandboxed expression language. A new `DynamicState` and `DynamicStep` implement `SharedState`/`Step` with deterministic canonical encoding and POR-correct `reads()`/`writes()` derivation. `ProgramLoader` dispatches on `format` and remains fully backwards compatible — every existing `typed` program keeps its identical verdict and explored-state count.
+Introduce `format: "declarative"` as the second program format alongside the existing `format: "typed"` registry form. Authors declare state shape (`fields` + per-thread `locals`), then declare steps as pure guard + effect sequences over a tiny sandboxed expression language. A new `DynamicState` and `DynamicStep` implement `SharedState`/`Step` with deterministic canonical encoding and POR-correct `reads()`/`writes()` derivation. `ProgramLoader` dispatches on `format: "typed"` vs `"declarative"` and remains fully backwards compatible — every existing `typed` program keeps its identical verdict and explored-state count. Single-predicate invariants (`{"expr": "…"}`) are introduced here; conjunction (`all`) is deferred to Spec 10.
 
 ## Current State
 - `format/ProgramLoader` (259 lines) [verified] validates `name`/`state.type`/`threads[].steps[].type`, sequential thread IDs `0..N-1`, `other` bounds, invariant compatibility, and builds `BenchmarkProgram` via `StateRegistry` (5 types), `StepRegistry` (19 steps), `InvariantRegistry`.
@@ -19,17 +19,18 @@ Introduce `format: "declarative"` as the second program format alongside the exi
 - **Determinism:** a declarative program with the same JSON + seed explores identically across runs (no hidden global `Random`, no thread-local state leakage).
 
 ## Acceptance Criteria
-- `format` dispatch: `ProgramLoader` requires top-level `format` in every file. Values are exactly `"typed"` and `"declarative"`. Missing, null, non-string, or unknown value throws `RegistryException` whose message lists valid values and the offending JSON path.
+- `format` dispatch: `ProgramLoader` requires top-level `format` in every file. Values are exactly `"typed"` and `"declarative"`. Missing, null, non-string, or unknown value throws `RegistryException` whose message lists valid values and the offending JSON path. `ProgramDefinition` gains a `format` field; `expected_verdict` remains valid for both formats with the same values (`PASS`/`VIOLATION`/`DEADLOCK`).
 - Migration: all 8 in-repo JSON files contain `format: "typed"` after this spec ships. Existing tests and `BugCorpus` continue to pass without behavioral change (verified by a regression test loading each via `loadFromResource`).
 - Declarative schema validation (all errors include a JSON path like `threads[1].steps[0].guard` or `state.fields[2]`):
-  - `name` non-blank, `state.fields` present and non-empty when `format: "declarative"`, at most 32 shared fields; each field declares `type` in `{int, bool, int[]}` and an initial value of the matching JSON shape; array length in `[0, 64]` at load time.
-  - `state.locals` optional; when present each entry declares `type` in `{int, bool}` with init; locals are per-thread, never cross-thread conflicting.
-  - `threads` has `1..8` entries with sequential `id`; each `steps` non-empty, each `steps` total across all threads `<= 512`; each step declares `effects` (non-empty list of assignments) and optional `guard`; invalid syntax, unknown field/local name, or arity mismatch throws `RegistryException`.
-- Expression language: int literals, bool literals, field refs (`x`), local refs (`local.r`), array element refs (`q[expr]`), `tid`, unary `!`/`-`, binary `+ - * % == != < <= > >= && ||`, parentheses. Effects are a sequence of assignments `lhs = expr` where `lhs` is a field, local, or array element `q[expr]`. All sub-expressions are type-checked at load time; type mismatch (e.g. `bool + int`) is a load error.
+  - `name` non-blank, `state.fields` present and non-empty when `format: "declarative"`, at most 32 shared fields; each field declares `type` in `{int, bool, int[]}` and an initial value of the matching JSON shape; array length in `[0, 64]` at load time; duplicate field/local names across `fields` + `locals` are a load error at `state.fields[i].name`.
+  - `state.locals` optional; when present each entry declares `type` in `{int, bool}` with init; locals are per-thread, never cross-thread conflicting; `int[]` is not allowed in `locals`.
+  - `threads` has `1..8` entries with sequential `id`; each `steps` non-empty, total steps across all threads `<= 512`; each step declares `effects` (non-empty list of assignments) and optional `guard`; unknown extra keys (e.g. `threads[].steps[].type` in a `declarative` file) are a load error at that path; invalid syntax, unknown field/local name, or arity mismatch throws `RegistryException`.
+- Single-predicate invariant: a `declarative` file may include `invariant: {"expr": "<predicate>"}` where the predicate uses the same expression language, type-checks to `bool`, and does not reference `local.*` (load error at `invariant.expr`). `invariant.type` in a `declarative` file is a load error. Conjunction (`all`) is deferred to Spec 10; a `declarative` file containing `invariant.all` in this spec is a load error naming `Use invariant.expr in format "declarative" for this spec; conjunction is Spec 10.`.
+- Expression language: int literals, bool literals, shared field refs (`x`), local refs (`local.r` — `local.` prefix is mandatory for locals; bare name never refers to a local), array element refs (`q[expr]` or `local.q[expr]` is invalid — locals are scalar only), `tid`, unary `!`/`-`, binary `+ - * % == != < <= > >= && ||`, parentheses. Effects are a sequence of assignments `lhs = expr` where `lhs` is a shared field, local, or array element `q[expr]`. All sub-expressions are type-checked at load time; type mismatch (e.g. `bool + int`) is a load error naming the path.
 - Bounds: any single program's total AST node count `<= 5000`, expression depth `<= 16`, guard/effect list per step `<= 16` entries. Exceeding a bound throws `RegistryException` naming the bound and the violating path.
-- Runtime: `DynamicState.deepCopy` copies all fields and all per-thread locals; `encodeTo` is deterministic (see Invariants) and round-trips through `Configuration` hashing; `DynamicStep.enabled(state)` evaluates `guard` (absent guard is `true`); `execute(state)` evaluates `effects` left-to-right on the shared state and the owning thread's locals only.
-- POR derivation: for each declarative step, `reads()` and `writes()` are derived statically from the guard and effects (not user-declared). Scalars cover their own `MemoryLocation`; array element with constant integer index covers `name[index]`; non-constant index or any non-trivial index expression covers whole-array `name`. Locals map to per-thread locations `t<id>.<name>` (never conflicting across threads). Derivation is over-approximate — no under-report is permitted; a dedicated test asserts this by comparing derived sets against the set of locations actually touched during evaluation.
-- Explorers: `DfsExplorer`, `StaticPorExplorer`, `DporExplorer` show no behavior change on `typed` programs; on `declarative` programs they explore via `DynamicState`/`DynamicStep` without additional wiring.
+- Runtime: `DynamicState.deepCopy` copies all fields and all per-thread locals; `encodeTo` is deterministic (see Invariants) and round-trips through `Configuration` hashing; `DynamicStep.enabled(state)` evaluates `guard` (absent or `null` guard is `true`; `guard` must type-check to `bool` at load time); `execute(state)` evaluates `effects` left-to-right on the shared state and the owning thread's locals only; evaluation errors at model-check runtime (array OOB, `%` by zero) do **not** throw `RegistryException` — they are reported as `StepOutcome.ASSERTION_FAILED` and surface as `VIOLATION` with the violating trace, never as a checker crash.
+- POR derivation: for each declarative step, `reads()` and `writes()` are derived statically from the guard and effects (not user-declared). Scalars cover their own `MemoryLocation`; array element with constant integer literal index covers `name[index]` (e.g. `q[0]`); any non-constant index expression covers whole-array `name`. Locals map to per-thread locations `t<id>.<name>` (e.g. `t0.r`) — never conflicting across threads. Derivation is over-approximate — no under-report is permitted; a dedicated test asserts this by comparing derived sets against the set of locations actually touched during evaluation. Invariant reads (`invariant.expr`) are treated as additional shared reads for the purpose of POR conservatism (explorers may fall back to the invariant-safe path, same as for `typed` invariants).
+- Explorers: `DfsExplorer`, `StaticPorExplorer`, `DporExplorer` show no behavior change on `typed` programs; on `declarative` programs they explore via `DynamicState`/`DynamicStep` without additional wiring. A declarative program with the same JSON + `format` explores identically across runs.
 - A passing `./gradlew build` and `./gradlew test`.
 
 ## DSL Shape (frozen for implementation)
@@ -42,7 +43,7 @@ Introduce `format: "declarative"` as the second program format alongside the exi
 
 `format` is **required**. Unknown value message is exactly: `Unknown format '<value>'. Valid formats: [typed, declarative]` (order as listed). Missing/null/non-string `format` message names the field and lists valid values.
 
-#### Example (minimal declarative)
+#### Example (minimal declarative — no invariant; Spec 10 adds invariants)
 
 ```json
 {
@@ -72,9 +73,11 @@ Introduce `format: "declarative"` as the second program format alongside the exi
       ]
     }
   ],
-  "invariant": {"expr": "counter <= 2"}
+  "expected_verdict": "VIOLATION"
 }
 ```
+
+A variant with a single-predicate invariant is introduced with Spec 10's conjunction extension; in Spec 09 the same program would carry `"invariant": {"expr": "counter == 2"}` (Spec 09 already supports `{"expr": "…"}`) — the no-invariant form above is used when the spec is exercised without an oracle, and the `expr` form when checking violation detection.
 
 ### Declarative state schema
 
@@ -116,9 +119,9 @@ primary::= INT | BOOL | "tid" | IDENT | IDENT "[" expr "]" | "local." IDENT | "l
 
 - `INT` is a JSON int literal inside the string (`-2147483648..2147483647`); overflow during evaluation wraps as Java `int` (documented, deterministic).
 - `BOOL` is `true`/`false`.
-- `IDENT` is `[a-z][a-z0-9_]*`; must name a declared field or local (with `local.` prefix for locals).
+- `IDENT` is `[a-z][a-z0-9_]*` with length `1..64`; must name a declared field or local (with `local.` prefix for locals — bare name never refers to a local; `tid` is a reserved keyword, not a declarable name).
 - Division `/` is **not** in v1 (avoid divide-by-zero observability questions); use `*` and `%` only.
-- Every expression is type-checked at load: comparisons require `int` operands producing `bool`; `&&`/`||`/`!` require `bool`; arithmetic requires `int`; `q[expr]` requires `int[]` base and `int` index with bounds check at evaluation (out-of-bounds `OOB` traps as `RegistryException` at execution time if ever reached, but a `guard` should prevent it — OOB during a model-check run is reported as `VIOLATION` with the violating trace, not a crash).
+- Every expression is type-checked at load: comparisons require `int` operands producing `bool`; `&&`/`||`/`!` require `bool`; arithmetic requires `int`; `q[expr]` requires `int[]` base and `int` index. `%` and array indexing are bounds-checked at evaluation: `%` by zero or array OOB does not throw `RegistryException` and never crashes the checker — it is reported as `StepOutcome.ASSERTION_FAILED` and surfaces as `VIOLATION` with the violating trace (guards should prevent OOB; if a guard fails to, the trace still pinpoints the offending step).
 - Node count and depth are counted on the parsed AST; exceeding bounds is a load-time `RegistryException` naming the offending path and the bound.
 
 ### MemoryLocation derivation (POR — frozen)
