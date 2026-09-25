@@ -4,35 +4,34 @@
 Complete the declarative format with composable invariants, the user-facing CLI path, and the teaching examples that prove the DSL is real. Invariants for `declarative` programs are pure expression predicates (with conjunction/reuse), the existing `check --file` path already dispatched by Spec 09 now carries invariants end-to-end, and two curated example programs (bounded buffer, semaphore) ship as JSON. The spec's anchor is a differential test: a declarative re-encoding of `lost-update` must match `BugCorpus`'s Java version on verdict and on explored-state count.
 
 ## Current State
-- Spec 09 [assumed, ships in same wave] delivers `format` dispatch, declarative `DynamicState`/`DynamicStep`, sandboxed expression language, deterministic encoding, and POR-correct `reads()`/`writes()` derivation. `ProgramLoader` loads `declarative` programs; no invariant beyond a single predicate stub.
+- Spec 09 [assumed, ships in same wave] delivers `format` dispatch (`typed` / `declarative`), declarative `DynamicState`/`DynamicStep`, sandboxed expression language, deterministic encoding, POR-correct `reads()`/`writes()` derivation, and the single-predicate declarative invariant `{"expr": "…"}`. `ProgramLoader` loads `declarative` programs; conjunction is not yet supported.
 - `typed` invariants today [verified]: `InvariantRegistry` maps 5 named types (e.g. `counter_equals`, `mutual_exclusion_peterson`) to factories; `BenchmarkProgram` carries an optional `Invariant`.
 - CLI [verified]: `Main --file <path>` calls `ProgramLoader.loadFromFile`; `BenchmarkHarness`/`DfsExplorer`/`StaticPorExplorer`/`DporExplorer` run the resulting `Program` + optional `Invariant` unchanged.
-- No declarative invariant composition, no curated DSL examples, no differential equivalence test [verified].
+- No declarative invariant conjunction, no curated DSL examples beyond the minimal lost-update shape, no differential equivalence test [verified].
 
 ## Invariants
 - **Backwards compatibility:** every `format: "typed"` program — including its named `invariant.type` — keeps its identical verdict and states-explored count.
-- **Invariant purity:** a `declarative` invariant is a pure predicate over shared state (and optionally `locals` aggregated in a well-defined way — see frozen section). It has no effects, never mutates state, never allocates an unbounded resource, and is bounded by the same AST limits as guards.
-- **Same oracle, same harness:** `declarative` programs run through the unchanged `DfsExplorer`/POR explorers and `BenchmarkHarness`; no new scheduler semantics, no invariant-specific fast path that could diverge from the oracle.
+- **Invariant purity:** a `declarative` invariant is a pure predicate over shared state only — it never references `local.*` and never mentions `tid`; any `local.*` or `tid` in `invariant.expr`/`all` is a load error. It has no effects, never mutates state, never allocates an unbounded resource, and is bounded by the same AST limits as guards.
+- **Same oracle, same harness:** `declarative` programs run through the unchanged `DfsExplorer`/POR explorers and `BenchmarkHarness`; no new scheduler semantics, no invariant-specific fast path that could diverge from the oracle. Evaluation errors at model-check runtime (OOB, `%` by zero) surface as `VIOLATION` with a trace, never as a checker crash.
 - **Deterministic reporting:** the same `declarative` file + invariant explores identically and, when imported via the DSL builder methods, produces the same `VerificationResult`/`TestResult` as the equivalent Java-constructed program.
 
 ## Acceptance Criteria
 - **Declarative invariant shape** — a `declarative` file's top-level `invariant` is exactly one of:
-  1. `{"expr": "<predicate>"}` — single predicate string.
-  2. `{"all": ["<predicate>", "<predicate>", ...]}` — conjunction (1..16 predicates) evaluated short-circuit as `&&`; empty `all` is a load error.
-  Invariant strings use the same expression language and type-check rules as Spec 09. Any predicate that type-checks to non-`bool`, mentions an unknown field/local, or exceeds AST bounds throws `RegistryException` with the offending JSON path (`invariant.expr` or `invariant.all[i]`). A `declarative` file must not use `invariant.type` (typed-only); if present it is a load error naming `invariant.expr`/`all` as the valid forms.
+  1. `{"expr": "<predicate>"}` — single predicate string (introduced in Spec 09; Spec 10 keeps the contract and adds conjunction).
+  2. `{"all": ["<predicate>", "<predicate>", ...]}` — conjunction (1..16 predicates) evaluated short-circuit as `&&`; empty `all` is a load error. This form is introduced in Spec 10.
+  Invariant strings use the same expression language and type-check rules as Spec 09, with the restriction that they may reference only shared fields and array elements (never `local.*` and never `tid` — referencing either is a load error at `invariant.expr` or `invariant.all[i]`). Any predicate that type-checks to non-`bool`, mentions an unknown field, or exceeds AST bounds throws `RegistryException` with the offending JSON path (`invariant.expr` or `invariant.all[i]`). A `declarative` file must not use `invariant.type` (typed-only); if present it is a load error naming `invariant.expr`/`all` as the valid forms.
 - **Typed invariant path unchanged** — `format: "typed"` files continue to use `invariant.type` as today. `invariant.expr`/`all` in a `typed` file is a load error. The 5 existing named invariants remain registered and unmodified.
-- **Error reporting** — a failing invariant produces the same `VIOLATION` trace as today, with the violating configuration's encoded state. The trace's first violating step is the schedule prefix that reaches the bad configuration; invariant evaluation errors after load (e.g. array OOB — should be unreachable if guards are correct) are reported as `VIOLATION` with a diagnostic, not as a checker crash.
-- **CLI** — no new flags. The existing `Main --file <path>` already dispatches via Spec 09; this spec requires that a `declarative` file with an `invariant` carried through that path produces the same verdict as `InterleaveRunner` programmatically built from the same file. Bounds-exceeded or type-error files produce a non-zero exit with `RegistryException` message on `stderr`.
+- **Error reporting** — a failing invariant produces the same `VIOLATION` trace as today, with the violating configuration's encoded state. The trace's first violating step is the schedule prefix that reaches the bad configuration; invariant or step evaluation errors at model-check runtime after successful load (e.g. array OOB, `%` by zero — should be unreachable if guards are correct) are reported as `VIOLATION` with a diagnostic and the violating trace, not as a checker crash.
+- **CLI** — no new flags. The existing `Main --file <path>` already dispatches via Spec 09; this spec requires that a `declarative` file with an `invariant` carried through that path produces the same verdict as `InterleaveRunner` programmatically built from the same file. Bounds-exceeded or type-error files produce a non-zero exit with `RegistryException` message on `stderr` that includes the JSON path.
 - **Examples** — two curated programs ship as JSON and are green in CI:
   - `examples/programs/bounded-buffer-declarative.json` — `format: "declarative"`, shared `buf: int[3]`, `head`/`tail`/`count`/`capacity`, per-thread `locals` for staged values, producer + consumer threads, invariant `count <= capacity && count >= 0 && count <= 3`.
   - `examples/programs/semaphore-declarative.json` — `format: "declarative"`, shared `permits: int`, `acquire` guard `permits > 0` with effect `permits--`, `release` with `permits++`, two threads, invariant `permits >= 0`.
   Each example file has a co-located comment header or `README` entry describing the bug/pattern it teaches.
-- **Differential equivalence test** — `DslEquivalenceTest` holds a `declarative` re-encoding of `lost-update` (two threads, `counter: int`, per-thread `local.r`, steps `local.r = counter` / `counter = local.r + 1`, invariant `counter == 2`). The test runs that file through `ProgramLoader.loadFromFile` and `DfsExplorer` (and POR variants — `StaticPorExplorer` + `DporExplorer`) and asserts:
-  - verdict `VIOLATION` matches `BugCorpus.lostUpdate()`'s verdict,
-  - `statesExplored` for each explorer is within `±5%` of (ideally equal to) the `typed` run, so POR derivation is not wildly over/under-reporting.
-  A helper also asserts the failing trace from the `declarative` program replays through `ExecutionDriver` to a violating configuration.
+- **Differential equivalence test** — `DslEquivalenceTest` holds a `declarative` re-encoding of `lost-update` (two threads, `counter: int`, per-thread `local.r`, steps `local.r = counter` / `counter = local.r + 1`, invariant `counter == 2`, `expected_verdict: "VIOLATION"`). The test runs that file through `ProgramLoader.loadFromFile` and each explorer (`DfsExplorer`, `StaticPorExplorer`, `DporExplorer`) and asserts:
+  - verdict `VIOLATION` matches `BugCorpus.lostUpdate()`'s verdict (and equals `expected_verdict`),
+  - `statesExplored` is exactly equal across `typed` vs `declarative` for each explorer (exact equality — the derivation for this scalar+per-thread-local program is precise; any divergence is a derivation bug). A helper also asserts the failing trace from the `declarative` program replays through `ExecutionDriver` to a violating configuration.
 - **README/docs** — `README.md` gains a "Program formats" section documenting both `format: "typed"` and `format: "declarative"` with a minimal example of each and a pointer to the example files. `docs/` or `examples/programs/README.md` lists the available example programs with their invariant in one line.
-- **Docstrings & tests** — every new public type and exported method carries Javadoc (`@param`/`@returns`/`@throws`); each file carries a top-of-file summary comment. Test coverage includes load-error paths, type errors, bound violations, unknown format, and the two examples.
+- **Docstrings & tests** — every new public type and exported method carries Javadoc (`@param`/`@returns`/`@throws`); each file carries a top-of-file summary comment. Test coverage includes load-error paths (unknown field, duplicate name, `local.*` in invariant, `tid` in invariant, type errors, bound violations, unknown format), `invariant.type`-in-declarative rejection, and the two examples.
 - A passing `./gradlew build` and `./gradlew test`.
 
 ## DSL Shape (frozen for implementation)
@@ -124,7 +123,7 @@ load declarative re-encoding via ProgramLoader.loadFromFile → dslResult
 assert typedResult.verdict() == dslResult.verdict()
 assert typedResult.verdict() == VIOLATION
 for each explorer in [dfs, staticPor, dpor]:
-  assert dslStatesExplored within 5% of typedStatesExplored  // over-report is allowed, wild divergence is a derivation bug
+  assert dslStatesExplored == typedStatesExplored
   assert ExecutionDriver replay of dsl's failing trace reaches a configuration where invariant is false
 ```
 
