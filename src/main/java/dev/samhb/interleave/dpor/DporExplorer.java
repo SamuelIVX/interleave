@@ -9,18 +9,22 @@ import java.util.*;
 public final class DporExplorer {
     private final IndependenceRelation relation;
 
+    /** DporExplorer method. */
     public DporExplorer() {
         this.relation = new IndependenceRelation();
     }
 
+    /** explore method. */
     public DfsResult explore(Program program) {
         return explore(program, null);
     }
 
+    /** explore method. */
     public DfsResult explore(Program program, Invariant invariant) {
         return explore(program, invariant, null, null);
     }
 
+    /** explore method. */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues
@@ -122,6 +126,15 @@ public final class DporExplorer {
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
 
+            if (outcome == StepOutcome.ASSERTION_FAILED) {
+                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
+                continue;
+            }
+
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
 
             HappensBefore nextHappensBefore = happensBefore.copy();
@@ -178,6 +191,15 @@ public final class DporExplorer {
 
                 List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
                 nextOutcomes.add(outcome);
+
+                if (outcome == StepOutcome.ASSERTION_FAILED) {
+                    Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                    traces.add(trace);
+                    if (stateVisitor != null) {
+                        stateVisitor.onTraceCreated(trace);
+                    }
+                    continue;
+                }
 
                 Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
 
@@ -262,6 +284,15 @@ public final class DporExplorer {
 
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
+
+            if (outcome == StepOutcome.ASSERTION_FAILED) {
+                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
+                continue;
+            }
 
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
 

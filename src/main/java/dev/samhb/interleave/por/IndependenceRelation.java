@@ -9,22 +9,38 @@ public final class IndependenceRelation {
         Set<dev.samhb.interleave.core.MemoryLocation> aWrites = a.writes();
         Set<dev.samhb.interleave.core.MemoryLocation> bReads = b.reads();
         Set<dev.samhb.interleave.core.MemoryLocation> bWrites = b.writes();
-        
-        // Two steps are independent if:
-        // 1. Neither writes to a location the other reads or writes
-        // (Read-read is independent; write-read and write-write are conflicts)
+
+        // Two steps are independent if neither writes to a location the other reads or writes.
+        // Array handling: a dynamic-index access is reported as bare "arr" and conflicts with
+        // any constant-index "arr[k]" of the same array (base-vs-element overlap), because
+        // the dynamic index could alias the constant one. arr[0] vs arr[1] stays independent.
         for (dev.samhb.interleave.core.MemoryLocation loc : aWrites) {
-            if (bReads.contains(loc) || bWrites.contains(loc)) {
+            if (conflictsWithAny(loc, bReads) || conflictsWithAny(loc, bWrites)) {
                 return false;
             }
         }
         for (dev.samhb.interleave.core.MemoryLocation loc : bWrites) {
-            if (aReads.contains(loc) || aWrites.contains(loc)) {
+            if (conflictsWithAny(loc, aReads) || conflictsWithAny(loc, aWrites)) {
                 return false;
             }
         }
-        
+
         return true;
+    }
+
+    private static boolean conflictsWithAny(dev.samhb.interleave.core.MemoryLocation loc, Set<dev.samhb.interleave.core.MemoryLocation> set) {
+        for (dev.samhb.interleave.core.MemoryLocation other : set) {
+            if (conflicts(loc, other)) return true;
+        }
+        return false;
+    }
+
+    private static boolean conflicts(dev.samhb.interleave.core.MemoryLocation a, dev.samhb.interleave.core.MemoryLocation b) {
+        String an = a.toString();
+        String bn = b.toString();
+        if (an.equals(bn)) return true;
+        if (an.startsWith(bn + "[")) return true;
+        return bn.startsWith(an + "[");
     }
 
     public boolean hasEnableDisableInterference(Configuration config, int threadA, int threadB, List<ModelThread> threads) {

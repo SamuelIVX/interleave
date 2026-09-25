@@ -112,6 +112,7 @@ public final class ProgramLoader {
         }
     }
 
+    /** readResource method. */
     private String readResource(String path) {
         var is = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
         if (is == null) {
@@ -124,22 +125,31 @@ public final class ProgramLoader {
         }
     }
 
+    /** load method. */
     private BenchmarkProgram load(ProgramDefinition def) {
-        // Validate top-level fields
+        // Validate format discriminator (required per Spec 09)
+        String format = def.format();
+        if (format == null || format.isBlank()) {
+            throw new RegistryException("Program 'format' field is required. Valid formats: [typed, declarative]");
+        }
+        if (!format.equals("typed") && !format.equals("declarative")) {
+            throw new RegistryException("Unknown format '" + format + "'. Valid formats: [typed, declarative]");
+        }
+        // Validate common top-level fields before format-specific dispatch
+        // (prevents NPEs in declarative loader when threads/name/ids are missing)
         if (def.name() == null || def.name().isBlank()) {
             throw new RegistryException("Program name is required");
-        }
-        if (def.state() == null) {
-            throw new RegistryException("State definition is required");
         }
         if (def.threads() == null || def.threads().isEmpty()) {
             throw new RegistryException("At least one thread is required");
         }
-
-        // Validate thread IDs are sequential 0..N-1
         List<ThreadDefinition> threadDefs = def.threads();
         for (int i = 0; i < threadDefs.size(); i++) {
-            Integer threadId = threadDefs.get(i).id();
+            ThreadDefinition td = threadDefs.get(i);
+            if (td == null) {
+                throw new RegistryException("Thread at index " + i + " is null");
+            }
+            Integer threadId = td.id();
             if (threadId == null) {
                 throw new RegistryException(
                     "Thread at index " + i + " is missing required 'id' field"
@@ -150,9 +160,23 @@ public final class ProgramLoader {
                     "Thread ID at index " + i + " must be " + i + ", got " + threadId
                 );
             }
-            if (threadDefs.get(i).steps() == null || threadDefs.get(i).steps().isEmpty()) {
+            if (td.steps() == null || td.steps().isEmpty()) {
                 throw new RegistryException("Thread " + i + " must have at least one step");
             }
+            for (int sIdx = 0; sIdx < td.steps().size(); sIdx++) {
+                if (td.steps().get(sIdx) == null) {
+                    throw new RegistryException("Thread " + i + " step at index " + sIdx + " is null");
+                }
+            }
+        }
+
+        // Delegate declarative to dedicated loader
+        if (format.equals("declarative")) {
+            return dev.samhb.interleave.format.dsl.DslLoader.load(def);
+        }
+        // typed path below
+        if (def.state() == null) {
+            throw new RegistryException("State definition is required");
         }
 
         // Validate state.type is present and is a string

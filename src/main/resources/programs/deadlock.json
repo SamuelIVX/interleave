@@ -1,24 +1,46 @@
 {
+  "format": "typed",
   "name": "deadlock",
   "state": {
     "type": "deadlock",
-    "flags": [false, false]
+    "flags": [
+      false,
+      false
+    ]
   },
   "threads": [
     {
       "id": 0,
       "steps": [
-        {"type": "deadlock_write_flag", "value": true},
-        {"type": "unconditional_wait", "other": 1},
-        {"type": "deadlock_write_flag", "value": false}
+        {
+          "type": "deadlock_write_flag",
+          "value": true
+        },
+        {
+          "type": "unconditional_wait",
+          "other": 1
+        },
+        {
+          "type": "deadlock_write_flag",
+          "value": false
+        }
       ]
     },
     {
       "id": 1,
       "steps": [
-        {"type": "deadlock_write_flag", "value": true},
-        {"type": "unconditional_wait", "other": 0},
-        {"type": "deadlock_write_flag", "value": false}
+        {
+          "type": "deadlock_write_flag",
+          "value": true
+        },
+        {
+          "type": "unconditional_wait",
+          "other": 0
+        },
+        {
+          "type": "deadlock_write_flag",
+          "value": false
+        }
       ]
     }
   ],

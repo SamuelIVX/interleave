@@ -9,14 +9,16 @@ import java.util.List;
  * <p>
  * Corresponds to the top-level JSON object with fields:
  * <ul>
+ *   <li>{@code format} (required) — {@code "typed"} or {@code "declarative"}</li>
  *   <li>{@code name} (required)</li>
- *   <li>{@code state} (required) — a {@link JsonObject} containing {@code type} and type-specific fields</li>
+ *   <li>{@code state} (required) — a {@link JsonObject} containing {@code type} and type-specific fields (typed) or {@code fields}/{@code locals} (declarative)</li>
  *   <li>{@code threads} (required) — a list of {@link ThreadDefinition}</li>
- *   <li>{@code invariant} (optional) — a {@link JsonObject} containing {@code type} and type-specific params</li>
+ *   <li>{@code invariant} (optional) — a {@link JsonObject} containing {@code type} and type-specific params (typed) or {@code expr} (declarative)</li>
  *   <li>{@code expected_verdict} (optional) — one of "PASS", "VIOLATION", "DEADLOCK"</li>
  * </ul>
  */
 public final class ProgramDefinition {
+    private String format;
     private String name;
     private JsonObject state;
     private List<ThreadDefinition> threads;
@@ -25,26 +27,41 @@ public final class ProgramDefinition {
     @SerializedName("expected_verdict")
     private String expectedVerdict;
 
+    /** ProgramDefinition method. */
     public ProgramDefinition() {
         // No-arg constructor for Gson
     }
 
+    /**
+     * Returns the format discriminator.
+     *
+     * @return {@code "typed"} or {@code "declarative"}, or {@code null} if missing
+     */
+    public String format() {
+        return format;
+    }
+
+    /** name method. */
     public String name() {
         return name;
     }
 
+    /** state method. */
     public JsonObject state() {
         return state;
     }
 
+    /** threads method. */
     public List<ThreadDefinition> threads() {
         return threads;
     }
 
+    /** invariant method. */
     public JsonObject invariant() {
         return invariant;
     }
 
+    /** expectedVerdict method. */
     public String expectedVerdict() {
         return expectedVerdict;
     }
