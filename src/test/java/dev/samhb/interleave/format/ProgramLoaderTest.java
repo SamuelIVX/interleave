@@ -105,6 +105,7 @@ class ProgramLoaderTest {
     void loadUnknownStepType_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [{"id": 0, "steps": [{"type": "unknown_step"}]}]
@@ -119,6 +120,7 @@ class ProgramLoaderTest {
     void loadIncompatibleStep_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
               "threads": [{"id": 0, "steps": [{"type": "write_counter"}]}]
@@ -133,6 +135,7 @@ class ProgramLoaderTest {
     void loadNonSequentialThreadIds_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [
@@ -150,6 +153,7 @@ class ProgramLoaderTest {
     void loadMissingThreadId_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [
@@ -167,6 +171,7 @@ class ProgramLoaderTest {
     void loadThreadParamMismatch_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [{"id": 0, "steps": [{"type": "read_counter", "thread": 5}]}]
@@ -181,6 +186,7 @@ class ProgramLoaderTest {
     void loadOtherOutOfRange_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
               "threads": [{"id": 0, "steps": [{"type": "busy_wait", "other": 5}]}]
@@ -195,6 +201,7 @@ class ProgramLoaderTest {
     void loadMutualExclusionPeterson_oneThread_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
               "threads": [{"id": 0, "steps": [{"type": "write_flag", "value": true}]}],
@@ -210,6 +217,7 @@ class ProgramLoaderTest {
     void loadMutualExclusionPeterson_threeThreads_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
               "threads": [
@@ -229,6 +237,7 @@ class ProgramLoaderTest {
     void loadMutualExclusionPeterson_twoThreads_succeeds() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
               "threads": [
@@ -247,6 +256,7 @@ class ProgramLoaderTest {
     void loadMissingState_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "threads": [{"id": 0, "steps": [{"type": "read_counter"}]}]
             }
@@ -260,6 +270,7 @@ class ProgramLoaderTest {
     void loadMissingThreads_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0}
             }
@@ -273,6 +284,7 @@ class ProgramLoaderTest {
     void loadEmptyThreads_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": []
@@ -287,6 +299,7 @@ class ProgramLoaderTest {
     void loadThreadWithNoSteps_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [{"id": 0, "steps": []}]
@@ -301,6 +314,7 @@ class ProgramLoaderTest {
     void loadInvalidExpectedVerdict_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [{"id": 0, "steps": [{"type": "read_counter"}]}],
@@ -316,6 +330,7 @@ class ProgramLoaderTest {
     void loadInvariantIncompatibleWithState_throwsRegistryException() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
               "threads": [{"id": 0, "steps": [{"type": "write_flag", "value": true}]}],
@@ -331,6 +346,7 @@ class ProgramLoaderTest {
     void loadProgramWithoutExpectedVerdict_succeeds() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [{"id": 0, "steps": [{"type": "read_counter"}]}]
@@ -344,6 +360,7 @@ class ProgramLoaderTest {
     void loadProgramWithoutInvariant_succeeds() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [{"id": 0, "steps": [{"type": "read_counter"}]}],
@@ -359,6 +376,7 @@ class ProgramLoaderTest {
     void threadParameterDefaultsToOwnId() {
         String json = """
             {
+              "format": "typed",
               "name": "test",
               "state": {"type": "counter", "counter": 0},
               "threads": [

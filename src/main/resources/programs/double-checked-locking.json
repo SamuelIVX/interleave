@@ -1,4 +1,5 @@
 {
+  "format": "typed",
   "name": "double-checked-locking",
   "state": {
     "type": "dcl",
@@ -8,19 +9,35 @@
     {
       "id": 0,
       "steps": [
-        {"type": "dcl_read_instance"},
-        {"type": "dcl_lock"},
-        {"type": "dcl_read_instance"},
-        {"type": "dcl_create_instance"},
-        {"type": "dcl_init"},
-        {"type": "dcl_unlock"}
+        {
+          "type": "dcl_read_instance"
+        },
+        {
+          "type": "dcl_lock"
+        },
+        {
+          "type": "dcl_read_instance"
+        },
+        {
+          "type": "dcl_create_instance"
+        },
+        {
+          "type": "dcl_init"
+        },
+        {
+          "type": "dcl_unlock"
+        }
       ]
     },
     {
       "id": 1,
       "steps": [
-        {"type": "dcl_read_instance"},
-        {"type": "dcl_use_instance"}
+        {
+          "type": "dcl_read_instance"
+        },
+        {
+          "type": "dcl_use_instance"
+        }
       ]
     }
   ],

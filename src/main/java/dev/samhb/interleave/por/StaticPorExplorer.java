@@ -96,6 +96,15 @@ public final class StaticPorExplorer {
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
 
+            if (outcome == StepOutcome.ASSERTION_FAILED) {
+                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
+                continue;
+            }
+
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
 
             porDfs(program, nextConfig, nextThreadIds, nextOutcomes,

@@ -1,4 +1,5 @@
 {
+  "format": "typed",
   "name": "lost-update",
   "state": {
     "type": "counter",
@@ -8,15 +9,23 @@
     {
       "id": 0,
       "steps": [
-        {"type": "read_counter"},
-        {"type": "write_counter"}
+        {
+          "type": "read_counter"
+        },
+        {
+          "type": "write_counter"
+        }
       ]
     },
     {
       "id": 1,
       "steps": [
-        {"type": "read_counter"},
-        {"type": "write_counter"}
+        {
+          "type": "read_counter"
+        },
+        {
+          "type": "write_counter"
+        }
       ]
     }
   ],

@@ -125,6 +125,19 @@ public final class ProgramLoader {
     }
 
     private BenchmarkProgram load(ProgramDefinition def) {
+        // Validate format discriminator (required per Spec 09)
+        String format = def.format();
+        if (format == null || format.isBlank()) {
+            throw new RegistryException("Program 'format' field is required. Valid formats: [typed, declarative]");
+        }
+        if (!format.equals("typed") && !format.equals("declarative")) {
+            throw new RegistryException("Unknown format '" + format + "'. Valid formats: [typed, declarative]");
+        }
+        // Delegate declarative to dedicated loader
+        if (format.equals("declarative")) {
+            return dev.samhb.interleave.format.dsl.DslLoader.load(def);
+        }
+        // typed path below
         // Validate top-level fields
         if (def.name() == null || def.name().isBlank()) {
             throw new RegistryException("Program name is required");

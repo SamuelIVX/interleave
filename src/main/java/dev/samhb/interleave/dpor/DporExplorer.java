@@ -122,6 +122,15 @@ public final class DporExplorer {
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
 
+            if (outcome == StepOutcome.ASSERTION_FAILED) {
+                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
+                continue;
+            }
+
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
 
             HappensBefore nextHappensBefore = happensBefore.copy();
@@ -178,6 +187,15 @@ public final class DporExplorer {
 
                 List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
                 nextOutcomes.add(outcome);
+
+                if (outcome == StepOutcome.ASSERTION_FAILED) {
+                    Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                    traces.add(trace);
+                    if (stateVisitor != null) {
+                        stateVisitor.onTraceCreated(trace);
+                    }
+                    continue;
+                }
 
                 Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
 
@@ -262,6 +280,15 @@ public final class DporExplorer {
 
             List<StepOutcome> nextOutcomes = new ArrayList<>(currentOutcomes);
             nextOutcomes.add(outcome);
+
+            if (outcome == StepOutcome.ASSERTION_FAILED) {
+                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                traces.add(trace);
+                if (stateVisitor != null) {
+                    stateVisitor.onTraceCreated(trace);
+                }
+                continue;
+            }
 
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
 

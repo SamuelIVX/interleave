@@ -1,30 +1,63 @@
 {
+  "format": "typed",
   "name": "broken-peterson",
   "state": {
     "type": "peterson",
-    "flags": [false, false],
+    "flags": [
+      false,
+      false
+    ],
     "turn": 0
   },
   "threads": [
     {
       "id": 0,
       "steps": [
-        {"type": "write_flag", "value": true},
-        {"type": "write_turn", "value": 1},
-        {"type": "busy_wait", "other": 1},
-        {"type": "cs_enter"},
-        {"type": "cs_exit"},
-        {"type": "write_flag", "value": false}
+        {
+          "type": "write_flag",
+          "value": true
+        },
+        {
+          "type": "write_turn",
+          "value": 1
+        },
+        {
+          "type": "busy_wait",
+          "other": 1
+        },
+        {
+          "type": "cs_enter"
+        },
+        {
+          "type": "cs_exit"
+        },
+        {
+          "type": "write_flag",
+          "value": false
+        }
       ]
     },
     {
       "id": 1,
       "steps": [
-        {"type": "write_flag", "value": true},
-        {"type": "write_turn", "value": 0},
-        {"type": "cs_enter"},
-        {"type": "cs_exit"},
-        {"type": "write_flag", "value": false}
+        {
+          "type": "write_flag",
+          "value": true
+        },
+        {
+          "type": "write_turn",
+          "value": 0
+        },
+        {
+          "type": "cs_enter"
+        },
+        {
+          "type": "cs_exit"
+        },
+        {
+          "type": "write_flag",
+          "value": false
+        }
       ]
     }
   ],
