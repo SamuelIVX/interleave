@@ -189,6 +189,9 @@ public final class Parser {
     /** parseUnary method. */
     private Expr parseUnary() {
         skipWs();
+        if (peek() == '-' && pos + 1 < input.length() && Character.isDigit(input.charAt(pos + 1))) {
+            return parseIntLit();
+        }
         if (peek() == '!' || peek() == '-') {
             char c = consume();
             skipWs();
@@ -207,7 +210,7 @@ public final class Parser {
     /** checkNesting method. */
     private void checkNesting() {
         if (nestingDepth > MAX_NESTING) {
-            throw new RegistryException("Expression depth exceeds 16");
+            throw new RegistryException("Expression nesting depth exceeds " + MAX_NESTING);
         }
     }
 
@@ -303,8 +306,7 @@ public final class Parser {
     /** parseIntLit method. */
     private Expr parseIntLit() {
         int start = pos;
-        boolean neg = false;
-        if (peek() == '-') { neg = true; consume(); }
+        if (peek() == '-') consume();
         if (eof() || !Character.isDigit(peek())) throw new RegistryException("Expected digit for int literal");
         while (!eof() && Character.isDigit(peek())) consume();
         String numStr = input.substring(start, pos);
@@ -312,7 +314,7 @@ public final class Parser {
             int v = Integer.parseInt(numStr);
             return new Expr.IntLit(v);
         } catch (NumberFormatException e) {
-            throw new RegistryException("Int literal out of range: " + numStr);
+            throw new RegistryException("Int literal out of range: " + numStr, e);
         }
     }
 
