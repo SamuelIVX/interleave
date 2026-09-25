@@ -72,12 +72,11 @@ Introduce `format: "declarative"` as the second program format alongside the exi
         {"guard": null, "effects": ["counter = local.r + 1"], "name": "write"}
       ]
     }
-  ],
-  "expected_verdict": "VIOLATION"
+  ]
 }
 ```
 
-A variant with a single-predicate invariant is introduced with Spec 10's conjunction extension; in Spec 09 the same program would carry `"invariant": {"expr": "counter == 2"}` (Spec 09 already supports `{"expr": "…"}`) — the no-invariant form above is used when the spec is exercised without an oracle, and the `expr` form when checking violation detection.
+A variant with a single-predicate invariant is introduced with Spec 10's conjunction extension; in Spec 09 the same program would carry `"invariant": {"expr": "counter == 2"}` and `"expected_verdict": "VIOLATION"` (Spec 09 already supports `{"expr": "…"}`) — the no-invariant form above is used when the spec is exercised without an oracle (verdict `PASS`), and the `expr` form when checking violation detection.
 
 ### Declarative state schema
 

@@ -123,7 +123,7 @@ load declarative re-encoding via ProgramLoader.loadFromFile → dslResult
 assert typedResult.verdict() == dslResult.verdict()
 assert typedResult.verdict() == VIOLATION
 for each explorer in [dfs, staticPor, dpor]:
-  assert dslStatesExplored within 5% of typedStatesExplored  // over-report is allowed, wild divergence is a derivation bug
+  assert dslStatesExplored == typedStatesExplored
   assert ExecutionDriver replay of dsl's failing trace reaches a configuration where invariant is false
 ```
 
