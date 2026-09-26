@@ -1,0 +1,20 @@
+{
+  "format": "declarative",
+  "name": "semaphore-declarative",
+  "state": {
+    "fields": [{"name": "permits", "type": "int", "init": 1}],
+    "locals": []
+  },
+  "threads": [
+    {"id": 0, "steps": [
+      {"guard": "permits > 0", "effects": ["permits = permits - 1"]},
+      {"guard": null, "effects": ["permits = permits + 1"]}
+    ]},
+    {"id": 1, "steps": [
+      {"guard": "permits > 0", "effects": ["permits = permits - 1"]},
+      {"guard": null, "effects": ["permits = permits + 1"]}
+    ]}
+  ],
+  "invariant": {"expr": "permits >= 0"},
+  "expected_verdict": "PASS"
+}

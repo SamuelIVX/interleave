@@ -282,4 +282,50 @@ Seven example program definitions are included in `examples/programs/` and `src/
 
 The built-in `BugCorpus` programs now load from JSON resources. Load-and-compare tests verify that JSON-loaded programs produce identical results to the original Java implementations.
 
+### Program formats
+
+Interleave supports two program definition formats, dispatched by the `format` field.
+
+**Typed (`format: "typed"`):** the 7 corpus programs above — `state.type` selects a hand-written `SharedState` and `InvariantRegistry` types:
+
+```json
+{
+  "format": "typed",
+  "name": "lost-update",
+  "state": { "type": "counter", "counter": 0 },
+  "threads": [
+    { "id": 0, "steps": [{"type": "read_counter"}, {"type": "write_counter"}] },
+    { "id": 1, "steps": [{"type": "read_counter"}, {"type": "write_counter"}] }
+  ],
+  "invariant": { "type": "counter_equals", "expected": 2 },
+  "expected_verdict": "VIOLATION"
+}
+```
+
+**Declarative (`format: "declarative"`):** threads are lists of `{guard, effects}` over declared `fields`/`locals` and an optional invariant `{expr}` or `{all: [...]}` with `when: "final"|"always"` (default `"final"`). See `docs/specs/active/09-json-dsl-core.md` and `10-json-dsl-invariants.md`; curated examples live in `examples/programs/`:
+
+```json
+{
+  "format": "declarative",
+  "name": "lost-update-declarative",
+  "state": {
+    "fields": [{"name": "counter", "type": "int", "init": 0}],
+    "locals": [{"name": "r", "type": "int", "init": 0}]
+  },
+  "threads": [
+    {"id": 0, "steps": [{"effects": ["local.r = counter"]}, {"effects": ["counter = local.r + 1"]}]},
+    {"id": 1, "steps": [{"effects": ["local.r = counter"]}, {"effects": ["counter = local.r + 1"]}]}
+  ],
+  "invariant": {"expr": "counter == 2"},
+  "expected_verdict": "VIOLATION"
+}
+```
+
+| File | Invariant | Description |
+|------|-----------|-------------|
+| `examples/programs/bounded-buffer-declarative.json` | `count >= 0 && count <= capacity && count <= 3 && …` | Producer/consumer ring buffer (capacity 3) |
+| `examples/programs/semaphore-declarative.json` | `permits >= 0` | Binary semaphore acquire/release |
+
+Run declaratively: `./gradlew run --args="--file examples/programs/bounded-buffer-declarative.json"` — invariants are carried end-to-end through the same explorers and harness as typed.
+
 ## Future Extensions
