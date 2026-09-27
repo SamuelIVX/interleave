@@ -1,3 +1,4 @@
+/* interleave trace viewer styles — static, no build. Pairs with visualizer.html/js. */
 :root{
   --bg:#f8fafc;
   --surface:#ffffff;
@@ -79,4 +80,13 @@ tr.fail-row.active-row td:first-child{box-shadow:inset 3px 0 0 var(--fail)}
 .placeholder{color:var(--muted);font-style:italic}
 .demo{font-size:12px;color:var(--muted)}
 .demo a{color:var(--text);text-decoration:underline}
+.section-gap{margin-top:16px}
+.row-gap{margin-top:12px}
+.prog-name{font-weight:700}
+.prog-format{font:12px var(--mono)}
+.section-title{font-size:14px;margin:0 0 8px}
+.sec-count{font-weight:400}
+.sec-hint{font:12px var(--sans);margin:8px 0 0}
+#timelineSec,#stateSec{display:none}
+#timeline tbody tr{content-visibility:auto;contain-intrinsic-size:0 44px}
 footer{margin-top:32px;color:var(--muted);font:12px var(--mono)}
