@@ -19,7 +19,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Loader for declarative format.
+ * Loader for {@code format: "declarative"} programs.
+ * <p>
+ * Parses and validates declarative state declarations, per-thread steps
+ * (guards and effects), and invariants. Invariants support single-predicate
+ * {@code {"expr": "..."}} and conjunction {@code {"all": [...]}} forms with
+ * optional {@code when: "final"|"always"} timing. All predicates are pure
+ * (shared fields/array elements only; never {@code local.*} or {@code tid}),
+ * must type-check to {@code bool}, and respect AST depth/node bounds.
+ * Typed invariant keys in declarative files and declarative keys in typed
+ * files are rejected with JSON-path diagnostics.
+ * </p>
  */
 public final class DslLoader {
 
@@ -202,34 +212,87 @@ public final class DslLoader {
         Invariant invariant = null;
         if (def.invariant() != null) {
             JsonObject inv = def.invariant();
-            if (inv.has("type")) throw new RegistryException("Use invariant.expr in format \"declarative\"; invariant.type is for format \"typed\" at invariant.type");
-            if (inv.has("all")) throw new RegistryException("Use invariant.expr in format \"declarative\" for this spec; conjunction is Spec 10 at invariant.all");
-            if (!inv.has("expr")) throw new RegistryException("Missing required 'expr' at invariant.expr");
-            JsonElement eEl = inv.get("expr");
-            if (!eEl.isJsonPrimitive() || !eEl.getAsJsonPrimitive().isString()) throw new RegistryException("'expr' must be string at invariant.expr");
-            String exprStr = eEl.getAsString();
-            if (exprStr.isBlank()) throw new RegistryException("'expr' must be non-empty at invariant.expr");
-            Expr pred;
-            try {
-                pred = new Parser(exprStr).parseExpr();
-            } catch (RegistryException ex) {
-                throw new RegistryException("Invalid invariant at invariant.expr: " + ex.getMessage(), ex);
+            if (inv.has("type")) throw new RegistryException("Use invariant.expr or invariant.all in format \"declarative\"; invariant.type is for format \"typed\" at invariant.type");
+            // validate keys
+            for (String k : inv.keySet()) {
+                if (!k.equals("expr") && !k.equals("all") && !k.equals("when")) {
+                    throw new RegistryException("Unknown field '" + k + "' at invariant." + k);
+                }
             }
-            // invariant may not reference local.* or tid
-            if (containsLocalOrTid(pred)) throw new RegistryException("Invariant must not reference local.* or tid at invariant.expr");
-            try {
-                TypeChecker.requireBool(pred, decl);
-            } catch (RegistryException ex) {
-                throw new RegistryException("Invariant must be bool at invariant.expr: " + ex.getMessage(), ex);
+            boolean hasExpr = inv.has("expr");
+            boolean hasAll = inv.has("all");
+            if (hasExpr == hasAll) {
+                // either both or neither: exactly one required
+                throw new RegistryException("Invariant must have exactly one of 'expr' or 'all' at invariant");
             }
-            int d = Expr.depth(pred);
-            int n = Expr.nodeCount(pred);
-            if (d > 16) throw new RegistryException("Invariant depth exceeds 16 at invariant.expr");
-            totalNodes += n;
-            if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000");
-            // also check unknown keys in invariant
-            for (String k : inv.keySet()) if (!k.equals("expr")) throw new RegistryException("Unknown field '" + k + "' at invariant");
-            invariant = new DslInvariant(pred, decl);
+            // parse when (optional, defaults to final)
+            DslInvariant.When when = DslInvariant.When.FINAL;
+            if (inv.has("when")) {
+                JsonElement wEl = inv.get("when");
+                if (!wEl.isJsonPrimitive() || !wEl.getAsJsonPrimitive().isString()) {
+                    throw new RegistryException("'when' must be string at invariant.when");
+                }
+                String wStr = wEl.getAsString();
+                if ("final".equals(wStr)) when = DslInvariant.When.FINAL;
+                else if ("always".equals(wStr)) when = DslInvariant.When.ALWAYS;
+                else throw new RegistryException("Invalid 'when' value '" + wStr + "' at invariant.when (valid: final, always)");
+            }
+            List<Expr> predicates = new ArrayList<>();
+            if (hasExpr) {
+                JsonElement eEl = inv.get("expr");
+                if (!eEl.isJsonPrimitive() || !eEl.getAsJsonPrimitive().isString()) throw new RegistryException("'expr' must be string at invariant.expr");
+                String exprStr = eEl.getAsString();
+                if (exprStr.isBlank()) throw new RegistryException("'expr' must be non-empty at invariant.expr");
+                Expr pred;
+                try {
+                    pred = new Parser(exprStr).parseExpr();
+                } catch (RegistryException ex) {
+                    throw new RegistryException("Invalid invariant at invariant.expr: " + ex.getMessage(), ex);
+                }
+                if (containsLocalOrTid(pred)) throw new RegistryException("Invariant must not reference local.* or tid at invariant.expr");
+                try {
+                    TypeChecker.requireBool(pred, decl);
+                } catch (RegistryException ex) {
+                    throw new RegistryException("Invariant must be bool at invariant.expr: " + ex.getMessage(), ex);
+                }
+                int d = Expr.depth(pred);
+                int n = Expr.nodeCount(pred);
+                if (d > 16) throw new RegistryException("Invariant depth exceeds 16 at invariant.expr");
+                totalNodes += n;
+                if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000 at invariant.expr");
+                predicates.add(pred);
+            } else {
+                JsonElement allEl = inv.get("all");
+                if (!allEl.isJsonArray()) throw new RegistryException("'all' must be array at invariant.all");
+                JsonArray arr = allEl.getAsJsonArray();
+                if (arr.size() < 1 || arr.size() > 16) throw new RegistryException("'all' must have 1..16 entries at invariant.all");
+                for (int idx = 0; idx < arr.size(); idx++) {
+                    JsonElement eEl = arr.get(idx);
+                    String path = "invariant.all[" + idx + "]";
+                    if (!eEl.isJsonPrimitive() || !eEl.getAsJsonPrimitive().isString()) throw new RegistryException("'" + path + "' must be string at " + path);
+                    String exprStr = eEl.getAsString();
+                    if (exprStr.isBlank()) throw new RegistryException("'" + path + "' must be non-empty at " + path);
+                    Expr pred;
+                    try {
+                        pred = new Parser(exprStr).parseExpr();
+                    } catch (RegistryException ex) {
+                        throw new RegistryException("Invalid invariant at " + path + ": " + ex.getMessage(), ex);
+                    }
+                    if (containsLocalOrTid(pred)) throw new RegistryException("Invariant must not reference local.* or tid at " + path);
+                    try {
+                        TypeChecker.requireBool(pred, decl);
+                    } catch (RegistryException ex) {
+                        throw new RegistryException("Invariant must be bool at " + path + ": " + ex.getMessage(), ex);
+                    }
+                    int d = Expr.depth(pred);
+                    int n = Expr.nodeCount(pred);
+                    if (d > 16) throw new RegistryException("Invariant depth exceeds 16 at " + path);
+                    totalNodes += n;
+                    if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000 at " + path);
+                    predicates.add(pred);
+                }
+            }
+            invariant = new DslInvariant(predicates, decl, when);
         }
 
         Program program = new Program(initial, threads);

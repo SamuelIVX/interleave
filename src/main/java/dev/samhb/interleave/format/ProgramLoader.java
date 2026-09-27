@@ -237,6 +237,9 @@ public final class ProgramLoader {
         // Load invariant if present
         Invariant invariant = null;
         if (def.invariant() != null) {
+            if (def.invariant().has("expr")) throw new RegistryException("Use invariant.type in format \"typed\"; invariant.expr is for format \"declarative\" at invariant.expr");
+            if (def.invariant().has("all")) throw new RegistryException("Use invariant.type in format \"typed\"; invariant.all is for format \"declarative\" at invariant.all");
+            if (def.invariant().has("when")) throw new RegistryException("Use invariant.type in format \"typed\"; invariant.when is for format \"declarative\" at invariant.when");
             if (def.invariant().get("type") == null || def.invariant().get("type").isJsonNull()) {
                 throw new RegistryException("Invariant 'type' field is required");
             }

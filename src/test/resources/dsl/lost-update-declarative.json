@@ -1,0 +1,20 @@
+{
+  "format": "declarative",
+  "name": "lost-update-declarative",
+  "state": {
+    "fields": [{"name": "counter", "type": "int", "init": 0}],
+    "locals": [{"name": "r", "type": "int", "init": 0}]
+  },
+  "threads": [
+    {"id": 0, "steps": [
+      {"effects": ["local.r = counter"]},
+      {"effects": ["counter = local.r + 1"]}
+    ]},
+    {"id": 1, "steps": [
+      {"effects": ["local.r = counter"]},
+      {"effects": ["counter = local.r + 1"]}
+    ]}
+  ],
+  "invariant": {"expr": "counter == 2"},
+  "expected_verdict": "VIOLATION"
+}

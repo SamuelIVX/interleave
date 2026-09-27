@@ -4,10 +4,10 @@
 Complete the declarative format with composable invariants, the user-facing CLI path, and the teaching examples that prove the DSL is real. Invariants for `declarative` programs are pure expression predicates (with conjunction/reuse), the existing `check --file` path already dispatched by Spec 09 now carries invariants end-to-end, and two curated example programs (bounded buffer, semaphore) ship as JSON. The spec's anchor is a differential test: a declarative re-encoding of `lost-update` must match `BugCorpus`'s Java version on verdict and on explored-state count.
 
 ## Current State
-- Spec 09 [assumed, ships in same wave] delivers `format` dispatch (`typed` / `declarative`), declarative `DynamicState`/`DynamicStep`, sandboxed expression language, deterministic encoding, POR-correct `reads()`/`writes()` derivation, and the single-predicate declarative invariant `{"expr": "…"}`. `ProgramLoader` loads `declarative` programs; conjunction is not yet supported.
+- Spec 09 [shipped, verified — PR #21 `51d97ef`] delivers `format` dispatch (`typed` / `declarative`), declarative `DynamicState`/`DynamicStep`, sandboxed expression language, deterministic encoding, POR-correct `reads()`/`writes()` derivation (whole-array vs element conflicts, `arr[0]` vs `arr[1]` independent), and the single-predicate declarative invariant `{"expr": "…"}` with `when: "final"` terminal semantics. Hardened by review: `ProgramLoader` validates `name`/`threads`/`state` before dispatch, `DslLoader` defends top-level shapes, `parseStrictInt` is `BigDecimal.intValueExact`-strict, `DynamicStep` guard errors surface as `VIOLATION` not `BLOCKED`, and `Parser` handles `Integer.MIN_VALUE` (`-2147483648`) correctly. `ProgramLoader` loads `declarative` programs; conjunction is not yet supported.
 - `typed` invariants today [verified]: `InvariantRegistry` maps 5 named types (e.g. `counter_equals`, `mutual_exclusion_peterson`) to factories; `BenchmarkProgram` carries an optional `Invariant`.
 - CLI [verified]: `Main --file <path>` calls `ProgramLoader.loadFromFile`; `BenchmarkHarness`/`DfsExplorer`/`StaticPorExplorer`/`DporExplorer` run the resulting `Program` + optional `Invariant` unchanged.
-- No declarative invariant conjunction, no curated DSL examples beyond the minimal lost-update shape, no differential equivalence test [verified].
+- No declarative invariant conjunction, no `when` timing, no curated DSL examples beyond the minimal lost-update shape, no differential equivalence test [verified].
 
 ## Invariants
 - **Backwards compatibility:** every `format: "typed"` program — including its named `invariant.type` — keeps its identical verdict and states-explored count.
@@ -16,10 +16,10 @@ Complete the declarative format with composable invariants, the user-facing CLI 
 - **Deterministic reporting:** the same `declarative` file + invariant explores identically and, when imported via the DSL builder methods, produces the same `VerificationResult`/`TestResult` as the equivalent Java-constructed program.
 
 ## Acceptance Criteria
-- **Declarative invariant shape** — a `declarative` file's top-level `invariant` is exactly one of:
-  1. `{"expr": "<predicate>"}` — single predicate string (introduced in Spec 09; Spec 10 keeps the contract and adds conjunction).
-  2. `{"all": ["<predicate>", "<predicate>", ...]}` — conjunction (1..16 predicates) evaluated short-circuit as `&&`; empty `all` is a load error. This form is introduced in Spec 10.
-  Invariant strings use the same expression language and type-check rules as Spec 09, with the restriction that they may reference only shared fields and array elements (never `local.*` and never `tid` — referencing either is a load error at `invariant.expr` or `invariant.all[i]`). Any predicate that type-checks to non-`bool`, mentions an unknown field, or exceeds AST bounds throws `RegistryException` with the offending JSON path (`invariant.expr` or `invariant.all[i]`). A `declarative` file must not use `invariant.type` (typed-only); if present it is a load error naming `invariant.expr`/`all` as the valid forms.
+- **Declarative invariant shape** — a `declarative` file's top-level `invariant` is an object with **exactly one** predicate key and an optional timing key:
+  1. `{"expr": "<predicate>"}` or `{"expr": "<predicate>", "when": "final"|"always"}` — single predicate (introduced in Spec 09; Spec 10 keeps the contract and adds conjunction + `when`).
+  2. `{"all": ["<predicate>", "<predicate>", ...]}` or `{"all": [...], "when": "final"|"always"}` — conjunction (1..16 predicates) evaluated short-circuit as `&&`; empty `all` is a load error. This form is introduced in Spec 10.
+  `when` defaults to `"final"` (predicate enforced only when `config.allTerminated()`, matching `typed` `counter_equals`/`mutual_exclusion` and the `Explorer` call at every config with an internally-gated implementation; `counter == 2` would fail spuriously at the initial state under `when: "always"`). `when: "always"` opts into per-configuration enforcement. `when` outside `{"final","always"}` is a load error at `invariant.when`; an unknown key alongside `expr`/`all`/`when` is a load error at `invariant.<key>`. Invariant strings use the same expression language and type-check rules as Spec 09, with the restriction that they may reference only shared fields and array elements (never `local.*` and never `tid` — referencing either is a load error at `invariant.expr` or `invariant.all[i]`). Any predicate that type-checks to non-`bool`, mentions an unknown field, or exceeds AST bounds throws `RegistryException` with the offending JSON path (`invariant.expr` or `invariant.all[i]`). A `declarative` file must not use `invariant.type` (typed-only); if present it is a load error naming `invariant.expr`/`all` as the valid forms.
 - **Typed invariant path unchanged** — `format: "typed"` files continue to use `invariant.type` as today. `invariant.expr`/`all` in a `typed` file is a load error. The 5 existing named invariants remain registered and unmodified.
 - **Error reporting** — a failing invariant produces the same `VIOLATION` trace as today, with the violating configuration's encoded state. The trace's first violating step is the schedule prefix that reaches the bad configuration; invariant or step evaluation errors at model-check runtime after successful load (e.g. array OOB, `%` by zero — should be unreachable if guards are correct) are reported as `VIOLATION` with a diagnostic and the violating trace, not as a checker crash.
 - **CLI** — no new flags. The existing `Main --file <path>` already dispatches via Spec 09; this spec requires that a `declarative` file with an `invariant` carried through that path produces the same verdict as `InterleaveRunner` programmatically built from the same file. Bounds-exceeded or type-error files produce a non-zero exit with `RegistryException` message on `stderr` that includes the JSON path.
@@ -31,19 +31,22 @@ Complete the declarative format with composable invariants, the user-facing CLI 
   - verdict `VIOLATION` matches `BugCorpus.lostUpdate()`'s verdict (and equals `expected_verdict`),
   - `statesExplored` is exactly equal across `typed` vs `declarative` for each explorer (exact equality — the derivation for this scalar+per-thread-local program is precise; any divergence is a derivation bug). A helper also asserts the failing trace from the `declarative` program replays through `ExecutionDriver` to a violating configuration.
 - **README/docs** — `README.md` gains a "Program formats" section documenting both `format: "typed"` and `format: "declarative"` with a minimal example of each and a pointer to the example files. `docs/` or `examples/programs/README.md` lists the available example programs with their invariant in one line.
-- **Docstrings & tests** — every new public type and exported method carries Javadoc (`@param`/`@returns`/`@throws`); each file carries a top-of-file summary comment. Test coverage includes load-error paths (unknown field, duplicate name, `local.*` in invariant, `tid` in invariant, type errors, bound violations, unknown format), `invariant.type`-in-declarative rejection, and the two examples.
+- **Docstrings & tests** — every new public type and exported method carries Javadoc (`@param`/`@returns`/`@throws`); each file carries a top-of-file summary comment. Test coverage includes load-error paths (unknown field, duplicate name, `local.*` in invariant, `tid` in invariant, type errors, bound violations, unknown format, `when` value/unknown-key errors), `invariant.type`-in-declarative rejection, and the two examples. A dedicated test asserts `when: "always"` catches a transient violation (`counter == 0` after the first increment) while `when: "final"` (default) does not.
 - A passing `./gradlew build` and `./gradlew test`.
 
 ## DSL Shape (frozen for implementation)
 
-### Declarative invariant forms
+### Declarative invariant forms (`when` defaults to `"final"`)
 
 | JSON shape | example | semantics |
 |---|---|---|
-| `{"expr": "counter == 2"}` | single predicate | `Invariant.holds` evaluates the predicate; non-bool predicate is a load error |
-| `{"all": ["count >= 0", "count <= capacity", "head < 3"]}` | conjunction | `holds` is `p0 && p1 && …`; short-circuit left-to-right; `all` with `0` or `>16` entries is a load error |
+| `{"expr": "counter == 2"}` | single predicate | `Invariant.holds` evaluates the predicate at termination; non-bool predicate is a load error |
+| `{"all": ["count >= 0", "count <= capacity", "head < 3"]}` | conjunction | `holds` is `p0 && p1 && …` at termination; short-circuit left-to-right; `all` with `0` or `>16` entries is a load error |
+| `{"expr": "x >= 0", "when": "always"}` | per-state check | predicate evaluated at every reachable `Configuration`; use for transient safety properties |
+| `{"all": [...], "when": "always"}` | per-state conjunction | same as above with conjunction |
 
-`invariant` is optional. When absent the program has no invariant (POR may use the invariant-absent path, which is allowed to prune more — behavior is unchanged per explorer). Postfix: if `invariant` contains `type` in a `declarative` file, throw `RegistryException` with `Use invariant.expr or invariant.all in format \"declarative\"; invariant.type is for format \"typed\".`.
+`when` is optional; when absent it is `"final"` (predicate enforced only when `config.allTerminated()` — the differential anchor `counter == 2` requires this; it is false at the initial state). `when: "always"` opts into per-configuration enforcement. Explorers still call `holds()` at every `Configuration` (matching the existing `typed` call path); the `when` field only changes when the predicate is actually evaluated.
+`invariant` is optional. When absent the program has no invariant (POR may use the invariant-absent path, which is allowed to prune more — behavior is unchanged per explorer). Postfix: if `invariant` contains `type` in a `declarative` file, throw `RegistryException` with `Use invariant.expr or invariant.all in format \"declarative\"; invariant.type is for format \"typed\".`. Unknown keys alongside `expr`/`all`/`when` are a load error at `invariant.<key>` (valid keys are `expr`, `all`, `when`).
 
 Typed invariants are the 5 builtins already in `InvariantRegistry` — `mutual_exclusion_peterson`, `counter_equals`, etc. — and accept their existing param shapes. No new typed invariant type is added in this spec.
 
@@ -111,7 +114,7 @@ Either example may also be trimmed by one step per thread during implementation 
 interleave --file <path> [--strategy dfs|static-por|dpor] [--store ...] [--bitstate-...]
 ```
 
-No new flags. A `declarative` file that fails validation exits non-zero; `stderr` contains the `RegistryException` message with JSON path. Success prints the same `ReportWriter` output as a `typed` run. The invariant, when present, is evaluated at every reachable `Configuration` — identical to the existing invariant path.
+No new flags. A `declarative` file that fails validation exits non-zero; `stderr` contains the `RegistryException` message with JSON path. Success prints the same `ReportWriter` output as a `typed` run. Explorers call `Invariant.holds()` at every reachable `Configuration` (identical to the existing `typed` call path); `when: "final"` (default) enforces the predicate only at termination (`config.allTerminated()` — required so the `lost-update` anchor `counter == 2` does not fail spuriously at the initial state), while `when: "always"` enforces it at every configuration.
 
 ### Differential test (frozen)
 
