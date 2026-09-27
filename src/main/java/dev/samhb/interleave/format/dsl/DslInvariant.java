@@ -7,16 +7,27 @@ import dev.samhb.interleave.search.Invariant;
 import java.util.List;
 
 /**
- * Declarative invariant evaluating one or more predicate expressions over shared state.
- * Supports single-predicate {@code {"expr": "..."}} and conjunction {@code {"all": [...]}} forms
- * with an optional {@code when} timing ({@code "final"} default or {@code "always"}).
+ * Declarative invariant for {@code format: "declarative"} programs.
+ * <p>
+ * Evaluates one or more boolean predicates over shared fields and array elements
+ * (never {@code local.*} or {@code tid}). Supports the single-predicate form
+ * {@code {"expr": "..."}} and the conjunction form {@code {"all": [...]}} (1..16
+ * predicates, short-circuit {@code &&}). An optional {@code when} timing selects
+ * {@code "final"} (default — predicate enforced only when
+ * {@code config.allTerminated()}, matching typed {@code counter_equals}) or
+ * {@code "always"} (enforced at every reachable {@code Configuration}).
+ * Runtime evaluation errors (OOB, {@code %} by zero) surface as a violation
+ * rather than a checker crash.
+ * </p>
  */
 public final class DslInvariant implements Invariant {
-    /** When the invariant predicate(s) are evaluated. */
+    /**
+     * When the invariant predicate(s) are evaluated.
+     */
     public enum When {
-        /** Enforced only at termination (matches typed invariants). */
+        /** Enforced only at termination; predicate is true at intermediate states. */
         FINAL,
-        /** Enforced at every reachable configuration. */
+        /** Enforced at every reachable configuration; transient violations are reported. */
         ALWAYS
     }
 
@@ -61,8 +72,22 @@ public final class DslInvariant implements Invariant {
         this.when = when == null ? When.FINAL : when;
     }
 
+    /**
+     * Checks whether the invariant holds in the given state and configuration.
+     * <p>
+     * For {@code when == FINAL}, intermediate configurations are considered holding
+     * to avoid spurious failures (e.g., {@code counter == 2} is false at start).
+     * For {@code when == ALWAYS}, every configuration is checked. Conjunction
+     * predicates are evaluated left-to-right with short-circuit {@code &&}.
+     * Runtime evaluation errors return {@code false} so the explorer records a
+     * {@code VIOLATION} trace.
+     * </p>
+     *
+     * @param state shared state (expected to be {@link DynamicState})
+     * @param config current configuration with program counters and termination info
+     * @return {@code true} if the invariant holds, {@code false} if it is violated
+     */
     @Override
-    /** holds method. */
     public boolean holds(SharedState state, Configuration config) {
         if (!(state instanceof DynamicState ds)) return true;
         if (when == When.FINAL && !config.allTerminated()) return true;

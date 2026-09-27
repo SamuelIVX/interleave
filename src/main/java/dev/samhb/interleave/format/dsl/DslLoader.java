@@ -19,7 +19,17 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Loader for declarative format.
+ * Loader for {@code format: "declarative"} programs.
+ * <p>
+ * Parses and validates declarative state declarations, per-thread steps
+ * (guards and effects), and invariants. Invariants support single-predicate
+ * {@code {"expr": "..."}} and conjunction {@code {"all": [...]}} forms with
+ * optional {@code when: "final"|"always"} timing. All predicates are pure
+ * (shared fields/array elements only; never {@code local.*} or {@code tid}),
+ * must type-check to {@code bool}, and respect AST depth/node bounds.
+ * Typed invariant keys in declarative files and declarative keys in typed
+ * files are rejected with JSON-path diagnostics.
+ * </p>
  */
 public final class DslLoader {
 
@@ -249,7 +259,7 @@ public final class DslLoader {
                 int n = Expr.nodeCount(pred);
                 if (d > 16) throw new RegistryException("Invariant depth exceeds 16 at invariant.expr");
                 totalNodes += n;
-                if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000");
+                if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000 at invariant.expr");
                 predicates.add(pred);
             } else {
                 JsonElement allEl = inv.get("all");
@@ -278,7 +288,7 @@ public final class DslLoader {
                     int n = Expr.nodeCount(pred);
                     if (d > 16) throw new RegistryException("Invariant depth exceeds 16 at " + path);
                     totalNodes += n;
-                    if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000");
+                    if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000 at " + path);
                     predicates.add(pred);
                 }
             }
