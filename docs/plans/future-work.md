@@ -2,7 +2,7 @@
 
 These are explicitly out of scope for the 7-spec deliverable, but are natural extensions.
 
-## Items 1–4: Completed
+## Items 1–5: Completed
 
 | # | Item | Status |
 |---|---|---|
@@ -10,12 +10,12 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 | 2 | JSON program definition format | ✅ Done (PR #15) |
 | 3 | Bitstate / supertrace mode | ✅ Done (PR #18) — CLI `--store`/`--strategy`/`--bitstate-*`, `BitstateStore` + metrics wired into `BenchmarkHarness`/`ReportWriter`, 143 tests |
 | 4 | Property-based corpus mining | ✅ Done (PR #19) — `CorpusGenerator`/`TemplateRegistry` + 2 curated templates, `GeneratorConfig` bounds, budget-aware `DfsExplorer` oracle, `CorpusEntry` JSON persistence, `generate` CLI |
+| 5 | General-purpose JSON format | ✅ Done (PR #21 + PR #22) — `09-json-dsl-core` (format dispatch, sandboxed DSL, DynamicState/DynamicStep, deterministic encoding, POR derivation) + `10-json-dsl-invariants` (composable `all`/`when` invariants, curated examples), differential `lost-update` anchor |
 
 ## Remaining Items — Ranked by LOE
 
 | # | Item | LOE | Spec Needed? | Why |
 |---|---|---|---|---|
-| 5 | General-purpose JSON format | Medium | Yes | New DSL — specs `09-json-dsl-core` + `10-json-dsl-invariants` drafted (typed `format: "typed"` / `format: "declarative"`, frozen schema + sandbox); implementation pending |
 | 6 | Web UI / visualizer | Medium | Maybe | Trace renderer: no. Full state-space DAG viz: yes |
 | 7 | Context-bounding / CHESS-style | Medium-High | Yes | New exploration strategy — correctness depends on bound semantics |
 | 8 | Concurrent-program parser | High | Yes | Language design + parser + semantic mapping — full spec needed |
@@ -29,7 +29,7 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 
 4. **Property-based corpus mining** — ✅ Done. Generates programs from curated templates (`lost-update`, `counter-race`) via `CorpusGenerator` with seeded `Random`, bounded `GeneratorConfig`, exact `DfsExplorer` oracle (`TRUNCATED`/`VIOLATION`/`SAFE`), and persisted `CorpusEntry` (PR #19).
 
-5. **General-purpose JSON program format** — ✅ Spec drafted (`09-json-dsl-core` + `10-json-dsl-invariants`). Extends the JSON loader beyond the 5 hardcoded state types and 19 step types. Authors declare `format: "typed"` (legacy registry) or `format: "declarative"` (new `fields`/`locals`/`guard`/`effects` DSL with sandboxed expression language); `DynamicState`/`DynamicStep` carry deterministic `encodeTo` and POR-correct `reads()`/`writes()` derivation, composable invariants (`expr`/`all`), and two teaching examples (bounded buffer, semaphore). The DSL re-encoding of `lost-update` is the differential anchor against `BugCorpus`. Pending implementation.
+5. **General-purpose JSON program format** — ✅ Done (PR #21 + PR #22). Extends the JSON loader beyond the 5 hardcoded state types and 19 step types. Authors declare `format: "typed"` (legacy registry) or `format: "declarative"` (new `fields`/`locals`/`guard`/`effects` DSL with sandboxed expression language); `DynamicState`/`DynamicStep` carry deterministic `encodeTo` and POR-correct `reads()`/`writes()` derivation, composable invariants (`expr`/`all` with `when: "final"|"always"`), and two teaching examples (bounded buffer, semaphore). The DSL re-encoding of `lost-update` is the differential anchor against `BugCorpus`. Implemented and merged.
 
 6. **Web UI / visualizer** — render the interleaving tree, state space DAG, or failing trace visually. Can start as a minimal HTML trace renderer; complexity grows with visualization depth.
 
