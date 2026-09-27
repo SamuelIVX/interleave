@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <title>interleave — trace viewer</title>
 <meta name="description" content="Static trace renderer for interleave — paste or load --json trace output, see the failing schedule and state." />
 <style>
@@ -20,6 +21,10 @@
     --fail-bg:#fef2f2;
     --deadlock:#d97706;
     --deadlock-bg:#fffbeb;
+    --t0:#0ea5e9; --t0-bg:#e0f2fe;
+    --t1:#8b5cf6; --t1-bg:#ede9fe;
+    --t2:#10b981; --t2-bg:#d1fae5;
+    --t3:#f59e0b; --t3-bg:#fef3c7;
     --radius:12px;
     --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
     --sans: ui-sans-system, -apple-system, BlinkMacSystemFont, "Inter", "Helvetica Neue", sans-serif;
@@ -30,11 +35,14 @@
   body{margin:0;font-family:var(--sans);color:var(--text);background:var(--bg);line-height:1.5}
   a{color:inherit}
   .wrap{max-width:980px;margin:0 auto;padding:24px 20px 48px}
-  header.page{margin-bottom:24px}
+  header.page{margin-bottom:24px;border-left:4px solid var(--accent);padding-left:14px}
   header.page h1{margin:0 0 8px;font-size:28px;letter-spacing:-0.02em}
   header.page p{margin:0;color:var(--muted);max-width:60ch}
   .eyebrow{font:600 11px/1 var(--mono);letter-spacing:0.08em;text-transform:uppercase;color:var(--muted)}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+  .card.verdict-violation{border-top:3px solid var(--fail)}
+  .card.verdict-pass{border-top:3px solid var(--pass)}
+  .card.verdict-deadlock{border-top:3px solid var(--deadlock)}
   .grid{display:grid;gap:16px}
   .two{grid-template-columns:1fr 1fr}
   @media (max-width:720px){ .two{grid-template-columns:1fr} }
@@ -58,23 +66,26 @@
   .badge.neutral{color:var(--muted);background:var(--bg);border-color:var(--border)}
   .meta{font:13px var(--sans);color:var(--muted);display:flex;gap:16px;flex-wrap:wrap}
   .meta strong{color:var(--text);font-weight:600}
-  /* timeline — signature element */
   .timeline{overflow:auto;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)}
   table{width:100%;border-collapse:collapse;font-size:13px}
   th{font:600 11px var(--mono);text-transform:uppercase;letter-spacing:0.04em;color:var(--muted);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);background:#f8fafc;position:sticky;top:0}
+  th.tcol-0{color:var(--t0);border-top:2px solid var(--t0)}
+  th.tcol-1{color:var(--t1);border-top:2px solid var(--t1)}
+  th.tcol-2{color:var(--t2);border-top:2px solid var(--t2)}
+  th.tcol-3{color:var(--t3);border-top:2px solid var(--t3)}
   td{padding:10px 12px;border-bottom:1px solid #f1f5f9;vertical-align:top}
   tr:last-child td{border-bottom:none}
   tr.active-row{background:var(--accent-weak)}
   tr.fail-row{background:var(--fail-bg)}
   tr.fail-row td:first-child{box-shadow:inset 3px 0 0 var(--fail)}
   tr.active-row td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
-  .cell-active{font-weight:700;background:var(--accent-weak);border-radius:6px;padding:2px 6px;display:inline-block}
+  tr.fail-row.active-row{background:var(--fail-bg)} /* fail red wins over amber */
+  tr.fail-row.active-row td:first-child{box-shadow:inset 3px 0 0 var(--fail)}
+  .cell-active{font-weight:700;border-radius:6px;padding:2px 6px;display:inline-block;border:1px solid transparent}
   .muted{color:var(--muted)}
   .strip{font:12px var(--mono)}
   .strip table th,.strip table td{font-family:var(--mono);font-size:12px}
   .placeholder{color:var(--muted);font-style:italic}
-  .kvs{display:flex;gap:8px;flex-wrap:wrap}
-  .kv{font:11px var(--mono);padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:6px}
   .demo{font-size:12px;color:var(--muted)}
   .demo a{color:var(--text);text-decoration:underline}
   footer{margin-top:32px;color:var(--muted);font:12px var(--mono)}
@@ -124,7 +135,7 @@
   <section id="timelineSec" style="margin-top:16px;display:none">
     <h2 style="font-size:14px;margin:0 0 8px">Timeline — schedule <span class="muted" style="font-weight:400">(<span id="stepCount">0</span> steps)</span></h2>
     <div class="timeline" id="timeline"></div>
-    <p class="muted" style="font:12px var(--sans);margin:8px 0 0">Row click selects config for state strip. Highlight is the signature element — left accent bar + amber wash; failing row in red.</p>
+    <p class="muted" style="font:12px var(--sans);margin:8px 0 0">Row click selects config for state strip. Bolder thread tints: pills and headers per-thread; failing row stays red.</p>
   </section>
 
   <section id="stateSec" class="card" style="margin-top:16px;display:none">
@@ -144,29 +155,46 @@ const copyBtn = $('#copyBtn');
 const summaryEl = $('#summary');
 const timelineSec = $('#timelineSec');
 const stateSec = $('#stateSec');
-let currentTrace = null; // {threads, outcomes?, outcome?, programHash?}
+let currentTrace = null;
 let currentMeta = null;
-let programDef = null; // optional program JSON
+let programDef = null;
 let selectedIdx = 0;
+let loadGen = 0;
 
-function showError(msg){
-  errorEl.textContent = msg;
-  errorEl.classList.add('show');
-}
+// Hardening: bounds
+const MAX_PASTE_BYTES = 5 * 1024 * 1024;
+const MAX_SCHEDULE = 5000;
+const MAX_THREADS = 64;
+const MAX_DISPLAY_LEN = 200;
+const KEY_ALLOW = /^[a-z0-9-]{1,64}$/;
+const THREAD_PALETTE = [
+  {color:'var(--t0)', bg:'var(--t0-bg)'},
+  {color:'var(--t1)', bg:'var(--t1-bg)'},
+  {color:'var(--t2)', bg:'var(--t2-bg)'},
+  {color:'var(--t3)', bg:'var(--t3-bg)'}
+];
+
+function showError(msg){ errorEl.textContent = msg; errorEl.classList.add('show'); }
 function clearError(){ errorEl.textContent=''; errorEl.classList.remove('show'); }
 function setBadge(verdict){
   const b = $('#verdictBadge');
   b.textContent = verdict || '—';
   b.className = 'badge ' + (verdict==='VIOLATION' ? 'fail' : verdict==='DEADLOCK' ? 'deadlock' : verdict==='PASS' ? 'pass' : 'neutral');
 }
+function asNum(v){
+  const n = Number(v);
+  return Number.isFinite(n) ? String(n) : '—';
+}
+function capStr(s){
+  const t = String(s);
+  return t.length > MAX_DISPLAY_LEN ? t.slice(0, MAX_DISPLAY_LEN) + '…' : t;
+}
 
 function normalize(raw){
   if(!raw || typeof raw !== 'object') throw new Error('JSON must be an object');
-  // Direct TraceRecord: has threads
   if(Array.isArray(raw.threads)){
-    return { trace: { threads: raw.threads, outcomes: raw.outcomes, outcome: raw.outcome, programHash: raw.programHash }, meta: { verdict: raw.outcome, bug: raw.programHash } };
+    return { trace: { threads: raw.threads, outcomes: raw.outcomes, outcome: raw.outcome, programHash: raw.programHash, states: raw.states }, meta: { verdict: raw.outcome, bug: raw.programHash } };
   }
-  // ReportWriter benchmarks wrapper: {benchmarks:[{failingTrace:{threadIds|threads}}]}
   if(Array.isArray(raw.benchmarks)){
     const entry = raw.benchmarks.find(b=> b.failingTrace) || raw.benchmarks[0];
     if(!entry) throw new Error('benchmarks[] is empty');
@@ -174,48 +202,68 @@ function normalize(raw){
     if(ft){
       const threads = ft.threads || ft.threadIds;
       if(!Array.isArray(threads)) throw new Error('benchmarks[].failingTrace missing threads/threadIds');
-      return { trace: { threads, outcomes: ft.outcomes, outcome: entry.verdict || 'VIOLATION', programHash: entry.bug }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, bug: entry.bug } };
+      return { trace: { threads, outcomes: ft.outcomes, outcome: entry.verdict || 'VIOLATION', programHash: entry.bug }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
     }
-    // No failingTrace e.g. PASS verdict — still a trace of length 0
-    return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, bug: entry.bug } };
+    return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
   }
-  // TestResult / VerificationResult: {failingTraces:[{threads,outcome}], ...}
   if(Array.isArray(raw.failingTraces) || Array.isArray(raw.deadlockedTraces) || Array.isArray(raw.completedTraces)){
     const pick = (arr) => arr && arr.length ? arr[0] : null;
     let tr = pick(raw.failingTraces) || pick(raw.deadlockedTraces) || pick(raw.completedTraces);
     if(!tr) {
-      // No traces at all — PASS with empty schedule
       const verdict = raw.hasViolation ? 'VIOLATION' : 'PASS';
-      return { trace: { threads: [], outcome: verdict }, meta: { verdict, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs } };
+      return { trace: { threads: [], outcome: verdict }, meta: { verdict, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes } };
     }
-    // tr may be TraceRecord shape {threads,outcomes,outcome} or VerificationResult inline {threads,outcome}
     const threads = tr.threads || tr.threadIds;
     if(!Array.isArray(threads)) throw new Error('failingTraces[0] missing threads/threadIds');
     const outcome = tr.outcome || (raw.hasViolation ? 'VIOLATION' : 'PASS');
-    return { trace: { threads, outcomes: tr.outcomes, outcome, programHash: tr.programHash }, meta: { verdict: outcome, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, hasViolation: raw.hasViolation } };
+    return { trace: { threads, outcomes: tr.outcomes, outcome, programHash: tr.programHash, states: tr.states }, meta: { verdict: outcome, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, hasViolation: raw.hasViolation } };
   }
   throw new Error('Unrecognized shape — expected TraceRecord {threads}, TestResult {failingTraces}, or ReportWriter {benchmarks}.');
 }
 
 function validateTrace(t){
   if(!t || !Array.isArray(t.threads)) throw new Error('trace.threads must be an array');
+  if(t.threads.length > MAX_SCHEDULE) throw new Error(`threads length ${t.threads.length} exceeds limit ${MAX_SCHEDULE} — truncating not supported, provide a shorter trace`);
   if(t.threads.some(v=> typeof v !== 'number' || !Number.isInteger(v) || v < 0)) throw new Error('threads must be non-negative integers');
+  const distinct = new Set(t.threads);
+  if(distinct.size > MAX_THREADS) throw new Error(`distinct thread IDs ${distinct.size} exceeds limit ${MAX_THREADS}`);
+  if(t.outcomes && !Array.isArray(t.outcomes)) throw new Error('outcomes must be an array if present');
+  if(t.outcomes && t.outcomes.length > t.threads.length) throw new Error('outcomes longer than threads');
 }
 
 function renderHeader(){
-  summaryEl.classList.add('show');
+  summaryEl.className = 'card summary show';
   const verdict = (currentMeta.verdict || currentTrace.outcome || 'PASS').toUpperCase();
   setBadge(verdict);
-  $('#programName').textContent = currentMeta.bug || currentTrace.programHash || programDef?.name || '—';
+  summaryEl.classList.add(verdict==='VIOLATION' ? 'verdict-violation' : verdict==='DEADLOCK' ? 'verdict-deadlock' : verdict==='PASS' ? 'verdict-pass' : '');
+  const nameEl = $('#programName');
+  nameEl.textContent = currentMeta.bug || currentTrace.programHash || programDef?.name || '—';
   $('#programFormat').textContent = programDef ? `format: ${programDef.format || '—'}` : '';
+  const metaEl = $('#meta');
+  metaEl.textContent = '';
+  const addKV = (label, value) => {
+    const span = document.createElement('span');
+    span.append(document.createTextNode(label + ' '));
+    const strong = document.createElement('strong');
+    strong.textContent = String(value);
+    span.append(strong);
+    return span;
+  };
   const parts = [];
-  if(currentMeta.strategy) parts.push(`<span>strategy <strong>${currentMeta.strategy}</strong></span>`);
-  if(currentMeta.storeType) parts.push(`<span>store <strong>${currentMeta.storeType}</strong></span>`);
-  if(currentMeta.statesExplored != null) parts.push(`<span>states <strong>${currentMeta.statesExplored}</strong></span>`);
-  if(currentMeta.wallTimeMs != null) parts.push(`<span>time <strong>${currentMeta.wallTimeMs} ms</strong></span>`);
-  if(currentMeta.heapDeltaBytes != null) parts.push(`<span>heap <strong>${currentMeta.heapDeltaBytes}</strong></span>`);
-  if(programDef?.expected_verdict) parts.push(`<span>expected <strong>${programDef.expected_verdict}</strong></span>`);
-  $('#meta').innerHTML = parts.join(' · ') || '<span class="muted">Schedule-only trace — no harness meta</span>';
+  if(currentMeta.strategy) parts.push(addKV('strategy', capStr(currentMeta.strategy)));
+  if(currentMeta.storeType) parts.push(addKV('store', capStr(currentMeta.storeType)));
+  if(currentMeta.statesExplored != null) parts.push(addKV('states', asNum(currentMeta.statesExplored)));
+  if(currentMeta.wallTimeMs != null) parts.push(addKV('time', asNum(currentMeta.wallTimeMs) + ' ms'));
+  if(currentMeta.heapDeltaBytes != null) parts.push(addKV('heap', asNum(currentMeta.heapDeltaBytes)));
+  if(programDef?.expected_verdict) parts.push(addKV('expected', capStr(programDef.expected_verdict)));
+  if(parts.length===0){
+    const placeholder = document.createElement('span');
+    placeholder.className = 'muted';
+    placeholder.textContent = 'Schedule-only trace — no harness meta';
+    metaEl.append(placeholder);
+  } else {
+    parts.forEach((p,i)=>{ metaEl.append(p); if(i < parts.length-1) metaEl.append(document.createTextNode(' · ')); });
+  }
   $('#stepCount').textContent = String(currentTrace.threads.length);
   copyBtn.disabled = currentTrace.threads.length === 0;
 }
@@ -235,43 +283,87 @@ function stepInfoFor(threadId, stepIdxForThread){
 function renderTimeline(){
   timelineSec.style.display = 'block';
   const n = currentTrace.threads.length;
-  const maxTid = n===0 ? 0 : Math.max(...currentTrace.threads);
-  const threadIds = Array.from({length: maxTid+1}, (_,i)=> i);
-  // per-thread step counter to map schedule order to progThread step index
+  const distinct = [...new Set(currentTrace.threads)].sort((a,b)=>a-b);
+  const threadIds = distinct; // bolder: only distinct IDs, not 0..max (fixes DoS)
   const counters = {};
   threadIds.forEach(id=> counters[id]=0);
+  const colorForTid = (tid)=>{
+    const idx = threadIds.indexOf(tid);
+    return THREAD_PALETTE[idx % THREAD_PALETTE.length];
+  };
 
-  let html = '<table><thead><tr><th>#</th>';
-  threadIds.forEach(id=> html += `<th>Thread ${id}</th>`);
-  html += '<th>Outcome</th></tr></thead><tbody>';
+  const container = $('#timeline');
+  container.textContent = '';
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  const thIdx = document.createElement('th'); thIdx.textContent = '#'; headRow.append(thIdx);
+  threadIds.forEach(tid=>{
+    const th = document.createElement('th');
+    th.textContent = `Thread ${tid}`;
+    th.className = `tcol-${threadIds.indexOf(tid) % 4}`;
+    headRow.append(th);
+  });
+  const thOut = document.createElement('th'); thOut.textContent = 'Outcome'; headRow.append(thOut);
+  thead.append(headRow); table.append(thead);
+  const tbody = document.createElement('tbody');
   for(let idx=0; idx<=n; idx++){
-    const isFail = idx===n && (currentTrace.outcome==='VIOLATION');
-    const cls = idx===selectedIdx ? 'active-row' : isFail ? 'fail-row' : '';
+    const isFail = idx===n && (currentTrace.outcome==='VIOLATION' || currentMeta.verdict==='VIOLATION');
+    const isActive = idx===selectedIdx;
+    const tr = document.createElement('tr');
+    tr.dataset.idx = String(idx);
+    tr.tabIndex = 0; tr.setAttribute('role','button'); tr.setAttribute('aria-label', `Config ${idx}`);
+    if(isFail && isActive) tr.className = 'fail-row active-row';
+    else if(isFail) tr.className = 'fail-row';
+    else if(isActive) tr.className = 'active-row';
     const activeTid = idx < n ? currentTrace.threads[idx] : null;
-    const outcome = idx < n ? (currentTrace.outcomes?.[idx] || '') : (currentTrace.outcome || '');
-    html += `<tr class="${cls}" data-idx="${idx}" tabindex="0" role="button" aria-label="Config ${idx}">`;
-    html += `<td><span class="muted">${idx}</span></td>`;
+    const outcome = idx < n ? (currentTrace.outcomes?.[idx] || '') : (currentTrace.outcome || currentMeta.verdict || '');
+
+    const tdIdx = document.createElement('td');
+    const spanIdx = document.createElement('span'); spanIdx.className='muted'; spanIdx.textContent=String(idx);
+    tdIdx.append(spanIdx); tr.append(tdIdx);
+
     threadIds.forEach(tid=>{
-      const isActive = activeTid===tid;
-      let cell = '<span class="muted">·</span>';
-      if(isActive){
+      const td = document.createElement('td');
+      if(activeTid===tid){
         const stepIdx = counters[tid];
         const info = stepInfoFor(tid, stepIdx);
-        const label = info ? info.label : `step ${stepIdx}`;
-        cell = `<span class="cell-active" title="${info?info.detail:''}">${label}</span>`;
+        const rawLabel = info ? info.label : `step ${stepIdx}`;
+        const pill = document.createElement('span');
+        pill.className = 'cell-active';
+        const pal = colorForTid(tid);
+        pill.style.color = pal.color;
+        pill.style.background = pal.bg;
+        pill.style.borderColor = pal.color;
+        pill.textContent = capStr(rawLabel);
+        if(info && info.detail) pill.title = capStr(info.detail);
+        td.append(pill);
+      } else {
+        const dot = document.createElement('span'); dot.className='muted'; dot.textContent='·';
+        td.append(dot);
       }
-      html += `<td>${cell}</td>`;
+      tr.append(td);
     });
-    // increment counter for the active thread *after* rendering the row, for next config's pointer? Actually timeline row idx corresponds to config before step idx executes.
-    // We rendered row idx as config; the active column for row idx is the step that *leaves* this config. So counter should increment after rendering active row.
     if(activeTid!=null) counters[activeTid]++;
-    html += `<td class="muted">${outcome}</td></tr>`;
+
+    const tdOut = document.createElement('td');
+    tdOut.className='muted';
+    tdOut.textContent = capStr(outcome);
+    tr.append(tdOut);
+    tbody.append(tr);
   }
-  html += '</tbody></table>';
-  $('#timeline').innerHTML = html;
-  // bind row selection
-  $('#timeline').querySelectorAll('tr[data-idx]').forEach(tr=>{
-    const activate = () => { selectedIdx = parseInt(tr.dataset.idx,10); renderTimeline(); renderStateStrip(); };
+  table.append(tbody);
+  container.append(table);
+  // bind selection with focus restore (finding 4)
+  container.querySelectorAll('tr[data-idx]').forEach(tr=>{
+    const activate = () => {
+      selectedIdx = parseInt(tr.dataset.idx,10);
+      const restoreIdx = selectedIdx;
+      renderTimeline();
+      renderStateStrip();
+      const toFocus = container.querySelector(`tr[data-idx="${restoreIdx}"]`);
+      if(toFocus) toFocus.focus({preventScroll:true});
+    };
     tr.addEventListener('click', activate);
     tr.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); activate(); }});
   });
@@ -279,34 +371,80 @@ function renderTimeline(){
 
 function renderStateStrip(){
   stateSec.style.display = 'block';
-  $('#selectedIdxLabel').textContent = `— config ${selectedIdx}`;
+  const labelEl = $('#selectedIdxLabel');
+  labelEl.textContent = `— config ${selectedIdx}`;
   const el = $('#stateStrip');
+  el.textContent = '';
   if(!programDef){
-    el.innerHTML = '<p class="placeholder">No program JSON loaded — load a program file (e.g. <code>src/main/resources/programs/lost-update.json</code>) to see <code>fields</code>/<code>locals</code> header. State values are schedule-only today.</p>';
+    const p = document.createElement('p'); p.className='placeholder';
+    p.append(document.createTextNode('No program JSON loaded — load a program file (e.g. '));
+    const code = document.createElement('code'); code.textContent='src/main/resources/programs/lost-update.json';
+    p.append(code);
+    p.append(document.createTextNode(') to see '));
+    const c2 = document.createElement('code'); c2.textContent='fields';
+    p.append(c2);
+    p.append(document.createTextNode('/'));
+    const c3 = document.createElement('code'); c3.textContent='locals';
+    p.append(c3);
+    p.append(document.createTextNode(' header. State values are schedule-only today.'));
+    el.append(p);
     return;
   }
   const fields = programDef.state?.fields || (programDef.state?.type ? [{name: programDef.state.type, type: 'typed'}] : []);
   const locals = programDef.state?.locals || [];
-  const invariant = programDef.invariant ? `<code>${programDef.invariant.expr || JSON.stringify(programDef.invariant)}</code>` : '<span class="muted">—</span>';
-  let html = `<div style="margin-bottom:8px">Invariant: ${invariant} <span class="muted">(${programDef.invariant?.when||'final'})</span></div>`;
-  html += '<table><thead><tr><th>Scope</th><th>Name</th><th>Value at selected config</th></tr></thead><tbody>';
+  const div = document.createElement('div'); div.style.marginBottom='8px';
+  div.append(document.createTextNode('Invariant: '));
+  if(programDef.invariant){
+    const code = document.createElement('code');
+    code.textContent = programDef.invariant.expr || JSON.stringify(programDef.invariant);
+    div.append(code);
+  } else {
+    const sp = document.createElement('span'); sp.className='muted'; sp.textContent='—';
+    div.append(sp);
+  }
+  const wh = document.createElement('span'); wh.className='muted'; wh.textContent = ` (${programDef.invariant?.when||'final'})`;
+  div.append(wh);
+  el.append(div);
+
+  const table = document.createElement('table');
+  const thead = document.createElement('thead');
+  const hr = document.createElement('tr');
+  ['Scope','Name','Value at selected config'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; hr.append(th); });
+  thead.append(hr); table.append(thead);
+  const tbody = document.createElement('tbody');
   if(fields.length===0 && locals.length===0){
-    html += '<tr><td colspan="3" class="placeholder">No fields/locals declared in program JSON.</td></tr>';
+    const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=3; td.className='placeholder'; td.textContent='No fields/locals declared in program JSON.'; tr.append(td); tbody.append(tr);
   } else {
     fields.forEach(f=>{
-      html += `<tr><td>field</td><td><code>${f.name}</code> <span class="muted">${f.type||''}</span></td><td class="placeholder">no snapshot — schedule only (header from program JSON)</td></tr>`;
+      const tr=document.createElement('tr');
+      const tdS=document.createElement('td'); tdS.textContent='field';
+      const tdN=document.createElement('td');
+      const code=document.createElement('code'); code.textContent=String(f.name);
+      tdN.append(code);
+      const mut=document.createElement('span'); mut.className='muted'; mut.textContent=' ' + String(f.type||'');
+      tdN.append(mut);
+      const tdV=document.createElement('td'); tdV.className='placeholder'; tdV.textContent='no snapshot — schedule only (header from program JSON)';
+      tr.append(tdS, tdN, tdV); tbody.append(tr);
     });
     locals.forEach(l=>{
-      html += `<tr><td>local</td><td><code>${l.name}</code> <span class="muted">${l.type||''}</span></td><td class="placeholder">no snapshot — schedule only</td></tr>`;
+      const tr=document.createElement('tr');
+      const tdS=document.createElement('td'); tdS.textContent='local';
+      const tdN=document.createElement('td');
+      const code=document.createElement('code'); code.textContent=String(l.name);
+      tdN.append(code);
+      const mut=document.createElement('span'); mut.className='muted'; mut.textContent=' ' + String(l.type||'');
+      tdN.append(mut);
+      const tdV=document.createElement('td'); tdV.className='placeholder'; tdV.textContent='no snapshot — schedule only';
+      tr.append(tdS, tdN, tdV); tbody.append(tr);
     });
   }
-  html += '</tbody></table>';
-  // future: if currentTrace.states[ selectedIdx ] exists, replace placeholder with values
+  table.append(tbody); el.append(table);
   if(currentTrace.states && Array.isArray(currentTrace.states) && currentTrace.states[selectedIdx]){
-    const s = currentTrace.states[selectedIdx];
-    html += `<p class="placeholder">Snapshot present for this config (future harness) — would render here.</p><pre style="font:12px var(--mono);background:var(--bg);padding:8px;border-radius:8px;overflow:auto">${JSON.stringify(s,null,2)}</pre>`;
+    const p=document.createElement('p'); p.className='placeholder'; p.textContent='Snapshot present for this config (future harness) — would render here.';
+    const pre=document.createElement('pre'); pre.style.font='12px var(--mono)'; pre.style.background='var(--bg)'; pre.style.padding='8px'; pre.style.borderRadius='8px'; pre.style.overflow='auto';
+    pre.textContent = JSON.stringify(currentTrace.states[selectedIdx], null, 2);
+    el.append(p, pre);
   }
-  el.innerHTML = html;
 }
 
 function handleRaw(raw){
@@ -316,25 +454,28 @@ function handleRaw(raw){
     validateTrace(trace);
     currentTrace = trace;
     currentMeta = meta;
-    selectedIdx = trace.threads.length; // select failing/final config by default
+    selectedIdx = trace.threads.length;
     renderHeader();
     renderTimeline();
     renderStateStrip();
   }catch(e){
     showError(e.message);
-    // keep previous render? hide?
   }
 }
 
 async function handleTraceFile(file){
   if(!file) return;
-  try{ const text = await file.text(); const raw = JSON.parse(text); handleRaw(raw); }
-  catch(e){ showError('Trace file: ' + e.message); }
+  if(file.size > MAX_PASTE_BYTES){ showError(`Trace file too large (${file.size} bytes > ${MAX_PASTE_BYTES})`); return; }
+  const myGen = ++loadGen;
+  try{ const text = await file.text(); if(myGen !== loadGen) return; const raw = JSON.parse(text); if(myGen !== loadGen) return; handleRaw(raw); }
+  catch(e){ if(myGen !== loadGen) return; showError('Trace file: ' + e.message); }
 }
 async function handleProgramFile(file){
   if(!file) { programDef=null; if(currentTrace) renderStateStrip(); return; }
-  try{ const text = await file.text(); programDef = JSON.parse(text); if(currentTrace) { renderHeader(); renderTimeline(); renderStateStrip(); } clearError(); }
-  catch(e){ showError('Program file: ' + e.message); }
+  if(file.size > MAX_PASTE_BYTES){ showError(`Program file too large (${file.size} bytes)`); return; }
+  const myGen = ++loadGen;
+  try{ const text = await file.text(); if(myGen !== loadGen) return; programDef = JSON.parse(text); if(myGen !== loadGen) return; if(currentTrace) { renderHeader(); renderTimeline(); renderStateStrip(); } clearError(); }
+  catch(e){ if(myGen !== loadGen) return; showError('Program file: ' + e.message); }
 }
 
 $('#traceFile').addEventListener('change', e=> handleTraceFile(e.target.files[0]));
@@ -342,11 +483,14 @@ $('#programFile').addEventListener('change', e=> handleProgramFile(e.target.file
 $('#loadPaste').addEventListener('click', ()=>{
   const t = $('#paste').value.trim();
   if(!t) { showError('Paste is empty'); return; }
-  try{ handleRaw(JSON.parse(t)); }catch(e){ showError('Paste: ' + e.message); }
+  if(new TextEncoder().encode(t).length > MAX_PASTE_BYTES){ showError(`Paste too large (> ${MAX_PASTE_BYTES} bytes)`); return; }
+  const myGen = ++loadGen;
+  try{ const raw = JSON.parse(t); if(myGen !== loadGen) return; handleRaw(raw); }catch(e){ if(myGen !== loadGen) return; showError('Paste: ' + e.message); }
 });
 $('#clearBtn').addEventListener('click', ()=>{
+  loadGen++;
   $('#paste').value=''; $('#traceFile').value=''; $('#programFile').value=''; programDef=null; currentTrace=null; currentMeta=null; clearError();
-  summaryEl.classList.remove('show'); timelineSec.style.display='none'; stateSec.style.display='none'; copyBtn.disabled=true;
+  summaryEl.className='card summary'; summaryEl.classList.remove('show'); timelineSec.style.display='none'; stateSec.style.display='none'; copyBtn.disabled=true;
 });
 copyBtn.addEventListener('click', async ()=>{
   if(!currentTrace) return;
@@ -363,8 +507,10 @@ const samples = {
 document.querySelectorAll('[data-sample]').forEach(a=>{
   a.addEventListener('click', async (e)=>{
     e.preventDefault();
-    const key = a.dataset.sample;
-    // try canonical program names: lost-update, peterson, bounded-buffer -> bounded-buffer-declarative
+    const rawKey = a.dataset.sample;
+    if(!KEY_ALLOW.test(rawKey)){ showError('Invalid demo key'); return; }
+    const key = rawKey;
+    const myGen = ++loadGen;
     const progCandidates = [
       `../examples/programs/${key}.json`,
       `../examples/programs/${key}-declarative.json`,
@@ -378,22 +524,22 @@ document.querySelectorAll('[data-sample]').forEach(a=>{
     for(const p of traceCandidates){
       try{
         const res = await fetch(p);
+        if(myGen !== loadGen) return;
         if(res.ok){
-          const raw = await res.json(); handleRaw(raw);
+          const raw = await res.json(); if(myGen !== loadGen) return; handleRaw(raw);
           for(const pp of progCandidates){
-            try{ const pr = await fetch(pp); if(pr.ok){ const pj = await pr.json(); programDef=pj; renderHeader(); renderTimeline(); renderStateStrip(); break; } }catch{}
+            try{ const pr = await fetch(pp); if(myGen !== loadGen) return; if(pr.ok){ const pj = await pr.json(); if(myGen !== loadGen) return; programDef=pj; renderHeader(); renderTimeline(); renderStateStrip(); break; } }catch{}
           }
           return;
         }
       }catch{}
+      if(myGen !== loadGen) return;
     }
-    // fallback inline sample
+    if(myGen !== loadGen) return;
     const s = samples[key];
     if(s){ currentTrace=s.trace; currentMeta=s.meta; selectedIdx=s.trace.threads.length; clearError(); renderHeader(); renderTimeline(); renderStateStrip(); }
   });
 });
-
-// Optionally auto-load programDef from query param ?program=...
 </script>
 </body>
 </html>
