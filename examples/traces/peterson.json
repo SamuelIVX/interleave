@@ -1,0 +1,14 @@
+{
+  "benchmarks": [
+    {
+      "bug": "peterson",
+      "strategy": "DFS",
+      "storeType": "EXACT",
+      "statesExplored": 42,
+      "wallTimeMs": 10,
+      "heapDeltaBytes": 1031288,
+      "verdict": "PASS"
+    }
+  ],
+  "soundness": true
+}

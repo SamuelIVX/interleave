@@ -1,0 +1,18 @@
+{
+  "benchmarks": [
+    {
+      "bug": "lost-update",
+      "strategy": "DFS",
+      "storeType": "EXACT",
+      "statesExplored": 13,
+      "wallTimeMs": 8,
+      "heapDeltaBytes": 848376,
+      "failingTrace": {
+        "threadIds": [0, 1, 0, 1],
+        "outcomes": ["ADVANCED", "ADVANCED", "ADVANCED", "ADVANCED"]
+      },
+      "verdict": "VIOLATION"
+    }
+  ],
+  "soundness": true
+}

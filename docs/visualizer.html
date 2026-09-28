@@ -1,0 +1,70 @@
+<!-- interleave trace viewer — static shell for schedule + state. No build, file:// and Pages compatible. -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' file:; style-src 'self' file:; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+<title>interleave — trace viewer</title>
+<meta name="description" content="Static trace renderer for interleave — paste or load --json trace output, see the failing schedule and state." />
+<link rel="stylesheet" href="visualizer.css" />
+</head>
+<body>
+<div class="wrap">
+  <header class="page">
+    <div class="eyebrow">interleave — explicit-state model checker</div>
+    <h1>Trace viewer</h1>
+    <p>Load a <code>--json</code> trace output (<code>TraceRecord</code>, <code>TestResult</code>, or <code>ReportWriter</code> <code>benchmarks</code> wrapper) and optionally a program JSON to populate field names. No server, no build — vanilla HTML/CSS/JS.</p>
+  </header>
+
+  <div class="card">
+    <div class="grid two">
+      <div>
+        <label for="traceFile">Trace JSON — file</label>
+        <input id="traceFile" type="file" accept=".json,application/json" aria-label="Trace JSON file" />
+      </div>
+      <div>
+        <label for="programFile">Program JSON — optional (for field names, guard/effects)</label>
+        <input id="programFile" type="file" accept=".json,application/json" aria-label="Program JSON file (optional)" />
+      </div>
+    </div>
+    <div class="section-gap">
+      <label for="paste">Or paste raw JSON</label>
+      <textarea id="paste" placeholder='Paste TraceRecord, TestResult, or { &quot;benchmarks&quot;: [...] } here...'></textarea>
+    </div>
+    <div class="row row-gap">
+      <button id="loadPaste">Render paste</button>
+      <button id="clearBtn" class="secondary">Clear</button>
+      <button id="copyBtn" class="secondary" disabled>Copy schedule</button>
+      <span class="demo">Demo: <a href="#" data-sample="lost-update">lost-update</a> · <a href="#" data-sample="peterson">peterson</a> · <a href="#" data-sample="bounded-buffer">bounded-buffer</a></span>
+    </div>
+    <div id="error" class="error" role="alert"></div>
+  </div>
+
+  <div id="summary" class="card summary section-gap">
+    <div class="summary-head">
+      <span id="verdictBadge" class="badge neutral">—</span>
+      <span id="programName" class="prog-name"></span>
+      <span id="programFormat" class="muted prog-format"></span>
+    </div>
+    <div class="meta" id="meta"></div>
+  </div>
+
+  <section id="timelineSec" class="section-gap">
+    <h2 class="section-title">Timeline — schedule <span class="muted sec-count">(<span id="stepCount">0</span> steps)</span></h2>
+    <div class="timeline" id="timeline"></div>
+    <p class="muted sec-hint">Row click selects config for state strip. Bolder thread tints: pills and headers per-thread; failing row stays red.</p>
+  </section>
+
+  <section id="stateSec" class="card section-gap">
+    <h2 class="section-title">State strip — selected config <span class="muted sec-count" id="selectedIdxLabel"></span></h2>
+    <div id="stateStrip" class="strip"></div>
+  </section>
+
+  <footer>
+    Static viewer. Handles <code>threads</code> / <code>threadIds</code>, <code>failingTraces</code> / <code>failingTrace</code>, <code>outcomes</code> present or absent. State values are schedule-only today — shows header from program JSON with graceful placeholder until a harness emits <code>states[]</code>.
+  </footer>
+</div>
+<script src="visualizer.js"></script>
+</body>
+</html>

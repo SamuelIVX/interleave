@@ -1,0 +1,14 @@
+{
+  "benchmarks": [
+    {
+      "bug": "bounded-buffer-declarative",
+      "strategy": "DFS",
+      "storeType": "EXACT",
+      "statesExplored": 6,
+      "wallTimeMs": 4,
+      "heapDeltaBytes": 487888,
+      "verdict": "PASS"
+    }
+  ],
+  "soundness": true
+}
