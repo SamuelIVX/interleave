@@ -45,8 +45,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 |------|-------------|
 | `--json` | Output as JSON (default: Markdown) |
 | `--store exact\|bitstate` | Filter by store type (default: both) |
-| `--strategy DFS\|STATIC_POR\|DPOR\|CONTEXT_BOUNDED` | Filter by strategy (default: all) |
-| `--max-preemptions N` | Context-bounded preemption bound (default: 2) |
+| `--strategy DFS\|STATIC_POR\|DPOR` | Filter by strategy (default: all) |
 | `--bitstate-size N` | Bitstate bit-array size (default: 1,000,003) |
 | `--bitstate-k N` | Bitstate hash function count (default: 4) |
 | `--all` | Run entire corpus |
@@ -76,15 +75,15 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 
 ## Current benchmark results (2026-09-13)
 
-| Program | DFS (exact) | DFS (bitstate) | Static POR (exact) | Static POR (bitstate) | DPOR (exact) | DPOR (bitstate) | CBS K=2 (exact) | Verdict |
-|---------|-------------|----------------|---------------------|------------------------|--------------|-----------------|-----------------|---------|
-| peterson | 42 | 42 | 18 (57%↓) | 18 (57%↓) | 38 | 38 | 18 | PASS |
-| broken-peterson | 46 | 46 | 15 (67%↓) | 15 (67%↓) | 46 | 46 | 15 | VIOLATION |
-| broken-peterson-v2 | 46 | 46 | 12 (74%↓) | 12 (74%↓) | 46 | 46 | 12 | VIOLATION |
-| deadlock | 15 | 15 | 15 | 15 | 15 | 15 | 15 | DEADLOCK |
-| double-checked-locking | 17 | 17 | 14 (18%↓) | 14 (18%↓) | 17 | 17 | 14 | VIOLATION |
-| lost-update | 13 | 13 | 9 (31%↓) | 9 (31%↓) | 13 | 13 | 9 | VIOLATION |
-| torn-counter | 8 | 8 | 8 | 8 | 8 | 8 | 8 | VIOLATION |
+| Program | DFS (exact) | DFS (bitstate) | Static POR (exact) | Static POR (bitstate) | DPOR (exact) | DPOR (bitstate) | Verdict |
+|---------|-------------|----------------|---------------------|------------------------|--------------|-----------------|---------|
+| peterson | 42 | 42 | 18 (57%↓) | 18 (57%↓) | 38 | 38 | PASS |
+| broken-peterson | 46 | 46 | 15 (67%↓) | 15 (67%↓) | 46 | 46 | VIOLATION |
+| broken-peterson-v2 | 46 | 46 | 12 (74%↓) | 12 (74%↓) | 46 | 46 | VIOLATION |
+| deadlock | 15 | 15 | 15 | 15 | 15 | 15 | DEADLOCK |
+| double-checked-locking | 17 | 17 | 14 (18%↓) | 14 (18%↓) | 17 | 17 | VIOLATION |
+| lost-update | 13 | 13 | 9 (31%↓) | 9 (31%↓) | 13 | 13 | VIOLATION |
+| torn-counter | 8 | 8 | 8 | 8 | 8 | 8 | VIOLATION |
 
 Soundness attestation: all failing traces replay to genuine violations.
 
@@ -97,11 +96,13 @@ src/main/java/dev/samhb/interleave/
   state/       CanonicalEncoder, HashingStateStore, BitstateStore
   por/         IndependenceRelation, PersistentSetComputer, CycleProviso
   dpor/        DporExplorer, HappensBefore, SleepSet
-  cb/          ContextBoundedExplorer
+  corpus/      CorpusGenerator, TemplateRegistry, CorpusEntry
+  format/      JSON program loader + declarative DSL
   bugs/        Concurrency classics corpus (7 programs)
   minimize/    DeltaDebugger (ddmin)
   report/      BenchmarkHarness, StatesExploredTable, SoundnessAttestation, ReportWriter
   cli/         Main
+  *.java       Interleave, InterleaveRunner, Strategy, TestResult, TraceRecord, VerificationResult
 ```
 
 ## Spec-driven development
@@ -192,7 +193,12 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 - DPOR uses exhaustive DFS path for invariants (`explore(program, invariant)` → `dfsDfs()`)
 - Removed dead `dfsDfs` from `StaticPorExplorer`, restored it in `DporExplorer`
 
-## Context-Bounded Search (CBS)
+### Planned: Context-Bounded Search (Spec 11, not yet implemented)
+
+**Status: specified, not implemented.** The commands below are the target CLI contract from
+[`docs/specs/active/11-context-bounded/`](docs/specs/active/11-context-bounded/) and **will not work yet**.
+The flags `--strategy CONTEXT_BOUNDED`, `--max-preemptions N`, and `--iterative-deepening` do not exist in
+the current build.
 
 Context-bounded search (CHESS-style) systematically explores all interleavings up to a configurable number of **preemptive context switches** (bound K). A preemption occurs when the scheduler switches away from a thread that *could have continued* (i.e., was still enabled). Forced switches (previous thread blocked/terminated) do not count toward the bound.
 
@@ -206,12 +212,11 @@ Context-bounded search (CHESS-style) systematically explores all interleavings u
 - Screening before exhaustive verification
 - Programs where deep interleavings are unlikely to produce new bugs
 
-**Reports include:**
-- Preemption bound used for each CBS run
+**Reports will include:**
 - States explored vs DFS/DPOR baselines
-- Verdict (may differ from exhaustive if bug needs >K preemptions)
+- A verdict that may be `INCOMPLETE` when the preemption bound was reached without exhausting the state space
 
-**CLI Usage:**
+**Planned CLI usage** (once implemented):
 ```bash
 # Run CBS on a single program
 ./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 2 --json"
