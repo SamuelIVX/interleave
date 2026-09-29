@@ -2,7 +2,7 @@
 
 These are explicitly out of scope for the 7-spec deliverable, but are natural extensions.
 
-## Items 1–6: Completed
+## Items 1–7: Completed
 
 | # | Item | Status |
 |---|---|---|
@@ -12,13 +12,13 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 | 4 | Property-based corpus mining | ✅ Done (PR #19) — `CorpusGenerator`/`TemplateRegistry` + 2 curated templates, `GeneratorConfig` bounds, budget-aware `DfsExplorer` oracle, `CorpusEntry` JSON persistence, `generate` CLI |
 | 5 | General-purpose JSON format | ✅ Done (PR #21 + PR #22) — `09-json-dsl-core` (format dispatch, sandboxed DSL, DynamicState/DynamicStep, deterministic encoding, POR derivation) + `10-json-dsl-invariants` (composable `all`/`when` invariants, curated examples), differential `lost-update` anchor |
 | 6 | Web UI / visualizer — Tier 1 (static trace renderer) | ✅ Done — `docs/visualizer.html`, `examples/traces/*.json`, pure HTML/CSS/JS, no build, loads all `--json` shapes |
+| 7 | Context-bounding / CHESS-style | 🔄 In progress — Spec 11 (`11-context-bounded.md`) |
 
 ## Remaining Items — Ranked by LOE
 
 | # | Item | LOE | Spec Needed? | Why |
 |---|---|---|---|---|
-| 7 | Web UI / visualizer — Tier 2 (state-space DAG) | Medium | Yes | `--emit-graph` schema, budget, truncation, layout policy, attestation re-run |
-| 8 | Context-bounding / CHESS-style | Medium-High | Yes | New exploration strategy — correctness depends on bound semantics |
+| 8 | Web UI / visualizer — Tier 2 (state-space DAG) | Medium | Yes | `--emit-graph` schema, budget, truncation, layout policy, attestation re-run |
 | 9 | Concurrent-program parser | High | Yes | Language design + parser + semantic mapping — full spec needed |
 | 10 | Symmetry reduction | High | Yes | Canonicalization is subtle; soundness must be proven |
 | 11 | Relaxed memory models | Very High | Yes | Fundamental semantics change — needs formal spec |
@@ -36,7 +36,7 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 
 7. **Web UI / visualizer — Tier 2 (state-space DAG)** — Full DAG visualization of the explored state space. Requires `--emit-graph` flag in explorers to emit nodes/edges (config → step → config) with budget/truncation, graph layout algorithm, and `SoundnessAttestation` re-run when enabled. Spec `12-state-graph-emission.md` needed.
 
-7. **Context-bounding / CHESS-style stateless search** — bound the depth of context switches instead of exploring all interleavings. Algorithmic addition on top of DFS; needs new exploration strategy but reuses core types.
+7. **Context-bounding / CHESS-style stateless search** — 🔄 In progress as Spec 11. Bounds the depth of context switches instead of exploring all interleavings. Adds `StateStore` preemption-aware methods, `ContextBoundedExplorer` with CHESS-style preemption counting, CLI `--max-preemptions` flag, and full `BenchmarkHarness` integration. See `docs/specs/active/11-context-bounded.md`.
 
 8. **Concurrent-program parser** — parse a small imperative language with threads, shared variables, and atomic sections into the checker's internal model. Requires designing a small language, lexer/parser, and semantic mapping to `Step`/`SharedState`.
 
