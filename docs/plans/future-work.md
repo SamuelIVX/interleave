@@ -2,7 +2,7 @@
 
 These are explicitly out of scope for the 7-spec deliverable, but are natural extensions.
 
-## Items 1–5: Completed
+## Items 1–6: Completed
 
 | # | Item | Status |
 |---|---|---|
@@ -11,17 +11,18 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 | 3 | Bitstate / supertrace mode | ✅ Done (PR #18) — CLI `--store`/`--strategy`/`--bitstate-*`, `BitstateStore` + metrics wired into `BenchmarkHarness`/`ReportWriter`, 143 tests |
 | 4 | Property-based corpus mining | ✅ Done (PR #19) — `CorpusGenerator`/`TemplateRegistry` + 2 curated templates, `GeneratorConfig` bounds, budget-aware `DfsExplorer` oracle, `CorpusEntry` JSON persistence, `generate` CLI |
 | 5 | General-purpose JSON format | ✅ Done (PR #21 + PR #22) — `09-json-dsl-core` (format dispatch, sandboxed DSL, DynamicState/DynamicStep, deterministic encoding, POR derivation) + `10-json-dsl-invariants` (composable `all`/`when` invariants, curated examples), differential `lost-update` anchor |
+| 6 | Web UI / visualizer — Tier 1 (static trace renderer) | ✅ Done — `docs/visualizer.html`, `examples/traces/*.json`, pure HTML/CSS/JS, no build, loads all `--json` shapes |
 
 ## Remaining Items — Ranked by LOE
 
 | # | Item | LOE | Spec Needed? | Why |
 |---|---|---|---|---|
-| 6 | Web UI / visualizer | Medium | Maybe | Trace renderer: no. Full state-space DAG viz: yes |
-| 7 | Context-bounding / CHESS-style | Medium-High | Yes | New exploration strategy — correctness depends on bound semantics |
-| 8 | Concurrent-program parser | High | Yes | Language design + parser + semantic mapping — full spec needed |
-| 9 | Symmetry reduction | High | Yes | Canonicalization is subtle; soundness must be proven |
-| 10 | Relaxed memory models | Very High | Yes | Fundamental semantics change — needs formal spec |
-| 11 | Real Java bytecode instrumentation | Very High | Yes | Entirely new subsystem with external deps (ASM/Javassist) |
+| 7 | Web UI / visualizer — Tier 2 (state-space DAG) | Medium | Yes | `--emit-graph` schema, budget, truncation, layout policy, attestation re-run |
+| 8 | Context-bounding / CHESS-style | Medium-High | Yes | New exploration strategy — correctness depends on bound semantics |
+| 9 | Concurrent-program parser | High | Yes | Language design + parser + semantic mapping — full spec needed |
+| 10 | Symmetry reduction | High | Yes | Canonicalization is subtle; soundness must be proven |
+| 11 | Relaxed memory models | Very High | Yes | Fundamental semantics change — needs formal spec |
+| 12 | Real Java bytecode instrumentation | Very High | Yes | Entirely new subsystem with external deps (ASM/Javassist) |
 
 ### Item Details
 
@@ -31,7 +32,9 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 
 5. **General-purpose JSON program format** — ✅ Done (PR #21 + PR #22). Extends the JSON loader beyond the 5 hardcoded state types and 19 step types. Authors declare `format: "typed"` (legacy registry) or `format: "declarative"` (new `fields`/`locals`/`guard`/`effects` DSL with sandboxed expression language); `DynamicState`/`DynamicStep` carry deterministic `encodeTo` and POR-correct `reads()`/`writes()` derivation, composable invariants (`expr`/`all` with `when: "final"|"always"`), and two teaching examples (bounded buffer, semaphore). The DSL re-encoding of `lost-update` is the differential anchor against `BugCorpus`. Implemented and merged.
 
-6. **Web UI / visualizer** — render the interleaving tree, state space DAG, or failing trace visually. Can start as a minimal HTML trace renderer; complexity grows with visualization depth.
+6. **Web UI / visualizer — Tier 1 (static trace renderer)** — ✅ Done. Pure static `docs/visualizer.html` (vanilla HTML/CSS/JS, no build). Normalizes all four `--json` producer shapes (`TraceRecord`, `TestResult`, `VerificationResult`, `ReportWriter`/`benchmarks`) client-side via JS `normalize()`. Renders schedule timeline, header with verdict/strategy/states/time, state-strip header with `fields`/`locals` names from optional program JSON, and graceful "no per-config snapshot" placeholder. Loads via file picker or paste; works on `file://` and GitHub Pages. Sample traces in `examples/traces/` (lost-update, peterson). No Java/Gradle changes, 143 tests unaffected.
+
+7. **Web UI / visualizer — Tier 2 (state-space DAG)** — Full DAG visualization of the explored state space. Requires `--emit-graph` flag in explorers to emit nodes/edges (config → step → config) with budget/truncation, graph layout algorithm, and `SoundnessAttestation` re-run when enabled. Spec `12-state-graph-emission.md` needed.
 
 7. **Context-bounding / CHESS-style stateless search** — bound the depth of context switches instead of exploring all interleavings. Algorithmic addition on top of DFS; needs new exploration strategy but reuses core types.
 
