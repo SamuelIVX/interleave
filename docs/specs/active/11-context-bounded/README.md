@@ -7,7 +7,7 @@ order Spec 07 §7 requires. Verified against the 7-program corpus: every buggy p
 K=2, the correct program (`peterson`) reports `INCOMPLETE` rather than a pass, and the soundness
 attestation passes with all four strategies enabled.
 
-Two places where the implementation deliberately diverges from what these specs asked for, both
+Three places where the implementation deliberately diverges from what these specs asked for, each
 recorded at the commit that made the change:
 
 - **Spec 05 §5** assumed CBS might explore fewer states than DFS. It does the opposite on this
@@ -126,7 +126,7 @@ Steps 2 and 3 are the ones most likely to be mis-grouped, and both mis-groupings
 | Hardcode K=2 in `Interleave.verify` | Leaves library callers no way to select a bound |
 | `default ->` arms on the new enum values | Hides the unhandled case instead of forcing a decision |
 
-### CLI Interface (target — not yet implemented)
+### CLI Interface (shipped)
 ```bash
 # Single run at K=2
 ./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 2 --json"
@@ -155,27 +155,31 @@ InterleaveRunner runner = InterleaveRunner.builder()
 
 ## Verification Checklist
 
-After full implementation:
-- [ ] `./gradlew test` — all tests pass (143 existing + new)
-- [ ] `./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 2 --json"` — works
-- [ ] `./gradlew run --args="--all --strategy CONTEXT_BOUNDED --max-preemptions 2"` — corpus runs
-- [ ] `./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 2 --iterative-deepening --json"` — iterative mode
-- [ ] `--help` lists `CONTEXT_BOUNDED`, `--max-preemptions`, `--iterative-deepening`
-- [ ] `Interleave.verify(p, Strategy.CONTEXT_BOUNDED, inv, 3)` compiles and matches a direct `explore(..., 3)`
-- [ ] `INCOMPLETE` verdict appears for budget-exceeded runs, with a non-empty schedule
-- [ ] `SoundnessAttestation` passes with CBS in the result set (`peterson` is `PASS` under DFS and
+All items below were re-verified against the shipped implementation:
+
+- [x] `./gradlew test` — all tests pass (143 existing + new)
+- [x] `./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 2 --json"` — works
+- [x] `./gradlew run --args="--all --strategy CONTEXT_BOUNDED --max-preemptions 2"` — corpus runs
+- [x] `./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 2 --iterative-deepening --json"` — iterative mode
+- [x] `--help` lists `CONTEXT_BOUNDED`, `--max-preemptions`, `--iterative-deepening`
+- [x] `Interleave.verify(p, Strategy.CONTEXT_BOUNDED, inv, 3)` compiles and matches a direct `explore(..., 3)`
+- [x] `INCOMPLETE` verdict appears for budget-exceeded runs, with a non-empty schedule
+- [x] `SoundnessAttestation` passes with CBS in the result set (`peterson` is `PASS` under DFS and
       `INCOMPLETE` under CBS K=2 — this is the case that breaks the naive cross-strategy agreement check)
-- [ ] Benchmark table includes a `CONTEXT_BOUNDED` column with real measured states explored
-- [ ] Visualizer renders `INCOMPLETE` as `INCOMPLETE`, distinct from `LIMIT EXCEEDED`
-- [ ] Library API: `InterleaveRunner.builder().strategy(Strategy.CONTEXT_BOUNDED).build().run(program)` works
-- [ ] Bitstate DFS/STATIC_POR/DPOR verdicts are still `PASS` (regression guard for the `cbVerdict` split)
+- [x] Benchmark table includes a `CONTEXT_BOUNDED` column with real measured states explored
+- [x] Visualizer renders `INCOMPLETE` as `INCOMPLETE`, distinct from `LIMIT EXCEEDED`
+- [x] Library API: `InterleaveRunner.builder().strategy(Strategy.CONTEXT_BOUNDED).build().run(program)` works
+- [x] Bitstate DFS/STATIC_POR/DPOR verdicts are still `PASS` (regression guard for the `cbVerdict` split)
 
 ## Known Gaps
 
-- **No automated JS test suite for the visualizer.** Spec 11.07 §6 verification is a manual checklist. The
-  new `INCOMPLETE` branch in `normalize()` is security-sensitive and has no automated guard — the
-  `INCOMPLETE` → `PASS` misrender would only be caught by a human opening the viewer. Follow-up: a minimal
-  node:test harness covering all four producer shapes. Detailed in [11.07 §6](07-unchanged-paths.md).
+- **No automated JS test suite for the visualizer.** The `INCOMPLETE` branch in `normalize()` is
+  security-sensitive, and `docs/visualizer-normalize-check.mjs` now guards it: the script extracts
+  `normalize()` and asserts the verdict for all four producer shapes, including the mixed-bucket
+  precedence and the `INCOMPLETE`/`LIMIT EXCEEDED` split. It is an assertion script, not a test
+  suite — no runner, no CI wiring, and no coverage of the rendering code — so the
+  `INCOMPLETE` → `PASS` misrender would still only be caught by a human opening the viewer.
+  Follow-up: promote it to a `node:test` harness. Detailed in [11.07 §6](07-unchanged-paths.md).
 - **INCOMPLETE traces are not minimizable.** `DeltaDebugger` rejects them (Spec 11.07 §1). Reducing a
   bound-limited search to a shorter schedule that also claims to be INCOMPLETE is meaningless. This one is
   a deliberate design decision, not a gap.
