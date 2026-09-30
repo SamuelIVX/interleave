@@ -11,11 +11,13 @@ public final class TestResult implements Serializable {
     private final List<TraceRecord> failingTraces;
     private final List<TraceRecord> deadlockedTraces;
     private final List<TraceRecord> completedTraces;
+    private final List<TraceRecord> incompleteTraces;
     private final boolean limitExceeded;
 
     public TestResult(Strategy strategy, long statesExplored, long wallTimeMs, long heapDeltaBytes,
                       List<TraceRecord> failingTraces, List<TraceRecord> deadlockedTraces,
-                      List<TraceRecord> completedTraces, boolean limitExceeded) {
+                      List<TraceRecord> completedTraces, List<TraceRecord> incompleteTraces,
+                      boolean limitExceeded) {
         this.strategy = strategy;
         this.statesExplored = statesExplored;
         this.wallTimeMs = wallTimeMs;
@@ -23,7 +25,19 @@ public final class TestResult implements Serializable {
         this.failingTraces = List.copyOf(failingTraces);
         this.deadlockedTraces = List.copyOf(deadlockedTraces);
         this.completedTraces = List.copyOf(completedTraces);
+        this.incompleteTraces = List.copyOf(incompleteTraces);
         this.limitExceeded = limitExceeded;
+    }
+
+    /**
+     * Creates a result with no INCOMPLETE traces. Kept so the pre-context-bounded call signature
+     * keeps compiling and produces exactly the output it did before.
+     */
+    public TestResult(Strategy strategy, long statesExplored, long wallTimeMs, long heapDeltaBytes,
+                      List<TraceRecord> failingTraces, List<TraceRecord> deadlockedTraces,
+                      List<TraceRecord> completedTraces, boolean limitExceeded) {
+        this(strategy, statesExplored, wallTimeMs, heapDeltaBytes,
+             failingTraces, deadlockedTraces, completedTraces, List.of(), limitExceeded);
     }
 
     public Strategy strategy() {
@@ -54,6 +68,40 @@ public final class TestResult implements Serializable {
         return completedTraces;
     }
 
+    /**
+     * Returns traces from a context-bounded search that ran out of preemption budget without
+     * finding a violation. Empty for strategies that are exhaustive regardless of budget.
+     *
+     * @return the INCOMPLETE traces
+     */
+    public List<TraceRecord> incompleteTraces() {
+        return incompleteTraces;
+    }
+
+    /**
+     * Returns whether this run was inconclusive because a preemption bound was reached.
+     *
+     * <p>Independent of {@link #limitExceeded()} in the sense that neither is inferred from the
+     * other, but not co-occurring today: a run stopped by the resource limit throws out of
+     * {@code dfs()} before the INCOMPLETE trace is emitted, so it reports
+     * {@code limitExceeded() == true} and {@code hasIncomplete() == false}. Neither flag says
+     * anything about whether the preemption bound was reached in a resource-limited run.
+     *
+     * @return true if the search was truncated by its preemption bound
+     */
+    public boolean hasIncomplete() {
+        return !incompleteTraces.isEmpty();
+    }
+
+    /**
+     * Returns whether this run was stopped by a resource limit rather than by exhausting the
+     * state space.
+     *
+     * <p>Distinct from {@link #hasIncomplete()}: a resource limit aborts the search outright and
+     * yields no INCOMPLETE trace, so a limited run asserts nothing about completeness.
+     *
+     * @return true if the run was truncated by a resource limit
+     */
     public boolean limitExceeded() {
         return limitExceeded;
     }
@@ -73,7 +121,10 @@ public final class TestResult implements Serializable {
         sb.append("  \"limitExceeded\": ").append(limitExceeded).append(",\n");
         sb.append("  \"failingTraces\": ").append(jsonTraces(failingTraces)).append(",\n");
         sb.append("  \"deadlockedTraces\": ").append(jsonTraces(deadlockedTraces)).append(",\n");
-        sb.append("  \"completedTraces\": ").append(jsonTraces(completedTraces)).append("\n");
+        sb.append("  \"completedTraces\": ").append(jsonTraces(completedTraces)).append(",\n");
+        // Emitted unconditionally, including as [] when empty, so the JSON shape does not depend
+        // on the result's content. Consumers can then branch on the key without checking presence.
+        sb.append("  \"incompleteTraces\": ").append(jsonTraces(incompleteTraces)).append("\n");
         sb.append("}\n");
         return sb.toString();
     }

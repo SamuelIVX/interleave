@@ -91,7 +91,8 @@ function capName(s){
 
 /**
  * Normalize any supported raw JSON payload into a {trace, meta} pair.
- * Supports TraceRecord {threads}, ReportWriter {benchmarks}, and TestResult {failingTraces}.
+ * Supports TraceRecord {threads}, ReportWriter {benchmarks}, and TestResult
+ * {failingTraces|deadlockedTraces|completedTraces|incompleteTraces}.
  * SECURITY: treats all fields as untrusted — never uses innerHTML, validates shapes.
  * @param {*} raw - parsed JSON payload
  * @returns {{trace: Object, meta: Object}} normalized trace and metadata
@@ -113,9 +114,15 @@ function normalize(raw){
     }
     return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
   }
-  if(Array.isArray(raw.failingTraces) || Array.isArray(raw.deadlockedTraces) || Array.isArray(raw.completedTraces)){
+  if(Array.isArray(raw.failingTraces) || Array.isArray(raw.deadlockedTraces) || Array.isArray(raw.completedTraces) || Array.isArray(raw.incompleteTraces)){
     const pick = (arr) => arr && arr.length ? arr[0] : null;
-    let tr = pick(raw.failingTraces) || pick(raw.deadlockedTraces) || pick(raw.completedTraces);
+    // Precedence mirrors cbVerdict: a conclusive failure wins, then DEADLOCK, then INCOMPLETE,
+    // then a completed schedule. A run that found a violation must show the violation, not the
+    // partial schedule that came with it. INCOMPLETE outranks a completed schedule because a
+    // bounded run produces both, and rendering the completed one drops the run's boundedness:
+    // the viewer would present a partial exploration as an exhaustive PASS. A completed schedule
+    // is the fallback and is only reached when the search genuinely was exhaustive.
+    let tr = pick(raw.failingTraces) || pick(raw.deadlockedTraces) || pick(raw.incompleteTraces) || pick(raw.completedTraces);
     if(!tr) {
       const incomplete = raw.limitExceeded === true && !raw.hasViolation;
       const verdict = raw.hasViolation ? 'VIOLATION' : incomplete ? 'LIMIT EXCEEDED' : 'PASS';
@@ -124,10 +131,14 @@ function normalize(raw){
     const threads = tr.threads || tr.threadIds;
     if(!Array.isArray(threads)) throw new Error('failingTraces[0] missing threads/threadIds');
     const incomplete = raw.limitExceeded === true && !raw.hasViolation;
+    // LIMIT EXCEEDED (a resource limit stopped the search) and INCOMPLETE (a preemption bound
+    // did) are different states and are never merged: the latter arrives here as tr.outcome.
+    // Rendering a bounded run that proved nothing as PASS is the most misleading thing this
+    // viewer can do, so it must not be reachable.
     const outcome = incomplete ? 'LIMIT EXCEEDED' : (tr.outcome || (raw.hasViolation ? 'VIOLATION' : 'PASS'));
     return { trace: { threads, outcomes: tr.outcomes, outcome, programHash: tr.programHash, states: tr.states }, meta: { verdict: outcome, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, hasViolation: raw.hasViolation, limitExceeded: raw.limitExceeded === true } };
   }
-  throw new Error('Unrecognized shape — expected TraceRecord {threads}, TestResult {failingTraces}, or ReportWriter {benchmarks}.');
+  throw new Error('Unrecognized shape — expected TraceRecord {threads}, TestResult {failingTraces|incompleteTraces}, or ReportWriter {benchmarks}.');
 }
 
 /**

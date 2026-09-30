@@ -62,7 +62,7 @@
   </section>
 
   <footer>
-    Static viewer. Handles <code>threads</code> / <code>threadIds</code>, <code>failingTraces</code> / <code>failingTrace</code>, <code>outcomes</code> present or absent. State values are schedule-only today — shows header from program JSON with graceful placeholder until a harness emits <code>states[]</code>.
+    Static viewer. Handles <code>threads</code> / <code>threadIds</code>, <code>failingTraces</code> / <code>failingTrace</code> / <code>incompleteTraces</code>, <code>outcomes</code> present or absent. <code>INCOMPLETE</code> (a preemption bound was reached) and <code>LIMIT EXCEEDED</code> (a resource limit stopped the search) are shown as distinct verdicts, never as <code>PASS</code>. State values are schedule-only today — shows header from program JSON with graceful placeholder until a harness emits <code>states[]</code>.
   </footer>
 </div>
 <script src="visualizer.js"></script>

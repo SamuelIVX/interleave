@@ -73,19 +73,28 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 ./gradlew test
 ```
 
-## Current benchmark results (2026-09-13)
+## Current benchmark results (2026-09-29)
 
-| Program | DFS (exact) | DFS (bitstate) | Static POR (exact) | Static POR (bitstate) | DPOR (exact) | DPOR (bitstate) | Verdict |
-|---------|-------------|----------------|---------------------|------------------------|--------------|-----------------|---------|
-| peterson | 42 | 42 | 18 (57%↓) | 18 (57%↓) | 38 | 38 | PASS |
-| broken-peterson | 46 | 46 | 15 (67%↓) | 15 (67%↓) | 46 | 46 | VIOLATION |
-| broken-peterson-v2 | 46 | 46 | 12 (74%↓) | 12 (74%↓) | 46 | 46 | VIOLATION |
-| deadlock | 15 | 15 | 15 | 15 | 15 | 15 | DEADLOCK |
-| double-checked-locking | 17 | 17 | 14 (18%↓) | 14 (18%↓) | 17 | 17 | VIOLATION |
-| lost-update | 13 | 13 | 9 (31%↓) | 9 (31%↓) | 13 | 13 | VIOLATION |
-| torn-counter | 8 | 8 | 8 | 8 | 8 | 8 | VIOLATION |
+State counts with the exact store. CBS runs at K=2, where the search explores a superset of the
+configurations at that bound rather than a reduction — see the tradeoff note below.
 
-Soundness attestation: all failing traces replay to genuine violations.
+| Program | DFS | Static POR | DPOR | CBS (K=2) | Verdict (exhaustive) | Verdict (CBS) |
+|---------|-----|-----------|------|-----------|----------------------|---------------|
+| peterson | 42 | 18 (57%↓) | 38 (10%↓) | 65 | PASS | INCOMPLETE |
+| broken-peterson | 46 | 15 (67%↓) | 46 | 76 | VIOLATION | VIOLATION |
+| broken-peterson-v2 | 46 | 12 (74%↓) | 46 | 68 | VIOLATION | VIOLATION |
+| deadlock | 15 | 15 | 15 | 21 | DEADLOCK | DEADLOCK |
+| double-checked-locking | 17 | 14 (18%↓) | 17 | 31 | VIOLATION | VIOLATION |
+| lost-update | 13 | 9 (31%↓) | 13 | 17 | VIOLATION | VIOLATION |
+| torn-counter | 8 | 8 | 8 | 8 | VIOLATION | VIOLATION |
+
+Bitstate runs match their exact counterparts on this corpus — the state space is small enough that
+no collisions occur. Soundness attestation: all failing traces replay to genuine violations, and
+every buggy program is caught by CBS at K=2.
+
+`peterson` is the interesting row: correct, and therefore a `PASS` under exhaustive search, but
+`INCOMPLETE` under a bounded one. That is the correct answer — a bounded run that ran out of budget
+proved nothing about the region it pruned.
 
 ## Project structure
 
@@ -96,6 +105,7 @@ src/main/java/dev/samhb/interleave/
   state/       CanonicalEncoder, HashingStateStore, BitstateStore
   por/         IndependenceRelation, PersistentSetComputer, CycleProviso
   dpor/        DporExplorer, HappensBefore, SleepSet
+  cb/          ContextBoundedExplorer (CHESS-style preemption-bounded search)
   corpus/      CorpusGenerator, TemplateRegistry, CorpusEntry
   format/      JSON program loader + declarative DSL
   bugs/        Concurrency classics corpus (7 programs)
@@ -115,7 +125,7 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 - **Language:** Java 26+
 - **Build:** Gradle 8.11+
-- **Testing:** JUnit 5 (143 tests passing)
+- **Testing:** JUnit 5 (`./gradlew test`)
 - **Algorithm references:** [Holzmann SPIN](https://spinroot.com/spin/Man/README.html), [Clarke/Grumberg/Peled Model Checking](https://mitpress.mit.edu/9780262032701/model-checking/), [Flanagan & Godefroid DPOR (POPL 2005)](https://dl.acm.org/doi/10.1145/1047659.1047676), [Godefroid thesis (LNCS 1032)](https://link.springer.com/book/10.1007/BFb0055379)
 
 ## Bitstate Mode
@@ -193,37 +203,41 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 - DPOR uses exhaustive DFS path for invariants (`explore(program, invariant)` → `dfsDfs()`)
 - Removed dead `dfsDfs` from `StaticPorExplorer`, restored it in `DporExplorer`
 
-### Planned: Context-Bounded Search (Spec 11, not yet implemented)
-
-**Status: specified, not implemented.** The commands below are the target CLI contract from
-[`docs/specs/active/11-context-bounded/`](docs/specs/active/11-context-bounded/) and **will not work yet**.
-The flags `--strategy CONTEXT_BOUNDED`, `--max-preemptions N`, and `--iterative-deepening` do not exist in
-the current build.
+### Context-Bounded Search (Spec 11)
 
 Context-bounded search (CHESS-style) systematically explores all interleavings up to a configurable number of **preemptive context switches** (bound K). A preemption occurs when the scheduler switches away from a thread that *could have continued* (i.e., was still enabled). Forced switches (previous thread blocked/terminated) do not count toward the bound.
 
-**Tradeoffs:**
-- **Massive state reduction** — explores O(n^K) instead of O(n!) interleavings
-- **Incomplete by design** — bugs requiring >K preemptions are missed
-- **Sweet spot: K=2** — empirical studies show most real concurrency bugs manifest within 2 preemptions
-
-**When to use:**
-- Quick bug-finding on large state spaces
-- Screening before exhaustive verification
-- Programs where deep interleavings are unlikely to produce new bugs
-
-**Reports will include:**
-- States explored vs DFS/DPOR baselines
-- A verdict that may be `INCOMPLETE` when the preemption bound was reached without exhausting the state space
-
-**Planned CLI usage** (once implemented):
 ```bash
 # Run CBS on a single program
 ./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 2 --json"
 
 # Run CBS on entire corpus
 ./gradlew run --args="--all --strategy CONTEXT_BOUNDED --max-preemptions 2"
+
+# Deepen until the first failure, reporting the minimal bound that found it
+# --store exact is required above K=2: see the note on bitstate below
+./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --store exact --max-preemptions 3 --iterative-deepening"
 ```
+
+**Reading the verdict.** A bounded run that exhausts its preemption bound without finding a bug
+reports `INCOMPLETE`, never `PASS` — it proved nothing about the pruned region. A bitstate run at
+any bound reports `APPROXIMATE_PASS` or `INCOMPLETE` rather than `PASS`, because Bloom collisions
+can prune real states. The CLI therefore **refuses** a bound above 2 combined with bitstate and
+tells you to pass `--store exact`, rather than emitting a row whose verdict cannot be interpreted.
+
+**Cost-aware deduplication.** States are recorded with the *least* preemption budget at which they
+were reached, so a deeper bound is never pruned by a shallower one. Iterative deepening requires a
+fresh `StateStore` per bound and rejects a factory that reuses one; a shared visited set would make
+deepening narrow instead of widen.
+
+**Tradeoffs:**
+- **State reduction is not automatic** — on this corpus CBS explores *more* configurations than
+  plain DFS (e.g. `peterson` 65 vs 42 at K=2), because the extra `(config, lastThreadId)` dimension
+  fragments what DFS deduplicates. The win is bounded exploration, not fewer states, and the
+  reduction table renders these as bare counts rather than negative percentages.
+- **Incomplete by design** — bugs requiring >K preemptions are missed
+- **Sweet spot: K=2** — every buggy program in the corpus is caught at K=2, and `peterson` (which
+  is correct) is the one that reports `INCOMPLETE`
 
 ## JSON Program Definition Format
 

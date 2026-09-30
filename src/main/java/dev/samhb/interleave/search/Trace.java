@@ -26,6 +26,22 @@ public final class Trace implements Serializable {
         return new Trace(threadIds, outcomes, outcome);
     }
 
+    /**
+     * Creates a trace describing a context-bounded search that ran out of preemption budget.
+     *
+     * <p>Both lists must come from a single snapshot of the live search path. The constructor
+     * rejects mismatched lengths, and because the DFS path lists are mutated in place and popped
+     * as the search unwinds, assembling {@code threadIds} at one moment and {@code outcomes} at
+     * another is an easy way to produce a trace that is either rejected or meaningless.
+     *
+     * @param threadIds the scheduled thread ids of the partial schedule
+     * @param outcomes the step outcomes of the partial schedule
+     * @return a new {@link Trace} with outcome {@link TraceOutcome#INCOMPLETE}
+     */
+    public static Trace incomplete(List<Integer> threadIds, List<StepOutcome> outcomes) {
+        return new Trace(threadIds, outcomes, TraceOutcome.INCOMPLETE);
+    }
+
     public List<Integer> threadIds() {
         return threadIds;
     }

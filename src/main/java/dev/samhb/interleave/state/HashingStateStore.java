@@ -15,6 +15,8 @@ public final class HashingStateStore implements StateStore, Serializable {
     private final CanonicalEncoder encoder;
     private final Set<Integer> visitedHashes;
     private final Set<String> visitedStates;
+    private final Set<Integer> preemptionHashes;
+    private final Map<String, Integer> minPreemptions;
 
     /**
      * Creates a new exact state store.
@@ -23,6 +25,8 @@ public final class HashingStateStore implements StateStore, Serializable {
         this.encoder = new CanonicalEncoder();
         this.visitedHashes = new HashSet<>();
         this.visitedStates = new HashSet<>();
+        this.preemptionHashes = new HashSet<>();
+        this.minPreemptions = new HashMap<>();
     }
 
     @Override
@@ -47,6 +51,31 @@ public final class HashingStateStore implements StateStore, Serializable {
     public void clear() {
         visitedHashes.clear();
         visitedStates.clear();
+        preemptionHashes.clear();
+        minPreemptions.clear();
+    }
+
+    @Override
+    public boolean isVisited(Configuration config, int lastThreadId, int preemptions) {
+        // Two-level scheme, same shape as the single-argument path: the cheap hash prefilter runs
+        // first so a state that was never marked never pays for the Base64 encoding. The prefilter
+        // set is deliberately separate from visitedHashes because the two paths hash different
+        // things (the preemption hash folds in lastThreadId) -- sharing one set would make each
+        // path's misses desynchronize the other's prefilter.
+        if (!preemptionHashes.contains(preemptionHash(config, lastThreadId))) {
+            return false;
+        }
+        Integer min = minPreemptions.get(preemptionKey(config, lastThreadId));
+        // Visited at budget p iff some recorded q satisfies q <= p, which holds iff min(q) <= p.
+        return min != null && min <= preemptions;
+    }
+
+    @Override
+    public void markVisited(Configuration config, int lastThreadId, int preemptions) {
+        preemptionHashes.add(preemptionHash(config, lastThreadId));
+        // Only the minimum budget matters: any higher count is subsumed by it, and keeping the
+        // minimum is what makes isVisited O(1) instead of a scan over every recorded count.
+        minPreemptions.merge(preemptionKey(config, lastThreadId), preemptions, Math::min);
     }
 
     /**
@@ -56,6 +85,17 @@ public final class HashingStateStore implements StateStore, Serializable {
      */
     public int size() {
         return visitedStates.size();
+    }
+
+    /**
+     * Returns the number of distinct {@code (config, lastThreadId)} pairs recorded by the
+     * preemption-aware API. Each pair is stored once regardless of how many different preemption
+     * counts reached it.
+     *
+     * @return count of distinct preemption-aware entries
+     */
+    public int preemptionEntryCount() {
+        return minPreemptions.size();
     }
 
     private int hashCode(Configuration config) {
@@ -68,6 +108,14 @@ public final class HashingStateStore implements StateStore, Serializable {
         String stateEncoded = Base64.getEncoder().encodeToString(encoder.encode(config.state()));
         String pcEncoded = config.programCounters().toString();
         return stateEncoded + "|" + pcEncoded;
+    }
+
+    private int preemptionHash(Configuration config, int lastThreadId) {
+        return 31 * hashCode(config) + lastThreadId;
+    }
+
+    private String preemptionKey(Configuration config, int lastThreadId) {
+        return encode(config) + "|" + lastThreadId;
     }
 
     @Override

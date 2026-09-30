@@ -2,6 +2,7 @@ package dev.samhb.interleave.state;
 
 import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.search.StateStore;
+import java.util.Arrays;
 import java.util.BitSet;
 
 /**
@@ -23,6 +24,9 @@ public final class BitstateStore implements StateStore {
     private final int size;
     private final int numHashFunctions;
     private int statesMarked;
+    private final BitSet[] preemptionBitsets;
+    private final int maxPreemptions;
+    private int preemptionStatesMarked;
 
     /**
      * Creates a bitstate store with the default of 4 hash functions.
@@ -36,23 +40,51 @@ public final class BitstateStore implements StateStore {
 
     /**
      * Creates a bitstate store with a custom bit-array size and number of hash functions.
+     * Preemption capacity defaults to 2, which is enough for a context-bounded search at K=2.
      *
      * @param size the bit-array size (number of bits); must be positive
      * @param numHashFunctions the number of hash functions (k); must be positive
      * @throws IllegalArgumentException if size or numHashFunctions is not positive
      */
     public BitstateStore(int size, int numHashFunctions) {
+        this(size, numHashFunctions, 2);
+    }
+
+    /**
+     * Creates a bitstate store that can also represent preemption counts for context-bounded
+     * search. One bit-vector is allocated per preemption count from 0 to {@code maxPreemptions}
+     * inclusive, so memory grows linearly with the bound.
+     *
+     * <p>The capacity is a hard limit, not a hint. A context-bounded search asking for a bound
+     * above this value cannot be represented, and the explorer rejects that rather than silently
+     * weakening the search.
+     *
+     * @param size the bit-array size (number of bits) per preemption level; must be positive
+     * @param numHashFunctions the number of hash functions (k); must be positive
+     * @param maxPreemptions the highest preemption count this store can represent; must not be negative
+     * @throws IllegalArgumentException if any argument is out of range
+     */
+    public BitstateStore(int size, int numHashFunctions, int maxPreemptions) {
         if (size <= 0) {
             throw new IllegalArgumentException("size must be positive");
         }
         if (numHashFunctions <= 0) {
             throw new IllegalArgumentException("numHashFunctions must be positive");
         }
+        if (maxPreemptions < 0) {
+            throw new IllegalArgumentException("maxPreemptions must not be negative");
+        }
         this.encoder = new CanonicalEncoder();
         this.size = size;
         this.numHashFunctions = numHashFunctions;
+        this.maxPreemptions = maxPreemptions;
         this.bitset = new BitSet(size);
         this.statesMarked = 0;
+        // Allocated lazily. A store used only for DFS/POR/DPOR never touches these, and eagerly
+        // allocating maxPreemptions+1 full bit-vectors would add a few hundred KB per store for
+        // every existing caller that never runs a context-bounded search.
+        this.preemptionBitsets = new BitSet[maxPreemptions + 1];
+        this.preemptionStatesMarked = 0;
     }
 
     @Override
@@ -79,6 +111,85 @@ public final class BitstateStore implements StateStore {
     public void clear() {
         bitset.clear();
         statesMarked = 0;
+        Arrays.fill(preemptionBitsets, null);
+        preemptionStatesMarked = 0;
+    }
+
+    @Override
+    public boolean isVisited(Configuration config, int lastThreadId, int preemptions) {
+        requirePreemptionInRange(preemptions);
+        int[] indices = preemptionHashIndices(config, lastThreadId);
+        // Visited at budget p iff some recorded level q satisfies q <= p -- the same rule
+        // HashingStateStore implements with a stored minimum. A state first reached using fewer
+        // preemptions was explored with more budget remaining, so it subsumes this search and
+        // re-exploring it would be wasted work.
+        //
+        // Checking only level p would be merely wasteful, but it would also make the two stores
+        // answer this one method differently, so a search's behaviour would depend on which store
+        // the caller happened to pass.
+        for (int level = 0; level <= preemptions; level++) {
+            BitSet target = preemptionBitsets[level];
+            if (target == null) {
+                continue;   // never marked at this level
+            }
+            boolean allSet = true;
+            for (int idx : indices) {
+                if (!target.get(idx)) {
+                    allSet = false;
+                    break;
+                }
+            }
+            if (allSet) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @Override
+    public void markVisited(Configuration config, int lastThreadId, int preemptions) {
+        BitSet target = preemptionBitset(preemptions);
+        int[] indices = preemptionHashIndices(config, lastThreadId);
+        for (int idx : indices) {
+            target.set(idx);
+        }
+        preemptionStatesMarked++;
+    }
+
+    private void requirePreemptionInRange(int preemptions) {
+        if (preemptions < 0 || preemptions > maxPreemptions) {
+            throw new IllegalArgumentException(
+                "preemption count " + preemptions + " is outside this store's capacity [0, "
+                + maxPreemptions + "]; construct the store as new BitstateStore(size, k, maxPreemptions)");
+        }
+    }
+
+    private BitSet preemptionBitset(int preemptions) {
+        requirePreemptionInRange(preemptions);
+        BitSet existing = preemptionBitsets[preemptions];
+        if (existing == null) {
+            existing = new BitSet(size);
+            preemptionBitsets[preemptions] = existing;
+        }
+        return existing;
+    }
+
+    /**
+     * Returns the highest preemption count this store can represent.
+     *
+     * @return the configured preemption capacity
+     */
+    public int maxPreemptions() {
+        return maxPreemptions;
+    }
+
+    /**
+     * Returns the number of states marked through the preemption-aware API.
+     *
+     * @return the count of preemption-aware marks
+     */
+    public int preemptionStatesMarked() {
+        return preemptionStatesMarked;
     }
 
     /**
@@ -109,36 +220,82 @@ public final class BitstateStore implements StateStore {
     }
 
     /**
-     * Returns the number of bits currently set in the bit vector.
+     * Returns the number of bits set across every bit vector this store owns.
      *
-     * @return the cardinality of the bit set
+     * <p>A context-bounded search marks only in the per-preemption vectors, never in the main one.
+     * Counting just the main vector would report zero for those runs, which is the same fabricated
+     * "no false positives" claim as an empty store. Vectors are allocated lazily, so a store used
+     * only for DFS/POR/DPOR still reports exactly what it did before.
+     *
+     * @return total bit cardinality
      */
     public int bitCount() {
-        return bitset.cardinality();
+        int total = bitset.cardinality();
+        for (BitSet preemptionBitset : preemptionBitsets) {
+            if (preemptionBitset != null) {
+                total += preemptionBitset.cardinality();
+            }
+        }
+        return total;
     }
 
     /**
-     * Returns the fraction of bits set in the bit vector.
+     * Returns the fraction of bits set across every vector this store actually wrote to.
+     *
+     * <p>The denominator counts only vectors in use. A context-bounded run marks exclusively in
+     * the per-preemption vectors and never in the main one, so counting the main vector regardless
+     * would understate density by the ratio of allocated to used vectors -- a K=0 bounded run
+     * would report exactly half its true density.
      *
      * @return bit density in [0, 1]
      */
     public double bitDensity() {
-        return (double) bitCount() / size;
+        int vectors = vectorsInUse();
+        if (vectors == 0) return 0.0;
+        return (double) bitCount() / ((double) size * vectors);
+    }
+
+    /**
+     * Counts the bit vectors that hold at least one mark, so capacity metrics divide by the
+     * capacity actually consumed rather than the capacity allocated.
+     *
+     * <p>The main vector counts only when {@link #statesMarked()} is non-zero; a store used purely
+     * for context-bounded search allocates it but never marks it.
+     *
+     * @return number of vectors in use
+     */
+    private int vectorsInUse() {
+        return (statesMarked > 0 ? 1 : 0) + allocatedPreemptionVectors();
+    }
+
+    private int allocatedPreemptionVectors() {
+        int count = 0;
+        for (BitSet preemptionBitset : preemptionBitsets) {
+            if (preemptionBitset != null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
      * Estimates the false-positive rate using the standard Bloom filter formula:
-     * {@code (1 - e^(-k * n / m))^k} where {@code m = size}, {@code n = statesMarked},
-     * {@code k = numHashFunctions}.
+     * {@code (1 - e^(-k * n / m))^k} where {@code m} is the total capacity of the vectors in use,
+     * {@code n} is the total number of marks, and {@code k = numHashFunctions}.
+     *
+     * <p>Counts are aggregated across all owned vectors, since a context-bounded run marks into
+     * several of them. {@code m} is sized by {@link #vectorsInUse()} rather than by the allocated
+     * vector count, so a run that never touches the main vector is not charged for it; charging
+     * for it would halve the modelled load factor and understate the estimated false-positive rate.
      *
      * @return estimated false-positive probability in [0, 1]
      */
     public double estimatedFalsePositiveRate() {
-        if (statesMarked == 0) {
+        long n = (long) statesMarked + preemptionStatesMarked;
+        if (n == 0) {
             return 0.0;
         }
-        double m = size;
-        double n = statesMarked;
+        double m = (double) size * vectorsInUse();
         double k = numHashFunctions;
         double prob = 1.0 - Math.exp(-k * n / m);
         return Math.pow(prob, k);
@@ -146,7 +303,10 @@ public final class BitstateStore implements StateStore {
 
     @Override
     public StateStore freshCopy() {
-        return new BitstateStore(size, numHashFunctions);
+        // Capacity must carry over. A copy that silently reset maxPreemptions to the 2-argument
+        // default would under-report states explored for K > 2 and then trip the explorer's
+        // capacity assertion.
+        return new BitstateStore(size, numHashFunctions, maxPreemptions);
     }
 
     /**
@@ -161,15 +321,26 @@ public final class BitstateStore implements StateStore {
      * @return array of k bit indices in [0, size)
      */
     private int[] hashIndices(Configuration config) {
-        int h1 = hashCode(config);
+        return doubleHash(hashCode(config));
+    }
+
+    /**
+     * Computes the k bit indices for a preemption-aware lookup. The primary hash folds in
+     * {@code lastThreadId} so that the same configuration reached by different threads does not
+     * collide, and a separate bit-vector per preemption count keeps the budgets independent.
+     */
+    private int[] preemptionHashIndices(Configuration config, int lastThreadId) {
+        return doubleHash(31 * hashCode(config) + lastThreadId);
+    }
+
+    private int[] doubleHash(int h1) {
         int h2 = Integer.rotateLeft(h1, 17);
         if (h2 == 0) {
             h2 = 1;
         }
         int[] indices = new int[numHashFunctions];
         for (int i = 0; i < numHashFunctions; i++) {
-            int val = h1 + i * h2;
-            indices[i] = Math.floorMod(val, size);
+            indices[i] = Math.floorMod(h1 + i * h2, size);
         }
         return indices;
     }

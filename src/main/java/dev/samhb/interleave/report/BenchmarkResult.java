@@ -18,6 +18,7 @@ public final class BenchmarkResult {
     private final double estimatedFalsePositiveRate;
     private final int bitstateBitCount;
     private final double bitstateBitDensity;
+    private final Integer preemptionsUsed;
 
     /**
      * Creates a result with the exact store type (backward compatible).
@@ -31,7 +32,7 @@ public final class BenchmarkResult {
      */
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict) {
-        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, StoreType.EXACT, 0.0, 0, 0.0);
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, StoreType.EXACT, 0.0, 0, 0.0, null);
     }
 
     /**
@@ -48,7 +49,7 @@ public final class BenchmarkResult {
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict,
                            Trace failingTrace) {
-        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace, StoreType.EXACT, 0.0, 0, 0.0);
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace, StoreType.EXACT, 0.0, 0, 0.0, null);
     }
 
     /**
@@ -65,7 +66,7 @@ public final class BenchmarkResult {
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict,
                            StoreType storeType) {
-        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, storeType, 0.0, 0, 0.0);
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, null, storeType, 0.0, 0, 0.0, null);
     }
 
     /**
@@ -83,7 +84,7 @@ public final class BenchmarkResult {
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict,
                            Trace failingTrace, StoreType storeType) {
-        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace, storeType, 0.0, 0, 0.0);
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace, storeType, 0.0, 0, 0.0, null);
     }
 
     /**
@@ -106,6 +107,22 @@ public final class BenchmarkResult {
                            Trace failingTrace, StoreType storeType,
                            double estimatedFalsePositiveRate, int bitstateBitCount,
                            double bitstateBitDensity) {
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict, failingTrace,
+             storeType, estimatedFalsePositiveRate, bitstateBitCount, bitstateBitDensity, null);
+    }
+
+    /**
+     * Full constructor including the preemption bound that produced this row.
+     *
+     * @param preemptionsUsed the preemption bound the search actually ran at, or null for
+     *        strategies that have no bound. Boxed because {@code null} is meaningful and must stay
+     *        distinct from {@code 0}, which is a legal bound.
+     */
+    public BenchmarkResult(String strategy, String bugName, long statesExplored,
+                           long wallTimeMs, long heapDeltaBytes, String verdict,
+                           Trace failingTrace, StoreType storeType,
+                           double estimatedFalsePositiveRate, int bitstateBitCount,
+                           double bitstateBitDensity, Integer preemptionsUsed) {
         this.strategy = strategy;
         this.bugName = bugName;
         this.statesExplored = statesExplored;
@@ -117,6 +134,7 @@ public final class BenchmarkResult {
         this.estimatedFalsePositiveRate = estimatedFalsePositiveRate;
         this.bitstateBitCount = bitstateBitCount;
         this.bitstateBitDensity = bitstateBitDensity;
+        this.preemptionsUsed = preemptionsUsed;
     }
 
     /**
@@ -219,5 +237,19 @@ public final class BenchmarkResult {
      */
     public double bitstateBitDensity() {
         return bitstateBitDensity;
+    }
+
+    /**
+     * Returns the preemption bound that produced this row, or null for strategies that have no
+     * bound.
+     *
+     * <p>This is the bound the search actually ran at, which under iterative deepening is the
+     * minimal K that produced the result -- not the configured ceiling. Reporting the ceiling
+     * after the search stopped early would misstate how much was explored.
+     *
+     * @return the preemption bound, or null if not applicable
+     */
+    public Integer preemptionsUsed() {
+        return preemptionsUsed;
     }
 }

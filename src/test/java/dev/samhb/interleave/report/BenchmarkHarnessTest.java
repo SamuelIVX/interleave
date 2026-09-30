@@ -13,7 +13,7 @@ class BenchmarkHarnessTest {
         BenchmarkHarness harness = new BenchmarkHarness();
         List<BenchmarkResult> results = harness.runAll();
         
-        assertTrue(results.size() >= 4, "Should have at least 4 results (1 bug x 3 strategies)");
+        assertTrue(results.size() >= 4, "Should have at least 4 results (1 bug x 2 strategies x 2 stores)");
     }
 
     @Test
@@ -21,6 +21,10 @@ class BenchmarkHarnessTest {
         BenchmarkHarness harness = new BenchmarkHarness();
         List<BenchmarkResult> results = harness.runAll();
         
+        // Deliberate filter, unchanged by context-bounded search. Its purpose is to exercise the
+        // attestation over trace-producing rows only, and the point of leaving it alone is that
+        // bitstate DFS/POR/DPOR verdicts must stay "PASS" -- cbVerdict was added as a separate
+        // helper precisely so this assertion would keep holding.
         List<BenchmarkResult> traceProducingResults = results.stream()
             .filter(r -> r.failingTrace().isPresent() || !"PASS".equals(r.verdict()))
             .toList();
@@ -67,11 +71,11 @@ class BenchmarkHarnessTest {
         BenchmarkProgram program = BugCorpus.all().get(0); // peterson
         List<BenchmarkResult> results = harness.runProgram(program);
         
-        // Should have 6 results: 3 strategies x 2 store types
-        assertEquals(6, results.size(), "Should have 6 results per program");
+        // Should have 8 results: 4 strategies x 2 store types
+        assertEquals(8, results.size(), "Should have 8 results per program");
         
         // Check both store types are present for each strategy
-        String[] strategies = {"DFS", "STATIC_POR", "DPOR"};
+        String[] strategies = {"DFS", "STATIC_POR", "DPOR", "CONTEXT_BOUNDED"};
         for (String strategy : strategies) {
             long exactCount = results.stream()
                 .filter(r -> r.strategy().equals(strategy) && r.storeType() == StoreType.EXACT)
@@ -90,15 +94,15 @@ class BenchmarkHarnessTest {
         List<BenchmarkResult> results = harness.runAll();
         
         int expectedPrograms = BugCorpus.all().size();
-        assertEquals(expectedPrograms * 6, results.size(), 
-            "Should have 6 results per program (" + expectedPrograms + " programs)");
+        assertEquals(expectedPrograms * 8, results.size(), 
+            "Should have 8 results per program (" + expectedPrograms + " programs)");
         
         // Verify all programs have both store types
         for (BenchmarkProgram program : BugCorpus.all()) {
             long programResults = results.stream()
                 .filter(r -> r.bugName().equals(program.name()))
                 .count();
-            assertEquals(6, programResults, program.name() + " should have 6 results");
+            assertEquals(8, programResults, program.name() + " should have 8 results");
             
             // Check EXACT and BITSTATE both present
             assertTrue(results.stream()
