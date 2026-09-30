@@ -116,9 +116,13 @@ function normalize(raw){
   }
   if(Array.isArray(raw.failingTraces) || Array.isArray(raw.deadlockedTraces) || Array.isArray(raw.completedTraces) || Array.isArray(raw.incompleteTraces)){
     const pick = (arr) => arr && arr.length ? arr[0] : null;
-    // incompleteTraces comes last, after the three conclusive buckets. A run that found a
-    // violation should show the violation, not the partial schedule that came with it.
-    let tr = pick(raw.failingTraces) || pick(raw.deadlockedTraces) || pick(raw.completedTraces) || pick(raw.incompleteTraces);
+    // Precedence mirrors cbVerdict: a conclusive failure wins, then DEADLOCK, then INCOMPLETE,
+    // then a completed schedule. A run that found a violation must show the violation, not the
+    // partial schedule that came with it. INCOMPLETE outranks a completed schedule because a
+    // bounded run produces both, and rendering the completed one drops the run's boundedness:
+    // the viewer would present a partial exploration as an exhaustive PASS. A completed schedule
+    // is the fallback and is only reached when the search genuinely was exhaustive.
+    let tr = pick(raw.failingTraces) || pick(raw.deadlockedTraces) || pick(raw.incompleteTraces) || pick(raw.completedTraces);
     if(!tr) {
       const incomplete = raw.limitExceeded === true && !raw.hasViolation;
       const verdict = raw.hasViolation ? 'VIOLATION' : incomplete ? 'LIMIT EXCEEDED' : 'PASS';

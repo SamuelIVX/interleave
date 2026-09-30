@@ -29,7 +29,7 @@ const check = (name, raw, expected) => {
 check('incomplete-only', JSON.parse(read('examples/traces/incomplete-only.json','utf8')), 'INCOMPLETE');
 check('limit-exceeded (not merged)', {failingTraces:[],deadlockedTraces:[],completedTraces:[],incompleteTraces:[],limitExceeded:true,hasViolation:false}, 'LIMIT EXCEEDED');
 check('violation still wins over incomplete', {failingTraces:[{threads:[0],outcomes:['ADVANCED'],outcome:'VIOLATION'}],incompleteTraces:[{threads:[1],outcomes:['ADVANCED'],outcome:'INCOMPLETE'}],hasViolation:true,limitExceeded:false}, 'VIOLATION');
-check('completed still wins over incomplete', {failingTraces:[],deadlockedTraces:[],completedTraces:[{threads:[0,0],outcomes:['ADVANCED','ADVANCED'],outcome:'COMPLETED'}],incompleteTraces:[{threads:[1],outcomes:['ADVANCED'],outcome:'INCOMPLETE'}],hasViolation:false,limitExceeded:false}, 'COMPLETED');
+check('incomplete wins over completed (bounded run must not read as exhaustive)', {failingTraces:[],deadlockedTraces:[],completedTraces:[{threads:[0,0],outcomes:['ADVANCED','ADVANCED'],outcome:'COMPLETED'}],incompleteTraces:[{threads:[1],outcomes:['ADVANCED'],outcome:'INCOMPLETE'}],hasViolation:false,limitExceeded:false}, 'INCOMPLETE');
 check('genuine pass unchanged', {failingTraces:[],deadlockedTraces:[],completedTraces:[],incompleteTraces:[],limitExceeded:false,hasViolation:false}, 'PASS');
 check('reportwriter benchmarks INCOMPLETE', {benchmarks:[{bug:'peterson',strategy:'CONTEXT_BOUNDED',verdict:'INCOMPLETE'}]}, 'INCOMPLETE');
 check('existing peterson fixture', JSON.parse(read('examples/traces/peterson.json','utf8')), 'PASS');
