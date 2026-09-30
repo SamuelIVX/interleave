@@ -249,8 +249,14 @@ public static TestResult quickCheck(Program program, int maxPreemptions, boolean
 - `run_CONTEXT_BOUNDED_maxStates_returnsPartialWithLimitExceeded()` — a limit trips mid-deepening and
   yields `limitExceeded=true` with partial traces, not an escaping `LimitExceededException`
 - `runIterativeDeepening_doesNotDeepenPastLimit()` — a `maxStates` budget is a **total** budget across all
-  K iterations, not per-iteration. A store-sharing supplier that returns the same instance would let the
-  search silently exceed the caller's budget while appearing to respect it.
+  K iterations, not per-iteration. Use **distinct** stores per K (a shared store throws, per
+  `sharedStoreFactory_throwsIllegalState()` below, so it cannot be what exercises this). The budget is
+  cumulative because every iteration receives the **same** `visitor` from `run()`, and
+  `createLimitEnforcingVisitor` holds one `long[] stateCount` counter that is never reset between
+  iterations. Assert the total across iterations is capped at `maxStates`, not each iteration independently
+- `runIterativeDeepening_budgetIsCumulativeAcrossBounds()` — a sharper form of the above: K=0 alone does not
+  consume the whole allowance, so the run continues to K=1 and *then* trips, returning
+  `limitExceeded=true` with partial traces
 - `runIterativeDeepening_storeFactoryUsedPerIteration()` — assert the factory is invoked once per K, so
   iterations cannot contaminate each other's visited set
 - `runIterativeDeepening_sharedStoreFactory_throwsIllegalState()` — a store that does not override

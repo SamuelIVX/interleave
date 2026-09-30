@@ -230,7 +230,17 @@ report that hides its bound is close to worse than no report at all.
 - new accessor `public Integer preemptionsUsed()`
 - one new constructor overload carrying the extra trailing `Integer preemptionsUsed` parameter
 - the four existing constructors delegate with `preemptionsUsed = null`, so **no existing caller changes**
-  and existing reports are byte-identical
+
+This changes the in-memory object model without changing any call site, but it is **not** output-neutral:
+`writeJson()` gains a key on every row (see **Rendering** below), so previously-generated JSON differs from
+newly-generated JSON even for programs with no CBS strategy. Stating this explicitly because "no caller
+changes" is easy to misread as "nothing downstream can notice".
+
+If byte-stable JSON is a hard requirement for some consumer (a checked-in report under `docs/`, an
+external dashboard), then the key must be **omitted** rather than emitted as `null` for non-CBS rows, and
+`writeJson_nonCbsRow_emitsNullPreemptionsUsed()` below becomes
+`writeJson_nonCbsRow_omitsPreemptionsUsed()`. Check for a committed report before implementing; this spec
+takes the always-emit-key option because `null` is easier for consumers to branch on than a missing key.
 
 **Threading the value.** `runProgramWithStore` builds the CBS result, so the bound it used is in scope
 there. `createResult` gains a trailing `Integer preemptionsUsed` parameter; every existing call site passes
@@ -240,15 +250,18 @@ exhausted the bound) — **not** the configured ceiling, since reporting the cei
 early at K=1 would misstate what was actually explored.
 
 **Rendering** — `ReportWriter.writeJson()` (`:95`) emits `"preemptionsUsed": null` for non-CBS rows so the
-key stays present and consumers do not need special-casing, and the integer on CBS rows.
+key stays present and consumers do not need special-casing, and the integer on CBS rows. **This is a
+deliberate output change to every JSON report**, not a no-op — see the note above.
 `StatesExploredTable` appends a `K` column showing the bound on CBS rows and `—` elsewhere; the value is
-not meaningful for a strategy that has no bound, and printing `0` would falsely imply one.
+not meaningful for a strategy that has no bound, and printing `0` would falsely imply one. The human-readable
+table gains a column for all rows, including pure-DFS runs where the cell is `—`.
 
 **Tests:**
 - `benchmarkResult_preemptionsUsed_defaultsToNull()` — existing constructors unchanged
 - `cbsResult_recordsPreemptionsUsed()` — a CBS run carries its K
 - `iterativeDeepening_reportsKThatProducedResult()` — stops at the minimal failing K, not the ceiling
-- `writeJson_nonCbsRow_emitsNullPreemptionsUsed()` — key present, value null
+- `writeJson_nonCbsRow_emitsNullPreemptionsUsed()` — key present, value null (rename per the note above
+  if output stability is required)
 - `statesExploredTable_cbsRow_showsK_nonCbsRow_showsDash()`
 
 ## Out of Scope
