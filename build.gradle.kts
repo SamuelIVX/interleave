@@ -123,8 +123,15 @@ val pitestTargetClasses = targetOverride ?: if (fullMutation) {
 val pitestTargetTests = listOf("dev.samhb.interleave.*")
 
 // One core reserved for the Gradle daemon, the minion launcher and the IDE.
-val requestedThreads = (findProperty("pitestThreads") as String?)?.toInt()
-    ?: (Runtime.getRuntime().availableProcessors() - 1).coerceAtLeast(1)
+// Clamped to at least one HERE, not at the point of use, because this value is consumed
+// twice downstream and only one of those uses is guarded. An explicit -PpitestThreads=0
+// reaches `memoryBudgetMb / requestedThreads` as a divisor and fails with a bare
+// ArithmeticException that names no property; a negative value divides without error and
+// then threads through to PIT. Both are typos, but the arithmetic one produces a
+// stack trace rather than a diagnosable message, and the fix is one coerceAtLeast here
+// rather than a guard at each use site.
+val requestedThreads = ((findProperty("pitestThreads") as String?)?.toInt()
+    ?: (Runtime.getRuntime().availableProcessors() - 1)).coerceAtLeast(1)
 
 // PER-MINION, not total: peak resident memory is roughly
 // pitestThreads * pitestMaxMemoryMc, and the aggregate is what can kill the box.
