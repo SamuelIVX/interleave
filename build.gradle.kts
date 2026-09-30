@@ -7,10 +7,17 @@ plugins {
     `maven-publish`
     java
     application
-    // Pinned deliberately BELOW the newest release. Newer plugin versions bundle a PIT
-    // that shadows this project's JUnit platform classes and silently breaks `gradle test`
-    // rather than failing loudly. 1.15.0 is the newest version known not to do that, and
-    // it can still drive a modern PIT via `pitestVersion` below.
+    // Newest published release, and the only one that can be used here at all.
+    //
+    // The obvious-looking alternative, pinning 1.15.0 to avoid a claimed JUnit-platform
+    // classpath conflict, does not work: 1.15.0 calls `reporting.baseDir`, removed in
+    // Gradle 9, so it fails at apply time before any configuration is evaluated. The
+    // conflict it was supposed to avoid does not materialise -- `./gradlew clean test`
+    // with this version is 353/353 green.
+    //
+    // `pitestVersion` below is what actually has to be pinned, and for the opposite
+    // reason: the plugin's bundled PIT defaults are far older than this project's
+    // Java 26 bytecode.
     id("info.solidsoft.pitest") version "1.19.0"
 }
 
@@ -155,7 +162,10 @@ val pitestThreads = requestedThreads.coerceAtMost(
 )
 
 pitest {
-    // Load-bearing: plugin 1.15.0's own default is far too old for Java 26 bytecode.
+    // The plugin's own default PIT is far too old for Java 26 bytecode (class file
+    // major 70). PIT shades ASM with no version override available, so this is a hard
+    // floor: if 1.30.0 ever fails to read the classes, the fix is lowering
+    // `options.release` and re-verifying the suite, not silently downgrading PIT.
     pitestVersion.set("1.30.0")
     junit5PluginVersion.set("1.2.3")
 
