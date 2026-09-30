@@ -3,9 +3,12 @@ package dev.samhb.interleave.core;
 /**
  * The result of attempting to take one step.
  *
- * <p>Only {@link #ADVANCED} denotes real progress. The remaining three all leave the thread's
- * program counter unmoved, so a scheduler that only chooses among {@code ADVANCED} steps explores
- * every reachable configuration without stalling.
+ * <p>{@link #BLOCKED} is the only outcome that leaves the thread's program counter unmoved;
+ * {@link Configuration#successor} advances it for every other result, {@link #TERMINATED}
+ * included. {@link #ASSERTION_FAILED} never actually reaches {@code successor} -- every explorer
+ * records the violation trace and ends that path as soon as it sees the outcome -- so the counter
+ * behaviour for that case is defined but unexercised. A scheduler that only chooses among
+ * {@code ADVANCED} steps still explores every reachable configuration without stalling.
  */
 public enum StepOutcome {
 
