@@ -2,9 +2,25 @@
 
 This directory contains the decomposed specification for implementing Context-Bounded Search (CBS) as the 4th exploration strategy in interleave.
 
-**Status: specified, not implemented.** Nothing in `src/` has changed. The CLI flags, library API, and
-benchmark columns described here do not exist in the current build. See [`../../../../README.md`](../../../../README.md)
-for the user-facing "Planned" note.
+**Status: shipped.** Implemented in the 7 commits on `feat/context-bounded-search`, landing in the
+order Spec 07 §7 requires. Verified against the 7-program corpus: every buggy program is caught at
+K=2, the correct program (`peterson`) reports `INCOMPLETE` rather than a pass, and the soundness
+attestation passes with all four strategies enabled.
+
+Two places where the implementation deliberately diverges from what these specs asked for, both
+recorded at the commit that made the change:
+
+- **Spec 05 §5** assumed CBS might explore fewer states than DFS. It does the opposite on this
+  corpus (`peterson` 65 vs 42 at K=2), because the extra `(config, lastThreadId)` dimension
+  fragments what plain DFS deduplicates. The table renders those rows as bare counts. The spec's
+  concern was real; its guess about the direction was not.
+- **Spec 07 §6** listed a JavaScript test harness as out of scope, to be filed as a follow-up.
+  `docs/visualizer-normalize-check.mjs` was added anyway, because the new `INCOMPLETE` branch in
+  `normalize()` is security-sensitive and would otherwise have had no automated guard at all. It
+  is an assertion script, not a test suite, and it is not wired into the build — the follow-up
+  still stands.
+
+See [`../../../../README.md`](../../../../README.md) for the user-facing documentation.
 
 ## Spec Set Structure
 
