@@ -240,7 +240,17 @@ public final class InterleaveRunner implements Serializable {
             if (isFailure(lastResult)) {
                 return lastResult; // minimal-K trace
             }
-            // INCOMPLETE or APPROXIMATE_PASS at this bound: deepen
+            // An INCOMPLETE trace at this bound is the only thing that justifies deepening: it
+            // proves the bound actually pruned something. Without one the search covered the whole
+            // reachable space, so every deeper bound re-explores that same space and returns the
+            // same verdict while the shared state counter keeps charging maxStates. Returning here
+            // is what stops a proven pass from being downgraded to limitExceeded by bounds that
+            // cannot change the answer.
+            boolean pruned = lastResult.traces().stream()
+                .anyMatch(t -> t.outcome() == TraceOutcome.INCOMPLETE);
+            if (!pruned) {
+                return lastResult; // exhaustive at k; deeper bounds are redundant
+            }
         }
         return lastResult;
     }

@@ -3,7 +3,10 @@ package dev.samhb.interleave;
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.bugs.BugCorpus;
 import dev.samhb.interleave.cb.ContextBoundedExplorer;
+import dev.samhb.interleave.core.ModelThread;
+import dev.samhb.interleave.core.PetersonState;
 import dev.samhb.interleave.core.Program;
+import dev.samhb.interleave.core.WriteFlagStep;
 import dev.samhb.interleave.search.DfsResult;
 import dev.samhb.interleave.search.Invariant;
 import dev.samhb.interleave.search.StateStore;
@@ -137,6 +140,52 @@ class ContextBoundedApiTest {
 
         assertTrue(result.hasViolation());
         assertFalse(result.limitExceeded());
+    }
+
+    /**
+     * Two threads writing disjoint locations. Every schedule completes, so the search is
+     * exhaustive at K=0 and no bound can ever prune anything.
+     */
+    private static Program disjointWrites() {
+        return new Program(PetersonState.of(false, false, 0), List.of(
+            new ModelThread(0, List.of(new WriteFlagStep(0, true))),
+            new ModelThread(1, List.of(new WriteFlagStep(1, true)))));
+    }
+
+    /**
+     * Once a bound returns without an INCOMPLETE trace, that bound proved the search exhaustive,
+     * so every deeper bound re-explores the same space and returns the same verdict. The state
+     * counter is a single total budget across the whole deepening run and is deliberately not reset
+     * per bound, so running the redundant bounds can spend a finite maxStates and downgrade a
+     * proven pass to limitExceeded.
+     *
+     * <p>The program explores 5 states at any bound. maxStates of 10 therefore clears one bound
+     * with room to spare but not the 13 that K=12 would otherwise run.
+     */
+    @Test
+    void iterativeDeepening_stopsOnceABoundIsExhaustive() {
+        Program program = disjointWrites();
+
+        TestResult single = InterleaveRunner.builder()
+            .strategy(Strategy.CONTEXT_BOUNDED)
+            .maxPreemptions(0)
+            .maxStates(10)
+            .build()
+            .run(program);
+
+        TestResult deepened = InterleaveRunner.builder()
+            .strategy(Strategy.CONTEXT_BOUNDED)
+            .maxPreemptions(12)
+            .iterativeDeepening(true)
+            .maxStates(10)
+            .build()
+            .run(program);
+
+        assertFalse(single.limitExceeded(), "one exhaustive bound must fit inside the budget");
+        assertFalse(deepened.limitExceeded(),
+            "redundant bounds after an exhaustive one must not consume the shared maxStates budget");
+        assertFalse(deepened.hasViolation());
+        assertEquals(5, single.statesExplored(), "calibration: this program explores 5 states");
     }
 
     @Test
