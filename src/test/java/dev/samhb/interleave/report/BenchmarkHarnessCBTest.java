@@ -19,11 +19,6 @@ class BenchmarkHarnessCBTest {
         throw new IllegalArgumentException("no such program: " + name);
     }
 
-    private static BenchmarkResult cbsResult(String bug, int preemptions) {
-        return new BenchmarkResult("CONTEXT_BOUNDED", bug, 10, 1, 0, "INCOMPLETE", null,
-            StoreType.EXACT, 0.0, 0, 0.0, preemptions);
-    }
-
     // --- Result shape -------------------------------------------------------------
 
     @Test

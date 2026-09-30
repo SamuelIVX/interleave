@@ -25,7 +25,7 @@ import java.util.*;
 public final class BenchmarkHarness {
     private static final int DEFAULT_BITSTATE_SIZE = 1_000_003;
     private static final int DEFAULT_BITSTATE_K = 4;
-    private static final int DEFAULT_MAX_PREEMPTIONS = 2;
+    private static final int DEFAULT_MAX_PREEMPTIONS = ContextBoundedExplorer.DEFAULT_MAX_PREEMPTIONS;
     private static final String CONTEXT_BOUNDED = "CONTEXT_BOUNDED";
 
     private final int bitstateSize;
