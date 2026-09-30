@@ -28,7 +28,7 @@ class MainTest {
         List<BenchmarkResult> results = harness.runProgram(program);
 
         assertFalse(results.isEmpty(), "should produce results");
-        assertEquals(6, results.size(), "should produce 6 results (3 strategies × 2 stores)");
+        assertEquals(8, results.size(), "should produce 8 results (4 strategies × 2 stores)");
     }
 
     /** Verifies that --all flag runs the entire corpus. */
@@ -38,8 +38,8 @@ class MainTest {
         List<BenchmarkResult> results = harness.runAll();
 
         int programCount = BugCorpus.all().size();
-        assertEquals(programCount * 6, results.size(),
-            "should produce 6 results per program");
+        assertEquals(programCount * 8, results.size(),
+            "should produce 8 results per program");
     }
 
     /** Verifies that --store exact filter works correctly. */
@@ -53,7 +53,7 @@ class MainTest {
             .filter(r -> r.storeType() == StoreType.EXACT)
             .toList();
 
-        assertEquals(3, exactOnly.size(), "exact filter should keep 3 results (DFS, STATIC_POR, DPOR)");
+        assertEquals(4, exactOnly.size(), "exact filter should keep 4 results (4 strategies)");
         assertTrue(exactOnly.stream().allMatch(r -> r.storeType() == StoreType.EXACT));
     }
 
@@ -68,7 +68,7 @@ class MainTest {
             .filter(r -> r.storeType() == StoreType.BITSTATE)
             .toList();
 
-        assertEquals(3, bitstateOnly.size(), "bitstate filter should keep 3 results");
+        assertEquals(4, bitstateOnly.size(), "bitstate filter should keep 4 results");
         assertTrue(bitstateOnly.stream().allMatch(r -> r.storeType() == StoreType.BITSTATE));
     }
 

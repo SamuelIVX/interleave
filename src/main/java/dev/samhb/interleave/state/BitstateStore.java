@@ -197,21 +197,44 @@ public final class BitstateStore implements StateStore {
     }
 
     /**
-     * Returns the number of bits currently set in the bit vector.
+     * Returns the number of bits set across every bit vector this store owns.
      *
-     * @return the cardinality of the bit set
+     * <p>A context-bounded search marks only in the per-preemption vectors, never in the main one.
+     * Counting just the main vector would report zero for those runs, which is the same fabricated
+     * "no false positives" claim as an empty store. Vectors are allocated lazily, so a store used
+     * only for DFS/POR/DPOR still reports exactly what it did before.
+     *
+     * @return total bit cardinality
      */
     public int bitCount() {
-        return bitset.cardinality();
+        int total = bitset.cardinality();
+        for (BitSet preemptionBitset : preemptionBitsets) {
+            if (preemptionBitset != null) {
+                total += preemptionBitset.cardinality();
+            }
+        }
+        return total;
     }
 
     /**
-     * Returns the fraction of bits set in the bit vector.
+     * Returns the fraction of bits set across every vector this store owns.
      *
      * @return bit density in [0, 1]
      */
     public double bitDensity() {
-        return (double) bitCount() / size;
+        int vectors = 1 + allocatedPreemptionVectors();
+        if (vectors == 0) return 0.0;
+        return (double) bitCount() / ((double) size * vectors);
+    }
+
+    private int allocatedPreemptionVectors() {
+        int count = 0;
+        for (BitSet preemptionBitset : preemptionBitsets) {
+            if (preemptionBitset != null) {
+                count++;
+            }
+        }
+        return count;
     }
 
     /**
@@ -219,14 +242,17 @@ public final class BitstateStore implements StateStore {
      * {@code (1 - e^(-k * n / m))^k} where {@code m = size}, {@code n = statesMarked},
      * {@code k = numHashFunctions}.
      *
+     * <p>Counts are aggregated across all owned vectors, since a context-bounded run marks into
+     * several of them.
+     *
      * @return estimated false-positive probability in [0, 1]
      */
     public double estimatedFalsePositiveRate() {
-        if (statesMarked == 0) {
+        long n = (long) statesMarked + preemptionStatesMarked;
+        if (n == 0) {
             return 0.0;
         }
-        double m = size;
-        double n = statesMarked;
+        double m = (double) size * (1 + allocatedPreemptionVectors());
         double k = numHashFunctions;
         double prob = 1.0 - Math.exp(-k * n / m);
         return Math.pow(prob, k);
