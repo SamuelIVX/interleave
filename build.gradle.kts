@@ -179,11 +179,26 @@ pitest {
     failWhenNoMutations.set(true)
 
     // Baseline mode: both gates off until real numbers exist. Ratchet from below.
+    //
+    // PIT reports three distinct percentages with three different denominators, and
+    // conflating them is how a ratchet ends up pinned to a figure PIT never produced.
+    // Measured on this scope against PIT 1.30.0:
+    //
+    //   line coverage      223/235 = 95%  <- gated by coverageThreshold
+    //   mutation coverage  221/275 = 80%  <- gated by mutationThreshold
+    //   test strength      221/261 = 85%  <- gated by testStrengthThreshold
+    //
+    // Only test strength excludes NO_COVERAGE mutants. Mutation coverage counts all
+    // 14 of them, which is why it is the right denominator for a ratchet: a score
+    // that quietly ignores unexercised code hides the exact gap being measured. The
+    // 85% test-strength figure is the flattering one and must not become the floor --
+    // the honest floor is mutation coverage's 80%.
     mutationThreshold.set(0)
-    // Tracked as a first-class metric, not decoration. PIT filters zero-coverage
-    // mutants out of the score entirely, so a high score over low coverage means
-    // most of the target was never exercised.
+    // Line coverage, not mutation strength. Worth keeping a separate line because
+    // gating it and gating mutation coverage are different decisions, and an
+    // earlier comment here conflated the two.
     coverageThreshold.set(0)
+    testStrengthThreshold.set(0)
 
     threads.set(pitestThreads)
     // There is no `maxMemoryInMc` on this plugin; per-minion heap is a plain JVM arg,
