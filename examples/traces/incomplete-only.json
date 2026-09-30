@@ -1,0 +1,19 @@
+{
+  "strategy": "CONTEXT_BOUNDED",
+  "statesExplored": 9,
+  "wallTimeMs": 9,
+  "heapDeltaBytes": 705288,
+  "hasViolation": false,
+  "limitExceeded": false,
+  "failingTraces": [],
+  "deadlockedTraces": [],
+  "completedTraces": [],
+  "incompleteTraces": [
+    {
+      "threads": [0, 1, 0],
+      "outcomes": ["ADVANCED", "ADVANCED", "ADVANCED"],
+      "outcome": "INCOMPLETE",
+      "programHash": ""
+    }
+  ]
+}
