@@ -84,7 +84,7 @@ public final class InterleaveRunner implements Serializable {
                 }
                 case CONTEXT_BOUNDED -> {
                     result = iterativeDeepening
-                        ? runIterativeDeepening(program, invariant, visitor)
+                        ? runIterativeDeepening(program, invariant, visitor, limitState)
                         : new ContextBoundedExplorer().explore(
                               program, invariant, runStore.get(), visitor, maxPreemptions);
                 }
@@ -114,11 +114,16 @@ public final class InterleaveRunner implements Serializable {
             @Override
             public void onStateVisited(Configuration config) {
                 stateCount[0]++;
+                // Every bucket must be carried across. Dropping incompleteTraces here silently
+                // discarded any INCOMPLETE trace recorded by onTraceCreated as soon as the next
+                // state was visited -- which, during a search that also reports completed
+                // schedules, is almost immediately.
                 limitState.partialResult = new PartialResult(
                     stateCount[0],
                     limitState.partialResult.failingTraces(),
                     limitState.partialResult.deadlockedTraces(),
-                    limitState.partialResult.completedTraces()
+                    limitState.partialResult.completedTraces(),
+                    limitState.partialResult.incompleteTraces()
                 );
 
                 if (maxStates > 0 && stateCount[0] >= maxStates) {
@@ -139,7 +144,7 @@ public final class InterleaveRunner implements Serializable {
 
     // Helper class to capture partial results during limit enforcement
     private static class LimitState {
-        PartialResult partialResult = new PartialResult(0, List.of(), List.of(), List.of());
+        PartialResult partialResult = new PartialResult(0, List.of(), List.of(), List.of(), List.of());
     }
 
     private static class PartialResult {
@@ -148,11 +153,6 @@ public final class InterleaveRunner implements Serializable {
         private final List<TraceRecord> deadlockedTraces;
         private final List<TraceRecord> completedTraces;
         private final List<TraceRecord> incompleteTraces;
-
-        PartialResult(long statesExplored, List<TraceRecord> failingTraces,
-                      List<TraceRecord> deadlockedTraces, List<TraceRecord> completedTraces) {
-            this(statesExplored, failingTraces, deadlockedTraces, completedTraces, List.of());
-        }
 
         PartialResult(long statesExplored, List<TraceRecord> failingTraces,
                       List<TraceRecord> deadlockedTraces, List<TraceRecord> completedTraces,
@@ -180,6 +180,19 @@ public final class InterleaveRunner implements Serializable {
             return new PartialResult(statesExplored, failing, deadlocked, completed, incomplete);
         }
 
+        /**
+         * Clears the trace buckets while keeping the state count.
+         *
+         * <p>Used between iterative-deepening bounds. Each bound is an independent top-level
+         * search over a fresh store, so it re-discovers the same completed schedules the previous
+         * bound found; without clearing, the shared visitor would append each one again and the
+         * partial result would carry duplicates. The state count is deliberately preserved, since
+         * {@code maxStates} is a total budget across all bounds rather than a per-bound one.
+         */
+        PartialResult withTracesCleared() {
+            return new PartialResult(statesExplored, List.of(), List.of(), List.of(), List.of());
+        }
+
         long statesExplored() { return statesExplored; }
         List<TraceRecord> failingTraces() { return failingTraces; }
         List<TraceRecord> deadlockedTraces() { return deadlockedTraces; }
@@ -200,12 +213,18 @@ public final class InterleaveRunner implements Serializable {
      * rather than widen: states reached at bound 0 are recorded with a count of 0, so every one of
      * them satisfies {@code min <= p} and would be pruned at bound 1.
      */
-    private DfsResult runIterativeDeepening(Program program, Invariant invariant, StateVisitor visitor) {
+    private DfsResult runIterativeDeepening(Program program, Invariant invariant,
+                                          StateVisitor visitor, LimitState limitState) {
         DfsResult lastResult = null;
         // Identity-based: two distinct stores that happen to compare equal must not be conflated.
         Set<StateStore> seenStores = Collections.newSetFromMap(new IdentityHashMap<>());
 
         for (int k = 0; k <= maxPreemptions; k++) {
+            // Each bound is a separate top-level search over a fresh store, so traces found by
+            // the previous bound are stale. Cleared per bound; the state counter is not, because
+            // maxStates is a total budget across the whole deepening run.
+            limitState.partialResult = limitState.partialResult.withTracesCleared();
+
             StateStore freshStore = stateStoreFactory.get();
             if (!seenStores.add(freshStore)) {
                 throw new IllegalStateException(

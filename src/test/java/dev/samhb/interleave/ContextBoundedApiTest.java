@@ -11,6 +11,8 @@ import dev.samhb.interleave.state.BitstateStore;
 import dev.samhb.interleave.state.HashingStateStore;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -281,5 +283,68 @@ class ContextBoundedApiTest {
             .strategy(Strategy.DFS).maxStates(1).build()
             .run(program.program());
         assertTrue(limitedOnly.limitExceeded());
+    }
+
+    @Test
+    void partialResult_limitedRun_reportsLimitAndNoIncomplete() {
+        // Characterises the current emit ordering, which is worth pinning because it is subtle.
+        // ContextBoundedExplorer emits its single INCOMPLETE trace only after dfs() returns, but
+        // a tripped limit throws out of dfs(). So a limited bounded run reports limitExceeded and
+        // nothing else: the run was inconclusive, but for the resource limit rather than the
+        // preemption bound, and the two are not merged.
+        //
+        // This is also why the dropped-incomplete-bucket fix is not observable through the public
+        // API today -- the bucket is always empty on the path where the rebuild runs. The fix is
+        // still correct and still needed: it removes a trap for anyone who later moves the emit
+        // earlier, and it was the only thing separating the bucket from being silently lost.
+        BenchmarkProgram program = named("peterson");
+        TestResult result = InterleaveRunner.builder()
+            .strategy(Strategy.CONTEXT_BOUNDED)
+            .maxPreemptions(0)
+            .maxStates(3)
+            .build()
+            .run(program.program());
+
+        assertTrue(result.limitExceeded(), "expected the state limit to trip");
+        assertFalse(result.hasIncomplete(),
+            "the search aborted before it could emit an INCOMPLETE trace");
+        assertFalse(result.hasViolation());
+    }
+
+    @Test
+    void partialResult_unlimitedRun_doesReportIncomplete() {
+        // The positive counterpart: with the limit out of the way, the same search does emit one.
+        BenchmarkProgram program = named("peterson");
+        TestResult result = InterleaveRunner.builder()
+            .strategy(Strategy.CONTEXT_BOUNDED)
+            .maxPreemptions(0)
+            .build()
+            .run(program.program());
+
+        assertTrue(result.hasIncomplete());
+        assertFalse(result.limitExceeded());
+    }
+
+    @Test
+    void partialResult_iterativeDeepening_doesNotDuplicateTraces() {
+        // The visitor is shared across bounds, and each bound re-discovers the same completed
+        // schedules over its fresh store. Without clearing per bound, the partial result would
+        // carry each one twice.
+        BenchmarkProgram program = named("peterson");
+        TestResult result = InterleaveRunner.builder()
+            .strategy(Strategy.CONTEXT_BOUNDED)
+            .maxPreemptions(3)
+            .iterativeDeepening(true)
+            .maxStates(4)
+            .build()
+            .run(program.program());
+
+        assertTrue(result.limitExceeded());
+        List<String> signatures = new ArrayList<>();
+        for (TraceRecord record : result.completedTraces()) {
+            signatures.add(record.threadIds() + "|" + record.outcomes());
+        }
+        assertEquals(signatures.size(), signatures.stream().distinct().count(),
+            "completed schedules were duplicated across deepening bounds: " + signatures);
     }
 }

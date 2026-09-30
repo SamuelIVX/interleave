@@ -14,6 +14,10 @@ recorded at the commit that made the change:
   corpus (`peterson` 65 vs 42 at K=2), because the extra `(config, lastThreadId)` dimension
   fragments what plain DFS deduplicates. The table renders those rows as bare counts. The spec's
   concern was real; its guess about the direction was not.
+- **Spec 05 §7's `partialResult_limitAndIncompleteCoexist()`** case is not delivered. The two
+  flags are distinguished everywhere, but a single run cannot set both: the INCOMPLETE trace is
+  emitted after `dfs()` returns, while a tripped `maxStates` throws out of it. Pinned by
+  `partialResult_limitedRun_reportsLimitAndNoIncomplete`.
 - **Spec 07 §6** listed a JavaScript test harness as out of scope, to be filed as a follow-up.
   `docs/visualizer-normalize-check.mjs` was added anyway, because the new `INCOMPLETE` branch in
   `normalize()` is security-sensitive and would otherwise have had no automated guard at all. It
