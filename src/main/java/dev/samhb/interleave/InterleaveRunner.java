@@ -1,5 +1,6 @@
 package dev.samhb.interleave;
 
+import dev.samhb.interleave.cb.ContextBoundedExplorer;
 import dev.samhb.interleave.core.Program;
 import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.search.*;
@@ -9,7 +10,10 @@ import dev.samhb.interleave.state.HashingStateStore;
 import java.io.Serializable;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -23,6 +27,8 @@ public final class InterleaveRunner implements Serializable {
     private final Supplier<StateStore> stateStoreFactory;
     private final long maxStates;
     private final Duration maxTime;
+    private final int maxPreemptions;
+    private final boolean iterativeDeepening;
 
     private InterleaveRunner(Builder builder) {
         this.strategy = builder.strategy;
@@ -30,6 +36,8 @@ public final class InterleaveRunner implements Serializable {
         this.stateStoreFactory = builder.stateStoreFactory;
         this.maxStates = builder.maxStates;
         this.maxTime = builder.maxTime;
+        this.maxPreemptions = builder.maxPreemptions;
+        this.iterativeDeepening = builder.iterativeDeepening;
     }
 
     /**
@@ -45,8 +53,16 @@ public final class InterleaveRunner implements Serializable {
         runtime.gc();
         long memBefore = runtime.totalMemory() - runtime.freeMemory();
 
-        // Create fresh StateStore for this run using factory to avoid cross-run contamination
-        StateStore runStateStore = stateStoreFactory.get();
+        // Lazy: DFS, STATIC_POR and DPOR each need exactly one store, but iterative deepening
+        // obtains one per bound and must not trigger an extra factory call here -- that would
+        // build a store nothing reads and never clears.
+        StateStore[] storeSlot = new StateStore[1];
+        Supplier<StateStore> runStore = () -> {
+            if (storeSlot[0] == null) {
+                storeSlot[0] = stateStoreFactory.get();
+            }
+            return storeSlot[0];
+        };
 
         LimitState limitState = new LimitState();
         StateVisitor visitor = createLimitEnforcingVisitor(limitState);
@@ -56,15 +72,21 @@ public final class InterleaveRunner implements Serializable {
             switch (strategy) {
                 case DFS -> {
                     DfsExplorer explorer = new DfsExplorer();
-                    result = explorer.explore(program, invariant, runStateStore, visitor);
+                    result = explorer.explore(program, invariant, runStore.get(), visitor);
                 }
                 case STATIC_POR -> {
                     StaticPorExplorer explorer = new StaticPorExplorer();
-                    result = explorer.explore(program, invariant, runStateStore, visitor);
+                    result = explorer.explore(program, invariant, runStore.get(), visitor);
                 }
                 case DPOR -> {
                     DporExplorer explorer = new DporExplorer();
-                    result = explorer.explore(program, invariant, runStateStore, visitor);
+                    result = explorer.explore(program, invariant, runStore.get(), visitor);
+                }
+                case CONTEXT_BOUNDED -> {
+                    result = iterativeDeepening
+                        ? runIterativeDeepening(program, invariant, visitor)
+                        : new ContextBoundedExplorer().explore(
+                              program, invariant, runStore.get(), visitor, maxPreemptions);
                 }
                 default -> throw new IllegalArgumentException("Unknown strategy: " + strategy);
             }
@@ -165,6 +187,50 @@ public final class InterleaveRunner implements Serializable {
         List<TraceRecord> incompleteTraces() { return incompleteTraces; }
     }
 
+    /**
+     * Runs the search at increasing preemption bounds, stopping at the first bound that produces a
+     * failure, so the returned trace is the one needing the fewest preemptions.
+     *
+     * <p>{@link LimitExceededException} is deliberately not caught here. It propagates to
+     * {@link #run}'s handler, which returns partial results with {@code limitExceeded} set.
+     * Swallowing it and continuing to a deeper bound would quietly exceed the caller's budget,
+     * which is the one thing a limit must never do.
+     *
+     * <p>Each bound gets a genuinely fresh store. Reusing one would make deepening <em>narrow</em>
+     * rather than widen: states reached at bound 0 are recorded with a count of 0, so every one of
+     * them satisfies {@code min <= p} and would be pruned at bound 1.
+     */
+    private DfsResult runIterativeDeepening(Program program, Invariant invariant, StateVisitor visitor) {
+        DfsResult lastResult = null;
+        // Identity-based: two distinct stores that happen to compare equal must not be conflated.
+        Set<StateStore> seenStores = Collections.newSetFromMap(new IdentityHashMap<>());
+
+        for (int k = 0; k <= maxPreemptions; k++) {
+            StateStore freshStore = stateStoreFactory.get();
+            if (!seenStores.add(freshStore)) {
+                throw new IllegalStateException(
+                    "Iterative deepening requires a fresh StateStore per bound, but the configured "
+                    + "stateStoreFactory reused an instance. Iterations would share a visited set, "
+                    + "so each deeper bound would prune states the previous bound already explored. "
+                    + "Use stateStoreFactory(...) with a supplier returning a new store per call.");
+            }
+
+            ContextBoundedExplorer explorer = new ContextBoundedExplorer();
+            lastResult = explorer.explore(program, invariant, freshStore, visitor, k);
+
+            if (isFailure(lastResult)) {
+                return lastResult; // minimal-K trace
+            }
+            // INCOMPLETE or APPROXIMATE_PASS at this bound: deepen
+        }
+        return lastResult;
+    }
+
+    private static boolean isFailure(DfsResult result) {
+        return result.traces().stream().anyMatch(t ->
+            t.outcome() == TraceOutcome.VIOLATION || t.outcome() == TraceOutcome.DEADLOCK);
+    }
+
     private TestResult convertToTestResult(DfsResult result, long wallTime, long heapDelta, boolean limitExceeded) {
         List<TraceRecord> failingTraces = new ArrayList<>();
         List<TraceRecord> deadlockedTraces = new ArrayList<>();
@@ -210,6 +276,12 @@ public final class InterleaveRunner implements Serializable {
         private Supplier<StateStore> stateStoreFactory = HashingStateStore::new;
         private long maxStates = 0;
         private Duration maxTime = null;
+        private int maxPreemptions = ContextBoundedExplorer.DEFAULT_MAX_PREEMPTIONS;
+        private boolean iterativeDeepening = false;
+        // Whether the caller named these explicitly, which is what lets build() reject a
+        // context-bounded option on a strategy that would silently ignore it.
+        private boolean maxPreemptionsExplicit = false;
+        private boolean iterativeDeepeningExplicit = false;
 
         /**
          * Sets the exploration strategy.
@@ -294,11 +366,53 @@ public final class InterleaveRunner implements Serializable {
         }
 
         /**
+         * Sets the preemption bound for {@link Strategy#CONTEXT_BOUNDED}.
+         *
+         * @param maxPreemptions the bound; must not be negative
+         * @return this builder
+         * @throws IllegalArgumentException if maxPreemptions is negative
+         */
+        public Builder maxPreemptions(int maxPreemptions) {
+            if (maxPreemptions < 0) throw new IllegalArgumentException("maxPreemptions must be non-negative");
+            this.maxPreemptions = maxPreemptions;
+            this.maxPreemptionsExplicit = true;
+            return this;
+        }
+
+        /**
+         * Enables iterative deepening for {@link Strategy#CONTEXT_BOUNDED}: run the search at
+         * increasing preemption bounds and stop at the first failure, so the returned trace is
+         * the one needing the fewest preemptions.
+         *
+         * @param iterativeDeepening whether to deepen
+         * @return this builder
+         */
+        public Builder iterativeDeepening(boolean iterativeDeepening) {
+            this.iterativeDeepening = iterativeDeepening;
+            this.iterativeDeepeningExplicit = true;
+            return this;
+        }
+
+        /**
          * Builds the runner.
          *
          * @return a configured {@link InterleaveRunner}
+         * @throws IllegalArgumentException if a context-bounded option was explicitly set on a
+         *         strategy that would ignore it
          */
         public InterleaveRunner build() {
+            // Only reject an *explicit* set. A caller who never touched these options and chose
+            // DFS must keep working; a caller who named a context-bounded option while on another
+            // strategy has almost certainly changed strategy and left the option behind, and a
+            // run that quietly ignores what was asked for is worse than an exception.
+            if (strategy != Strategy.CONTEXT_BOUNDED && maxPreemptionsExplicit) {
+                throw new IllegalArgumentException(
+                    "maxPreemptions applies only to Strategy.CONTEXT_BOUNDED, but strategy is " + strategy);
+            }
+            if (strategy != Strategy.CONTEXT_BOUNDED && iterativeDeepeningExplicit) {
+                throw new IllegalArgumentException(
+                    "iterativeDeepening applies only to Strategy.CONTEXT_BOUNDED, but strategy is " + strategy);
+            }
             return new InterleaveRunner(this);
         }
     }

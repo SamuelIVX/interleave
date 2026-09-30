@@ -1,6 +1,7 @@
 package dev.samhb.interleave;
 
 import dev.samhb.interleave.core.*;
+import dev.samhb.interleave.cb.ContextBoundedExplorer;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.por.*;
 import dev.samhb.interleave.dpor.*;
@@ -59,6 +60,7 @@ public final class Interleave {
             case DFS -> new DfsExplorer().explore(program, invariant);
             case STATIC_POR -> new StaticPorExplorer().explore(program, invariant);
             case DPOR -> new DporExplorer().explore(program, invariant);
+            case CONTEXT_BOUNDED -> new ContextBoundedExplorer().explore(program, invariant);
         };
 
         long memAfter = runtime.totalMemory() - runtime.freeMemory();
@@ -84,17 +86,107 @@ public final class Interleave {
         runtime.gc();
         long memBefore = runtime.totalMemory() - runtime.freeMemory();
 
-        StateStore store = stateStoreFactory.get();
+        // Resolve once, before dispatch. A null factory means "caller did not choose a store", the
+        // same signal the explorer overloads already accept, so it falls back to a default exact
+        // store rather than throwing at the caller.
+        StateStore store = stateStoreFactory != null ? stateStoreFactory.get() : null;
         DfsResult result = switch (strategy) {
             case DFS -> new DfsExplorer().explore(program, invariant, store, null);
             case STATIC_POR -> new StaticPorExplorer().explore(program, invariant, store, null);
             case DPOR -> new DporExplorer().explore(program, invariant, store, null);
+            // Must pass the caller's store through; dropping it would silently substitute a
+            // default exact store and discard their configuration.
+            case CONTEXT_BOUNDED -> new ContextBoundedExplorer().explore(program, invariant, store, null);
         };
 
         long memAfter = runtime.totalMemory() - runtime.freeMemory();
         long wallTime = System.currentTimeMillis() - start;
         long heapDelta = Math.max(0, memAfter - memBefore);
 
+        return VerificationResult.from(result, strategy, wallTime, heapDelta);
+    }
+
+    /**
+     * Verifies a program with an explicit preemption bound.
+     *
+     * <p>Only meaningful for {@link Strategy#CONTEXT_BOUNDED}; other strategies ignore the bound.
+     * Provided because the existing signatures have nowhere to put it, and hardcoding a default
+     * would leave library callers with no way to select a bound outside the builder.
+     *
+     * @param program the program to verify
+     * @param strategy the exploration strategy
+     * @param invariant the invariant to check, or null
+     * @param maxPreemptions the preemption bound; must not be negative
+     * @return the verification result
+     * @throws IllegalArgumentException if {@code maxPreemptions} is negative
+     */
+    public static VerificationResult verify(Program program, Strategy strategy,
+                                            Invariant invariant, int maxPreemptions) {
+        requireNonNegativeBound(maxPreemptions);
+        long start = System.currentTimeMillis();
+        Runtime runtime = Runtime.getRuntime();
+        runtime.gc();
+        long memBefore = runtime.totalMemory() - runtime.freeMemory();
+
+        DfsResult result = switch (strategy) {
+            case DFS -> new DfsExplorer().explore(program, invariant);
+            case STATIC_POR -> new StaticPorExplorer().explore(program, invariant);
+            case DPOR -> new DporExplorer().explore(program, invariant);
+            case CONTEXT_BOUNDED -> new ContextBoundedExplorer()
+                .explore(program, invariant, null, null, maxPreemptions);
+        };
+
+        return timed(result, strategy, start, runtime, memBefore);
+    }
+
+    /**
+     * Verifies a program with an explicit preemption bound and a custom state store factory.
+     *
+     * <p>{@code int} and {@link Supplier} are disjoint types, so adding this alongside the
+     * factory-only overload leaves {@code verify(p, s, inv, null)} resolving unambiguously to
+     * the {@code Supplier} version.
+     *
+     * @param program the program to verify
+     * @param strategy the exploration strategy
+     * @param invariant the invariant to check, or null
+     * @param stateStoreFactory a factory for creating a fresh state store per verification
+     * @param maxPreemptions the preemption bound; must not be negative
+     * @return the verification result
+     * @throws IllegalArgumentException if {@code maxPreemptions} is negative
+     */
+    public static VerificationResult verify(Program program, Strategy strategy, Invariant invariant,
+                                            Supplier<StateStore> stateStoreFactory, int maxPreemptions) {
+        requireNonNegativeBound(maxPreemptions);
+        long start = System.currentTimeMillis();
+        Runtime runtime = Runtime.getRuntime();
+        runtime.gc();
+        long memBefore = runtime.totalMemory() - runtime.freeMemory();
+
+        // Resolve once, before dispatch. See the note on the other factory overload: null means
+        // "caller did not choose a store".
+        StateStore store = stateStoreFactory != null ? stateStoreFactory.get() : null;
+        DfsResult result = switch (strategy) {
+            case DFS -> new DfsExplorer().explore(program, invariant, store, null);
+            case STATIC_POR -> new StaticPorExplorer().explore(program, invariant, store, null);
+            case DPOR -> new DporExplorer().explore(program, invariant, store, null);
+            case CONTEXT_BOUNDED -> new ContextBoundedExplorer()
+                .explore(program, invariant, store, null, maxPreemptions);
+        };
+
+        return timed(result, strategy, start, runtime, memBefore);
+    }
+
+    private static void requireNonNegativeBound(int maxPreemptions) {
+        if (maxPreemptions < 0) {
+            throw new IllegalArgumentException("maxPreemptions must not be negative: " + maxPreemptions);
+        }
+    }
+
+    private static VerificationResult timed(DfsResult result, Strategy strategy, long start,
+                                            Runtime runtime, long memBefore) {
+        long memAfter = runtime.totalMemory() - runtime.freeMemory();
+        long wallTime = System.currentTimeMillis() - start;
+        long heapDelta = Math.max(0, memAfter - memBefore);
         return VerificationResult.from(result, strategy, wallTime, heapDelta);
     }
 
