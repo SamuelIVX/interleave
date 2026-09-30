@@ -96,10 +96,13 @@ src/main/java/dev/samhb/interleave/
   state/       CanonicalEncoder, HashingStateStore, BitstateStore
   por/         IndependenceRelation, PersistentSetComputer, CycleProviso
   dpor/        DporExplorer, HappensBefore, SleepSet
+  corpus/      CorpusGenerator, TemplateRegistry, CorpusEntry
+  format/      JSON program loader + declarative DSL
   bugs/        Concurrency classics corpus (7 programs)
   minimize/    DeltaDebugger (ddmin)
   report/      BenchmarkHarness, StatesExploredTable, SoundnessAttestation, ReportWriter
   cli/         Main
+  *.java       Interleave, InterleaveRunner, Strategy, TestResult, TraceRecord, VerificationResult
 ```
 
 ## Spec-driven development
@@ -189,6 +192,38 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 - Static POR reduces states with invariants: `broken-peterson` 46→15 (67%), `lost-update` 13→9 (31%)
 - DPOR uses exhaustive DFS path for invariants (`explore(program, invariant)` → `dfsDfs()`)
 - Removed dead `dfsDfs` from `StaticPorExplorer`, restored it in `DporExplorer`
+
+### Planned: Context-Bounded Search (Spec 11, not yet implemented)
+
+**Status: specified, not implemented.** The commands below are the target CLI contract from
+[`docs/specs/active/11-context-bounded/`](docs/specs/active/11-context-bounded/) and **will not work yet**.
+The flags `--strategy CONTEXT_BOUNDED`, `--max-preemptions N`, and `--iterative-deepening` do not exist in
+the current build.
+
+Context-bounded search (CHESS-style) systematically explores all interleavings up to a configurable number of **preemptive context switches** (bound K). A preemption occurs when the scheduler switches away from a thread that *could have continued* (i.e., was still enabled). Forced switches (previous thread blocked/terminated) do not count toward the bound.
+
+**Tradeoffs:**
+- **Massive state reduction** — explores O(n^K) instead of O(n!) interleavings
+- **Incomplete by design** — bugs requiring >K preemptions are missed
+- **Sweet spot: K=2** — empirical studies show most real concurrency bugs manifest within 2 preemptions
+
+**When to use:**
+- Quick bug-finding on large state spaces
+- Screening before exhaustive verification
+- Programs where deep interleavings are unlikely to produce new bugs
+
+**Reports will include:**
+- States explored vs DFS/DPOR baselines
+- A verdict that may be `INCOMPLETE` when the preemption bound was reached without exhausting the state space
+
+**Planned CLI usage** (once implemented):
+```bash
+# Run CBS on a single program
+./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 2 --json"
+
+# Run CBS on entire corpus
+./gradlew run --args="--all --strategy CONTEXT_BOUNDED --max-preemptions 2"
+```
 
 ## JSON Program Definition Format
 
