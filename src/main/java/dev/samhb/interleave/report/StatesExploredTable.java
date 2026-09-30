@@ -79,8 +79,8 @@ public final class StatesExploredTable {
             long dfsExact = dfsResults.containsKey(StoreType.EXACT) ? dfsResults.get(StoreType.EXACT).statesExplored() : 0;
             long dfsBitstate = dfsResults.containsKey(StoreType.BITSTATE) ? dfsResults.get(StoreType.BITSTATE).statesExplored() : 0;
 
-            // Order strategies: DFS, STATIC_POR, DPOR
-            String[] strategyOrder = {"DFS", "STATIC_POR", "DPOR"};
+            // Order strategies: DFS, STATIC_POR, DPOR, CONTEXT_BOUNDED
+            String[] strategyOrder = {"DFS", "STATIC_POR", "DPOR", "CONTEXT_BOUNDED"};
             for (String strategy : strategyOrder) {
                 Map<StoreType, BenchmarkResult> storeMap = strategyMap.get(strategy);
                 if (storeMap == null) continue;
@@ -136,6 +136,17 @@ public final class StatesExploredTable {
         return sb.toString();
     }
 
+    /**
+     * Renders a reduction percentage against the DFS baseline.
+     *
+     * <p>Only genuine reductions get an arrow. A context-bounded search is not guaranteed to
+     * explore fewer states than plain DFS -- the extra {@code (config, lastThreadId)} dimension
+     * fragments what DFS deduplicates -- so states above the baseline print as a bare count.
+     * Emitting {@code "-23%↓"} there would be both a negative percentage and a downward arrow
+     * attached to a number that went up.
+     *
+     * @return a suffix to append to the state count, or the empty string
+     */
     private static String reductionPct(long states, long baseline) {
         if (baseline == 0 || states >= baseline) {
             return "";

@@ -17,11 +17,16 @@ import java.util.*;
  *       Verifies that DFS verdicts match expected outcomes for all programs,
  *       and that correct (non-VIOLATION) programs produce consistent verdicts
  *       across all strategies. Bitstate results are excluded because they are
- *       incomplete by design and may miss violations.
+ *       incomplete by design and may miss violations, as are results whose
+ *       verdict is {@code INCOMPLETE} or {@code APPROXIMATE_PASS}, since those
+ *       assert nothing about the absence of a bug.
  *   <li><strong>Trace replay validation</strong> (all results):
- *       For every reported VIOLATION (including bitstate), replays the failing
- *       trace and verifies that the invariant is genuinely violated at the
- *       final configuration. This ensures no false alarms are reported.
+ *       For every reported VIOLATION (including bitstate and context-bounded),
+ *       replays the failing trace and verifies that the invariant is genuinely
+ *       violated at the final configuration. This ensures no false alarms are
+ *       reported. This is a positive check, not an exclusion: a bounded search
+ *       that reports a violation has found a real schedule, and that schedule
+ *       must hold up under replay.
  * </ol>
  */
 public final class SoundnessAttestation {
@@ -72,7 +77,8 @@ if (program != null) {
                     dfsVerdicts.put(key, actualVerdict);
                 }
 
-                if (expectedVerdict != null && !"VIOLATION".equals(expectedVerdict)) {
+                if (expectedVerdict != null && !"VIOLATION".equals(expectedVerdict)
+                    && !isInconclusive(actualVerdict)) {
                     if (correctVerdicts.containsKey(key)) {
                         if (!correctVerdicts.get(key).equals(actualVerdict)) {
                             return SoundnessCheck.failed("Verdict mismatch for correct program " + key +
@@ -86,8 +92,9 @@ if (program != null) {
             }
         }
 
-        // Trace replay validation: check ALL results (including bitstate) that report violations
-        // Bitstate violations should still be genuine if found
+        // Trace replay validation: check ALL results (including bitstate and context-bounded) that
+        // report violations. A violation found under a bounded search is a real schedule, so the
+        // replay check must cover it rather than being skipped along with the inconclusive ones.
         for (BenchmarkResult result : results) {
             if ("VIOLATION".equals(result.verdict())) {
                 Trace failingTrace = result.failingTrace().orElse(null);
@@ -114,6 +121,22 @@ if (program != null) {
         }
 
         return SoundnessCheck.passed();
+    }
+
+    /**
+     * Whether a verdict asserts nothing about the absence of a bug.
+     *
+     * <p>These must be excluded from the cross-strategy agreement loop entirely, not merely
+     * "not validated". The failure mode is a disagreement between two EXACT results: peterson is
+     * PASS under exhaustive DFS and INCOMPLETE under a bounded search, which would otherwise
+     * report a mismatch and fail the whole attestation. Such a result neither seeds nor conflicts
+     * with the agreed verdict.
+     *
+     * <p>They are <em>not</em> excluded from replay validation below. A bounded search that
+     * reports a violation has found a real schedule, and that schedule must be genuine.
+     */
+    private static boolean isInconclusive(String verdict) {
+        return "INCOMPLETE".equals(verdict) || "APPROXIMATE_PASS".equals(verdict);
     }
 
     /**
@@ -145,7 +168,10 @@ if (program != null) {
 
         if (sound) {
             sb.append("All EXACT programs produced expected verdicts under DFS. ");
-            sb.append("All failing traces (including bitstate) replayed to genuine violations. ");
+            sb.append("All failing traces (including bitstate and context-bounded) replayed to genuine violations. ");
+            sb.append("Results bounded by a preemption limit (INCOMPLETE or APPROXIMATE_PASS) are excluded ");
+            sb.append("from the cross-strategy verdict agreement above, since they assert nothing about ");
+            sb.append("the absence of a bug. ");
             sb.append("The model checker is sound.\n");
         } else {
             sb.append("WARNING: ");

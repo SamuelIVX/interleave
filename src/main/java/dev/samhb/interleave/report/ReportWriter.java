@@ -77,6 +77,8 @@ public final class ReportWriter {
             sb.append(String.format("      \"statesExplored\": %d,\n", result.statesExplored()));
             sb.append(String.format("      \"wallTimeMs\": %d,\n", result.wallTimeMs()));
             sb.append(String.format("      \"heapDeltaBytes\": %d,\n", result.heapDeltaBytes()));
+            // Always emitted, so a report's shape does not depend on which strategies ran.
+            sb.append(String.format("      \"preemptionsUsed\": %s,\n", formatPreemptions(result)));
 
             // Failing trace
             if (result.failingTrace().isPresent()) {
@@ -107,6 +109,12 @@ public final class ReportWriter {
         sb.append("}\n");
 
         return sb.toString();
+    }
+
+    private static String formatPreemptions(BenchmarkResult result) {
+        // null renders as JSON null rather than being omitted, so a consumer can distinguish
+        // "this strategy has no bound" from a missing field.
+        return result.preemptionsUsed() == null ? "null" : result.preemptionsUsed().toString();
     }
 
     private static String formatFailingTrace(Trace trace) {

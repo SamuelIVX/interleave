@@ -21,6 +21,10 @@ class BenchmarkHarnessTest {
         BenchmarkHarness harness = new BenchmarkHarness();
         List<BenchmarkResult> results = harness.runAll();
         
+        // Deliberate filter, unchanged by context-bounded search. Its purpose is to exercise the
+        // attestation over trace-producing rows only, and the point of leaving it alone is that
+        // bitstate DFS/POR/DPOR verdicts must stay "PASS" -- cbVerdict was added as a separate
+        // helper precisely so this assertion would keep holding.
         List<BenchmarkResult> traceProducingResults = results.stream()
             .filter(r -> r.failingTrace().isPresent() || !"PASS".equals(r.verdict()))
             .toList();
