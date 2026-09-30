@@ -213,6 +213,21 @@ pitest {
     jvmArgs.set(listOf("-Xmx${pitestMaxMemoryMc}m"))
 
     // Must exceed the slowest covering test's normal runtime by a clear margin.
+    //
+    // TIMING OUT IS NOT A KILL, BUT PIT TREATS IT AS ONE. Verified in pitest-entry-1.30.0.jar:
+    // DetectionStatus's constructor is (name, ordinal, detected), and TIMED_OUT and MEMORY_ERROR
+    // both carry detected = true -- the same flag as KILLED. So a mutant that makes a covering test
+    // exceed this budget is scored as killed and the mutation score rises without a single
+    // assertion firing.
+    //
+    // That matters more here than in a typical project. A mutant that merely breaks deduplication
+    // makes exploration exponentially slower, so exactly the mutants worth catching are the ones
+    // most likely to be killed on time instead of on an assertion. The fix for a mutant that
+    // times out is to raise this budget so the real assertion gets its chance -- NOT to raise
+    // `fasterThreshold`, which would add wall-time kills rather than remove them. The current
+    // baseline has zero TIMED_OUT and zero MEMORY_ERROR; check that stays true before trusting
+    // the percentage. See docs/plans/mutation-gap-register.md, Gap 7
+    // ("the wall-time kill hazard -- live today").
     // api/InterleaveRunnerTest drives maxTime(1ms) and maxTime(30s), so the covering
     // set contains wall-clock-sensitive tests whose kills are non-deterministic under
     // parallel load. Re-run any surprising survivor before believing it.
