@@ -123,18 +123,27 @@ class ContextBoundedExplorerTest {
 
     @Test
     void boundedSearch_withoutEnoughBudget_isIncomplete() {
-        // Peterson is correct: a bounded search that runs out of budget must say so rather than
+        // peterson is correct: a bounded search that runs out of budget must say so rather than
         // reporting a clean pass.
         Program program = named("peterson").program();
         DfsResult result = new ContextBoundedExplorer().explore(program, null, null, null, 1);
 
-        boolean incomplete = result.traces().stream()
-            .anyMatch(t -> t.outcome() == TraceOutcome.INCOMPLETE);
-        boolean violation = result.traces().stream()
-            .anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
-        assertFalse(violation, "peterson is correct, so no violation may be reported");
-        assertTrue(incomplete || result.traces().stream().noneMatch(t -> t.outcome() == TraceOutcome.VIOLATION),
-            "a bounded search must not report a pass it did not earn");
+        assertTrue(result.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.INCOMPLETE),
+            "a bounded search that ran out of budget must report INCOMPLETE, not a pass");
+        assertFalse(result.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION),
+            "peterson is correct, so no violation may be reported");
+    }
+
+    @Test
+    void exhaustiveAtSufficientBound_reportsPassNotIncomplete() {
+        // The counterpart: a bound high enough to cover the whole space reports a real pass,
+        // which is what makes the INCOMPLETE above meaningful rather than unconditional.
+        Program program = named("peterson").program();
+        DfsResult result = new ContextBoundedExplorer().explore(program, null, null, null, 12);
+
+        assertFalse(result.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.INCOMPLETE),
+            "with a bound above the program's needs, nothing should be pruned");
+        assertTrue(result.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.COMPLETED));
     }
 
     // --- INCOMPLETE trace shape ----------------------------------------------------
@@ -214,10 +223,33 @@ class ContextBoundedExplorerTest {
 
     @Test
     void costAwareCheck_higherBudgetNotPrunedByLowerBudget() {
-        // Marking a state at a low budget must not let a deeper search skip it.
-        Program program = named("lost-update").program();
-        DfsResult result = new ContextBoundedExplorer().explore(program, null, null, null, 4);
-        assertTrue(result.statesExplored() > 0);
+        // The property that makes CBS sound: a state first reached under a low budget was
+        // explored with more budget remaining, so a deeper search must skip it. Asserting the
+        // actual bound ordering rather than merely "some states were explored".
+        Program program = named("peterson").program();
+        long atK0 = new ContextBoundedExplorer().explore(program, null, null, null, 0).statesExplored();
+        long atK3 = new ContextBoundedExplorer().explore(program, null, null, null, 3).statesExplored();
+
+        assertTrue(atK3 > atK0 * 2,
+            "a deeper bound must reach substantially further; got K=0:" + atK0 + " K=3:" + atK3);
+    }
+
+    @Test
+    void costAwareCheck_bothStoresAgree() {
+        // The same search against both store types must reach the same conclusion. Disagreement
+        // means one store prunes where the other does not, which would make a verdict depend on
+        // which store the caller happened to pass.
+        Program program = named("peterson").program();
+        for (int k : new int[] {0, 1, 2}) {
+            DfsResult exact = new ContextBoundedExplorer()
+                .explore(program, null, new dev.samhb.interleave.state.HashingStateStore(), null, k);
+            DfsResult bitstate = new ContextBoundedExplorer()
+                .explore(program, null, new BitstateStore(1_000_003, 4, k), null, k);
+
+            assertEquals(exact.statesExplored(), bitstate.statesExplored(),
+                "stores disagree at K=" + k + " (exact=" + exact.statesExplored()
+                + " bitstate=" + bitstate.statesExplored() + ")");
+        }
     }
 
     @Test

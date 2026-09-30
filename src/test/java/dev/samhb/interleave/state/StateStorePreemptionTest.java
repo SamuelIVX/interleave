@@ -194,7 +194,46 @@ class StateStorePreemptionTest {
 
         store.markVisited(config, 0, 1);
         assertTrue(store.isVisited(config, 0, 1));
-        assertFalse(store.isVisited(config, 0, 2), "P=2 is a different bit-vector, not a superset");
+
+        // Reached using 1 preemption, so it was explored with more budget remaining than a query
+        // at 2 has. That search already covered everything reachable from here, so prune -- the
+        // same min<=p rule HashingStateStore implements with a stored minimum.
+        assertTrue(store.isVisited(config, 0, 2),
+            "a mark at a lower level must be visible at a higher budget");
+
+        // The reverse must not hold: a state only seen at 2 says nothing about a query at 1,
+        // which has less budget than the earlier search had remaining.
+        BitstateStore other = new BitstateStore(1_000_003, 4, 3);
+        other.markVisited(config, 0, 2);
+        assertFalse(other.isVisited(config, 0, 1),
+            "a mark at a higher level must not be visible at a lower budget");
+    }
+
+    @Test
+    void bitstateStore_matchesHashingStoreSemantics() {
+        // The two stores must answer the same interface method the same way. Anything else makes
+        // a search's behaviour depend on which store the caller happened to pass.
+        BitstateStore bitstate = new BitstateStore(1_000_003, 4, 3);
+        HashingStateStore hashing = new HashingStateStore();
+        Configuration config = distinctConfigs(twoThreadProgram()).get(1);
+
+        for (int[] mark : new int[][] {{0, 0}, {1, 0}, {1, 1}, {2, 0}}) {
+            bitstate.markVisited(config, mark[1], mark[0]);
+            hashing.markVisited(config, mark[1], mark[0]);
+        }
+        for (int probe = 0; probe <= 3; probe++) {
+            assertEquals(hashing.isVisited(config, 0, probe), bitstate.isVisited(config, 0, probe),
+                "stores disagree at budget " + probe);
+        }
+    }
+
+    @Test
+    void bitstateStore_isVisited_aboveCapacity_throws() {
+        // The range check applies to reads as well as writes: silently answering false for an
+        // unrepresentable budget would turn a capacity mismatch into a bogus "not visited".
+        BitstateStore store = new BitstateStore(1_000, 4, 2);
+        Configuration config = distinctConfigs(twoThreadProgram()).get(1);
+        assertThrows(IllegalArgumentException.class, () -> store.isVisited(config, 0, 3));
     }
 
     @Test

@@ -6,6 +6,7 @@ import dev.samhb.interleave.corpus.CorpusEntry;
 import dev.samhb.interleave.corpus.CorpusGenerator;
 import dev.samhb.interleave.corpus.GeneratorConfig;
 import dev.samhb.interleave.corpus.TemplateRegistry;
+import dev.samhb.interleave.cb.ContextBoundedExplorer;
 import dev.samhb.interleave.format.ProgramLoader;
 import dev.samhb.interleave.format.registry.RegistryException;
 import dev.samhb.interleave.report.BenchmarkHarness;
@@ -26,6 +27,37 @@ import java.util.*;
  */
 public final class Main {
     private static final ProgramLoader LOADER = new ProgramLoader();
+    private static final String CONTEXT_BOUNDED = "CONTEXT_BOUNDED";
+    private static final String EXACT = "EXACT";
+
+    /**
+     * The highest preemption bound that is meaningful with a Bloom-filter store.
+     *
+     * <p>Above this, bitstate hashing can discard a real state, so a bounded search under it
+     * cannot prove the absence of a bug. The verdict would be indistinguishable from a genuine
+     * one in a report, which is why {@link #isUnsoundBitstateBound} refuses the combination.
+     */
+    private static final int BITSTATE_SAFE_MAX_PREEMPTIONS = 2;
+
+    /**
+     * Whether the requested combination of store, strategy, and preemption bound cannot produce
+     * a trustworthy verdict.
+     *
+     * <p>Extracted as a predicate so the policy is directly testable. {@code main} calls
+     * {@code System.exit}, so a guard written inline there would be covered only by manual runs.
+     *
+     * <p>Package-private for tests; not part of the public API.
+     *
+     * @param storeFilter the raw {@code --store} value, or null when not supplied
+     * @param strategyFilter the raw {@code --strategy} value, or null when not supplied
+     * @param maxPreemptions the requested preemption bound
+     * @return true if the combination should be refused
+     */
+    static boolean isUnsoundBitstateBound(String storeFilter, String strategyFilter, int maxPreemptions) {
+        boolean bitstateSelected = !EXACT.equals(storeFilter);
+        boolean cbsSelected = strategyFilter == null || CONTEXT_BOUNDED.equals(strategyFilter);
+        return bitstateSelected && cbsSelected && maxPreemptions > BITSTATE_SAFE_MAX_PREEMPTIONS;
+    }
 
     /**
      * Main entry point. Parses flags, runs benchmarks, and outputs results.
@@ -49,7 +81,7 @@ public final class Main {
         String strategyFilter = null;
         int bitstateSize = 1_000_003;
         int bitstateK = 4;
-        int maxPreemptions = 2;
+        int maxPreemptions = ContextBoundedExplorer.DEFAULT_MAX_PREEMPTIONS;
         boolean iterativeDeepening = false;
         BenchmarkProgram program = null;
 
@@ -83,7 +115,7 @@ public final class Main {
                     }
                     strategyFilter = args[i + 1].toUpperCase(Locale.ROOT);
                     if (!"DFS".equals(strategyFilter) && !"STATIC_POR".equals(strategyFilter)
-                        && !"DPOR".equals(strategyFilter) && !"CONTEXT_BOUNDED".equals(strategyFilter)) {
+                        && !"DPOR".equals(strategyFilter) && !CONTEXT_BOUNDED.equals(strategyFilter)) {
                         System.err.println("Error: --strategy must be 'DFS', 'STATIC_POR', 'DPOR', or 'CONTEXT_BOUNDED'");
                         System.exit(1);
                     }
@@ -186,15 +218,12 @@ public final class Main {
             System.exit(1);
         }
 
-        // Reject the combination that produces the most misleading possible report: a bounded
-        // bitstate run cannot prove absence, because Bloom collisions can prune real states.
-        boolean bitstateSelected = !"EXACT".equals(storeFilter);
-        boolean cbsSelected = strategyFilter == null || "CONTEXT_BOUNDED".equals(strategyFilter);
-        if (bitstateSelected && cbsSelected && maxPreemptions > 2) {
+        // Reject the combination that produces the most misleading possible report.
+        if (isUnsoundBitstateBound(storeFilter, strategyFilter, maxPreemptions)) {
             System.err.println("Error: --max-preemptions " + maxPreemptions
                 + " with bitstate hashing is unsound. Bitstate filtering can discard a real state,"
                 + " so a bounded run cannot prove absence of a bug. Use --store exact"
-                + " (or a bound of 2 or less) for a meaningful result.");
+                + " (or a bound of " + BITSTATE_SAFE_MAX_PREEMPTIONS + " or less) for a meaningful result.");
             System.exit(1);
         }
 
@@ -301,7 +330,8 @@ public final class Main {
         System.out.println("  --json                    Output as JSON (default: Markdown)");
         System.out.println("  --store exact|bitstate    Filter by store type (default: both)");
         System.out.println("  --strategy DFS|STATIC_POR|DPOR|CONTEXT_BOUNDED  Filter by strategy (default: all)");
-        System.out.println("  --max-preemptions N       Preemption bound for CONTEXT_BOUNDED (default: 2)");
+        System.out.println("  --max-preemptions N       Preemption bound for CONTEXT_BOUNDED (default: "
+            + ContextBoundedExplorer.DEFAULT_MAX_PREEMPTIONS + ")");
         System.out.println("  --iterative-deepening     Run increasing bounds, stop at first failure");
         System.out.println("  --bitstate-size N         Bitstate bit-array size (default: 1000003)");
         System.out.println("  --bitstate-k N            Bitstate hash function count (default: 4)");

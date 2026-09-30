@@ -55,19 +55,55 @@ class MainCBFlagsTest {
     }
 
     @Test
-    void bitstateAtHighBound_isRejectedByTheCliGuard() {
-        // Main's guard. Asserted here as a policy statement: the harness itself will happily run
-        // the unsound combination, so this check has to live in the CLI.
-        boolean wouldRun = true; // storeFilter is null -> bitstate is selected
-        int bound = 5;
-        assertTrue(wouldRun && bound > 2,
-            "this combination must be the one the CLI guard rejects");
+    void guard_refusesBitstateAboveSafeBound() {
+        // The pairing whose output cannot be interpreted: Bloom collisions can prune a real
+        // state, so a bounded run under bitstate cannot prove absence of a bug.
+        assertTrue(Main.isUnsoundBitstateBound(null, "CONTEXT_BOUNDED", 3),
+            "bitstate + CBS at K=3 must be refused");
+    }
+
+    @Test
+    void guard_allowsBitstateAtSafeBound() {
+        assertFalse(Main.isUnsoundBitstateBound(null, "CONTEXT_BOUNDED", 2),
+            "bitstate + CBS at K=2 is permitted");
+        assertFalse(Main.isUnsoundBitstateBound("BITSTATE", "CONTEXT_BOUNDED", 2));
+    }
+
+    @Test
+    void guard_allowsExactStoreAtAnyBound() {
+        // An exact store has no false positives, so the bound is not a soundness concern.
+        assertFalse(Main.isUnsoundBitstateBound("EXACT", "CONTEXT_BOUNDED", 5),
+            "exact store is never subject to the bound guard");
+        assertFalse(Main.isUnsoundBitstateBound("EXACT", "CONTEXT_BOUNDED", 99));
+    }
+
+    @Test
+    void guard_ignoresNonCbsStrategies() {
+        // DFS/POR/DPOR have no preemption bound, so a large one is inert rather than unsound.
+        for (String strategy : new String[] {"DFS", "STATIC_POR", "DPOR"}) {
+            assertFalse(Main.isUnsoundBitstateBound(null, strategy, 9),
+                strategy + " has no bound and must not trip the guard");
+        }
+    }
+
+    @Test
+    void guard_appliesWhenNoStrategyFilterGiven() {
+        // A null strategy filter means "all strategies", which includes CBS.
+        assertTrue(Main.isUnsoundBitstateBound(null, null, 3));
+        assertFalse(Main.isUnsoundBitstateBound(null, null, 1));
+    }
+
+    @Test
+    void guard_doesNotOverRejectLowBounds() {
+        for (int bound = 0; bound <= 2; bound++) {
+            assertFalse(Main.isUnsoundBitstateBound(null, "CONTEXT_BOUNDED", bound),
+                "bound " + bound + " should be allowed with bitstate");
+        }
     }
 
     @Test
     void bitstateAtLowBound_stillRuns() {
         // The guard must not over-reject: bound <= 2 with bitstate is allowed through.
-        assertFalse(2 > 2, "bound 2 is permitted");
         List<BenchmarkResult> rows = run(2, false, StoreType.BITSTATE);
         assertEquals(1, rows.size());
         assertNotEquals("PASS", rows.get(0).verdict(),

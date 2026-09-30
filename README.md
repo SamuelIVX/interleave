@@ -215,14 +215,15 @@ Context-bounded search (CHESS-style) systematically explores all interleavings u
 ./gradlew run --args="--all --strategy CONTEXT_BOUNDED --max-preemptions 2"
 
 # Deepen until the first failure, reporting the minimal bound that found it
-./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --max-preemptions 3 --iterative-deepening"
+# --store exact is required above K=2: see the note on bitstate below
+./gradlew run --args="lost-update --strategy CONTEXT_BOUNDED --store exact --max-preemptions 3 --iterative-deepening"
 ```
 
 **Reading the verdict.** A bounded run that exhausts its preemption bound without finding a bug
 reports `INCOMPLETE`, never `PASS` — it proved nothing about the pruned region. A bitstate run at
 any bound reports `APPROXIMATE_PASS` or `INCOMPLETE` rather than `PASS`, because Bloom collisions
-can prune real states, so the CLI refuses a bound above 2 with bitstate and tells you to use
-`--store exact`.
+can prune real states. The CLI therefore **refuses** a bound above 2 combined with bitstate and
+tells you to pass `--store exact`, rather than emitting a row whose verdict cannot be interpreted.
 
 **Cost-aware deduplication.** States are recorded with the *least* preemption budget at which they
 were reached, so a deeper bound is never pruned by a shallower one. Iterative deepening requires a

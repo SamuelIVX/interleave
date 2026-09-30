@@ -117,14 +117,33 @@ public final class BitstateStore implements StateStore {
 
     @Override
     public boolean isVisited(Configuration config, int lastThreadId, int preemptions) {
-        BitSet target = preemptionBitset(preemptions);
+        requirePreemptionInRange(preemptions);
         int[] indices = preemptionHashIndices(config, lastThreadId);
-        for (int idx : indices) {
-            if (!target.get(idx)) {
-                return false;
+        // Visited at budget p iff some recorded level q satisfies q <= p -- the same rule
+        // HashingStateStore implements with a stored minimum. A state first reached using fewer
+        // preemptions was explored with more budget remaining, so it subsumes this search and
+        // re-exploring it would be wasted work.
+        //
+        // Checking only level p would be merely wasteful, but it would also make the two stores
+        // answer this one method differently, so a search's behaviour would depend on which store
+        // the caller happened to pass.
+        for (int level = 0; level <= preemptions; level++) {
+            BitSet target = preemptionBitsets[level];
+            if (target == null) {
+                continue;   // never marked at this level
+            }
+            boolean allSet = true;
+            for (int idx : indices) {
+                if (!target.get(idx)) {
+                    allSet = false;
+                    break;
+                }
+            }
+            if (allSet) {
+                return true;
             }
         }
-        return true;
+        return false;
     }
 
     @Override
@@ -137,12 +156,16 @@ public final class BitstateStore implements StateStore {
         preemptionStatesMarked++;
     }
 
-    private BitSet preemptionBitset(int preemptions) {
+    private void requirePreemptionInRange(int preemptions) {
         if (preemptions < 0 || preemptions > maxPreemptions) {
             throw new IllegalArgumentException(
                 "preemption count " + preemptions + " is outside this store's capacity [0, "
                 + maxPreemptions + "]; construct the store as new BitstateStore(size, k, maxPreemptions)");
         }
+    }
+
+    private BitSet preemptionBitset(int preemptions) {
+        requirePreemptionInRange(preemptions);
         BitSet existing = preemptionBitsets[preemptions];
         if (existing == null) {
             existing = new BitSet(size);
