@@ -250,7 +250,17 @@ public final class BenchmarkHarness {
             if (isFailure(result.result())) {
                 return last;
             }
-            // INCOMPLETE, or APPROXIMATE_PASS on bitstate: keep deepening
+            // Only an INCOMPLETE trace justifies deepening: it proves the bound actually pruned
+            // something. Without one the bound covered the whole reachable space, so every deeper
+            // bound re-explores that same space and returns the same verdict. Each bound here
+            // gets its own store and its own state budget, so this costs wall time, not verdicts
+            // -- but the corpus runs dozens of CBS rows, and the redundant bounds are the bulk
+            // of that time.
+            boolean pruned = result.result().traces().stream()
+                .anyMatch(t -> t.outcome() == TraceOutcome.INCOMPLETE);
+            if (!pruned) {
+                return last; // exhaustive at k; deeper bounds are redundant
+            }
         }
         return last;
     }

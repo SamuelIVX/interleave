@@ -319,7 +319,10 @@ class ContextBoundedApiTest {
     @Test
     void limitAndIncomplete_areIndependentFlags() {
         // INCOMPLETE means the preemption bound stopped the search; limitExceeded means a resource
-        // limit did. A single run can carry both and neither must be inferred from the other.
+        // limit did. They are independent and neither may be inferred from the other -- but a
+        // single run cannot currently carry both, because the INCOMPLETE trace is emitted only
+        // after dfs() returns while a tripped maxStates throws out of it. See
+        // partialResult_limitedRun_reportsLimitAndNoIncomplete, which pins that ordering.
         BenchmarkProgram program = named("peterson");
 
         TestResult incompleteOnly = InterleaveRunner.builder()

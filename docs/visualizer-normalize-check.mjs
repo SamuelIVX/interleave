@@ -21,8 +21,10 @@ if (start < 0 || endMarker < 0) {
   process.exit(2);
 }
 const end = endMarker + 3;
-const MAX_NAME_LEN = 200;
-const normalize = new Function('MAX_NAME_LEN', src.slice(start, end) + '\nreturn normalize;')(MAX_NAME_LEN);
+// normalize() uses no module-level constant, so nothing needs injecting. Passing MAX_NAME_LEN
+// here would restate it as a local (and previously at 200, diverging from the real 64), so a
+// future edit that started using it would silently be checked against the wrong limit.
+const normalize = new Function(src.slice(start, end) + '\nreturn normalize;')();
 
 let fails = 0;
 const check = (name, raw, expected) => {

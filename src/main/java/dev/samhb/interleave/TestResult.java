@@ -81,8 +81,11 @@ public final class TestResult implements Serializable {
     /**
      * Returns whether this run was inconclusive because a preemption bound was reached.
      *
-     * <p>Independent of {@link #limitExceeded()}, which means a resource limit stopped the
-     * search. A single run can be both.
+     * <p>Independent of {@link #limitExceeded()} in the sense that neither is inferred from the
+     * other, but not co-occurring today: a run stopped by the resource limit throws out of
+     * {@code dfs()} before the INCOMPLETE trace is emitted, so it reports
+     * {@code limitExceeded() == true} and {@code hasIncomplete() == false}. Neither flag says
+     * anything about whether the preemption bound was reached in a resource-limited run.
      *
      * @return true if the search was truncated by its preemption bound
      */
@@ -90,6 +93,15 @@ public final class TestResult implements Serializable {
         return !incompleteTraces.isEmpty();
     }
 
+    /**
+     * Returns whether this run was stopped by a resource limit rather than by exhausting the
+     * state space.
+     *
+     * <p>Distinct from {@link #hasIncomplete()}: a resource limit aborts the search outright and
+     * yields no INCOMPLETE trace, so a limited run asserts nothing about completeness.
+     *
+     * @return true if the run was truncated by a resource limit
+     */
     public boolean limitExceeded() {
         return limitExceeded;
     }
