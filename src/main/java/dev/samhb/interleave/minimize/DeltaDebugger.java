@@ -18,8 +18,18 @@ public final class DeltaDebugger {
      * @param expectedOutcome the expected trace outcome (VIOLATION, DEADLOCK, or COMPLETED)
      * @param invariant the invariant to check for VIOLATION outcomes; may be null
      * @return a minimal subsequence of the original trace that still reproduces the failure
+     * @throws IllegalArgumentException if {@code expectedOutcome} is {@link TraceOutcome#INCOMPLETE}
      */
     public Trace minimize(Program program, Trace failingTrace, TraceOutcome expectedOutcome, Invariant invariant) {
+        // INCOMPLETE is a property of the search that hit its preemption bound, not of a
+        // schedule, so there is nothing for ddmin to reduce: every reduction "reproduces" it by
+        // construction. Rejecting it here is clearer than silently returning the input trace.
+        if (expectedOutcome == TraceOutcome.INCOMPLETE) {
+            throw new IllegalArgumentException(
+                "Cannot minimize an INCOMPLETE trace: it records that a context-bounded search "
+                + "exhausted its preemption budget, not a schedule that can be reproduced");
+        }
+
         List<Integer> threadIds = new ArrayList<>(failingTrace.threadIds());
         List<StepOutcome> outcomes = new ArrayList<>(failingTrace.outcomes());
         
@@ -84,6 +94,11 @@ public final class DeltaDebugger {
                 case VIOLATION -> invariant != null
                     ? !config.allTerminated() && !config.isDeadlockCandidate() && !invariant.holds(config.state(), config)
                     : !config.allTerminated() && !config.isDeadlockCandidate();
+                // INCOMPLETE describes the search, not a schedule: it means the preemption bound
+                // was reached. No replay of a prefix can reproduce that, so reporting true here
+                // would let the minimizer shrink a trace into a shorter one that also claims to be
+                // INCOMPLETE -- a strictly meaningless result.
+                case INCOMPLETE -> false;
             };
         } catch (IllegalScheduleException e) {
             return false;

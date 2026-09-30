@@ -13,9 +13,11 @@ public final class VerificationResult implements Serializable {
     private final List<Trace> failingTraces;
     private final List<Trace> deadlockedTraces;
     private final List<Trace> completedTraces;
+    private final List<Trace> incompleteTraces;
 
     VerificationResult(Strategy strategy, long statesExplored, long wallTimeMs, long heapDeltaBytes,
-                              List<Trace> failingTraces, List<Trace> deadlockedTraces, List<Trace> completedTraces) {
+                              List<Trace> failingTraces, List<Trace> deadlockedTraces, List<Trace> completedTraces,
+                              List<Trace> incompleteTraces) {
         this.strategy = strategy;
         this.statesExplored = statesExplored;
         this.wallTimeMs = wallTimeMs;
@@ -23,23 +25,26 @@ public final class VerificationResult implements Serializable {
         this.failingTraces = List.copyOf(failingTraces);
         this.deadlockedTraces = List.copyOf(deadlockedTraces);
         this.completedTraces = List.copyOf(completedTraces);
+        this.incompleteTraces = List.copyOf(incompleteTraces);
     }
 
     public static VerificationResult from(DfsResult result, Strategy strategy, long wallTimeMs, long heapDeltaBytes) {
         List<Trace> failing = new ArrayList<>();
         List<Trace> deadlocked = new ArrayList<>();
         List<Trace> completed = new ArrayList<>();
+        List<Trace> incomplete = new ArrayList<>();
 
         for (Trace trace : result.traces()) {
             switch (trace.outcome()) {
                 case VIOLATION -> failing.add(trace);
                 case DEADLOCK -> deadlocked.add(trace);
                 case COMPLETED -> completed.add(trace);
+                case INCOMPLETE -> incomplete.add(trace);
             }
         }
 
         return new VerificationResult(strategy, result.statesExplored(), wallTimeMs, heapDeltaBytes,
-                                      failing, deadlocked, completed);
+                                      failing, deadlocked, completed, incomplete);
     }
 
     public boolean hasViolation() {
@@ -56,6 +61,25 @@ public final class VerificationResult implements Serializable {
 
     public List<Trace> completedTraces() {
         return completedTraces;
+    }
+
+    /**
+     * Returns traces from a context-bounded search that ran out of preemption budget without
+     * finding a violation.
+     *
+     * @return the INCOMPLETE traces
+     */
+    public List<Trace> incompleteTraces() {
+        return incompleteTraces;
+    }
+
+    /**
+     * Returns whether this run was inconclusive because a preemption bound was reached.
+     *
+     * @return true if the search was truncated by its preemption bound
+     */
+    public boolean hasIncomplete() {
+        return !incompleteTraces.isEmpty();
     }
 
     public long statesExplored() {
@@ -78,6 +102,7 @@ public final class VerificationResult implements Serializable {
         List<TraceRecord> failingTraces = new ArrayList<>();
         List<TraceRecord> deadlockedTraces = new ArrayList<>();
         List<TraceRecord> completedTraces = new ArrayList<>();
+        List<TraceRecord> incompleteTraces = new ArrayList<>();
 
         for (Trace trace : this.failingTraces) {
             failingTraces.add(trace.toRecord());
@@ -88,9 +113,12 @@ public final class VerificationResult implements Serializable {
         for (Trace trace : this.completedTraces) {
             completedTraces.add(trace.toRecord());
         }
+        for (Trace trace : this.incompleteTraces) {
+            incompleteTraces.add(trace.toRecord());
+        }
 
         return new TestResult(strategy, statesExplored, wallTimeMs, heapDeltaBytes,
-                              failingTraces, deadlockedTraces, completedTraces, false);
+                              failingTraces, deadlockedTraces, completedTraces, incompleteTraces, false);
     }
 
     public String toJson() {
@@ -103,7 +131,9 @@ public final class VerificationResult implements Serializable {
         sb.append("  \"hasViolation\": ").append(hasViolation()).append(",\n");
         sb.append("  \"failingTraces\": ").append(jsonTraces(failingTraces)).append(",\n");
         sb.append("  \"deadlockedTraces\": ").append(jsonTraces(deadlockedTraces)).append(",\n");
-        sb.append("  \"completedTraces\": ").append(jsonTraces(completedTraces)).append("\n");
+        sb.append("  \"completedTraces\": ").append(jsonTraces(completedTraces)).append(",\n");
+        // Emitted unconditionally so the JSON shape does not depend on the result's content.
+        sb.append("  \"incompleteTraces\": ").append(jsonTraces(incompleteTraces)).append("\n");
         sb.append("}\n");
         return sb.toString();
     }

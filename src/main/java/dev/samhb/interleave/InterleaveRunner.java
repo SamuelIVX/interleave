@@ -125,39 +125,51 @@ public final class InterleaveRunner implements Serializable {
         private final List<TraceRecord> failingTraces;
         private final List<TraceRecord> deadlockedTraces;
         private final List<TraceRecord> completedTraces;
+        private final List<TraceRecord> incompleteTraces;
 
         PartialResult(long statesExplored, List<TraceRecord> failingTraces,
                       List<TraceRecord> deadlockedTraces, List<TraceRecord> completedTraces) {
+            this(statesExplored, failingTraces, deadlockedTraces, completedTraces, List.of());
+        }
+
+        PartialResult(long statesExplored, List<TraceRecord> failingTraces,
+                      List<TraceRecord> deadlockedTraces, List<TraceRecord> completedTraces,
+                      List<TraceRecord> incompleteTraces) {
             this.statesExplored = statesExplored;
             this.failingTraces = List.copyOf(failingTraces);
             this.deadlockedTraces = List.copyOf(deadlockedTraces);
             this.completedTraces = List.copyOf(completedTraces);
+            this.incompleteTraces = List.copyOf(incompleteTraces);
         }
 
         PartialResult withTrace(TraceRecord record) {
             List<TraceRecord> failing = new ArrayList<>(failingTraces);
             List<TraceRecord> deadlocked = new ArrayList<>(deadlockedTraces);
             List<TraceRecord> completed = new ArrayList<>(completedTraces);
+            List<TraceRecord> incomplete = new ArrayList<>(incompleteTraces);
 
             switch (record.outcome()) {
                 case VIOLATION -> failing.add(record);
                 case DEADLOCK -> deadlocked.add(record);
                 case COMPLETED -> completed.add(record);
+                case INCOMPLETE -> incomplete.add(record);
             }
 
-            return new PartialResult(statesExplored, failing, deadlocked, completed);
+            return new PartialResult(statesExplored, failing, deadlocked, completed, incomplete);
         }
 
         long statesExplored() { return statesExplored; }
         List<TraceRecord> failingTraces() { return failingTraces; }
         List<TraceRecord> deadlockedTraces() { return deadlockedTraces; }
         List<TraceRecord> completedTraces() { return completedTraces; }
+        List<TraceRecord> incompleteTraces() { return incompleteTraces; }
     }
 
     private TestResult convertToTestResult(DfsResult result, long wallTime, long heapDelta, boolean limitExceeded) {
         List<TraceRecord> failingTraces = new ArrayList<>();
         List<TraceRecord> deadlockedTraces = new ArrayList<>();
         List<TraceRecord> completedTraces = new ArrayList<>();
+        List<TraceRecord> incompleteTraces = new ArrayList<>();
 
         for (Trace trace : result.traces()) {
             TraceRecord record = trace.toRecord();
@@ -165,17 +177,18 @@ public final class InterleaveRunner implements Serializable {
                 case VIOLATION -> failingTraces.add(record);
                 case DEADLOCK -> deadlockedTraces.add(record);
                 case COMPLETED -> completedTraces.add(record);
+                case INCOMPLETE -> incompleteTraces.add(record);
             }
         }
 
         return new TestResult(strategy, result.statesExplored(), wallTime, heapDelta,
-                              failingTraces, deadlockedTraces, completedTraces, limitExceeded);
+                              failingTraces, deadlockedTraces, completedTraces, incompleteTraces, limitExceeded);
     }
 
     private TestResult convertToTestResult(PartialResult partial, long wallTime, long heapDelta, boolean limitExceeded) {
         return new TestResult(strategy, partial.statesExplored(), wallTime, heapDelta,
                               partial.failingTraces(), partial.deadlockedTraces(),
-                              partial.completedTraces(), limitExceeded);
+                              partial.completedTraces(), partial.incompleteTraces(), limitExceeded);
     }
 
     /**
