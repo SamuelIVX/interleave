@@ -5,6 +5,8 @@ import dev.samhb.interleave.cb.ContextBoundedExplorer;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.por.*;
 import dev.samhb.interleave.dpor.*;
+import dev.samhb.interleave.state.BitstateStore;
+import dev.samhb.interleave.state.HashingStateStore;
 import java.util.*;
 import java.util.function.Supplier;
 

@@ -1,6 +1,8 @@
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.Configuration;
+import dev.samhb.interleave.state.BitstateStore;
+import dev.samhb.interleave.state.HashingStateStore;
 
 /**
  * Interface for tracking visited configurations during state-space exploration.
