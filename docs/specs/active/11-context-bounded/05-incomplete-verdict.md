@@ -129,7 +129,7 @@ Required behavior:
 - When `--iterative-deepening` flag set: runs K=0,1,2...maxPreemptions
 - Stops at first K where VIOLATION or DEADLOCK found (returns minimal-preemption trace)
 - If no violation at any K, returns final result (PASS or INCOMPLETE at maxPreemptions)
-- Each K iteration uses a fresh StateStore (`storeFactory.get()` in Spec 11.04, `store.freshCopy()` in Spec 11.06). `BitstateStore.freshCopy()` must preserve capacity (Spec 11.01) or K > 2 silently under-reports.
+- Each K iteration uses a fresh StateStore, obtained from the `storeFactory`/`stateStoreFactory` supplier (Spec 11.04 §5, Spec 11.06 §3). A **shared** store must be rejected, not reused: with one visited set across bounds, each deeper K would prune what the previous K explored, so deepening would narrow instead of widen. `BitstateStore` reached through the factory must preserve capacity (Spec 11.01 §4) or K > 2 trips the capacity assertion.
 - `APPROXIMATE_PASS` (bitstate) is not a stop condition, same as INCOMPLETE — keep deepening.
 
 ## Tests

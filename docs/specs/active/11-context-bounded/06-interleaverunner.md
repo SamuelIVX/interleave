@@ -70,46 +70,140 @@ public class Builder {
 **Why `iterativeDeepeningExplicit` is tracked separately:** the field `iterativeDeepening` defaults to `false` for every strategy, so validating on its value alone would either reject every non-CBS build or accept the mistake. `.strategy(DFS).iterativeDeepening(false).build()` is a caller who explicitly asked for a CBS option on a non-CBS strategy — almost certainly a refactor slip where the strategy was changed and the option was left behind. Failing loudly costs one exception; failing silently costs a run that quietly ignores what the caller asked for. Meanwhile plain `.strategy(DFS).build()` stays valid, so non-CBS callers never have to know about CBS.
 
 ### Runner Execution
-In `InterleaveRunner.run(Program)`:
+
+`InterleaveRunner.run` [verified, `InterleaveRunner.java:42-85`] is **not** a switch expression. Its actual
+shape is a statement switch inside a `try` block, with a `catch (LimitExceededException)` that returns
+partial results flagged `limitExceeded=true`:
+
 ```java
 public TestResult run(Program program) {
-    Invariant invariant = this.invariant;
-    StateStore store = stateStoreFactory.get();
+    long start = System.currentTimeMillis();
+    Runtime runtime = Runtime.getRuntime();
+    runtime.gc();
+    long memBefore = runtime.totalMemory() - runtime.freeMemory();
 
-    return switch (strategy) {
-        case DFS -> runExplorer(() -> new DfsExplorer().explore(program, invariant, store, stateVisitor));
-        case STATIC_POR -> runExplorer(() -> new StaticPorExplorer().explore(program, invariant, store, stateVisitor));
-        case DPOR -> runExplorer(() -> new DporExplorer().explore(program, invariant, store, stateVisitor));
-        case CONTEXT_BOUNDED -> {
-            if (iterativeDeepening) {
-                yield runIterativeDeepening(program, invariant, store);
-            }
-            yield runExplorer(() -> new ContextBoundedExplorer().explore(program, invariant, store, stateVisitor, maxPreemptions));
-        }
+    // Lazy: the existing three strategies each need exactly one store; CBS iterative
+    // mode must NOT trigger a factory call here (it obtains one per K itself).
+    StateStore[] runStateStore = new StateStore[1];
+    Supplier<StateStore> runStore = () -> {
+        if (runStateStore[0] == null) runStateStore[0] = stateStoreFactory.get();
+        return runStateStore[0];
     };
-}
 
-private TestResult runIterativeDeepening(Program program, Invariant invariant, StateStore store) {
-    DfsResult lastResult = null;
-    for (int k = 0; k <= maxPreemptions; k++) {
-        ContextBoundedExplorer explorer = new ContextBoundedExplorer();
-        StateStore freshStore = store.freshCopy();
-        DfsResult result = explorer.explore(program, invariant, freshStore, stateVisitor, k);
-        lastResult = result;
+    LimitState limitState = new LimitState();
+    StateVisitor visitor = createLimitEnforcingVisitor(limitState);
 
-        String verdict = actualVerdict(result);
-        if (verdict.equals("VIOLATION") || verdict.equals("DEADLOCK")) {
-            return convertToTestResult(result); // Minimal K trace
+    DfsResult result;
+    try {
+        switch (strategy) {
+            case DFS -> { /* unchanged: uses runStore.get() */ }
+            case STATIC_POR -> { /* unchanged: uses runStore.get() */ }
+            case DPOR -> { /* unchanged: uses runStore.get() */ }
+            // NEW: CBS must go through the SAME try block, not around it
+            case CONTEXT_BOUNDED -> {
+                result = iterativeDeepening
+                    ? runIterativeDeepening(program, invariant, visitor)
+                    : new ContextBoundedExplorer().explore(
+                          program, invariant, runStore.get(), visitor, maxPreemptions);
+            }
+            default -> throw new IllegalArgumentException("Unknown strategy: " + strategy);
         }
+    } catch (LimitExceededException e) {
+        // unchanged: return partial results including traces
+        return convertToTestResult(limitState.partialResult, /* ... */, true);
     }
-    // Return the final iteration's result (already computed) — avoid duplicate search
-    return convertToTestResult(lastResult);
+
+    return convertToTestResult(result, /* ... */, false);
 }
 ```
 
-**`freshCopy()` and the outer `store`:** each iteration must get a store that is independent of the others. `store` here is the one already created at the top of `run()` and is itself used for K iteration 0's siblings — a `BitstateStore` copy that resets `maxPreemptions` to its 2-arg default would under-report for K > 2, so `BitstateStore.freshCopy()` must propagate capacity (Spec 11.01 §3). The `stateVisitor` limit enforcement continues to work because the 3-arg `onStateVisited` default delegates to the single-arg form the visitor overrides (Spec 11.01 §1b).
+> **Do not replace `run()` with a switch expression.** There is no `runExplorer` or `actualVerdict` method
+> on `InterleaveRunner` — those live on `BenchmarkHarness` (`BenchmarkHarness.java:193-223`). A
+> `return switch (strategy) { … }` rewrite would not compile, and would discard `createLimitEnforcingVisitor`,
+> the `try`/`catch`, and the `LimitState` bookkeeping that make `maxStates` / `maxTime` work. The only
+> change to `run()` is **one added `case` inside the existing `try`**, plus making the store acquisition
+> lazy.
 
-`actualVerdict(result)` here is the library-side helper and does **not** take a `StoreType` — the harness's `cbVerdict` (Spec 11.04) is benchmark-only. Keep the two separate; do not unify them.
+**Why the store acquisition must be lazy.** In iterative mode `runIterativeDeepening` calls
+`stateStoreFactory.get()` once per K. An unconditional `stateStoreFactory.get()` at the top of `run()`
+would therefore build one store that is never used and never cleared — for `BitstateStore` that is a real
+allocation (`maxPreemptions + 1` bit arrays, ~1 MB at the default `bitstateSize`), and a caller-supplied
+factory with side effects (pooling, registration, counters) would observe a spurious extra call. Deferring
+the acquisition keeps the existing three strategies' behavior identical — each still gets exactly one
+store — while making the call count depend only on the path actually taken.
+
+#### Iterative deepening and limits
+
+`runIterativeDeepening` must let `LimitExceededException` propagate to the existing `catch` rather than
+catching it locally. Every iteration shares the **same** `visitor`, so a state/time limit that trips at
+any K is caught once, by the one handler that already knows how to assemble partial results:
+
+```java
+private DfsResult runIterativeDeepening(Program program, Invariant invariant, StateVisitor visitor) {
+    DfsResult lastResult = null;
+    Set<StateStore> seenStores = Collections.newSetFromMap(new IdentityHashMap<>());
+    for (int k = 0; k <= maxPreemptions; k++) {
+        int bound = k; // Capture loop variable for lambda
+        ContextBoundedExplorer explorer = new ContextBoundedExplorer();
+        StateStore freshStore = stateStoreFactory.get();   // fresh per K — see below
+        if (!seenStores.add(freshStore)) {
+            throw new IllegalStateException(
+                "Iterative deepening requires a fresh StateStore per bound K, but "
+                + "stateStoreFactory reused an instance. Iterations would share a visited set, so "
+                + "each deeper bound would prune states the previous bound already explored. Use "
+                + "stateStoreFactory(...) with a supplier returning a new store per call.");
+        }
+        DfsResult result = explorer.explore(program, invariant, freshStore, visitor, bound);
+        lastResult = result;
+
+        if (isFailure(result)) {
+            return result; // Minimal K trace
+        }
+        // INCOMPLETE / APPROXIMATE_PASS at this K → deepen
+    }
+    return lastResult; // already computed — avoid duplicate search
+}
+
+private static boolean isFailure(DfsResult result) {
+    return result.traces().stream().anyMatch(t ->
+        t.outcome() == TraceOutcome.VIOLATION || t.outcome() == TraceOutcome.DEADLOCK);
+}
+```
+
+Four points that are easy to get wrong:
+
+1. **`LimitExceededException` propagates.** The helper has no `try`/`catch`. If `maxStates` trips during
+   iteration 3 of 5, the exception reaches `run()`'s `catch`, which returns the partial `TestResult` with
+   `limitExceeded=true` and the traces recorded so far. Catching locally and continuing to K=4 would
+   silently exceed the caller's budget — a limit that does not limit anything. A run that stops early for
+   a resource reason must say so rather than deepening past its own budget.
+2. **Fresh store per K via `stateStoreFactory.get()`, and reject a shared one.** See below — this is a
+   soundness requirement, not just isolation.
+3. **`isFailure`, not a verdict string.** `InterleaveRunner` has no `actualVerdict`; the harness's
+   `cbVerdict` (Spec 11.04) is benchmark-only and returns a `String` for report labels. The library layer
+   needs only a boolean. Keep the two separate — do not unify them, and do not introduce a verdict-string
+   helper into the library path.
+
+**Why the store must be genuinely fresh, and shared must throw.** Calling `store.freshCopy()` per K would
+work for `HashingStateStore` and `BitstateStore` but throws `UnsupportedOperationException` for any store
+that does not override it — including the shared-instance fallback that `Builder.stateStore(...)`
+installs at `InterleaveRunner.java:236-243`. Going through the factory reuses the caller's own isolation
+policy for **every** K.
+
+The fallback case is not merely wasteful, it is **unsound**: a shared visited set makes each deeper bound
+*prune* what the previous bound explored, because `isVisited` is `min ≤ p` and K=0 marks every state at
+count 0. Deepening would narrow rather than widen. Hence the identity check over **all** stores used so far —
+an alternating `A, B, A, B` factory must be rejected too, or K=2 would inherit K=0's visited set. The set
+holds `maxPreemptions + 1` references, so the cost is trivial. Full derivation in Spec 11.01 §5.
+`BitstateStore.freshCopy()` must still preserve `maxPreemptions` (Spec 11.01 §4) for the
+`stateStore(BitstateStore)` path.
+
+**Interaction with the limit visitor.** The 3-arg `onStateVisited` default delegates to the single-arg form
+(Spec 11.01 §1b), and `createLimitEnforcingVisitor` overrides only the single-arg form
+(`InterleaveRunner.java:91-116`). Limit enforcement therefore works for CBS with no change to that visitor.
+`LimitState.partialResult` accumulates traces via `onTraceCreated`; its `switch (record.outcome())` at
+`:142` is one of the four sites Spec 11.07 updates.
+
 
 ### Static Entry Points
 In `Interleave` class:
@@ -150,6 +244,21 @@ public static TestResult quickCheck(Program program, int maxPreemptions, boolean
 - `quickCheck_programIntOverload_unambiguousWithSupplierOverload()` — both `quickCheck(p, 2)` and
   `quickCheck(p, supplier)` compile and dispatch correctly
 - `run_CONTEXT_BOUNDED_returnsTestResult()`
+- `run_CONTEXT_BOUNDED_staysInsideLimitEnforcement()` — **guards the `run()` rewrite**: CBS must not bypass
+  `createLimitEnforcingVisitor` or the `try`/`catch`
+- `run_CONTEXT_BOUNDED_maxStates_returnsPartialWithLimitExceeded()` — a limit trips mid-deepening and
+  yields `limitExceeded=true` with partial traces, not an escaping `LimitExceededException`
+- `runIterativeDeepening_doesNotDeepenPastLimit()` — a `maxStates` budget is a **total** budget across all
+  K iterations, not per-iteration. A store-sharing supplier that returns the same instance would let the
+  search silently exceed the caller's budget while appearing to respect it.
+- `runIterativeDeepening_storeFactoryUsedPerIteration()` — assert the factory is invoked once per K, so
+  iterations cannot contaminate each other's visited set
+- `runIterativeDeepening_sharedStoreFactory_throwsIllegalState()` — a store that does not override
+  `freshCopy()` (so `.stateStore(x)` installs the shared-instance fallback) must **throw** under iterative
+  deepening, not run narrowing. This is the soundness guard, and it is the opposite of the old expectation
+  that such a store would "just work"
+- `runIterativeDeepening_alternatingStoreFactory_throwsIllegalState()` — a factory returning `A, B, A, B …`
+  must also be rejected; the check covers every store used, not only the last one
 - `run_CONTEXT_BOUNDED_incompleteVerdictProducesIncompleteTrace()` — requires the Spec 11.05 / 11.07
   `TestResult.incompleteTraces()` plumbing; coordinate ordering with 11.07
 - `run_CONTEXT_BOUNDED_respectsMaxStatesLimit()` — the `createLimitEnforcingVisitor` delegation (Spec 11.01 §1b)

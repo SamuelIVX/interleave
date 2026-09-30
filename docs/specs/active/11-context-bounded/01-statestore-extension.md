@@ -130,7 +130,7 @@ public int maxPreemptions() { return maxPreemptions; }
 ```
 
 - The two existing constructors keep their signatures and default to `maxPreemptions = 2`, so no existing call site or test changes.
-- `freshCopy()` **must** propagate `maxPreemptions`: `new BitstateStore(size, numHashFunctions, maxPreemptions)`. Iterative deepening (Spec 11.05) calls `freshCopy()` per K, and a store that silently reset capacity to 2 would under-report states explored for K > 2.
+- `freshCopy()` **must** propagate `maxPreemptions`: `new BitstateStore(size, numHashFunctions, maxPreemptions)`. Iterative deepening (Spec 11.05) reaches this path via the `stateStoreFactory` when the caller used `.stateStore(BitstateStore)`, and a store that silently reset capacity to 2 would under-report states explored for K > 2 — then trip the §4 capacity assertion.
 
 **Lookup / mark** (CHESS-style cost-aware Bloom filter — probe every level `q ≤ p`):
 ```java
@@ -178,6 +178,92 @@ public void markVisited(Configuration config, int lastThreadId, int p) {
 
 **The explorer must never clamp.** Silently reducing the effective bound to the store's capacity would return a verdict that looks exhaustive-at-K but is actually exhaustive-at-C, which is exactly the class of silent unsoundness this spec set exists to prevent. A wiring bug should be a loud exception, not a quietly weaker search.
 
+### 5. `freshCopy()` and Per-K Store Requirements
+
+`StateStore.freshCopy()` [verified, `search/StateStore.java:42-44`] is a `default` method that **throws
+`UnsupportedOperationException`**. It is a convenience, not a guarantee: `HashingStateStore` and
+`BitstateStore` both implement it, but a third-party store need not.
+
+Iterative deepening (Spec 11.05 §7) needs a store that is **empty and independent for every bound K**.
+This is a soundness requirement, not an isolation nicety, and it has three parts.
+
+**1. Each K must get a genuinely empty store, not merely a distinct object.**
+
+Reusing one store across iterations does not just under-count; it makes deepening *narrow* instead of
+wider. Because `isVisited` is `minPreemptions[key] != null && minPreemptions[key] <= p`:
+
+- iteration K=0 marks `(config, t) → 0`
+- iteration K=1 queries `isVisited(config, t, 1)` → `min = 0 ≤ 1` → **pruned**
+
+So every state K=0 explored would be pruned at K=1, and each higher K would explore a strict subset of the
+one before it. The search would report `PASS` at K=5 having covered less of the state space than K=0 did —
+and a `BitstateStore` would additionally carry K=0's marks as false positives. This is exactly the silent
+unsoundness this spec exists to prevent, so it must be **rejected, not tolerated**:
+
+```java
+// in runIterativeDeepening, per iteration
+StateStore freshStore = stateStoreFactory.get();
+if (!seenStores.add(freshStore)) {   // Set backed by IdentityHashMap
+    throw new IllegalStateException(
+        "Iterative deepening requires a fresh StateStore per bound K, but the configured "
+        + "stateStoreFactory reused an instance. Iterations would share a visited set and each "
+        + "deeper bound would prune states the previous bound already explored. "
+        + "Use stateStoreFactory(...) with a supplier that returns a new store per call.");
+}
+```
+
+The check must test membership of a set of **every store already used**, not just the previous one.
+Comparing against `previousStore` alone catches a factory that returns one constant instance, but misses
+an alternating `A, B, A, B …` — and iteration K=2 would then inherit K=0's visited set, reintroducing the
+exact pruning this rule exists to prevent. A `Set` backed by `IdentityHashMap` (not `HashSet`, which would
+use `equals`/`hashCode` and could merge two distinct stores that happen to compare equal) makes the
+invariant exact: *no store instance is ever reused across bounds*.
+
+Do not add an `isEmpty()` probe to the interface for this. The bound on memory is trivial —
+`maxPreemptions + 1` references, single digits for realistic K — and the only failure that matters is
+instance reuse.
+
+**2. `freshCopy()` may throw, so callers must not depend on it.**
+
+`Builder.stateStore(StateStore)` [verified, `InterleaveRunner.java:232-245`] installs a factory that tries
+`freshCopy()` and **falls back to returning the shared instance** when it throws
+`UnsupportedOperationException`. Combined with (1), that fallback is a hard error for iterative deepening:
+it produces a factory that returns the same object every call. It remains correct for single-bound
+strategies, so the fix belongs in `runIterativeDeepening` (Spec 11.06), which fails loudly, rather than in
+`stateStore(...)`, which would break every existing caller.
+
+For this reason both Spec 11.06 (library) and Spec 11.04 (harness) obtain each iteration's store from the
+**factory**, never from `store.freshCopy()` — the factory is the caller's own isolation policy and already
+encodes this decision.
+
+**3. When `freshCopy()` IS used, capacity must carry over.**
+
+For `BitstateStore`, a copy that reset `maxPreemptions` to the 2-argument default would under-report states
+explored for K > 2 — and the §4 capacity assertion would then **throw** for any K above 2. Loud, not silent;
+that is precisely what §4 is for, and it is why this case is safe to leave enforced rather than detected.
+
+**No new interface method is required.** `BenchmarkHarness` already threads a
+`Supplier<StateStore> storeFactory` through `runProgramWithStore` (`:123-125`), and the library path uses
+`stateStoreFactory` for the same purpose.
+
+**Both iterative-deepening loops must enforce requirement 1, not just the library one.** There are exactly
+two, and they are separate code:
+
+| Loop | Spec | Factory | Check |
+|---|---|---|---|
+| `BenchmarkHarness.runExplorerWithIterativeDeepening` | 11.04 §5 | `storeFactory` | required |
+| `InterleaveRunner.runIterativeDeepening` | 11.06 §3 | `stateStoreFactory` | required |
+
+Enforcing it in only one leaves the other silently narrowing, and the two failure modes differ in
+reachability: the library path can be handed the shared-instance fallback through the public
+`Builder.stateStore(...)` API, while the harness path is only reachable if its own per-store-type factory
+wiring regresses. Both are cheap to check (`maxPreemptions + 1` insertions into an identity set) and both
+produce plausible-looking wrong numbers when omitted, which is the failure mode worth spending the
+allocation on.
+
+**Cross-references:** Spec 11.04 (harness, per-K `storeFactory.get()`), Spec 11.06 (library,
+`runIterativeDeepening`), Spec 11.05 §7 (iterative deepening behavior).
+
 ## Tests
 
 **File:** `src/test/java/dev/samhb/interleave/state/HashingStateStorePreemptionTest.java`
@@ -218,6 +304,22 @@ public void markVisited(Configuration config, int lastThreadId, int p) {
 **File:** `src/test/java/dev/samhb/interleave/cb/ContextBoundedExplorerVisitorTest.java`
 - `limitEnforcingVisitor_cbsRun_stillTripsMaxStates()` — a `StateVisitor` overriding only single-arg
   `onStateVisited` still enforces the limit under CBS (validates the §1b delegation)
+
+**File:** `src/test/java/dev/samhb/interleave/cb/IterativeDeepeningStoreIsolationTest.java`
+*(new file; covers §5 requirement 1 — the per-K store soundness rule)*
+- `iterativeDeepening_sharedStoreFactory_throwsIllegalState()` — a factory returning one shared instance is
+  rejected loudly, not tolerated
+- `iterativeDeepening_alternatingStoreFactory_throwsIllegalState()` — a factory returning `A, B, A, B …` is
+  also rejected; membership is tested over all stores used, not just the previous one
+- `iterativeDeepening_sharedStore_wouldPrunePreviousK_states()` — pins the actual failure mode. Using a
+  reference `Set`-backed store, assert that a single shared instance prunes at K=1 everything K=0 explored
+  (the `min=0 ≤ 1` path). This documents *why* the identity check exists and fails if a future refactor
+  drops it
+- `iterativeDeepening_freshFactoryPerK_exploresWiderAtHigherK()` — the positive case: with a real fresh
+  store per K, `statesExplored(K=2) >= statesExplored(K=1)`. Guards the property the identity check
+  protects, so the check is not just enforced but demonstrably needed
+- `iterativeDeepening_bitstateStoreFactory_capacityCarriesOver()` — a `BitstateStore` supplier sized for
+  `maxPreemptions` satisfies §4 at every K rather than tripping the assertion after K=2
 
 ## Out of Scope
 - Iterative deepening — Spec 11.05

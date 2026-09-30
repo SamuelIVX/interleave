@@ -112,7 +112,20 @@ Required changes:
 - Update the footer text at `visualizer.html:65`, which enumerates the supported shapes.
 - Add a fixture under `examples/traces/` with an INCOMPLETE-only payload.
 
-**Testing caveat, stated honestly:** the visualizer has no automated JS test suite today. The fixture plus manual verification is the coverage that actually exists. Do not write "add a test" in the acceptance criteria and imply CI enforces it — record it as a manual checklist item. Closing that gap is a reasonable follow-up but is out of scope here.
+**Testing caveat — KNOWN GAP, not a solved problem:** the visualizer has **no automated JS test suite**
+today. There is no test runner, no assertions, and no CI coverage for `normalize()`. The fixture plus the
+manual checklist below is the entirety of the verification that will exist for this change. This is stated
+plainly rather than dressed up as "add a test", because a spec that implies CI enforcement where none
+exists is worse than an honest gap.
+
+Consequences to accept explicitly:
+- The `INCOMPLETE` → `PASS` misrender is **only** caught if a human opens the viewer with the new fixture
+  during review. Nothing fails the build if the fix is wrong or reverted.
+- `normalize()` is security-sensitive (it treats all input as untrusted, per the comment at `:95`), and
+  this change adds a new branch to it with no automated guard.
+- **Follow-up worth filing:** a minimal JS test harness (node:test or a browser-run assert script) for
+  `normalize()`, covering all four producer shapes. That is out of scope here, but it should not stay
+  unfiled — the same INCOMPLETE branch will be re-broken by the next viewer change otherwise.
 
 ### 7. Compile-green implementation order
 
@@ -186,7 +199,7 @@ Step 2 is the one that gets skipped, and the one that leaves `main` broken if ha
 ## Out of Scope
 - Changes to `BugCorpus` or the 7 corpus programs
 - `Program`, `Configuration`, `SharedState`, or any core model change
-- A JavaScript test harness for the visualizer (follow-up; recorded as a real gap)
+- A JavaScript test harness for the visualizer (follow-up; the gap and its consequences are detailed in §6)
 - `TraceRecord` field changes — `TraceRecord` already carries an arbitrary `TraceOutcome`, so no change
   is needed for `INCOMPLETE`; only the *containers* change
 - `CorpusGenerator` / `CorpusEntry` — they consume `DfsResult` from an exact `DfsExplorer` oracle

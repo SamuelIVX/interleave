@@ -152,10 +152,10 @@ After full implementation:
 
 ## Known Gaps
 
-- **No automated JS test suite for the visualizer.** Spec 07 §6 verification is a manual checklist. Closing
-  this is a reasonable follow-up.
-- **`BenchmarkResult` has no preemption-bound field.** Reports will not state which K produced a row. A
-  follow-up field would require new `BenchmarkResult` constructors plus `ReportWriter` and
-  `StatesExploredTable` changes; deliberately deferred so this set stays implementable in one pass.
-- **INCOMPLETE traces are not minimizable.** `DeltaDebugger` rejects them (Spec 07 §1). Reducing a
-  bound-limited search to a shorter schedule that also claims to be INCOMPLETE is meaningless.
+- **No automated JS test suite for the visualizer.** Spec 11.07 §6 verification is a manual checklist. The
+  new `INCOMPLETE` branch in `normalize()` is security-sensitive and has no automated guard — the
+  `INCOMPLETE` → `PASS` misrender would only be caught by a human opening the viewer. Follow-up: a minimal
+  node:test harness covering all four producer shapes. Detailed in [11.07 §6](07-unchanged-paths.md).
+- **INCOMPLETE traces are not minimizable.** `DeltaDebugger` rejects them (Spec 11.07 §1). Reducing a
+  bound-limited search to a shorter schedule that also claims to be INCOMPLETE is meaningless. This one is
+  a deliberate design decision, not a gap.

@@ -126,10 +126,17 @@ private CbRun runExplorerWithIterativeDeepening(BenchmarkProgram program, Invari
                                                 StoreType storeType,
                                                 int maxPreemptions) {
     CbRun last = null;
+    Set<StateStore> seenStores = Collections.newSetFromMap(new IdentityHashMap<>());
     for (int k = 0; k <= maxPreemptions; k++) {
         int bound = k; // Capture loop variable for lambda
         ContextBoundedExplorer explorer = new ContextBoundedExplorer();
         StateStore store = storeFactory.get();
+        if (!seenStores.add(store)) {
+            throw new IllegalStateException(
+                "Iterative deepening requires a fresh StateStore per bound K, but storeFactory "
+                + "reused an instance. Iterations would share a visited set, so each deeper bound "
+                + "would prune states the previous bound already explored.");
+        }
         DfsResultWithTiming result = runExplorer(() -> explorer.explore(program.program(), invariant, store, null, bound));
         last = new CbRun(result, store); // Retain result AND the store that produced it
 
@@ -150,6 +157,17 @@ iteration won and therefore which store's Bloom metrics are meaningful. Returnin
 wrong — see the note in §"runProgramWithStore Integration".
 
 `storeType` is a **parameter, not a captured field** — it varies per store invocation (`runProgram` calls `runProgramWithStore` once for EXACT and once for BITSTATE), and `BenchmarkHarness` itself has no `storeType` field to capture. Each iteration requests a fresh store from `storeFactory`, so K iterations do not share visited state.
+
+The **identity check** is required, not defensive. A `storeFactory` returning a shared instance would make
+deepening *narrow*: `isVisited` is `min ≤ p`, so states K=0 marked at count 0 would be pruned at K=1, and
+every deeper bound would cover strictly less than the one before it — reporting a `PASS` at K=5 from less
+search than K=0 performed. The harness builds its own `storeFactory` per store type (`:105-106`), so this
+is reachable only if that wiring regresses, which is exactly when a loud exception beats a
+plausible-looking wrong number. Same rule and rationale as the library path (Spec 11.06 §3, derivation in
+Spec 11.01 §5).
+
+The set must be identity-based and cover **all** previously used stores, not just the last one — a factory
+alternating `A, B, A, B` would otherwise let K=2 inherit K=0's visited set. See Spec 11.01 §5.
 
 ### Verdict Validation
 ```java
@@ -189,6 +207,49 @@ An `INCOMPLETE` CBS verdict is never a validation failure: a correct program tha
   `bitDensity()` / `estimatedFalsePositiveRate()` are non-zero and match the store that produced the
   returned iteration. A `0.0` density here means `createResult` was handed an unsearched store.
 - `runProgram_CBS_skippedWhenStrategyFilterExcludes()`
+- `runExplorerWithIterativeDeepening_sharedStoreFactory_throwsIllegalState()` — the per-K identity check
+  fires; without it, deepening narrows instead of widening (Spec 11.01 §5)
+- `runExplorerWithIterativeDeepening_exploresWiderAtHigherK()` — with a real per-K store, states explored at
+  K=2 is ≥ K=1. The positive counterpart that proves the check is guarding a real property
+
+## 7. Recording the Preemption Bound in Reports
+
+`BenchmarkResult` [verified, `report/BenchmarkResult.java:10-20`] has no field for the preemption bound. Its
+constructor overloads take `strategy`, `bugName`, `statesExplored`, `wallTimeMs`, `heapDeltaBytes`,
+`verdict`, `failingTrace`, `storeType`, and the three Bloom metrics — nothing recording which K produced the
+row.
+
+Without it, a `CONTEXT_BOUNDED` row shows a states-explored count with no way to tell whether it came from
+K=1 or K=5. Since the bound *is* what determines completeness, a reader cannot judge the result or
+reproduce the run. So this is specified here rather than deferred: it is small, and a bounded-search
+report that hides its bound is close to worse than no report at all.
+
+**`BenchmarkResult` changes:**
+- new field `private final Integer preemptionsUsed;` — boxed so `null` is meaningful and distinct from
+  `0` (K=0 is a legal bound, so a primitive `int` cannot express "not applicable")
+- new accessor `public Integer preemptionsUsed()`
+- one new constructor overload carrying the extra trailing `Integer preemptionsUsed` parameter
+- the four existing constructors delegate with `preemptionsUsed = null`, so **no existing caller changes**
+  and existing reports are byte-identical
+
+**Threading the value.** `runProgramWithStore` builds the CBS result, so the bound it used is in scope
+there. `createResult` gains a trailing `Integer preemptionsUsed` parameter; every existing call site passes
+`null` except the CBS ones, which pass the K that produced the row. For iterative deepening this is the K
+that actually returned the winning result (the minimal K with a failure, or `maxPreemptions` if the search
+exhausted the bound) — **not** the configured ceiling, since reporting the ceiling when the search stopped
+early at K=1 would misstate what was actually explored.
+
+**Rendering** — `ReportWriter.writeJson()` (`:95`) emits `"preemptionsUsed": null` for non-CBS rows so the
+key stays present and consumers do not need special-casing, and the integer on CBS rows.
+`StatesExploredTable` appends a `K` column showing the bound on CBS rows and `—` elsewhere; the value is
+not meaningful for a strategy that has no bound, and printing `0` would falsely imply one.
+
+**Tests:**
+- `benchmarkResult_preemptionsUsed_defaultsToNull()` — existing constructors unchanged
+- `cbsResult_recordsPreemptionsUsed()` — a CBS run carries its K
+- `iterativeDeepening_reportsKThatProducedResult()` — stops at the minimal failing K, not the ceiling
+- `writeJson_nonCbsRow_emitsNullPreemptionsUsed()` — key present, value null
+- `statesExploredTable_cbsRow_showsK_nonCbsRow_showsDash()`
 
 ## Out of Scope
 - Verdict propagation into `TraceOutcome.INCOMPLETE` (enum + switch sites) — Spec 11.05 / 11.07
