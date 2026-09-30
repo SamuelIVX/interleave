@@ -240,14 +240,32 @@ public final class BitstateStore implements StateStore {
     }
 
     /**
-     * Returns the fraction of bits set across every vector this store owns.
+     * Returns the fraction of bits set across every vector this store actually wrote to.
+     *
+     * <p>The denominator counts only vectors in use. A context-bounded run marks exclusively in
+     * the per-preemption vectors and never in the main one, so counting the main vector regardless
+     * would understate density by the ratio of allocated to used vectors -- a K=0 bounded run
+     * would report exactly half its true density.
      *
      * @return bit density in [0, 1]
      */
     public double bitDensity() {
-        int vectors = 1 + allocatedPreemptionVectors();
+        int vectors = vectorsInUse();
         if (vectors == 0) return 0.0;
         return (double) bitCount() / ((double) size * vectors);
+    }
+
+    /**
+     * Counts the bit vectors that hold at least one mark, so capacity metrics divide by the
+     * capacity actually consumed rather than the capacity allocated.
+     *
+     * <p>The main vector counts only when {@link #statesMarked()} is non-zero; a store used purely
+     * for context-bounded search allocates it but never marks it.
+     *
+     * @return number of vectors in use
+     */
+    private int vectorsInUse() {
+        return (statesMarked > 0 ? 1 : 0) + allocatedPreemptionVectors();
     }
 
     private int allocatedPreemptionVectors() {
@@ -262,11 +280,13 @@ public final class BitstateStore implements StateStore {
 
     /**
      * Estimates the false-positive rate using the standard Bloom filter formula:
-     * {@code (1 - e^(-k * n / m))^k} where {@code m = size}, {@code n = statesMarked},
-     * {@code k = numHashFunctions}.
+     * {@code (1 - e^(-k * n / m))^k} where {@code m} is the total capacity of the vectors in use,
+     * {@code n} is the total number of marks, and {@code k = numHashFunctions}.
      *
      * <p>Counts are aggregated across all owned vectors, since a context-bounded run marks into
-     * several of them.
+     * several of them. {@code m} is sized by {@link #vectorsInUse()} rather than by the allocated
+     * vector count, so a run that never touches the main vector is not charged for it; charging
+     * for it would halve the modelled load factor and understate the estimated false-positive rate.
      *
      * @return estimated false-positive probability in [0, 1]
      */
@@ -275,7 +295,7 @@ public final class BitstateStore implements StateStore {
         if (n == 0) {
             return 0.0;
         }
-        double m = (double) size * (1 + allocatedPreemptionVectors());
+        double m = (double) size * vectorsInUse();
         double k = numHashFunctions;
         double prob = 1.0 - Math.exp(-k * n / m);
         return Math.pow(prob, k);

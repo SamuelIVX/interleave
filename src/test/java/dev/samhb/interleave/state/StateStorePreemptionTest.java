@@ -247,6 +247,55 @@ class StateStorePreemptionTest {
             "message should point at the constructor that fixes this: " + e.getMessage());
     }
 
+    /**
+     * A context-bounded run marks only the per-preemption vectors, never the main one. Capacity
+     * metrics must therefore be sized by the vectors actually written to. Charging the run for an
+     * untouched main vector halves the modelled load factor, so a K=0 bounded run would report
+     * exactly half its true density and an understated false-positive rate.
+     */
+    @Test
+    void bitstateStore_metrics_ignoreUnmarkedMainVector() {
+        Program program = twoThreadProgram();
+        List<Configuration> configs = distinctConfigs(program);
+
+        BitstateStore bounded = new BitstateStore(4096, 4, 0);
+        BitstateStore plain = new BitstateStore(4096, 4);
+        for (Configuration config : configs) {
+            bounded.markVisited(config, 0, 0);
+            plain.markVisited(config);
+        }
+
+        assertEquals(0, bounded.statesMarked(), "the bounded store must not touch the main vector");
+        assertEquals(configs.size(), plain.statesMarked(), "the plain store marks the main vector");
+        assertEquals(configs.size(), bounded.preemptionStatesMarked(), "marks go to the preemption vector");
+
+        // Same marks, same vectors occupied, so both stores must report the same density.
+        assertEquals(plain.bitDensity(), bounded.bitDensity(), 1e-12,
+            "a K=0 bounded run occupies one vector; charging it for the unused main vector halves density");
+        assertEquals(plain.estimatedFalsePositiveRate(), bounded.estimatedFalsePositiveRate(), 1e-12,
+            "false-positive estimate must use the same modelled load factor as the equivalent plain store");
+        assertTrue(bounded.bitDensity() > 0.0, "sanity: the bounded store really did mark bits");
+    }
+
+    /**
+     * A K>0 run spreads marks across several preemption vectors and still never marks the main
+     * one, so its capacity is the allocated preemption vectors alone.
+     */
+    @Test
+    void bitstateStore_metrics_countOnlyVectorsInUse() {
+        Program program = twoThreadProgram();
+        List<Configuration> configs = distinctConfigs(program);
+
+        BitstateStore bounded = new BitstateStore(4096, 4, 2);
+        bounded.markVisited(configs.get(0), 0, 0);
+        bounded.markVisited(configs.get(1), 0, 1);
+
+        int expectedVectors = 2; // levels 0 and 1 written; level 2 untouched
+        double expectedDensity = (double) bounded.bitCount() / (4096.0 * expectedVectors);
+        assertEquals(expectedDensity, bounded.bitDensity(), 1e-12,
+            "capacity must count written vectors, not the allocated maximum");
+    }
+
     @Test
     void bitstateStore_freshCopy_preservesMaxPreemptions() {
         // Losing capacity here would under-report states explored for K > 2 and then trip the
