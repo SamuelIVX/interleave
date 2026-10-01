@@ -6,13 +6,13 @@ import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.core.PetersonState;
 import dev.samhb.interleave.core.SharedState;
 import dev.samhb.interleave.search.DfsExplorer;
-import dev.samhb.interleave.search.DfsResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Base64;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -64,6 +64,42 @@ class CanonicalEncoderContractTest {
     }
 
     /**
+     * A {@link dev.samhb.interleave.search.StateStore} keyed by value equality, never by encoding.
+     *
+     * <p>This is the mechanism that keeps R1 honest. {@link DfsExplorer}'s default store keys on
+     * {@code CanonicalEncoder.encode}, the same encoder R1 asserts injectivity for, so a lossy encoder
+     * would prune the sample before the assertion ever sees it — the corruption would filter its own
+     * evidence. This store keys on {@link SharedState} value equality (every implementation overrides
+     * {@code equals}/{@code hashCode}, verified in Spec 12.07) plus the program counters, so the walk
+     * explores the true reachable set no matter what the encoder does.
+     *
+     * <p>It is also not merely defensive. Measured 2026-10-01 with the encoder <em>correct</em>: the
+     * encoder-keyed walk reaches **206** configurations across the corpus, the value-keyed walk
+     * reaches **212**. Six positions are being pruned right now by an encoder that has no known
+     * collision, so the default walk was already sampling a filtered subset — R1 could only ever
+     * detect a collision that survived the filter keyed on the encoder it is testing.
+     */
+    private static final class ValueKeyedStore implements dev.samhb.interleave.search.StateStore {
+
+        private final Set<Position> seen = new LinkedHashSet<>();
+
+        @Override
+        public boolean isVisited(Configuration config) {
+            return seen.contains(new Position(config.state(), config.programCounters()));
+        }
+
+        @Override
+        public void markVisited(Configuration config) {
+            seen.add(new Position(config.state(), config.programCounters()));
+        }
+
+        @Override
+        public void clear() {
+            seen.clear();
+        }
+    }
+
+    /**
      * R1 — injectivity of the store key over the reachable state space.
      *
      * <p>Configurations are collected by exploring, never hand-picked: hand-authored states can be
@@ -75,6 +111,13 @@ class CanonicalEncoderContractTest {
      * detect a collision. And deduplication is by {@link SharedState} value equality, never by encoded
      * bytes: deduplicating by output and then asserting outputs differ is circular, and would pass
      * even for a constant encoder.
+     *
+     * <p><b>The walk itself must not use the encoder.</b> {@link DfsExplorer} defaults to a
+     * {@link HashingStateStore}, which prunes on the very encoding under test — so a colliding encoder
+     * would shrink the very sample R1 measures it over. The corruption would then be partly invisible
+     * to the assertion meant to detect it, which is the worst possible arrangement: the sample is
+     * filtered by the thing under test, so the test can only notice collisions that survive the
+     * filter. {@link ValueKeyedStore} below exists to break that circularity.
      */
     @Test
     @DisplayName("R1: distinct reachable configurations produce distinct store keys")
@@ -82,11 +125,12 @@ class CanonicalEncoderContractTest {
         Map<Position, String> keyByPosition = new LinkedHashMap<>();
 
         for (BenchmarkProgram program : BugCorpus.all()) {
-            DfsResult dfs = new DfsExplorer().explore(program.program());
-            for (Configuration config : dfs.states().values()) {
-                keyByPosition.putIfAbsent(
-                        new Position(config.state(), config.programCounters()), storeKey(config));
-            }
+            // The walk uses ValueKeyedStore so the sample is independent of the encoder under test.
+            // Positions arrive through the visitor, which DfsExplorer calls for every configuration it
+            // visits — including ones a lossy encoder would otherwise have pruned.
+            new DfsExplorer().explore(program.program(), null, new ValueKeyedStore(),
+                    config -> keyByPosition.putIfAbsent(
+                            new Position(config.state(), config.programCounters()), storeKey(config)));
         }
 
         assertFalse(keyByPosition.isEmpty(), "the walk must reach some configurations");
@@ -104,14 +148,17 @@ class CanonicalEncoderContractTest {
         // measured".
         //
         // The >=150 guard below is therefore NOT that deferred floor -- it is a drift tripwire on the
-        // quantity R1 actually measures, store POSITIONS, which is 160. Four distinct quantities are
+        // quantity R1 actually measures, store POSITIONS, which is 160. Three distinct quantities are
         // in play and conflating them is the easiest mistake to make here:
         //   44  distinct SharedState values, unioned across programs   (state only; counters ignored)
         //   72  the same states summed per program, so shared ones count once per program
         //  160  distinct (state, counters) pairs  <- what R1 asserts injectivity over, and this guard
-        //  128  positions reached under the R6 falsification encoder, where a constant key makes
-        //       isVisited over-report and DFS prunes 32 branches it should have explored
-        // All four re-measured 2026-10-01. See 12.01 "Count glossary".
+        //
+        // These are collected through a VALUE-KEYED walk (see ValueKeyedStore), not through
+        // DfsExplorer's default encoder-keyed store, because a sample pruned by the encoder under test
+        // is a sample the test cannot honestly measure. Measured 2026-10-01: the encoder-keyed walk
+        // reached 206 configurations where this one reaches 212, so the default store was already
+        // dropping positions with the encoder working correctly. See 12.01 "Count glossary".
         assertTrue(keyByPosition.size() >= 150,
                 "reachable position count dropped from the recorded 160 — the corpus changed, so the "
                         + "recorded measurement and Spec 12.05's assumptions need re-checking");

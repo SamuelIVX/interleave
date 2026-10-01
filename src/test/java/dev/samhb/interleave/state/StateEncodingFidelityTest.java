@@ -395,7 +395,8 @@ class StateEncodingFidelityTest {
     @DisplayName("R2a: DynamicState — the fields it does encode vary with their values")
     void encodeDynamicState_eachEncodedField_changesEncoding() {
         StateDecl decl = new StateDecl(
-                List.of(FieldDecl.ofInt("count", BASE_INT), FieldDecl.ofBool("flag", false)),
+                List.of(FieldDecl.ofInt("count", BASE_INT), FieldDecl.ofBool("flag", false),
+                        FieldDecl.ofArray("samples", new int[]{BASE_INT, BASE_INT, BASE_INT})),
                 List.of());
         DynamicState base = new DynamicState(decl, 1);
 
@@ -416,6 +417,60 @@ class StateEncodingFidelityTest {
         DynamicState flag = new DynamicState(decl, 1);
         flag.setBool("flag", true);
         assertEncodingDiffers("fieldValues[flag]", base, flag);
+
+        // The INT_ARRAY branch of encodeTo writes a length followed by each element. Three properties
+        // have to hold independently, and a commutative summary satisfies none of them while still
+        // encoding something: the element value must be visible, the element's position must be
+        // visible, and the array's length must be visible. Each is probed separately below.
+        DynamicState elemChanged = new DynamicState(decl, 1);
+        elemChanged.setArrayElement("samples", 1, 7);
+        assertEncodingDiffers("fieldValues[samples][1] value", base, elemChanged);
+
+        // Position matters: swapping two elements must not encode identically, and the spread is chosen
+        // so a sum-based encoding (7+1 == 1+7) would pass a value-only probe.
+        DynamicState swapped = new DynamicState(decl, 1);
+        swapped.setArrayElement("samples", 0, 7);
+        swapped.setArrayElement("samples", 1, BASE_INT);
+        assertEncodingDiffers("fieldValues[samples] permutation", elemChanged, swapped);
+
+        // Length matters: a shorter array must not encode like a longer one.
+        //
+        // Array length is fixed by the declaration and setArrayElement only mutates elements in place,
+        // so the only way to vary it is a different StateDecl. That decl differs ONLY in the array
+        // length — every other field is held identical, so the length is the single variable and the
+        // probe cannot pass for an unrelated reason. Both directions are checked so the property is
+        // symmetric rather than an artifact of which side holds the larger array.
+        //
+        // Worth recording what this does and does not catch. Deleting the `out.writeInt(arr.length)`
+        // call from encodeTo leaves this probe GREEN, and that is correct rather than a gap: every
+        // element is a fixed-width 4-byte int, so arrays of different length already produce byte
+        // sequences of different length and cannot collide. The length prefix is redundant *for
+        // injectivity*. The probe is retained because it pins the observable property (distinct lengths
+        // must not share an encoding) rather than one particular way of achieving it.
+        //
+        // What this probe does catch is a *summary* encoding: replacing the elements with their sum
+        // collapses {12345,7,12345} and {7,12345,12345} to the same bytes, and the pairwise assertion
+        // below fails as it should.
+        StateDecl shorterDecl = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT), FieldDecl.ofBool("flag", false),
+                        FieldDecl.ofArray("samples", new int[]{BASE_INT})),
+                List.of());
+        DynamicState shorter = new DynamicState(shorterDecl, 1);
+        assertFalse(base.equals(shorter), "precondition: the two declarations describe different "
+                + "states, so the probe below is not comparing a state with itself");
+        assertEncodingDiffers("fieldValues[samples] length", base, shorter);
+
+        StateDecl longerDecl = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT), FieldDecl.ofBool("flag", false),
+                        FieldDecl.ofArray("samples", new int[]{BASE_INT, BASE_INT, BASE_INT, BASE_INT})),
+                List.of());
+        assertEncodingDiffers("fieldValues[samples] length (longer)",
+                base, new DynamicState(longerDecl, 1));
+
+        // Pairwise across every independently varied array, plus both length variants, so no two of
+        // them may share an encoding. This is what catches the commutative-summary encoding.
+        assertAllEncodingsDistinct("DynamicState.fieldValues[samples]",
+                List.of(base, elemChanged, swapped, shorter, new DynamicState(longerDecl, 1)));
 
         // localValues: a declaration carrying one local per thread, varied one thread at a time.
         StateDecl withLocal = new StateDecl(

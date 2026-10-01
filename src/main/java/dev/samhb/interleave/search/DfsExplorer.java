@@ -6,7 +6,21 @@ import java.util.*;
 
 /**
  * Exhaustive depth-first search oracle for concurrent programs.
- * Explores all reachable configurations up to an optional state budget.
+ *
+ * <p>Explores every reachable configuration up to an optional state budget, with no reduction, so the
+ * trace list is complete: every execution of the program appears, which is what makes this the oracle
+ * the reduced {@link dev.samhb.interleave.por.StaticPorExplorer} and
+ * {@link dev.samhb.interleave.dpor.DporExplorer} results are checked against. Cost is exponential in
+ * the number of threads, which is why the budget exists.
+ *
+ * <p><b>Visited states are keyed through an encoder.</b> The default store is a
+ * {@link dev.samhb.interleave.state.HashingStateStore}, so a lossy encoding does not fail loudly — it
+ * prunes configurations it has not seen, and a reachable violation can disappear silently. That makes
+ * this class the wrong instrument for measuring an encoder, and the reason
+ * {@code CanonicalEncoderContractTest} supplies its own value-keyed store instead of using this default:
+ * a sample filtered by the encoder under test cannot measure it. See Spec 12.01 §R7.
+ *
+ * <p>Instance state is reused across calls, so an explorer is not safe for concurrent use.
  */
 public final class DfsExplorer {
     private final HashingStateStore defaultStateStore;
@@ -17,7 +31,7 @@ public final class DfsExplorer {
     private StateVisitor stateVisitor;
     private long maxStatesBudget;
 
-    /** DfsExplorer method. */
+    /** Creates an explorer with an empty visited set and no budget limit. */
     public DfsExplorer() {
         this.defaultStateStore = new HashingStateStore();
         this.visitedStates = new LinkedHashMap<>();

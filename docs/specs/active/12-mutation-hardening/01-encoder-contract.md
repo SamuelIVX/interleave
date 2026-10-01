@@ -165,10 +165,13 @@ distinguish an injective encoder from a constant one.
       recorded suppression rather than a contrived test. The mechanical PIT filter is deferred to
       12.06, which owns the denominator accounting (R5).
 - [x] The R6 falsification check was executed, observed to fail, and reverted; the suite is green after
-      the revert (R6). **Observed:** with a constant one-byte encoder, R1 collapsed 128 positions onto
-      49 keys and R5 reported 1 byte instead of 10. **R2 and R3 still passed** — determinism and
-      injectivity are different properties, which is precisely why R1 exists separately.
-      The 128 is *not* a smaller version of the 160; see the count glossary immediately below.
+      the revert (R6). **Observed:** with a constant one-byte encoder, R1 reported **160 positions
+      against far fewer distinct keys**, and R5 reported 1 byte instead of 10. **R2 and R3 still
+      passed** — determinism and injectivity are different properties, which is precisely why R1
+      exists separately.
+- [x] **R1's walk does not use the encoder under test** (R7, added after a CodeRabbit finding). It
+      explores through a value-keyed `StateStore` rather than `DfsExplorer`'s default
+      `HashingStateStore`. See "R7 — the sample must not be filtered by the thing under test".
 - [x] `./gradlew clean test javadoc` passes and Javadoc has no errors (R1–R6).
 - [x] After the change, `./gradlew pitest` reports `CanonicalEncoder` coverage strictly greater than
       50.0%: **6/7 = 85.7%** [verified 2026-10-01]. Note the denominator moved from 12 to 7 — the
@@ -234,7 +237,7 @@ higher-thread program precisely to widen this space; until then, assert against 
 chosen program reaches and require that count to be ≥ 100 (R1's floor). If no corpus program reaches
 100 states today, that is itself a finding to record, not a reason to lower the floor silently.
 
-#### Count glossary — 44, 72, 128, and 160 are four different quantities
+#### Count glossary — 44, 72, and 160 are three different quantities
 
 This spec quotes several state counts, and they are easy to conflate because they were measured
 differently. Stating the methodology for each, so a future reader does not treat one as a
@@ -244,8 +247,7 @@ contradiction of another:
 |---|---|---|
 | **44** | distinct `SharedState` **values**, unioned across all programs | `HashSet<SharedState>` over every program's reachable space; **state only, program counters ignored** |
 | **72** | distinct `SharedState` values, **summed per program** (states counted again for each program that reaches them) | the same per-program sets, added without deduplicating across programs |
-| **160** | distinct **(state, programCounters) positions** — the quantity R1 actually asserts injectivity over | `Position(state, counters)` records over every corpus program's `DfsResult.states()`, which is what the store's key is built from |
-| **128** | positions **reached** by the R6 falsification run, under a deliberately constant one-byte encoder | the same walk, with the lossy key collapsing everything |
+| **160** | distinct **(state, programCounters) positions** — the quantity R1 asserts injectivity over | `Position(state, counters)` records collected through `StateVisitor` from a **value-keyed** walk (R7), which is what the store's key is built from |
 
 **Correction — an earlier revision of this spec recorded the total as 43 and listed `torn-counter`
 at 8.** Both were wrong: `torn-counter` reaches **9**, and the per-program column sums to **72**, not
@@ -255,6 +257,16 @@ not a pre-12.07 staleness artifact — reintroducing the `DeadlockState.control`
 produced the *same* 72 and 44, so the corpus counts are independent of the 12.07 fix. 44 is the
 union, the figure closest to what a reader means by "distinct states in the corpus", and it is the
 one the `≥ 100` floor should eventually be read against.
+
+**Correction — the 128 is gone, and it should never have been recorded as a finding.** An earlier
+revision listed a fourth figure, "128 positions reached under the R6 constant-encoder falsification
+run", and interpreted the shortfall from 160 as a live demonstration that a lossy key prunes search
+branches. That interpretation was wrong. The 128 was an artifact of the very circularity R7 fixes: the
+walk used `DfsExplorer`'s default `HashingStateStore`, so a constant encoder pruned the sample *before*
+R1 counted it. The 160 collected under a constant encoder **with the value-keyed walk** is the full
+160 — the walk no longer shrinks at all, because it no longer consults the encoder. The pruning
+behaviour is real in production; it was just not being measured by this test, and the number recorded
+as evidence of it was really evidence of the test's own blind spot.
 
 **Why 44 and 160 differ.** States recur across programs: a bug program and its JSON twin explore the
 same states, and several programs share a state space. 44 counts each distinct *state* once overall
@@ -266,16 +278,45 @@ state reached by three programs contributes three times. It exists because "how 
 look at" is naturally answered that way when reading a per-program table, and recording only the union
 would make that table's column fail to add up to its own total.
 
-**Why 128 and 160 differ — and this is not noise.** Under the constant encoder, the store's key stops
-discriminating, so `isVisited` returns `true` for configurations it has not seen and DFS prunes them.
-The search therefore *reaches fewer* positions: 128 instead of 160. The shortfall is the
-over-pruning happening live and is visible in the test output, which is the most direct demonstration
-available that a lossy key silently discards search branches. It is a property of the falsification
-run, not a different measurement of the same thing.
-
 `Configuration` defines no `equals`/`hashCode` and so compares by identity, which is why the
 `Position` record exists: without it, one position reached under two programs counts twice and R1
 reports collisions that are not collisions.
+
+#### R7 — the sample must not be filtered by the thing under test
+
+Found by CodeRabbit on PR #32, and confirmed to be a genuine weakness rather than a style preference.
+
+`DfsExplorer` defaults to a `HashingStateStore`, whose `isVisited` consults `CanonicalEncoder.encode`
+— the same encoder R1 asserts injectivity for. So the walk that produces R1's sample prunes using the
+encoder under test. A colliding encoder shrinks the sample before the assertion inspects it, meaning
+**R1 could only ever detect a collision that survived a filter keyed on the encoder being tested.** That
+is the corruption filtering its own evidence, which is the worst arrangement available: it produces
+the *appearance* of a clean test.
+
+This was not hypothetical. Measured with the encoder **correct**, no mutation applied:
+
+| walk | configurations reached across the corpus |
+|---|---|
+| `DfsExplorer` default (encoder-keyed) | **206** |
+| value-keyed `StateStore` + `StateVisitor` (R7) | **212** |
+
+Six positions were already being pruned by an encoder with no known collision. The default walk was
+measuring a filtered subset and reporting it as the reachable state space.
+
+R7 replaces the sample source with `explore(program, null, new ValueKeyedStore(), visitor)`, where
+`ValueKeyedStore` keys on `SharedState` value equality plus program counters and never calls the
+encoder. Consequences:
+
+- R1 now collects the full **160** positions. The number did not change; the *sample* did — it is now
+  the set the search actually reaches rather than the set the encoder allowed.
+- The partial-collision falsification is now **direct** rather than inferred. Deleting
+  `PetersonState.inCriticalSection` from the encoding used to surface as "expected 151 but was 136",
+  where 151 was itself a filtered count; it now surfaces as 160 positions collapsing onto 136 keys.
+- The `≥ 150` drift tripwire still holds, and is now measuring the quantity it claims to.
+
+`ValueKeyedStore` deliberately does not implement `freshCopy` or the preemption-aware overloads; the
+inherited `UnsupportedOperationException` is correct here, since this store is for exhaustive
+enumeration only and R1 never requests a bounded search.
 
 #### R1's floor is measured, and it is unattainable today — the finding the paragraph above predicted
 
@@ -359,11 +400,13 @@ of the three outcomes available. Record the decision in this spec either way.
 
 **File:** `src/test/java/dev/samhb/interleave/state/CanonicalEncoderContractTest.java`
 
-- `encode_isInjectiveOverReachableStateSpace` (R1) — collects states by exploring, asserts
-  `states.size() == encoded.size()`, requires ≥ 100 states
+- `storeKey_isInjective_overReachableConfigurations` (R1) — collects positions through a
+  **value-keyed** walk, asserts one distinct key per position, requires ≥ 100 positions. **The walk
+  must not use the encoder** — see §R7. The `≥ 150` tripwire on positions replaces the deferred
+  `≥ 100` floor.
 - `encode_isDeterministicAcrossCalls` (R2)
 - `encode_isDeterministicAcrossInstances` (R3) — two `CanonicalEncoder`s, same state, equal bytes
-- `encode_distinguishesSingleFieldDifference` (R1) — a falsifiable, human-readable complement: two
+- `storeKey_distinguishesSingleFieldDifference` (R1) — a falsifiable, human-readable complement: two
   states differing in exactly one field encode differently
 - `encode_flushRemovalIsUnobservable` (R5) — pins the flush verdict as a test *or* is replaced by a
   recorded suppression. **Byte count when written [verified 2026-10-01]:** `PetersonState` encodes

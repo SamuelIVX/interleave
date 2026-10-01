@@ -83,17 +83,21 @@ source** — the fix writes `control` before the flags, and current line numbers
 
 ```java
 public void encodeTo(DataOutput out) throws IOException {
-    out.writeBoolean(control);       // the fix: written first so flags stay at their old offsets
+    out.writeBoolean(control);       // the fix: written first, shifting both flags one byte later
     out.writeBoolean(flag[0]);
     out.writeBoolean(flag[1]);
 }
 ```
 
-Field order is `control`, `flag[0]`, `flag[1]`. Writing `control` first rather than last is
-deliberate: it keeps both flags at the byte offsets a pre-fix reader would assume, which matters only
-for readability, but it also means a reader who skips the first byte lands on a flag rather than on
-padding. The order is not part of the encoding contract — injectivity is, and any order that writes
-all three fields satisfies it.
+Field order is `control`, `flag[0]`, `flag[1]`. Writing `control` first rather than last **moves both
+flags one byte later** — `flag[0]` goes from byte offset 0 to 1, and `flag[1]` from 1 to 2. Their
+pre-fix offsets are *not* preserved. An earlier revision of this spec claimed they were, which was
+simply wrong; the mistake was reading "the flags stay contiguous with each other" as "the flags keep
+their old positions".
+
+The order carries no contract weight. Injectivity is the contract, and any order that writes all three
+fields satisfies it. `control` is written first only because it reads naturally before the flags of
+the two threads the class models, not for any encoding-level benefit.
 
 The same class treats `control` as identity in three other places:
 
@@ -567,6 +571,33 @@ Re-running the sorted-order mutation against this addition fails as it should:
 The general lesson, which is the same one R2b exists to enforce: **a probe that varies one field at one
 index cannot establish a property about index identity.** Each of R2b and R2c was found by mutating the
 production encoder and observing a green suite, not by reviewing the assertions.
+
+#### R2d — every branch of a multi-type encoder needs coverage
+
+Found by CodeRabbit on PR #32, and confirmed valid: `DynamicState.encodeTo` switches on field type, and
+`INT_ARRAY` was a reachable branch with **zero** tests. R3's field accounting could not see this, because
+it reasons about *declared fields* — and `fieldValues` was listed as covered, so the sweep was satisfied
+while a whole type-specific encoding path went unexercised.
+
+A type-dispatched encoder has one failure mode per branch, and covering the branch list is not the same
+as covering the property each branch owes. `INT_ARRAY` writes a length then each element, so three
+independent properties apply: element value visible, element position visible, array length visible.
+A summary encoding satisfies none of them while still producing well-formed bytes.
+
+Probes added, all holding every other declared field fixed so each isolates one property:
+
+- **value** — change one element's value
+- **position** — permute two elements, chosen so a sum-based encoding (`7+1 == 1+7`) would pass a
+  value-only probe
+- **length** — a different declaration with a different array length, since `setArrayElement` mutates in
+  place and cannot change length
+
+**One negative result worth recording.** Deleting the `out.writeInt(arr.length)` prefix leaves the length
+probe green, and that is *correct* rather than a gap: every element is a fixed four-byte int, so arrays
+of different length already produce byte sequences of different length and cannot collide. The length
+prefix is redundant **for injectivity**. The probe is kept because it pins the observable property —
+distinct lengths must not share an encoding — rather than one particular way of achieving it. The
+summary mutation, which *is* a real collision, is caught.
 
 Feasibility is confirmed: every field is reachable through the public accessors already on each class
 — `setControl`, `setTurn`, `setInCriticalSection`, `setFlag`, `setCounter`, `setRegister`, `setHigh` /

@@ -6,25 +6,75 @@ import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.state.HashingStateStore;
 import java.util.*;
 
+/**
+ * Dynamic partial-order reduction explorer.
+ *
+ * <p>Extends {@link dev.samhb.interleave.por.StaticPorExplorer}'s approach with a sleep set that
+ * evolves along each path. Where static POR recomputes a persistent set per configuration, DPOR threads
+ * a {@link SleepSet} through the recursion, remembering which commuting steps have already been
+ * explored on the current path, and skips them via {@code sleepSet.contains}. A step is added to the
+ * successor's sleep set only when it is independent, does not interfere with enable/disable, and the
+ * stepping thread has no later dependent step that could observe a difference.
+ *
+ * <p><b>An invariant disables the reduction entirely.</b> When {@link #explore(Program, Invariant)}
+ * is given an invariant, this explorer deliberately delegates to a plain depth-first search with no
+ * sleep set. The reduction prunes schedules by arguing that reordering commuting steps cannot change
+ * the reachable outcome — but an invariant is exactly a user-supplied predicate over states, so that
+ * argument does not hold for one, and the traces it produces must be complete for it to be meaningful.
+ * Passing a null invariant gets the reduced search; passing one gets exhaustive search. This is a real
+ * difference in behaviour, not an optimization, and callers comparing the two modes should expect the
+ * reduced mode to visit fewer configurations.
+ *
+ * <p>Deadlock is reported only after the invariant is checked at the same configuration, so a state that
+ * both blocks every thread and violates the invariant is recorded as a violation rather than as a
+ * deadlock — the more specific finding wins.
+ */
 public final class DporExplorer {
+
     private final IndependenceRelation relation;
 
-    /** DporExplorer method. */
+    /** Creates an explorer with the default independence relation. */
     public DporExplorer() {
         this.relation = new IndependenceRelation();
     }
 
-    /** explore method. */
+    /**
+     * Explores without an invariant, using dynamic partial-order reduction.
+     *
+     * @param program the program to explore
+     * @return the visited configurations and the traces reached
+     */
     public DfsResult explore(Program program) {
         return explore(program, null);
     }
 
-    /** explore method. */
+    /**
+     * Explores, checking an invariant at every configuration.
+     *
+     * <p>Supplying an invariant switches this to plain exhaustive depth-first search; see the class
+     * Javadoc for why the reduction is disabled rather than applied.
+     *
+     * @param program the program to explore
+     * @param invariant the invariant to check, or null to keep the reduction
+     * @return the visited configurations and the traces reached
+     */
     public DfsResult explore(Program program, Invariant invariant) {
         return explore(program, invariant, null, null);
     }
 
-    /** explore method. */
+    /**
+     * Explores with an explicit visited store and visitor.
+     *
+     * <p>The supplied store is cleared before traversal, so a caller passing a store shared with another
+     * explorer gets an empty starting point rather than inheriting its visited set and silently
+     * pruning configurations it never examined.
+     *
+     * @param program the program to explore
+     * @param invariant the invariant to check, or null to keep the reduction
+     * @param stateStore the visited store, or null for a fresh {@link HashingStateStore}
+     * @param stateVisitor notified of each visited configuration, or null
+     * @return the visited configurations and the traces reached
+     */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues

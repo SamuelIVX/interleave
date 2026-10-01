@@ -53,7 +53,15 @@ public final class DynamicStep implements Step {
         this.writes = Set.copyOf(w);
     }
 
-    /** addWrite method. */
+    /**
+     * Records the memory location an assignment target writes.
+     *
+     * <p>Locals are namespaced with the owning thread ({@code t0.x}) so a local write cannot be
+     * confused with a same-named shared field in the read/write sets a dependency analysis consumes.
+     *
+     * @param lhs the assignment target
+     * @param w the set to add the written location to
+     */
     private void addWrite(Lhs lhs, Set<MemoryLocation> w) {
         if (lhs instanceof Lhs.FieldLhs fl) w.add(MemoryLocation.of(fl.name()));
         else if (lhs instanceof Lhs.LocalLhs ll) w.add(MemoryLocation.of("t" + owner + "." + ll.name()));
@@ -63,7 +71,15 @@ public final class DynamicStep implements Step {
         }
     }
 
-    /** collectReads method. */
+    /**
+     * Walks an expression tree and records every location it reads.
+     *
+     * <p>Local reads are namespaced exactly as in {@link #addWrite}, which is what lets a read of a
+     * thread-local match the write performed by the step that owns it.
+     *
+     * @param expr the expression to walk
+     * @param out the set to add read locations to
+     */
     private void collectReads(Expr expr, Set<MemoryLocation> out) {
         if (expr instanceof Expr.VarRef v) out.add(MemoryLocation.of(v.name()));
         else if (expr instanceof Expr.LocalRef l) out.add(MemoryLocation.of("t" + owner + "." + l.name()));
@@ -92,7 +108,16 @@ public final class DynamicStep implements Step {
     public Set<MemoryLocation> writes() { return writes; }
 
     @Override
-    /** enabled method. */
+    /**
+     * Whether this step may run against the given state.
+     *
+     * <p>A step with no guard is always enabled. Otherwise the guard is evaluated against the state,
+     * and a guard that errors or type-mismatches reports <em>disabled</em> rather than throwing, so a
+     * program that tests for an absent field degrades to "not this step" instead of failing the run.
+     *
+     * @param state the state to test the guard against
+     * @return true if the step may run
+     */
     public boolean enabled(SharedState state) {
         if (!(state instanceof DynamicState ds)) return false;
         if (guard == null) return true;
@@ -110,7 +135,18 @@ public final class DynamicStep implements Step {
     }
 
     @Override
-    /** execute method. */
+    /**
+     * Applies the step's effects to the state.
+     *
+     * <p>The guard is re-evaluated here rather than trusted from {@link #enabled}: between the two
+     * calls the state may have changed, since several steps from the same thread are considered in
+     * sequence. A guard that has since become false yields {@link StepOutcome#BLOCKED}, and one that
+     * now errors yields {@link StepOutcome#ASSERTION_FAILED} — distinct outcomes, so a blocked step is
+     * not reported as a failed assertion.
+     *
+     * @param state the state to mutate
+     * @return the outcome of attempting the step
+     */
     public StepOutcome execute(SharedState state) {
         if (!(state instanceof DynamicState ds)) return StepOutcome.ASSERTION_FAILED;
         // Re-evaluate guard: errors / type mismatch → ASSERTION_FAILED, false → BLOCKED
@@ -169,8 +205,14 @@ public final class DynamicStep implements Step {
         }
     }
 
+    /**
+     * Renders owner, name, guard, and effects for failure messages and traces.
+     *
+     * <p>Diagnostic only; not part of any identity or encoding contract.
+     *
+     * @return a human-readable rendering of this step
+     */
     @Override
-    /** toString method. */
     public String toString() {
         return "DynamicStep{owner=" + owner + (name != null ? ", name=" + name : "") + ", guard=" + guard + ", effects=" + effects + "}";
     }

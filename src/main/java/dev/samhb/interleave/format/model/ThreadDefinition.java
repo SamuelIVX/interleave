@@ -18,17 +18,22 @@ public final class ThreadDefinition {
     private Integer id;
     private List<JsonObject> steps;
 
-    /** ThreadDefinition method. */
+    /**
+     * No-arg constructor required by Gson, which instantiates reflectively and sets fields directly.
+     *
+     * <p>Leaving fields unset here keeps a missing JSON entry detectable by the loader rather than
+     * defaulting it to a plausible thread id.
+     */
     public ThreadDefinition() {
         // No-arg constructor for Gson
     }
 
-    /** id method. */
+    /** @return the thread's id, or null when the JSON omitted it */
     public Integer id() {
         return id;
     }
 
-    /** steps method. */
+    /** @return the raw step JSON objects, parsed into steps by the loader in declaration order */
     public List<JsonObject> steps() {
         return steps;
     }

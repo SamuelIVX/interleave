@@ -27,7 +27,13 @@ public final class ProgramDefinition {
     @SerializedName("expected_verdict")
     private String expectedVerdict;
 
-    /** ProgramDefinition method. */
+    /**
+     * No-arg constructor required by Gson, which instantiates reflectively and sets fields directly.
+     *
+     * <p>Fields it leaves unset are null or absent rather than defaulted, so
+     * {@link dev.samhb.interleave.format.dsl.DslLoader} is responsible for validating them and
+     * reporting a JSON path. Defaulting here would hide a missing entry behind a plausible value.
+     */
     public ProgramDefinition() {
         // No-arg constructor for Gson
     }
@@ -41,27 +47,27 @@ public final class ProgramDefinition {
         return format;
     }
 
-    /** name method. */
+    /** @return the program's declared name, used in reports and corpus keys */
     public String name() {
         return name;
     }
 
-    /** state method. */
+    /** @return the raw {@code state} JSON block, parsed into a declaration by the loader */
     public JsonObject state() {
         return state;
     }
 
-    /** threads method. */
+    /** @return the thread definitions, in declaration order */
     public List<ThreadDefinition> threads() {
         return threads;
     }
 
-    /** invariant method. */
+    /** @return the raw invariant JSON, or null when the program declares none */
     public JsonObject invariant() {
         return invariant;
     }
 
-    /** expectedVerdict method. */
+    /** @return the verdict the oracle is expected to reach, or null when unconstrained */
     public String expectedVerdict() {
         return expectedVerdict;
     }
