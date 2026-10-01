@@ -186,8 +186,8 @@ out.writeByte(0);
 ```
 
 Confirm `CanonicalEncoderContractTest` fails, then revert. Record the reverted SHA and the observed
-failure in the PR body. This is the same procedure Spec 12.05 uses, and the reason the register's
-mutant counts could not be trusted until Part B's falsification check existed.
+failure in the PR body. This is the same procedure Spec 12.05 uses, and the reason the encoder's
+mutant counts cannot be trusted until a falsification check exists.
 
 ### R4 — the `equals` fork
 

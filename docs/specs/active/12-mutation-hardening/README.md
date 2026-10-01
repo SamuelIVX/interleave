@@ -17,9 +17,11 @@ need a corpus program with enough threads to make wrong dominance observable (Sp
 
 ## Status: active — nothing here has been implemented
 
-Every number below was measured. `docs/plans/mutation-gap-register.md` is the raw working notes this
-set replaces; it stays as the evidence log, but the specs are the contract. Where the two disagree,
-the spec wins and the register is corrected in the same change (per `AGENTS.md` §4).
+Every number below was measured against `build/reports/pitest/mutations.xml`. This set supersedes the
+`mutation-gap-register` working notes, which were never merged; their content is absorbed here, so
+they are not a second source to drift against. Where an earlier draft of this material claimed
+something the measurement does not support, the correction is recorded in the spec that owns it —
+not left implicit (per `AGENTS.md` §10: a stale doc is worse than none).
 
 ## Measured baseline
 
@@ -129,8 +131,8 @@ details — the exact failure mode that produced PR #26's under-specified metric
   80 is the highest integer floor either measured run clears.** The floor actually shipped comes from
   the post-remediation measurement (Spec 12.06 §R2), which is why 12.06 lands last.
 - ✅ **No `fasterThreshold`.** That option does not exist in PIT 1.30.0 or plugin 1.19.0 — zero
-  occurrences across all four runtime jars. An earlier draft of the register described it as a real
-  hazard; it was not, and the corrected write-up is in Spec 12.06.
+  occurrences across all four runtime jars. An earlier draft of the material behind this set described
+  it as a real hazard; it was not, and the corrected write-up is in Spec 12.06.
 - ✅ **Equivalent mutants get a recorded suppression reason, not a contrived test.** Spec 12.02 §R4.
 - ✅ **CBS pruning survivors are not chased with more verdict-level tests.** Defect injection proved
   the corpus cannot expose them. Spec 12.05 builds the corpus program that can.

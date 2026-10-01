@@ -30,7 +30,7 @@ inflation paths visible instead of assumed away.
 
 - **Package:** `interleave` / build configuration and CI
 - **Modifies:** `build.gradle.kts` (thresholds + reporting), `.github/workflows/build.yml`
-  (gating step), and `docs/plans/mutation-gap-register.md` Gap 7
+  (gating step), and this spec's §R2 derivation record
 - **Off-limits:** `src/main/**` and `src/test/**` — this spec changes no production or test code. If
   remediating a gap requires code, that is Specs 12.01–12.05.
 
@@ -113,8 +113,9 @@ Configured budget [verified, `build.gradle.kts`]: `timeoutConstInMillis = 4000`,
 
 ### A correction this spec must not repeat
 
-An earlier draft of the register described a `fasterThreshold` option that would auto-kill slow
-mutants and needed guarding. **`fasterThreshold` does not exist** in PIT 1.30.0 or plugin 1.19.0 —
+An earlier draft of the working notes behind this set described a `fasterThreshold` option that
+would auto-kill slow mutants and needed guarding. **`fasterThreshold` does not exist** in PIT 1.30.0
+or plugin 1.19.0 —
 zero occurrences across `pitest-1.30.0.jar`, `pitest-entry-1.30.0.jar`,
 `pitest-command-line-1.30.0.jar`, and `pitest-html-report-1.30.0.jar`, and `javap` on the 1.19.0
 Gradle extension matches it zero times [verified]. PIT exposes exactly two timeout controls,
@@ -154,8 +155,9 @@ evaluation; there is no explicit assertion step.
 
 1. **WHEN** mutation coverage falls below the configured floor, **THE SYSTEM SHALL** fail the build.
 2. **THE SYSTEM SHALL** set `mutationThreshold` to the floor derived after Specs 12.01–12.05 land,
-   and SHALL record that derivation — the killed count, the total, and the date — in
-   `docs/plans/mutation-gap-register.md`.
+   and SHALL record that derivation — the killed count, the total, and the date — in this spec's
+   §Derivation Record below, so the floor and its justification live with the requirement that
+   produces it.
 3. **THE SYSTEM SHALL** keep `coverageThreshold` at `0` in this spec. Line coverage is a useful
    signal but a separate decision; gating it and gating mutation coverage are not the same choice.
 4. **THE SYSTEM SHALL** remove the `testStrengthThreshold.set(0)` line, which sets a default to its
@@ -201,8 +203,32 @@ evaluation; there is no explicit assertion step.
 - [ ] `./gradlew clean test javadoc` passes and CI is green.
 - [ ] No `fasterThreshold` or `thresholdPrecision` appears in `build.gradle.kts` or
       `.github/workflows/build.yml` (R11) — grep-able and empty. Scoped to configuration on purpose:
-      this spec and the register both *name* the two options in order to record that they do not
-      exist, so a repo-wide grep would match its own documentation and prove nothing.
+      this spec *names* the two options in order to record that they do not exist, so a repo-wide
+      grep would match its own documentation and prove nothing.
+
+## Derivation Record
+
+Filled in when 12.01–12.05 land and PIT is re-run once. Until then it is deliberately empty rather
+than pre-filled with a prediction — the whole point of R2 is that the floor comes from a
+measurement, and writing a number here now would invite someone to treat it as the floor.
+
+| field | value |
+|---|---|
+| measured on | _pending Specs 12.01–12.05_ |
+| commit | _pending_ |
+| total mutants | _pending_ |
+| `KILLED` (PIT) | _pending_ |
+| assertion-backed kills (R6/R7) | _pending_ |
+| `KILLED` / total | _pending_ |
+| non-`KILLED` detected statuses | _pending — must be zero (R6)_ |
+| PIT's rounded figure | _pending_ |
+| **`mutationThreshold` set to** | _pending_ |
+
+**The last row is not allowed to equal the row above it.** At the current baseline PIT would render
+81 and the floor must be at most 80, because 81 is satisfiable only by the single mutant PR #29
+added. If the post-remediation figure rounds to *n*, the floor is at most *n−1*. This is not
+conservatism for its own sake: a floor set equal to the rounded measurement gates nothing the
+rounding has not already granted.
 
 ## Design
 
@@ -289,5 +315,4 @@ grep -c '<mutation ' build/reports/pitest/mutations.xml
 
 - `build.gradle.kts` — `pitest { }` block: thresholds, timeout budget, mutator list, `failWhenNoMutations`
 - `.github/workflows/build.yml` — the `mutation` job and its artifact upload
-- `docs/plans/mutation-gap-register.md` — Gap 7, the working notes this spec supersedes
 - `docs/specs/active/12-mutation-hardening/README.md` — implementation order and the "last to land" constraint

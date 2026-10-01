@@ -37,7 +37,8 @@ touch them and cannot.
 
 ## Non-Goals
 
-- **Not pinning absolute state counts.** The register records that a pruner exploring 12% fewer states
+- **Not pinning absolute state counts.** PR #29's defect injection records that a pruner exploring 12%
+  fewer states
   passes B.1 (verdicts agree), B.2 (still monotonic), and B.3 (store contract unaffected).
   A count guard would pin the implementation, not the property, and every legitimate optimisation to
   the visited key would break it. If a count assertion is added at all, it is a tripwire with a
@@ -244,9 +245,9 @@ Procedure, repeated for each of defects 4, 5, 6:
 Record all six data points in the PR body. A defect that still passes is a **finding about the
 program's shape** — go back to R1 and widen the program; do not paper over it by weakening a test.
 
-This protocol is the same one PR #29 used, and it is the reason the register could state "three of
-six injected defects pass today" as a measured fact rather than a suspicion. Preserving that property
-is worth more than any single new mutant kill.
+This protocol is the same one PR #29 used, and it is the reason "three of six injected defects pass
+today" can be stated here as a measured fact rather than a suspicion. Preserving that property is
+worth more than any single new mutant kill.
 
 ### Keeping the blast radius small
 
@@ -314,4 +315,5 @@ the new program is the same defect class as Spec 11.05 §5's hardcoded `strategy
 - `src/main/java/dev/samhb/interleave/cb/ContextBoundedExplorer.java` — the dominance logic under test
 - `src/main/java/dev/samhb/interleave/report/StatesExploredTable.java` — corpus enumeration
 - `src/main/java/dev/samhb/interleave/report/SoundnessAttestation.java` — cross-strategy agreement
-- `docs/plans/mutation-gap-register.md` — Gap 6, the injection experiment this spec scales up
+- PR #29's defect-injection table — the six-defect experiment this spec scales up; its verdict,
+  three of six injected dominance defects undetected, is the measured basis for this spec existing

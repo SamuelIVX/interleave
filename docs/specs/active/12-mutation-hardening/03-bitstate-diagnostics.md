@@ -245,4 +245,5 @@ the two accessor mutants under R8.
 - `src/main/java/dev/samhb/interleave/state/BitstateStore.java` — `estimatedFalsePositiveRate`, three constructors, `size`, `numHashFunctions`
 - `src/main/java/dev/samhb/interleave/report/BenchmarkHarness.java` — the diagnostic consumer (Spec 12.04)
 - `src/test/java/dev/samhb/interleave/state/StateStorePreemptionTest.java` — existing bitstate tests
-- `docs/plans/mutation-gap-register.md` — Gap 3, the working notes this spec supersedes
+- `src/test/java/dev/samhb/interleave/report/BenchmarkHarnessCBTest.java` — `bitstateMetrics_populatedForContextBoundedRows`,
+  the PR #26 test that claims to pin FPR and demonstrably does not reach the formula's arithmetic

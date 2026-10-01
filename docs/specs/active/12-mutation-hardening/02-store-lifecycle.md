@@ -14,8 +14,8 @@ suppression or a real test.
 ## Objective
 
 Give `HashingStateStore`'s lifecycle methods — the ones that manage state across a search rather
-than during it — real coverage, and replace the register's assumed-equivalent-mutant claim with a
-per-mutant adjudication backed by evidence.
+than during it — real coverage, and replace the working assumption that the nine low-priority
+survivors are equivalent mutants with a per-mutant adjudication backed by evidence.
 
 ## Scope
 
@@ -184,7 +184,7 @@ For each surviving hash-arithmetic mutant, in order:
    never correctness. Verified by tracing all readers of `preemptionHashIndices`.`
 5. **Then** either suppress with that reason or write the test.
 
-The ordering matters. The register's earlier claim that these mutants were equivalent was
+The ordering matters. The earlier working claim that these mutants were equivalent was
 **assumed, not verified** — and when a spec is handed to a reviewer, an assumed equivalence is
 indistinguishable from a hidden defect. Step 3 is what separates them.
 
@@ -237,7 +237,7 @@ revert.
 ## Map
 
 - `src/main/java/dev/samhb/interleave/state/HashingStateStore.java` — `clear`, `freshCopy`, `preemptionEntryCount`, `isVisited`, `markVisited`
-- `src/main/java/dev/samhb/interleave/state/StateStore.java` — the interface these implement
+- `src/main/java/dev/samhb/interleave/search/StateStore.java` — the interface these implement
 - `src/main/java/dev/samhb/interleave/state/CanonicalEncoder.java` — Spec 12.01 owns it
 - `src/test/java/dev/samhb/interleave/state/StateStorePreemptionTest.java` — existing preemption tests
 - `src/test/java/dev/samhb/interleave/state/StateHashingTest.java` — existing encoding tests

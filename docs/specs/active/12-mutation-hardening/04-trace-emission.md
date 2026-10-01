@@ -243,5 +243,8 @@ visitor assertion fails and the `getTraces()` assertion in the same test passes;
 - `src/main/java/dev/samhb/interleave/cb/ContextBoundedExplorer.java` — `addTrace`, `emitIncompleteTraceIfNeeded`, `explore`, `dfs`
 - `src/main/java/dev/samhb/interleave/search/StateVisitor.java` — the callback contract
 - `src/main/java/dev/samhb/interleave/search/Trace.java` — `Trace.of`, constructor invariants (Spec 11.05)
-- `src/test/java/dev/samhb/interleave/cb/ContextBoundedApiTest.java` — existing CBS tests, including the pinned non-delivery
+- `src/test/java/dev/samhb/interleave/ContextBoundedApiTest.java` — existing CBS tests, including the
+  pinned non-delivery `partialResult_limitedRun_reportsLimitAndNoIncomplete`
+- `src/test/java/dev/samhb/interleave/cb/CbsDifferentialTest.java` — verdict agreement against exhaustive DFS
+- `src/test/java/dev/samhb/interleave/cb/CbsMonotonicityTest.java` — monotonicity in the bound
 - `docs/specs/active/11-context-bounded/05-incomplete-verdict.md` — the shipped `INCOMPLETE` spec
