@@ -404,7 +404,7 @@ class StoreEquivalenceTest {
                     p.name() + ": bitstate found a bug and the exact store did not. That direction "
                         + "is never permitted.");
             }
-            assertEquals(hasViolation(exact), true,
+            assertTrue(hasViolation(exact),
                 p.name() + ": precondition -- the exact store must find the known bug");
         }
     }
