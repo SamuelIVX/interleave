@@ -16,11 +16,21 @@ Two facts drive the design, both measured rather than assumed:
    dangerous direction: a mutant that breaks deduplication runs *slower*, which is exactly the class
    worth catching.
 
-The ratchet also must not trust its own percentage. At `mutationThreshold = 80`, the gate tolerates
-losing **three** kills from the current 222 and **fails on the fourth** (218) — it fails at
-`mutationThreshold − 4`, not `− 3`, because the gate trips at the first figure that rounds *below* the
-threshold. So the mutant count and status breakdown are asserted alongside the percentage, because
-the rounded percentage is structurally blind to small movement.
+The ratchet also must not trust its own percentage, and it must not trust *PIT's* percentage as
+the gate either — PIT counts a non-assertion "detection" as detected, so the binding floor is
+enforced against `KILLED`/total (R7).
+
+**The gate compares at full precision, not rounded.** The floor is a percentage and
+`KILLED`/total is compared against it unrounded, using integer arithmetic
+(`KILLED * 100 >= floor * total`) so no binary-floating-point edge can decide a build. This is a
+deliberate departure from PIT, whose own integer rounding is the weakness that made
+`thresholdPrecision` worth wanting; the gate does not inherit it.
+
+At a floor of 80 the gate therefore tolerates losing **two** kills from the current 222 (221 and 220
+both pass) and **fails on the third**, at 219/275 = 79.64%. That is one kill tighter than PIT's
+rounded threshold at the same floor, which passes 219 and first fails at 218. The mutant count and
+status breakdown are asserted alongside the ratio regardless, because a ratio alone cannot say *which*
+mutants were lost.
 
 ## Objective
 
@@ -85,19 +95,25 @@ gap this whole spec set exists to close.
 
 ### PIT rounds to nearest, not floor [verified]
 
-From `build/reports/pitest/index.html`, the report renders `222/275` as `81%`.
+From `build/reports/pitest/index.html`, the report renders `222/275` as `81%`. This table describes
+**PIT's own rounded threshold**, which R7 demotes to corroboration. The gate is the full-precision
+comparison in the TL;DR, and the two disagree at 219 — so the `passes 80?` column here is *not* the
+gate's verdict.
 
-| killed | exact | PIT reports | passes 80? | passes 81? |
-|---|---|---|---|---|
-| 222 (current) | 80.73% | **81** | yes | yes |
-| 221 (pre-Part-B) | 80.36% | 80 | yes | **no** |
-| 220 | 80.00% | 80 | yes | no |
-| 219 | 79.64% | 80 | yes | no |
-| 218 | 79.27% | **79** | **no** | no |
+| killed | exact | PIT reports | PIT passes 80? | PIT passes 81? | **gate at floor 80** |
+|---|---|---|---|---|---|
+| 222 (current) | 80.73% | **81** | yes | yes | pass |
+| 221 (pre-Part-B) | 80.36% | 80 | yes | **no** | pass |
+| 220 | 80.00% | 80 | yes | no | pass |
+| 219 | 79.64% | 80 | yes | no | **fail** |
+| 218 | 79.27% | **79** | **no** | no | fail |
 
-**Threshold 81 fails at the pre-Part-B baseline.** It is only satisfiable by the one mutant PR #29
-added, so it would make the gate depend entirely on that single kill. Threshold 80 passes down to
-219/275 and **fails at 218/275 — three kills tolerated, the fourth trips it.**
+**PIT threshold 81 fails at the pre-Part-B baseline.** It is only satisfiable by the one mutant PR #29
+added, so it would make that gate depend entirely on a single kill.
+
+The last two columns differing at 219 is the whole reason the gate is not PIT's threshold: PIT rounds
+79.64% **up** to 80 and passes, while the assertion-backed gate compares exactly and fails. A ratchet
+that inherited the rounding would accept a build whose one-mutant regression PIT could not see.
 
 ### Wall-time kills score as detected [verified]
 
@@ -164,7 +180,9 @@ evaluation; there is no explicit assertion step.
 
 ## Requirements
 
-1. **WHEN** mutation coverage falls below the configured floor, **THE SYSTEM SHALL** fail the build.
+1. **WHEN** assertion-backed mutation coverage (`KILLED` / total) falls below the configured floor,
+   **THE SYSTEM SHALL** fail the build. This is the gate; PIT's own `mutationThreshold` is a second,
+   weaker check on the same run (R7).
 2. **THE SYSTEM SHALL** set `mutationThreshold` to the floor derived after Specs 12.01–12.05 land,
    and SHALL record that derivation — the killed count, the total, and the date — in this spec's
    §Derivation Record below, so the floor and its justification live with the requirement that
@@ -198,7 +216,18 @@ evaluation; there is no explicit assertion step.
      `TIMED_OUT`, because the remedy is different (fix the scope, not the timeout).
 7. **THE SYSTEM SHALL** compute and display the **assertion-backed** mutation coverage
    (`KILLED` / total) alongside PIT's own figure, so a wall-time kill cannot quietly inflate the
-   headline number.
+   headline number. **This figure SHALL be gated, not merely printed.** `mutationThreshold` compares
+   against PIT's mutation coverage, which counts every non-`SURVIVED`/`NO_COVERAGE` status as
+   detected — including an allow-listed `EQUIVALENT`. So a build whose assertion-backed coverage has
+   fallen below the floor can still pass PIT's own threshold, and R6's allow-list makes that
+   reachable rather than theoretical. **CI SHALL fail when `KILLED`/total drops below the same
+   recorded floor**, so the gate this spec ships is the assertion-backed one and PIT's threshold is
+   corroboration rather than the gate itself.
+
+   The comparison SHALL be **exact integer arithmetic** — `KILLED * 100 >= floor * total` — and SHALL
+   NOT round the ratio to an integer first. Rounding would make the gate one kill looser than intended
+   and, at a boundary mutant count such as `220/275 = 80.00%`, would leave the verdict to
+   floating-point representation rather than to the recorded floor.
 8. **WHEN** a specific mutant times out, **THE SYSTEM SHALL** be fixable by raising
    `timeoutConstInMillis` narrowly, with the reason recorded in `build.gradle.kts`. It SHALL NOT be
    used as a blanket policy.
@@ -225,7 +254,11 @@ evaluation; there is no explicit assertion step.
       exceeds the recorded allow-list, naming the unlisted mutant (R6).
       Currently all are zero, so demonstrate by asserting against a synthetic non-zero expectation or
       by temporarily lowering the timeout so a mutant times out — record which method was used.
-- [ ] A CI step prints assertion-backed coverage (`KILLED`/total) next to PIT's figure (R7).
+- [ ] A CI step prints assertion-backed coverage (`KILLED`/total) next to PIT's figure **and fails
+      when it falls below the recorded floor** (R7). **Demonstrated** by lowering the assertion-backed
+      expected value below the measured one and confirming a red build, since PIT's own threshold
+      would still pass in that state — the point of the criterion is that the assertion-backed gate
+      is the binding one.
 - [ ] The PIT report upload still runs on failure (R9).
 - [ ] `./gradlew clean test javadoc` passes and CI is green.
 - [ ] No `fasterThreshold` or `thresholdPrecision` appears in `build.gradle.kts` or
@@ -299,6 +332,13 @@ mutant is scored as a survivor for ratcheting *and* is a legitimate, documented 
 12.02's adjudication. It should reduce the assertion-backed figure and it should not, on its own,
 break the build. So the allow-list in R6 exists to keep those two effects separable — a mutant on the
 list still counts against the floor; it just does not need an exception to keep CI green.
+
+**Which is exactly why R7 has to gate rather than print.** The allow-list is only safe because the
+floor is enforced against `KILLED`/total. If the floor were enforced only by PIT's
+`mutationThreshold`, an allow-listed `EQUIVALENT` would satisfy it while contributing nothing to
+assertion-backed coverage — the build would go green having verified less than before. The two halves
+are load-bearing together: R6 makes `EQUIVALENT` tolerable, R7 makes tolerating it cost something.
+Neither half is sufficient alone, which is the reason to keep them adjacent in this spec.
 
 ### R5 — assert the denominator, not just the ratio
 

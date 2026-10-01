@@ -57,8 +57,10 @@ reproduce.
 - `L41` — `explore(Program)` delegating to `explore(program, null)`. Two `NO_COVERAGE` mutants, so
   the no-invariant entry point is **never called by any test**.
 - `L176` — inside `dfs`, four `NO_COVERAGE` mutants. The survey reports this region as a list copy
-  plus a `Trace.of` construction; exact reachability is **not** established and §R6 makes
-  establishing it a requirement rather than assuming either way.
+  plus a `Trace.of` construction. It is the `ASSERTION_FAILED` branch, **not** the invariant check at
+  `:120–123`, so it is reached only by a step that *returns* `ASSERTION_FAILED` — which only
+  `DynamicStep` does, and no corpus program is declarative. Exact reachability is therefore
+  **unestablished**, and §R10 makes establishing it a requirement rather than assuming either way.
 
 **Mutation inventory — 105 mutants, 86 killed (81.9%), 19 not killed:**
 
@@ -198,7 +200,9 @@ change surfaces as a failure rather than a silent skip.
 ### R10 — reachability, not assumption
 
 `L176` has four `NO_COVERAGE` mutants. Two responses are correct depending on what is true, and
-guessing wrong is costly:
+guessing wrong is costly. Note the asymmetry in what "wrong" costs: the false-*reachable* verdict
+leaves a coverage gap open, while the false-*unreachable* verdict marks a live branch dead and
+proposes deleting it. R10's evidence bar is set accordingly.
 
 - **Unreachable** → dead code. Document it; consider deletion under `AGENTS.md` §2 (needs sign-off).
 - **Reachable but untested** → a real coverage gap, and it sits on a path the search can take.
@@ -211,11 +215,31 @@ covers it" confuses *untested* with *unreachable*, which is the mistake this req
 prevent — and the silent-instrumentation trap is the same error wearing a lab coat, because it looks
 like evidence.
 
-A prior signal is worth recording before the work starts: `L176` is the `VIOLATION` `addTrace` call
-inside `if (outcome == StepOutcome.ASSERTION_FAILED)`, and `ASSERTION_FAILED` arises whenever a step
-violates an invariant. Five corpus programs carry invariants (`lost-update`, `torn-counter`,
-`double-checked-locking`, `broken-peterson`, `broken-peterson-v2`), so the region is reachable on any
-CBS run over a buggy program — this is the hypothesis R10 tests, not an established result.
+A prior signal is worth recording before the work starts — and it is weaker than it first looks, so it
+is stated as the open question R10 has to settle rather than as an answer.
+
+`L176` is the `VIOLATION` `addTrace` call inside `if (outcome == StepOutcome.ASSERTION_FAILED)`. It is
+**not** the invariant check. `ContextBoundedExplorer` evaluates the invariant separately, at
+`:120–123`, and emits its own `VIOLATION` trace from there — a different call site. So a buggy
+program producing a violation does not, by itself, reach `L176` [verified].
+
+The branch requires a step to *return* `ASSERTION_FAILED`, and that return has exactly one producer:
+`DynamicStep` [verified — the only other occurrences of the constant outside `StepOutcome` itself are
+the five explorers comparing against it]. `DynamicStep` is used only for programs with
+`format: "declarative"`, dispatched at `ProgramLoader:175`. **No program in the current corpus is
+declarative** — all seven are `typed` [verified], and no `typed` step returns `ASSERTION_FAILED`.
+
+So the honest prior is: **reachability is unestablished, not established.** It turns on whether any
+declarative program exists or will exist — the DSL is a live feature (Specs 09–10, with
+`DslLoaderTest`, `DslEquivalenceTest`, and `DslInvariantTest`), so the producer is real and reachable
+in principle; only the corpus currently has no program that drives it. R10 SHALL establish which of
+these holds, and SHALL NOT delete the region on the strength of a silent counter. Two findings follow
+directly and belong in the record:
+
+- The five invariant-bearing programs named above reach the **`:120–123`** VIOLATION path under CBS,
+  so they are the right corpus for R4/R5/R6 — and the wrong evidence for `L176`.
+- If a declarative program is ever added to the corpus, `L176` becomes reachable and these four
+  `NO_COVERAGE` mutants become a genuine gap. Recording that dependency is part of R10's output.
 
 ## Tests
 
@@ -245,7 +269,10 @@ visitor assertion fails and the `getTraces()` assertion in the same test passes;
   that surfaces as a failure.
 - **Backward compatibility:** no signature changes. `addTrace` is private.
 - **Test-only.** If R10 finds the `L176` region unreachable, deleting it is a production change and
-  needs Sam's sign-off per `AGENTS.md` §2 — and its own PR.
+  needs Sam's sign-off per `AGENTS.md` §2 — and its own PR. **Deletion additionally requires
+  establishing that no declarative program can reach the branch**, not merely that today's corpus does
+  not: the DSL is a supported feature (Specs 09–10), so the producer is live code and "no corpus
+  program is declarative" is a fact about the corpus, not a property of the branch.
 - **Do not weaken the pinned `partialResult_limitedRun_reportsLimitAndNoIncomplete` test.** It pins a
   deliberate Spec 11.05 non-delivery. Making the two coexist is a separate, larger change.
 
