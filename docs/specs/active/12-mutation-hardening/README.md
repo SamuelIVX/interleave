@@ -25,16 +25,24 @@ not left implicit (per `AGENTS.md` §10: a stale doc is worse than none).
 
 ## Measured baseline
 
-Same config, same scope (`state.*` + `cb.*`), same 12 mutators, on both commits.
+Same config, same scope (`state.*` + `cb.*`), same 12 mutators, on both commits. All figures below
+are **[verified]** against `build/reports/pitest/mutations.xml` at each named commit; the current-run
+column was re-derived from the report rather than carried forward from an earlier draft.
 
-| | `313df44` (pre-Part-B) | `c5fdcd0` (post-Part-B) | delta |
+| | `313df44` (pre-Part-B) | `c5fdcd0` (post-Part-B, **current**) | delta |
 |---|---|---|---|
 | total mutants | 275 | 275 | 0 |
 | `KILLED` | 221 | 222 | +1 |
 | `SURVIVED` | 40 | 39 | −1 |
 | `NO_COVERAGE` | 14 | 14 | 0 |
 | mutation coverage | 80.36% | 80.73% | +0.4pp |
+| test strength | 221/261 = 84.67% | 222/261 = 85.06% | — |
 | `TIMED_OUT` / `MEMORY_ERROR` / `NON_VIABLE` / `RUN_ERROR` / `EQUIVALENT` | 0 | 0 | 0 |
+
+`c5fdcd0` is the **current** baseline and the one every later number descends from; `313df44` is the
+pre-Part-B run, retained because Spec 12.06 §R2's threshold argument turns on the difference between
+them. Neither figure is interchangeable with the other, and each numerator below moves with its own
+run's denominator — see Spec 12.06 §Three metrics, three denominators.
 
 The run's 53 non-killed mutants are exactly `SURVIVED` (39) + `NO_COVERAGE` (14) — both of which PIT
 scores as *not* detected. The five statuses that score as detected without an assertion behind them

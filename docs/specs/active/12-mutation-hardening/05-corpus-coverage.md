@@ -145,7 +145,10 @@ the natural fit and needs no new invariant type.
   A change in the total means production code changed or scope moved — investigate before reading the
   percentage (Spec 12.06 §R5). **The expected total is the one measured after Spec 12.01 landed, not
   the 275 recorded today:** 12.01 §R3 Branch A deletes `CanonicalEncoder.equals`, removing its five
-  mutants outright. Assert against that post-12.01 total and record it here when 12.01 lands.
+  mutants outright. **Ownership of that number is split, deliberately.** Spec 12.01 records it — in
+  the `total mutants` row of Spec 12.06's §Derivation Record — because it is 12.01's change that moves
+  the total. This spec only *reads* it and never writes it; a single writer keeps the two from drifting.
+  The value is 275 only if 12.01 chose Branch B and kept `equals`.
 - **Corpus programs SHALL remain small enough to explore exhaustively at the test bound.** A program
   too large to DFS makes every differential assertion meaningless.
 
@@ -196,8 +199,9 @@ the natural fit and needs no new invariant type.
 - [ ] A correct program still yields a bounded CBS run with only `COMPLETED` traces (R6).
 - [ ] `SoundnessAttestation` passes with the extended corpus (R9).
 - [ ] `./gradlew pitest` total is **unchanged from the post-12.01 total** — a different total fails
-      the acceptance criteria until explained (Invariant, R4 above). The literal number is recorded
-      in this spec when 12.01 lands; it is *not* 275 unless 12.01 chose Branch B and kept `equals`.
+      the acceptance criteria until explained (Invariant, R4 above). That number is written by Spec
+      12.01 into the `total mutants` row of Spec 12.06's §Derivation Record; this spec only reads it
+      from there, and does not record a literal of its own.
 - [ ] `./gradlew clean test javadoc` passes.
 - [ ] The PR body reports the before/after status of L82, L87, L88, L113.
 
@@ -270,7 +274,10 @@ the new program is the same defect class as Spec 11.05 §5's hardcoded `strategy
 - `dominanceRule_prunesOnlyOnNonGreaterOrEqualBudget` (R1, R4) — the property test: for a bounded
   search, every pruned state has a recorded dominator with budget ≤ its own
 - `threeThreadProgram_dfsConfigurationCount_exceedsTwoThreadMaximum` (R2) — pins the R2 measurement
-  as a floor, so a corpus change that shrinks the state space fails loudly
+  as a floor, so a corpus change that shrinks the state space fails loudly. **The floor assertion
+  carries the R7 tripwire comment**, because it is the one place this spec touches an absolute count:
+  it is a *relative* comparison between two programs on the same store implementation, which is a
+  property the corpus exhibits, not a value the implementation promises.
 - `newProgram_expectedVerdict_reportedByEveryStrategyThatFindsIt` (R5, R9) — asserted per strategy
   with its bound stated, so a bounded `INCOMPLETE` is a pass and a bounded `VIOLATION` is not
 - `newProgram_violationReplay_satisfiesInvariant` (R5, R9)

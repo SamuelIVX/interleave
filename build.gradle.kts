@@ -189,12 +189,17 @@ pitest {
     //
     // PIT reports three distinct percentages with three different denominators, and
     // conflating them is how a ratchet ends up pinned to a figure PIT never produced.
-    // Measured on this scope against PIT 1.30.0:
+    // Measured on this scope against PIT 1.30.0.
     //
     //   line coverage      223/235 = 95%  <- gated by coverageThreshold
     //   mutation coverage  221/275 = 80%  <- gated by mutationThreshold
     //   test strength      221/261 = 85%  <- gated by testStrengthThreshold
     //
+    // Every figure in that block is the 313df44 (pre-Part-B) run, current as of this
+    // comment being written. After PR #29 the same scope measures 222/275 = 80.73%
+    // mutation coverage and 222/261 test strength -- both numerators moved with their
+    // denominators, so the two sets are not interchangeable. Re-read the report before
+    // trusting any number here; the ratchet itself lives in Spec 12.06.
     // Only test strength excludes NO_COVERAGE mutants. Mutation coverage counts all
     // 14 of them, which is why it is the right denominator for a ratchet: a score
     // that quietly ignores unexercised code hides the exact gap being measured. The

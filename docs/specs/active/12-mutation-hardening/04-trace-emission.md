@@ -122,9 +122,20 @@ claim the other's mutants.
    `PASS`, not `INCOMPLETE`.
 9. **THE SYSTEM SHALL** exercise `explore(Program)` — the no-invariant entry point — in at least one
    test, establishing that it delegates correctly and does not NPE.
-10. **THE SYSTEM SHALL** determine, by instrumentation or by tracing every caller, whether the `dfs`
-    region at `L176` is reachable. If unreachable it SHALL be documented as dead with the evidence; if
-    reachable it SHALL be covered by a test that reaches it.
+10. **THE SYSTEM SHALL** determine whether the `dfs` region at `L176` is reachable, and SHALL record
+    which of these two it concluded:
+
+    - **Instrumentation shows the region executes** → it is reachable, and SHALL be covered by a
+      test that reaches it. A firing counter is positive evidence.
+    - **Instrumentation shows it does not execute** → this establishes only that *the executions run
+      so far* did not reach it. It SHALL NOT on its own support an unreachability verdict, because a
+      finite run cannot cover the input space. An unreachability verdict SHALL be supported by
+      **complete caller and path analysis**: every call site of `dfs`, every path from each to `L176`,
+      and the precondition each path would have to satisfy without satisfying.
+
+    The two directions are not symmetric. Instrumentation is a sound way to prove *reachability* and
+    an unsound way to prove *unreachability*. Getting that backwards is how a live path gets
+    documented as dead and then deleted.
 11. **THE SYSTEM SHALL** emit traces deterministically — two identical runs SHALL produce equal trace
     sequences, guarding against hash-iteration nondeterminism.
 
@@ -192,10 +203,19 @@ guessing wrong is costly:
 - **Unreachable** → dead code. Document it; consider deletion under `AGENTS.md` §2 (needs sign-off).
 - **Reachable but untested** → a real coverage gap, and it sits on a path the search can take.
 
-Establish it by instrumenting the region with a counter or throw, running the full corpus plus the
-`Strategy.CONTEXT_BOUNDED` CI job's own invocation, and observing whether it fires. That is evidence.
-Inferring from "no test covers it" confuses *untested* with *unreachable*, which is the mistake this
-requirement exists to prevent.
+Establish the reachable direction by instrumenting the region with a counter or throw, running the
+full corpus plus the `Strategy.CONTEXT_BOUNDED` CI job's own invocation, and observing whether it
+fires. **A firing counter settles reachability; a silent counter settles nothing** and must be
+escalated to the path analysis above rather than recorded as "unreachable". Inferring from "no test
+covers it" confuses *untested* with *unreachable*, which is the mistake this requirement exists to
+prevent — and the silent-instrumentation trap is the same error wearing a lab coat, because it looks
+like evidence.
+
+A prior signal is worth recording before the work starts: `L176` is the `VIOLATION` `addTrace` call
+inside `if (outcome == StepOutcome.ASSERTION_FAILED)`, and `ASSERTION_FAILED` arises whenever a step
+violates an invariant. Five corpus programs carry invariants (`lost-update`, `torn-counter`,
+`double-checked-locking`, `broken-peterson`, `broken-peterson-v2`), so the region is reachable on any
+CBS run over a buggy program — this is the hypothesis R10 tests, not an established result.
 
 ## Tests
 

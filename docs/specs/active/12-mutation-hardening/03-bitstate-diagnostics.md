@@ -136,7 +136,9 @@ line-grouped inventory that reports only the dominant status undercounts by thre
 
 - [ ] `estimatedFalsePositiveRate()` is asserted `== 0.0` on a fresh store (R1).
 - [ ] At least three literal closed-form cases pass within `1e-9` (R2), including at least one with
-      `preemptionStatesMarked > 0` so the `n` sum at `L294` is exercised.
+      `preemptionStatesMarked > 0` so the `n` sum at `L294` is exercised, **and at least one that has
+      marked at two or more distinct preemption levels so `vectorsInUse() > 1`** — the L298 mutant is
+      invisible at `vectorsInUse() == 1` (R2, R4).
 - [ ] A monotonicity test over an increasing `statesMarked` sequence passes (R3).
 - [ ] **Falsification:** all **five** FPR mutants — `L298` (`MATH`), `L300` (`INVERT_NEGS` and
       `MATH`), and both at `L301` (`NON_VOID_METHOD_CALLS`, `PRIMITIVE_RETURNS`) — are individually
@@ -147,7 +149,10 @@ line-grouped inventory that reports only the dominant status undercounts by thre
 - [ ] Boundary tests assert rejection at `size == 0` and acceptance at `size == 1`, and likewise for
       `numHashFunctions` (R5, R6).
 - [ ] `maxPreemptions == 0` constructs successfully and `bitCount()`/`estimatedFalsePositiveRate()`
-      behave (R7).
+      behave (R7) — **and slot 0 is actually exercised** by marking and querying through the bounded
+      APIs `markVisited(config, tid, 0)` / `isVisited(config, tid, 0)`. Constructing the store proves
+      only that the array has one slot; it does not prove slot 0 is reachable or correct, and lazy
+      allocation means the slot stays `null` until a mark lands in it (R7).
 - [ ] `size()` and `numHashFunctions()` return the constructor arguments (R8).
 - [ ] `./gradlew clean test javadoc` passes.
 - [ ] `./gradlew pitest` shows `BitstateStore` above 86.6% and specifically L68, L71, L201, L210,
@@ -183,8 +188,15 @@ method under test. Computing the expected value with `Math.pow(1 - Math.exp(...)
 reproduces the implementation and validates nothing — a classic tautological assertion.
 
 Pick inputs where the five mutants diverge *most*:
-- L298 `MATH` mutates `size * vectorsInUse()`. Use `maxPreemptions > 0` so `vectorsInUse()` is
-  greater than 1 and the mutant's effect is multiplied rather than hidden.
+- L298 `MATH` mutates `size * vectorsInUse()`. **The store must be driven to at least two vectors in
+  use before this matters, and `maxPreemptions > 0` does not do that.** `preemptionBitsets` is
+  allocated **lazily** — the constructor only does `new BitSet[maxPreemptions + 1]`, leaving every
+  slot `null` — and `vectorsInUse()` counts only non-null entries plus the main bitset
+  [verified, `BitstateStore.java:82` and `:267`]. So a store built with `maxPreemptions = 3` that
+  never marks a preemption still reports `vectorsInUse() == 1`, and the mutant's effect is invisible.
+  The requirement is therefore: **mark at two or more distinct preemption levels** via
+  `markVisited(config, tid, p)`, so `allocatedPreemptionVectors()` is genuinely ≥ 2 and the
+  multiplier is exercised rather than hidden.
 - L300 `INVERT_NEGS` flips the sign of the exponent term, which for `n > 0` produces a *negative*
   intermediate `prob` and a wild final value — easy to distinguish, provided a positive `n` case
   exists.
@@ -213,7 +225,8 @@ allocation.
 - `constructor_rejectsNonPositiveNumHashFunctions` / `constructor_acceptsOneHashFunction` (R6)
 - `constructor_rejectsNegativeMaxPreemptions` / `constructor_acceptsZeroMaxPreemptions` (R7)
 - `constructor_zeroMaxPreemptions_allocatesSinglePreemptionBitSet` (R7) — asserts via observable
-  behaviour (`bitCount()`, FPR), not by reflecting into the private field
+  behaviour (`bitCount()`, FPR), not by reflecting into the private field; **also** marks and queries
+  preemption level `0` through the bounded APIs so the slot is exercised, not merely sized
 - `size_returnsConstructedCapacity` (R8)
 - `numHashFunctions_returnsConstructedK` (R8)
 

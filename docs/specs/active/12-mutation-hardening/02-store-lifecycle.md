@@ -104,10 +104,26 @@ not. R6 covers all 9 of these low-priority survivors.
 3. **WHEN** `freshCopy()` is called, **THE SYSTEM SHALL** return a non-null store whose contents are
    independent of the original — marking in the copy SHALL NOT change the original's answers.
 4. **THE SYSTEM SHALL** resolve the `TRUE_RETURNS` mutant at `isVisited(Configuration)` `L39` — that
-   is, it SHALL either kill it with a test, or record a documented suppression explaining why no
-   reachable state pair exercises the line. Which of the two applies is itself a finding: "no
-   reachable pair collides in the current corpus" means the hash prefilter does no work on this corpus,
-   which is worth knowing. Suppression requires the evidence, not merely the absence of a test.
+   is, it SHALL either kill it with a test, or record a documented suppression. **Corpus-only
+   absence SHALL NOT, on its own, establish either outcome.** The prefilter's guard is
+   `if (!visitedHashes.contains(hash)) return false;` — the hash is an *optimisation*, so the question
+   is not "does any pair collide in today's corpus" but "can any supported `Configuration` pair
+   collide, and what does the store answer then". Three dispositions are correct, and which one applies
+   is itself a finding about this store:
+
+   - **A deterministic colliding pair exists and is constructible** → write a test that marks one and
+     queries the other, asserting the exact contract. This is the strongest outcome, and it is
+     constructible here: `HashingStateStore` exposes `markVisited(Configuration)`, and a colliding
+     pair can be found by inverting the hash rather than waiting for the corpus to produce one.
+   - **The pair cannot be constructed, proven by enumeration over the full supported `Configuration`
+     domain** → suppression, with that enumeration written down.
+   - **A wrong prefilter answer is contract-neutral** → suppression on *that* basis, which is a
+     different and stronger claim than "nothing observed it". Proving it requires reading every
+     reader of the prefilter and the store contract, not running the suite.
+
+   Recording which of the three applies is required, because "no reachable pair collides in the
+   current corpus" is a fact about the corpus and tells you the prefilter does no work *on this
+   corpus* — it does not tell you the guard is correct, and it cannot support a deletion on its own.
 5. **THE SYSTEM SHALL** pin `preemptionEntryCount()` to `0` before any preemption is marked, and to
    the exact count after each `markVisited(config, tid, p)` for distinct `(config, tid)` pairs,
    including the min-merging behaviour: marking the same key twice with different `p` values SHALL
@@ -178,11 +194,21 @@ For each surviving hash-arithmetic mutant, in order:
    - *Unobservable* — the mutation changes a value nothing reads. **Equivalent.**
 3. **Verify, do not assume.** For *unobservable*, confirm by reading every reader of the value. A
    claim of equivalence is only as good as the enumeration of readers, and that enumeration must be
-   written down.
+   written down. **A reader that stores into a Bloom filter is not a neutral reader**, even when the
+   class it belongs to is `BitstateStore` rather than this one: a wrong index there changes
+   false-positive membership and therefore pruning behaviour, so "only affects selectivity" has to be
+   argued from the contract, not asserted. Where the argument cannot be closed, the mutant is
+   verdict-observable by default and requires a test.
 4. **Record:** `L114 NON_VOID_METHOD_CALLS — equivalent: the dropped value is read only by
    `preemptionHashIndices`, whose output feeds bit selection; a wrong index degrades selectivity,
-   never correctness. Verified by tracing all readers of `preemptionHashIndices`.`
+   never correctness. Verified by tracing all readers of `preemptionHashIndices`, which reach only
+   `BitSet.get`/`set` and the FPR counter — none of which can turn an unvisited configuration into a
+   reported visited one without a coincidental collision.`
 5. **Then** either suppress with that reason or write the test.
+
+The example in step 4 is written to the shape it must take, not as a pre-answered verdict: the
+reader enumeration is part of the record, and a reader list that stops at the class boundary has not
+been enumerated.
 
 The ordering matters. The earlier working claim that these mutants were equivalent was
 **assumed, not verified** — and when a spec is handed to a reviewer, an assumed equivalence is

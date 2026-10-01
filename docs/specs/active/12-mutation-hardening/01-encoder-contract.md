@@ -119,6 +119,10 @@ distinguish an injective encoder from a constant one.
       6 killed of 7 total = **85.7%**, not 11/12. Do not read the class percentage without reading the
       class total — the total-mutant assertion in Spec 12.06 §R5 covers the global count for the same
       reason.
+- [ ] **This spec records the new global mutant total.** Deleting `equals` moves it off 275, and Specs
+      12.05 and 12.06 both assert against the post-12.01 figure without owning it. 12.01 writes the
+      measured value into the `total mutants` row of Spec 12.06's §Derivation Record, together with
+      the commit and the `CanonicalEncoder` class total, so the number has exactly one writer (R3).
 
 ## Design
 
@@ -230,8 +234,21 @@ test goes red; revert.
 
 - **Dependencies:** none. This is the root of the set.
 - **Backward compatibility:** `encode` and `hashCode` signatures SHALL NOT change — both stores call
-  them. Removing `equals` is an API change to a `public` class in a `public` package; acceptable
-  because there are no external consumers [verified], and it requires Sam's sign-off (R4).
+  them. Removing `equals` is an API change to a `public` class in a `public` package, so R4 SHALL
+  confirm the consumer surface before deleting rather than inferring it from a repo-wide grep:
+
+  | question | finding |
+  |---|---|
+  | in-repo callers | **zero**, production and test, verified by repo-wide grep |
+  | published artifact | **yes** — `maven-publish` declares `dev.samhb.interleave:interleave` |
+  | version | `1.0-SNAPSHOT` |
+  | repository | **`mavenLocal()` only** — no remote repository is configured, so no artifact has left this machine |
+  | external consumers | **none reachable.** There is no released version and no remote repo, so no published surface can be depended on |
+
+  The grep alone does not establish that; the publishing configuration does. The conclusion holds
+  *because* the artifact has never been published remotely, and R4 SHALL re-check that before acting
+  — if a remote repository is added, or a version is released, the deletion becomes a breaking
+  change and stops being a local decision. Deletion also requires Sam's sign-off (R4).
 - **Javadoc:** the `Javadoc` Gradle task runs over `src/main/java` only and is gated on correctness,
   not coverage. Whatever shape `equals` takes after R4, any surviving public method needs a docstring
   describing its contract (R4).
