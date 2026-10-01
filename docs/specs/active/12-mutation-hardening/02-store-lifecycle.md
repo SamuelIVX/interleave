@@ -61,14 +61,21 @@ catches it. That is Spec 12.03-adjacent work in spirit but lives in this class; 
 | L54 | `clear` — `preemptionHashes.clear()` | `VOID_METHOD_CALLS` | SURVIVED | **high** — leak |
 | L98 | `preemptionEntryCount` | `NON_VOID_METHOD_CALLS` | SURVIVED | med |
 | L98 | `preemptionEntryCount` | `PRIMITIVE_RETURNS` | SURVIVED | med |
-| L103 | `preemptionHash` | `MATH` ×2 | SURVIVED | low — R4 |
+| L102 | `preemptionHash`/key helper | `NON_VOID_METHOD_CALLS` | SURVIVED | low — R4 |
+| L103 | `preemptionHash` | `MATH` ×2, `NON_VOID_METHOD_CALLS` | SURVIVED ×3 | low — R4 |
 | L104 | `preemptionHash` | `PRIMITIVE_RETURNS` | SURVIVED | low — R4 |
 | L114 | `preemptionHashIndices`/key helpers | `MATH` ×2, `NON_VOID_METHOD_CALLS`, `PRIMITIVE_RETURNS` | SURVIVED ×4 | low — R4 |
 | L123 | `freshCopy` | `NULL_RETURNS` | **NO_COVERAGE** | **high** — NPE |
 
+Totals: 14 `SURVIVED` + 1 `NO_COVERAGE` = 15.
+
 Note the asymmetry: `clear()` at `L53` and `L55` have killed mutants but `L52` and `L54` do not.
 Partial coverage is worse than none here — a test that calls `clear()` and asserts *something*
 changed will pass with one collection still populated.
+
+`L102`, `L103` and `L114` sit on lines that **also** carry killed mutants. An inventory that groups by
+line and reports only the dominant status will miss them; a per-`(line, mutator)` enumeration does
+not. R6 covers all 9 of these low-priority survivors.
 
 ## Invariants
 
@@ -96,17 +103,19 @@ changed will pass with one collection still populated.
    `isVisited` `false` for a state that was marked before the clear.
 3. **WHEN** `freshCopy()` is called, **THE SYSTEM SHALL** return a non-null store whose contents are
    independent of the original — marking in the copy SHALL NOT change the original's answers.
-4. **THE SYSTEM SHALL** kill the `TRUE_RETURNS` mutant at `isVisited(Configuration)` `L39` — that is,
-   a test SHALL demonstrate that the exact store reports `false` for a state it has never seen, at a
-   point where the hash prefilter *does* hit, so the mutant's early `return true` is reached.
+4. **THE SYSTEM SHALL** resolve the `TRUE_RETURNS` mutant at `isVisited(Configuration)` `L39` — that
+   is, it SHALL either kill it with a test, or record a documented suppression explaining why no
+   reachable state pair exercises the line. Which of the two applies is itself a finding: "no
+   reachable pair collides in the current corpus" means the hash prefilter does no work on this corpus,
+   which is worth knowing. Suppression requires the evidence, not merely the absence of a test.
 5. **THE SYSTEM SHALL** pin `preemptionEntryCount()` to `0` before any preemption is marked, and to
    the exact count after each `markVisited(config, tid, p)` for distinct `(config, tid)` pairs,
    including the min-merging behaviour: marking the same key twice with different `p` values SHALL
    leave the count at 1.
-6. **THE SYSTEM SHALL** adjudicate every one of the 13 surviving mutants outside the priorities above
-   as either *equivalent* (with the reasoning that establishes it) or *testable* (with a named test),
-   and SHALL record the verdict per mutant in this spec's §Current State. No mutant SHALL be left in
-   an assumed state.
+6. **THE SYSTEM SHALL** adjudicate all **9** low-priority hash-arithmetic survivors as either
+   *equivalent* (with the reasoning that establishes it) or *testable* (with a named test), and SHALL
+   record the verdict per mutant in this spec's §Current State. The nine are: `L102` ×1, `L103` ×3,
+   `L104` ×1, `L114` ×4. No mutant SHALL be left in an assumed state.
 7. **THE SYSTEM SHALL NOT** add a test whose only assertion is a specific hash value, a specific
    `hashCode()` result, or the internal structure of a key string.
 
@@ -118,12 +127,12 @@ changed will pass with one collection still populated.
       pre-clear state after `clear()` (R2).
 - [ ] A test asserts `freshCopy()` is non-null and that marking in the copy leaves the original
       unchanged (R3).
-- [ ] A test drives `isVisited` down the hash-prefilter-hit path with an unseen state and asserts
-      `false`. **Falsification:** force the prefilter to hit for an unseen state (e.g. mark a
-      different state that collides on the hash) and confirm the assertion still returns `false` and
-      kills the mutant — if it does not, the test is not exercising `L39` (R4).
+- [ ] `isVisited` is driven down the hash-prefilter-hit path with an unseen state and asserted
+      `false` — **or**, if no reachable colliding pair exists in the current corpus, that absence is
+      documented as the recorded suppression R4 permits, with the search for such a pair recorded.
+      Either way the line is accounted for (R4).
 - [ ] `preemptionEntryCount()` tests cover 0, 1, N, and the merge case (R5).
-- [ ] §Current State carries a verdict row for all 13 remaining survivors, each marked
+- [ ] §Current State carries a verdict row for all 9 low-priority survivors, each marked
       `equivalent — <reason>` or `tested — <test name>` (R6).
 - [ ] A repo-wide grep confirms no test asserts a literal hash value (R7).
 - [ ] `./gradlew clean test javadoc` passes.

@@ -68,11 +68,15 @@ Tests are co-located in each spec — no separate test spec.
    ├── 03-bitstate-diagnostics
    └── 05-corpus-coverage        (needs encoder injectivity to trust any new store test)
 
-04-trace-emission        02, 03  (independent of 01 once the trace contract is fixed)
+04-trace-emission                (no hard dependency — can start in parallel)
 
 05-corpus-coverage
    └── 06-mutation-ratchet       (ratchet pins post-remediation numbers — MUST land last)
 ```
+
+**04 has no hard dependency.** Its requirements are test-side and its own `## Constraints` says so.
+The `L82`/`L87`/`L88` mutants it is adjacent to belong to 12.05's pruning surface, but that is an
+ownership boundary, not a build dependency — it must not be read as one.
 
 **Why 06 is last and is not parallelizable with anything.** The ratchet records a floor. If it
 lands before remediation, it pins today's 53-mutant gap as the accepted state forever, and Specs
@@ -118,10 +122,12 @@ details — the exact failure mode that produced PR #26's under-specified metric
 
 ### Already resolved
 
-- ✅ **The ratchet floors at `mutationThreshold = 80`, not 81.** PIT rounds mutation coverage to the
-  nearest integer (verified: `222/275` renders as `81%` in `build/reports/pitest/index.html`).
-  Threshold 81 passes *only* on the strength of the single mutant PR #29 added, and fails at the
-  pre-Part-B baseline of `221/275`. Spec 12.06.
+- ✅ **`mutationThreshold = 80`, not 81 — but the final value is not yet fixed.** PIT rounds mutation
+  coverage to the nearest integer (verified: `222/275` renders as `81%` in
+  `build/reports/pitest/index.html`), so 81 passes *only* on the strength of the single mutant PR #29
+  added and fails at the pre-Part-B baseline of `221/275`. What is resolved is that **81 is wrong and
+  80 is the highest integer floor either measured run clears.** The floor actually shipped comes from
+  the post-remediation measurement (Spec 12.06 §R2), which is why 12.06 lands last.
 - ✅ **No `fasterThreshold`.** That option does not exist in PIT 1.30.0 or plugin 1.19.0 — zero
   occurrences across all four runtime jars. An earlier draft of the register described it as a real
   hazard; it was not, and the corrected write-up is in Spec 12.06.
@@ -151,7 +157,9 @@ details — the exact failure mode that produced PR #26's under-specified metric
 - [ ] `./gradlew pitest` — re-run, and the spec's named mutants flipped to `KILLED`
 - [ ] `./gradlew pitest` — no mutant moved to `TIMED_OUT`/`MEMORY_ERROR` (Spec 12.06 §R6)
 - [ ] Falsification check named in the spec executed, and reverted
-- [ ] Total mutant count unchanged at 275 — a change means scope, mutator set, or runtime moved (Spec 12.06 §R5)
+- [ ] `./gradlew pitest` — total mutant count unchanged from the **recorded post-12.01 total**
+      (275 today; 270 if 12.01 §R3 takes Branch A and deletes `CanonicalEncoder.equals`, removing its
+      five mutants outright). A change means scope, mutator set, or runtime moved (Spec 12.06 §R5)
 
 ## Skills Required
 

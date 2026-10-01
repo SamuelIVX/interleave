@@ -161,8 +161,10 @@ evaluation; there is no explicit assertion step.
 4. **THE SYSTEM SHALL** remove the `testStrengthThreshold.set(0)` line, which sets a default to its
    own value and implies a gate that does not exist.
 5. **THE SYSTEM SHALL** assert, after each PIT run, that the total mutant count equals the recorded
-   baseline (currently 275). A mismatch SHALL fail with a message naming the expected and actual
-   counts and stating that scope, mutator set, or runtime moved.
+   baseline. That baseline SHALL be re-derived and re-recorded after each spec that changes production
+   source, and in particular **after Spec 12.01 lands**, because deleting `CanonicalEncoder.equals`
+   removes five mutants outright and moves the total off 275. A mismatch SHALL fail with a message
+   naming the expected and actual counts and stating that scope, mutator set, or runtime moved.
 6. **THE SYSTEM SHALL** report the count of each non-`KILLED` detected status (`TIMED_OUT`,
    `MEMORY_ERROR`, `NON_VIABLE`, `RUN_ERROR`, `EQUIVALENT`) as a first-class step output, and SHALL
    treat a non-zero count as a **failure** — not a warning — until the score is computed with those
@@ -177,9 +179,10 @@ evaluation; there is no explicit assertion step.
    `failWhenNoMutations.set(true)`.
 10. **WHEN** PIT or the plugin version changes, **THE SYSTEM SHALL** re-run and diff the total mutant
     count before the percentage is trusted, and SHALL re-verify the two timeout options still exist.
-11. **THE SYSTEM SHALL** not document, configure, or guard against `fasterThreshold` or
-    `thresholdPrecision`. If a future version adds them, that is a measurement change and SHALL be
-    treated as one.
+11. **THE SYSTEM SHALL** not configure or guard against `fasterThreshold` or `thresholdPrecision` in
+    build or CI configuration. Naming them in documentation is required — the record that they do not
+    exist is itself load-bearing. If a future version adds them, that is a measurement change and
+    SHALL be treated as one.
 
 ## Acceptance Criteria
 
@@ -196,8 +199,10 @@ evaluation; there is no explicit assertion step.
 - [ ] A CI step prints assertion-backed coverage (`KILLED`/total) next to PIT's figure (R7).
 - [ ] The PIT report upload still runs on failure (R9).
 - [ ] `./gradlew clean test javadoc` passes and CI is green.
-- [ ] No `fasterThreshold` or `thresholdPrecision` string appears anywhere in the repo (R11) —
-      grep-able and empty.
+- [ ] No `fasterThreshold` or `thresholdPrecision` appears in `build.gradle.kts` or
+      `.github/workflows/build.yml` (R11) — grep-able and empty. Scoped to configuration on purpose:
+      this spec and the register both *name* the two options in order to record that they do not
+      exist, so a repo-wide grep would match its own documentation and prove nothing.
 
 ## Design
 
@@ -263,9 +268,11 @@ Record each demonstration in the PR body. Each is a one-line temporary edit plus
   be prepared earlier, but its threshold value cannot be set until they land.
 - **Backward compatibility:** none — build configuration only. CI gains an assertion step; the
   `mutation` job's timeout and artifact behaviour are unchanged.
-- **Plugin limitations are not fixable here.** All three thresholds are `Property<Integer>` with no
-  `thresholdPrecision` on plugin 1.19.0, so a metric can regress by almost a full percentage point
-  without tripping. R5/R7 are the mitigation. Document it rather than pretend it away.
+- **Plugin limitations are not fixable here.** All three thresholds are `Property<Integer>` on the
+  info.solidsoft plugin's 1.19.0 extension, and that extension exposes no `thresholdPrecision`. This
+  is a limitation of the **Gradle integration**, not of PIT itself — PIT supports decimal precision
+  when driven directly (Maven, CLI). So the integer blind spot is a property of *this build's
+  configuration surface*, and R5/R7 are the mitigation. Document it rather than pretend it away.
 - **Do not widen scope or mutators to move the number.** Changing the denominator to improve the
   ratio is the failure mode this spec exists to prevent.
 

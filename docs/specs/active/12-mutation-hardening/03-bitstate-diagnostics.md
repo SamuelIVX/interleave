@@ -80,9 +80,19 @@ test; `numHashFunctions()` is not called by production code either [verified by 
 | L210 | `numHashFunctions()` | `PRIMITIVE_RETURNS` | **NO_COVERAGE** |
 | L298 | `estimatedFalsePositiveRate` — `size * vectorsInUse()` | `MATH` | SURVIVED |
 | L300 | `estimatedFalsePositiveRate` | `INVERT_NEGS` | SURVIVED |
+| L300 | `estimatedFalsePositiveRate` | `MATH` | SURVIVED |
 | L301 | `estimatedFalsePositiveRate` — `Math.pow` | `NON_VOID_METHOD_CALLS`, `PRIMITIVE_RETURNS` | SURVIVED ×2 |
+| L333 | `preemptionHashIndices` | `MATH` | SURVIVED |
+| L343 | `doubleHash` — index arithmetic | `MATH` ×2 | SURVIVED ×2 |
+| L357 | `hashCode` | `MATH` | SURVIVED |
 
-The `doubleHash` L343 `MATH` ×2 survivors are out of scope here; Spec 12.02 §R4 adjudicates them.
+Totals: 11 `SURVIVED` + 2 `NO_COVERAGE` = 13. **Five** of the survivors are inside
+`estimatedFalsePositiveRate` (`L298`, `L300` ×2, `L301` ×2) — the highest concentration of
+user-facing diagnostics in the set.
+
+`L333`, `L343` and `L357` are hash-arithmetic and out of scope here; Spec 12.02 §R4 adjudicates
+them. `L333`, `L343` and `L357` each sit on a line that **also** carries killed mutants, so a
+line-grouped inventory that reports only the dominant status undercounts by three.
 
 ## Invariants
 
@@ -128,9 +138,12 @@ The `doubleHash` L343 `MATH` ×2 survivors are out of scope here; Spec 12.02 §R
 - [ ] At least three literal closed-form cases pass within `1e-9` (R2), including at least one with
       `preemptionStatesMarked > 0` so the `n` sum at `L294` is exercised.
 - [ ] A monotonicity test over an increasing `statesMarked` sequence passes (R3).
-- [ ] **Falsification:** each of the five FPR mutants is individually injected in turn, and the
-      corresponding assertion is observed to go red, then reverted. All five must be demonstrated —
-      a test that kills only some of the formula mutants is not the test this spec asks for.
+- [ ] **Falsification:** all **five** FPR mutants — `L298` (`MATH`), `L300` (`INVERT_NEGS` and
+      `MATH`), and both at `L301` (`NON_VOID_METHOD_CALLS`, `PRIMITIVE_RETURNS`) — are individually
+      injected in turn, and the corresponding assertion is observed to go red, then reverted. All
+      five must be demonstrated; a test that kills only some of the formula mutants is not the test
+      this spec asks for. The two accessor mutants (`L201`, `L210`) are demonstrated separately
+      under R8.
 - [ ] Boundary tests assert rejection at `size == 0` and acceptance at `size == 1`, and likewise for
       `numHashFunctions` (R5, R6).
 - [ ] `maxPreemptions == 0` constructs successfully and `bitCount()`/`estimatedFalsePositiveRate()`
@@ -159,10 +172,10 @@ So the test computes the answer by hand, offline, and pins it:
 
 ```java
 // Chosen so that k*n/m is a clean ratio and the result is far from any mutant's output.
-// size=1000, k=3, n=100  =>  m=1000 (vectorsInUse()==1 when maxPreemptions==0)
-//   1 - e^(-0.3) = 0.2591817793182821
-//   0.2591817793182821^3 = 0.017403...
-assertEquals(0.0174033, store.estimatedFalsePositiveRate(), 1e-9);
+// size=1000, k=3, n=100, vectorsInUse()==1  =>  m=1000, k*n/m = 0.3
+//   1 - e^-0.3   = 0.2591817793182821
+//   0.25918...^3 = 0.017410586496326586
+assertEquals(0.0174105865, store.estimatedFalsePositiveRate(), 1e-9);
 ```
 
 The literal must be computed and checked by hand or an independent tool, **not** by calling the
@@ -204,9 +217,9 @@ allocation.
 - `size_returnsConstructedCapacity` (R8)
 - `numHashFunctions_returnsConstructedK` (R8)
 
-**Falsification checks (not committed, five runs):** inject each of L298, L300, L301×2 and one
-accessor mutant in turn; confirm the matching assertion goes red; revert. All five demonstrated in
-the PR body.
+**Falsification (not committed, five runs):** inject each of `L298`, `L300` (×2), and `L301` (×2) in
+turn; confirm the matching assertion goes red; revert. All five demonstrated in the PR body, plus
+the two accessor mutants under R8.
 
 ## Constraints
 

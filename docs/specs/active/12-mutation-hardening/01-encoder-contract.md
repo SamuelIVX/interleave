@@ -78,8 +78,14 @@ distinguish an injective encoder from a constant one.
 
 ## Requirements
 
-1. **WHEN** the encoder is given N pairwise-distinct `SharedState` instances from the corpus state
+1. **WHEN** the encoder is given N pairwise-**distinct-in-value** search states from the corpus state
    space, **THE SYSTEM SHALL** produce N pairwise-distinct byte arrays.
+   - "Distinct in value" is defined by the state model, **not by object identity**. Two equal-valued
+     `SharedState` instances that are distinct objects MUST encode identically — that is
+     canonicalisation, and a requirement demanding otherwise would be wrong.
+   - The input set SHALL therefore be deduplicated by value before the count is taken. Sampling
+     instances and calling them "distinct" would make this requirement unsatisfiable-by-design
+     whenever the walk produces equal-valued duplicates.
 2. **WHEN** the encoder is given the same `SharedState` instance twice, **THE SYSTEM SHALL** produce
    byte arrays that are equal, across repeated calls and across separate `CanonicalEncoder`
    instances.
@@ -109,7 +115,10 @@ distinguish an injective encoder from a constant one.
       confirmed by a green suite (R6).
 - [ ] `./gradlew clean test javadoc` passes and Javadoc has no errors for the changed file (R1–R6).
 - [ ] After the change, `./gradlew pitest` reports `CanonicalEncoder` coverage strictly greater than
-      50.0% (50.0% + 5/12 ≈ 91.7% if `equals` is deleted).
+      50.0%. Note the denominator moves: deleting `equals` removes its five mutants outright, leaving
+      6 killed of 7 total = **85.7%**, not 11/12. Do not read the class percentage without reading the
+      class total — the total-mutant assertion in Spec 12.06 §R5 covers the global count for the same
+      reason.
 
 ## Design
 
@@ -121,16 +130,40 @@ injectivity from coincidence.
 ```java
 // Collect states by exploring, not by authoring. Hand-authored states can be chosen to collide,
 // which is the exact failure being tested for.
-Set<SharedState> states = new LinkedHashSet<>();   // LinkedHashSet: deterministic order
-// walk a corpus program exhaustively under DFS, adding config.state() at each node
-Set<String> encoded = new LinkedHashSet<>();
-for (SharedState s : states) encoded.add(new String(encoder.encode(s), StandardCharsets.ISO_8859_1));
-assertEquals(states.size(), encoded.size(), "encoder must be injective over the reachable state space");
+//
+// "Distinct" is by VALUE. Two equal-valued SharedState instances are one state, not two, and a
+// canonicalising encoder is *required* to map them to the same bytes. Collecting instances into a
+// LinkedHashSet would keep both and make injectivity unsatisfiable.
+Map<SharedState, String> byValue = new LinkedHashMap<>();   // value-equality keying
+// walk a corpus program exhaustively under DFS, encoding via a CHARSET-SAFE content key:
+//   byValue.putIfAbsent(config.state(), Base64.getEncoder().encodeToString(encoder.encode(config.state())))
+assertEquals(byValue.size(), new HashSet<>(byValue.values()).size(),
+    "encoder must be injective over the reachable search-state space");
 ```
 
-Use `ISO_8859_1` (or base64) rather than `String(byte[])` with the platform charset: the default
-charset can map distinct byte arrays to equal `String`s, which would hide exactly the collision the
-test exists to find. Compare bytes directly with `Set<List<Byte>>` if that reads cleaner.
+**The encoding key must be a content key, never the `byte[]` itself.** `byte[]` uses identity
+`equals`/`hashCode`, so `new HashSet<>(byteArrays)` reports N distinct objects for N array references
+and can *never* detect a collision — the assertion would pass unconditionally, which is worse than
+having no test. Use base64, a `List<Byte>`, or `Arrays.equals`-based comparison.
+
+Use `LinkedHashMap`/`LinkedHashSet` (insertion-ordered) rather than a hash-ordered collection, so a
+failure is reproducible rather than dependent on iteration order. Base64 rather than
+`new String(byte[])` with the platform charset, for the same reason: the default charset can map
+distinct byte arrays to equal `String`s and hide the very collision the test exists to find.
+
+**Deduplication MUST use state value semantics — `SharedState.equals`/`hashCode` — never the encoded
+bytes.** Deduplicating by encoded output and then asserting the encodings are distinct is circular:
+it passes by construction, whatever the encoder does, including for a constant encoder.
+
+Using `SharedState` value equality is sound here, and verified rather than assumed: all six
+implementations (`DynamicState`, `DeadlockState`, `PairState`, `DclState`, `CounterState`,
+`PetersonState`) override `equals` and `hashCode` [verified]. `SharedState.encodeTo`'s own Javadoc
+already states the contract this spec enforces — *"Two states that are equal must encode to identical
+bytes. The two properties are maintained together and tested together"* — so R1 is testing a
+documented interface guarantee, not inventing one.
+
+If a future `SharedState` implementation omits value equality, that is a defect in its own right and
+SHALL be reported; it SHALL NOT be worked around by switching the dedup key.
 
 Which program to walk: pick the corpus program with the largest reachable state space, since a
 2-thread program with few steps may not reach 100 distinct states. Spec 12.05 will add a
@@ -140,12 +173,16 @@ chosen program reaches and require that count to be ≥ 100 (R1's floor). If no 
 
 ### R6 — the falsification check
 
-A property test that cannot fail is decoration. Before landing R1, break the encoder deliberately:
+A property test that cannot fail is decoration. Before landing R1, break the encoder deliberately.
+The break must guarantee collisions in the sampled set, so truncate to a **constant** rather than to
+a per-state byte:
 
 ```java
-// TEMPORARY: collapse the encoding to its first byte. R1's test MUST go red.
-int[] truncated = { out.size() > 0 ? out.get(0) : 0 };
-// ... write only that byte ...
+// TEMPORARY: emit one fixed byte for every state. Every state now encodes identically, so
+// R1's test MUST go red. (Truncating to each state's own first byte would NOT reliably
+// collide — with >=100 states over 256 byte values it may produce no collision at all,
+// which is exactly the case where the falsification check silently proves nothing.)
+out.writeByte(0);
 ```
 
 Confirm `CanonicalEncoderContractTest` fails, then revert. Record the reverted SHA and the observed

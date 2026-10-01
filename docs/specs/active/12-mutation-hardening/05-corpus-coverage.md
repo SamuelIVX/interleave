@@ -130,14 +130,21 @@ the natural fit and needs no new invariant type.
   SHALL be pruned only if some recorded state with identical `(config, lastThreadId)` was reached at
   budget *q ≤ p*. Pruning on any other basis — ignoring budget, ignoring `lastThreadId`, or recording
   a cost greater than the true one — discards states that may be the only route to a violation.
-- **A correct program SHALL remain `PASS` under every exact strategy**, including CBS, and
-  `SoundnessAttestation` SHALL continue to pass.
+- **A correct program SHALL be `PASS` under DFS, and `INCOMPLETE` under a bounded CBS run that
+  exceeded its budget.** These are not in conflict and must not be asserted as agreement:
+  `SoundnessAttestation` excludes `INCOMPLETE` from cross-strategy agreement precisely because a
+  bounded run on `peterson` is `PASS` under DFS and `INCOMPLETE` under CBS at K=2 (Spec 11.05 §6).
+  **CBS reports `PASS` only when it is exhaustive at the bound.** A bounded CBS run over budget
+  reports `INCOMPLETE` even when the program is correct — that is the verdict's entire purpose, not a
+  correctness violation, and treating it as one would make this spec unsatisfiable.
 - **A buggy program SHALL report its declared verdict** under every strategy that is expected to find
   it, at the bound where it is detectable.
 - **Adding a corpus program SHALL NOT change the total mutant count.** Mutators target production
   source; new tests can only move mutants *between* statuses (`NO_COVERAGE` → `SURVIVED`/`KILLED`).
   A change in the total means production code changed or scope moved — investigate before reading the
-  percentage (Spec 12.06 §R5).
+  percentage (Spec 12.06 §R5). **The expected total is the one measured after Spec 12.01 landed, not
+  the 275 recorded today:** 12.01 §R3 Branch A deletes `CanonicalEncoder.equals`, removing its five
+  mutants outright. Assert against that post-12.01 total and record it here when 12.01 lands.
 - **Corpus programs SHALL remain small enough to explore exhaustively at the test bound.** A program
   too large to DFS makes every differential assertion meaningless.
 
@@ -164,8 +171,10 @@ the natural fit and needs no new invariant type.
 8. **WHEN** the corpus is extended, **THE SYSTEM SHALL** update every place that enumerates programs
    and would otherwise silently omit the new one — at minimum the README corpus listing, the
    benchmark states-explored table, and the soundness attestation inputs.
-9. **THE SYSTEM SHALL** keep `SoundnessAttestation` passing: all exact strategies must agree on every
-   correct program, and every reported violation must replay.
+9. **THE SYSTEM SHALL** keep `SoundnessAttestation` passing: all exact strategies that report a
+   decided verdict must agree on every correct program — with `INCOMPLETE` excluded from that
+   agreement, as it already is. A correct program SHALL never be reported `VIOLATION` by any
+   strategy, bounded or not, and every reported violation SHALL replay.
 10. **THE SYSTEM SHALL** record the measured configuration count for the new program, and SHALL
     re-run `./gradlew pitest` and report which of the L82/L87/L88/L113 mutants flipped.
 
@@ -185,8 +194,9 @@ the natural fit and needs no new invariant type.
       (R5).
 - [ ] A correct program still yields a bounded CBS run with only `COMPLETED` traces (R6).
 - [ ] `SoundnessAttestation` passes with the extended corpus (R9).
-- [ ] `./gradlew pitest` total is still **275** — a different total fails the acceptance criteria
-      until explained (Invariant, R4 above).
+- [ ] `./gradlew pitest` total is **unchanged from the post-12.01 total** — a different total fails
+      the acceptance criteria until explained (Invariant, R4 above). The literal number is recorded
+      in this spec when 12.01 lands; it is *not* 275 unless 12.01 chose Branch B and kept `equals`.
 - [ ] `./gradlew clean test javadoc` passes.
 - [ ] The PR body reports the before/after status of L82, L87, L88, L113.
 
@@ -202,9 +212,10 @@ one thread.** Under `counter_equals` with `expected: N`.
 
 Why this shape:
 
-- **It multiplies the distinct `(config, lastThreadId)` pairs.** Two threads give O(steps²) schedules;
-  three give O(steps³). The dominance key's distinctness grows, which is precisely what defects 4–6
-  need to be caught by.
+- **It multiplies the distinct `(config, lastThreadId)` pairs.** Distinctness comes from the
+  program-counter configurations, not from the number of schedules: two threads give O(steps²)
+  distinct configurations, three give O(steps³). The dominance key's distinctness is what defects
+  4–6 need in order to be caught.
 - **It uses a thread-count-agnostic invariant**, so no DSL work is needed [verified].
 - **It has a known bug class already represented** (`lost-update`), so the expected-verdict machinery
   and attestation are already exercised for it.
@@ -259,7 +270,8 @@ the new program is the same defect class as Spec 11.05 §5's hardcoded `strategy
   search, every pruned state has a recorded dominator with budget ≤ its own
 - `threeThreadProgram_dfsConfigurationCount_exceedsTwoThreadMaximum` (R2) — pins the R2 measurement
   as a floor, so a corpus change that shrinks the state space fails loudly
-- `newProgram_expectedVerdict_reportedByEveryApplicableStrategy` (R5, R9)
+- `newProgram_expectedVerdict_reportedByEveryStrategyThatFindsIt` (R5, R9) — asserted per strategy
+  with its bound stated, so a bounded `INCOMPLETE` is a pass and a bounded `VIOLATION` is not
 - `newProgram_violationReplay_satisfiesInvariant` (R5, R9)
 - `soundnessAttestation_passesWithExtendedCorpus` (R9)
 - `correctProgram_boundedCbsRun_emitsOnlyCompletedTraces` (R6)

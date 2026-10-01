@@ -70,14 +70,19 @@ reproduce.
 | L88 | `dfs` — visitor call | `VOID_METHOD_CALLS` | SURVIVED (Spec 12.05) |
 | L113 | `dfs` — visited-key construction | `NON_VOID_METHOD_CALLS` ×5 | SURVIVED (Spec 12.05) |
 | L176 | `dfs` helper | `NON_VOID_METHOD_CALLS` ×3, `VOID_METHOD_CALLS` | **NO_COVERAGE** ×4 |
+| L187 | `dfs` | `NON_VOID_METHOD_CALLS` | SURVIVED (Spec 12.05) |
 | L203 | `emitIncompleteTraceIfNeeded` — `anyMatch` | `NON_VOID_METHOD_CALLS` ×2 | SURVIVED ×2 |
 | L204 | `emitIncompleteTraceIfNeeded` — outcome compare | `NON_VOID_METHOD_CALLS` | SURVIVED |
 | L214 | `addTrace` — `onTraceCreated` | `VOID_METHOD_CALLS` | SURVIVED |
 
-`L82`, `L87`, `L88`, `L113` belong to Spec 12.05's pruning/visitor surface; this spec takes `L41`,
-`L176`, `L203`, `L204`, `L214`. Note `L87`/`L88` are also visitor calls — Spec 12.05 adjudicates
-those as pruning-side, this spec owns only the `addTrace` path, and neither spec may claim the other's
-mutants.
+Totals: 13 `SURVIVED` + 6 `NO_COVERAGE` = 19. `L203`, `L204` and `L187` each sit on a line that
+**also** carries killed mutants, so a line-grouped inventory that reports only the dominant status
+undercounts by four.
+
+`L82`, `L87`, `L88`, `L113` and `L187` belong to Spec 12.05's pruning/dominance surface; this spec
+takes `L41`, `L176`, `L203`, `L204`, `L214`. Note `L87`/`L88` are also visitor calls — Spec 12.05
+adjudicates those as pruning-side, this spec owns only the `addTrace` path, and neither spec may
+claim the other's mutants.
 
 ## Invariants
 
