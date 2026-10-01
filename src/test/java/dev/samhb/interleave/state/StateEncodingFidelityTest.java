@@ -15,13 +15,18 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -60,6 +65,15 @@ class StateEncodingFidelityTest {
      * construction so every probe in the spread is a real mutation.
      */
     private static final int BASE_INT = 12_345;
+
+    /**
+     * {@link #INT_SPREAD} minus {@code -1}, for fields whose base value is already {@code -1}.
+     *
+     * <p>{@code DclState.lockOwner} is {@code -1} when unlocked, so probing it with {@code -1} mutates
+     * nothing and the case passes vacuously. {@code assertEncodingDiffers} rejects that outright
+     * ("probe is vacuous"), which is how this constant came to exist rather than a skipped assertion.
+     */
+    private static final int[] LOCK_OWNER_SPREAD = {0, 1, 2, 255, 256, 65535, 65536};
 
     /**
      * R3/R3a — fields recorded as tracked gaps: known to be absent from the encoding, escalated to
@@ -102,6 +116,43 @@ class StateEncodingFidelityTest {
         }
     }
 
+    /**
+     * Asserts every variant encodes differently from <em>every other</em> variant, not merely from a
+     * baseline.
+     *
+     * <p>This is strictly stronger than the baseline-relative probes, and the difference is not
+     * academic. Measured 2026-10-01 against a deliberately lossy encoder that writes only an
+     * {@code int}'s low byte: the baseline-relative style produced <b>0 failing assertions</b> while
+     * this pairwise style produced <b>7</b> collisions. A field encoded as a single byte against a
+     * baseline of 12_345 is invisible to baseline-relative probing, because every sampled value looks
+     * different <em>from the base</em> while several of them are identical <em>to each other</em> —
+     * exactly the shape {@code INT_SPREAD}'s 0/255/256/-255/65535/65536 entries are chosen to expose,
+     * and the shape {@code equals} treats as distinct states. Since the stores key on these encodings,
+     * a pairwise collision is a real pruning bug, so pairwise is the property worth pinning.
+     *
+     * <p>Variants are keyed by index so the failure message names the colliding pair rather than
+     * dumping two opaque byte arrays.
+     */
+    private static void assertAllEncodingsDistinct(String what, List<SharedState> variants) {
+        for (int i = 0; i < variants.size(); i++) {
+            for (int j = i + 1; j < variants.size(); j++) {
+                SharedState a = variants.get(i);
+                SharedState b = variants.get(j);
+                if (a.equals(b)) {
+                    throw new AssertionError(what + ": probe is vacuous — variants " + i + " and " + j
+                            + " are equal states, so this case would pass without testing anything");
+                }
+                byte[] ea = encode(a);
+                byte[] eb = encode(b);
+                if (Arrays.equals(ea, eb)) {
+                    throw new AssertionError(what + ": variants " + i + " and " + j
+                            + " are distinct states but share the encoding " + Arrays.toString(ea)
+                            + " — the store will treat the second as already visited");
+                }
+            }
+        }
+    }
+
     /** R2 — the targeted regression. This is the test that guards the {@code control} fix. */
     @Test
     @DisplayName("R6: DeadlockState differing only in control encodes differently")
@@ -130,6 +181,20 @@ class StateEncodingFidelityTest {
         DeadlockState ctrl = copy(base);
         ctrl.setControl(true);
         assertEncodingDiffers("control", base, ctrl);
+
+        // All four flag combinations, compared with one another. An encoder that wrote only the count
+        // of set flags would pass every baseline-relative probe above and still collide here, since
+        // {0,1} and {1,0} are distinct states that a count cannot tell apart.
+        List<DeadlockState> flagCombos = new ArrayList<>();
+        for (int mask = 0; mask < 4; mask++) {
+            DeadlockState combo = DeadlockState.of((mask & 1) != 0, (mask & 2) != 0);
+            flagCombos.add(combo);
+            for (int existing = 0; existing < flagCombos.size() - 1; existing++) {
+                assertEncodingDiffers("flag combination " + mask + " vs " + existing,
+                        flagCombos.get(existing), combo);
+            }
+        }
+        assertAllEncodingsDistinct("DeadlockState flag combinations", new ArrayList<>(flagCombos));
     }
 
     @Test
@@ -153,9 +218,25 @@ class StateEncodingFidelityTest {
             assertEncodingDiffers("turn=" + value, base, turn);
         }
 
-        PetersonState ics = copy(base);
-        ics.setInCriticalSection(1);
-        assertEncodingDiffers("inCriticalSection", base, ics);
+        // Pairwise across the spread: catches an encoding that collapses two sampled values which are
+        // each distinct from the base but identical to one another.
+        List<SharedState> turns = new ArrayList<>();
+        for (int value : INT_SPREAD) {
+            PetersonState turn = copy(base);
+            turn.setTurn(value);
+            turns.add(turn);
+        }
+        assertAllEncodingsDistinct("PetersonState.turn across INT_SPREAD", turns);
+
+        // inCriticalSection across the whole sampled domain, not just 1: an encoding that wrote it as a
+        // presence boolean would satisfy the single probe and still collide across thread indices.
+        List<SharedState> criticalSections = new ArrayList<>();
+        for (int thread : INT_SPREAD) {
+            PetersonState ics = copy(base);
+            ics.setInCriticalSection(thread);
+            criticalSections.add(ics);
+        }
+        assertAllEncodingsDistinct("PetersonState.inCriticalSection across INT_SPREAD", criticalSections);
     }
 
     @Test
@@ -170,6 +251,14 @@ class StateEncodingFidelityTest {
             assertEncodingDiffers("counter=" + value, base, counter);
         }
 
+        List<SharedState> counters = new ArrayList<>();
+        for (int value : INT_SPREAD) {
+            CounterState counter = copy(base);
+            counter.setCounter(value);
+            counters.add(counter);
+        }
+        assertAllEncodingsDistinct("CounterState.counter across INT_SPREAD", counters);
+
         CounterState control = copy(base);
         control.setControl(true);
         assertEncodingDiffers("control", base, control);
@@ -179,6 +268,14 @@ class StateEncodingFidelityTest {
             reg.setRegister(0, INT_SPREAD[i]);
             assertEncodingDiffers("registers[0]=" + INT_SPREAD[i], base, reg);
         }
+
+        List<SharedState> registers = new ArrayList<>();
+        for (int value : INT_SPREAD) {
+            CounterState reg = copy(base);
+            reg.setRegister(0, value);
+            registers.add(reg);
+        }
+        assertAllEncodingsDistinct("CounterState.registers[0] across INT_SPREAD", registers);
 
         // Position matters within the register array.
         CounterState swapped = CounterState.of(0, 2);
@@ -210,6 +307,20 @@ class StateEncodingFidelityTest {
             assertEncodingDiffers("low=" + value, base, low);
         }
 
+        List<SharedState> highs = new ArrayList<>();
+        List<SharedState> lows = new ArrayList<>();
+        for (int value : INT_SPREAD) {
+            PairState high = copy(base);
+            high.setHigh(value);
+            highs.add(high);
+
+            PairState low = copy(base);
+            low.setLow(value);
+            lows.add(low);
+        }
+        assertAllEncodingsDistinct("PairState.high across INT_SPREAD", highs);
+        assertAllEncodingsDistinct("PairState.low across INT_SPREAD", lows);
+
         PairState control = copy(base);
         control.setControl(true);
         assertEncodingDiffers("control", base, control);
@@ -222,6 +333,18 @@ class StateEncodingFidelityTest {
             assertEncodingDiffers("observedLow=" + value,
                     base, withField(base, "observedLow", value));
         }
+
+        // Full integer spread on the observed fields too — a projection that clamps them to presence
+        // would satisfy the two-value probe above while colliding across the wider domain.
+        List<SharedState> observedHighs = new ArrayList<>();
+        List<SharedState> observedLows = new ArrayList<>();
+        for (int value : INT_SPREAD) {
+            observedHighs.add(withField(base, "observedHigh", value));
+            observedLows.add(withField(base, "observedLow", value));
+        }
+        assertAllEncodingsDistinct("PairState.observedHigh across INT_SPREAD", observedHighs);
+        assertAllEncodingsDistinct("PairState.observedLow across INT_SPREAD", observedLows);
+
         assertEncodingDiffers("hasObservation", base, withField(base, "hasObservation", true));
     }
 
@@ -250,9 +373,14 @@ class StateEncodingFidelityTest {
 
         // locked and lockOwner have no public setter; reached by reflection over non-final fields.
         assertEncodingDiffers("locked", base, withField(base, "locked", true));
-        for (int owner : new int[]{0, 1}) {
-            assertEncodingDiffers("lockOwner=" + owner, base, withField(base, "lockOwner", owner));
+
+        List<SharedState> owners = new ArrayList<>();
+        for (int owner : LOCK_OWNER_SPREAD) {
+            DclState state = withField(base, "lockOwner", owner);
+            assertEncodingDiffers("lockOwner=" + owner, base, state);
+            owners.add(state);
         }
+        assertAllEncodingsDistinct("DclState.lockOwner across LOCK_OWNER_SPREAD", owners);
     }
 
     @Test
@@ -269,6 +397,14 @@ class StateEncodingFidelityTest {
             assertEncodingDiffers("fieldValues[count]=" + value, base, count);
         }
 
+        List<SharedState> counts = new ArrayList<>();
+        for (int value : INT_SPREAD) {
+            DynamicState count = new DynamicState(decl, 1);
+            count.setInt("count", value);
+            counts.add(count);
+        }
+        assertAllEncodingsDistinct("DynamicState.fieldValues[count] across INT_SPREAD", counts);
+
         DynamicState flag = new DynamicState(decl, 1);
         flag.setBool("flag", true);
         assertEncodingDiffers("fieldValues[flag]", base, flag);
@@ -281,6 +417,15 @@ class StateEncodingFidelityTest {
         DynamicState localsChanged = new DynamicState(withLocal, 1);
         localsChanged.setLocalInt(0, "t", 7);
         assertEncodingDiffers("localValues[t]", localsBase, localsChanged);
+
+        // Full integer spread on the local, not just the single 7 above.
+        List<SharedState> locals = new ArrayList<>();
+        for (int value : INT_SPREAD) {
+            DynamicState state = new DynamicState(withLocal, 1);
+            state.setLocalInt(0, "t", value);
+            locals.add(state);
+        }
+        assertAllEncodingsDistinct("DynamicState.localValues[t] across INT_SPREAD", locals);
 
         // Shape matters at the thread level: one thread versus two writes a different number of locals.
         assertEncodingDiffers("localValues thread count",
@@ -431,9 +576,57 @@ class StateEncodingFidelityTest {
         return copy;
     }
 
+    /**
+     * Every concrete {@link SharedState} implementation on the classpath, discovered rather than
+     * listed.
+     *
+     * <p>This was a hardcoded list of six until the CodeRabbit pass on 2026-10-01, and a hardcoded
+     * list is a recurrence hole: a seventh state class added later would simply not be checked, and
+     * R3 would stay green while the new class's encoding went unpinned. That is precisely the failure
+     * mode Spec 12.07 exists to prevent, reintroduced through the test that is supposed to catch it.
+     *
+     * <p>Discovery scans the compiled main-classes directory for classes implementing {@code SharedState}.
+     * A jar would need a different walk, but this project has no packaged artifact — everything runs
+     * from {@code build/classes/java/main} — so the directory scan is exact rather than approximate, and
+     * it fails loudly if that directory is missing instead of quietly returning an empty list.
+     */
     private static List<Class<?>> stateClasses() {
-        return List.of(DeadlockState.class, PetersonState.class, CounterState.class,
-                PairState.class, DclState.class, DynamicState.class);
+        Path root = Path.of("build", "classes", "java", "main");
+        assertTrue(Files.isDirectory(root),
+                "expected compiled main classes at " + root.toAbsolutePath()
+                        + " — R3 cannot enumerate state classes without them, and returning an empty "
+                        + "list here would make R3 pass vacuously");
+
+        try (Stream<Path> files = Files.walk(root)) {
+            return files
+                    .filter(p -> p.toString().endsWith(".class"))
+                    .map(p -> classNameFor(root, p))
+                    .flatMap(StateEncodingFidelityTest::tryLoad)
+                    .filter(c -> !c.isInterface() && !Modifier.isAbstract(c.getModifiers()))
+                    .filter(c -> SharedState.class.isAssignableFrom(c))
+                    .sorted((a, b) -> a.getName().compareTo(b.getName()))
+                    .toList();
+        } catch (IOException e) {
+            throw new AssertionError("could not scan " + root.toAbsolutePath() + " for state classes", e);
+        }
+    }
+
+    /** {@code build/classes/java/main/dev/samhb/…/Foo.class} to {@code dev.samhb.….Foo}. */
+    private static String classNameFor(Path root, Path classFile) {
+        String relative = root.relativize(classFile).toString();
+        return relative.substring(0, relative.length() - ".class".length())
+                .replace(File.separatorChar, '.')
+                .replace('/', '.');
+    }
+
+    /** Classes that fail to link are skipped; they cannot be usable state implementations. */
+    private static Stream<Class<?>> tryLoad(String className) {
+        try {
+            return Stream.of(Class.forName(className, false,
+                    StateEncodingFidelityTest.class.getClassLoader()));
+        } catch (ClassNotFoundException | LinkageError e) {
+            return Stream.empty();
+        }
     }
 
     /**

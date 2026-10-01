@@ -234,23 +234,37 @@ higher-thread program precisely to widen this space; until then, assert against 
 chosen program reaches and require that count to be ≥ 100 (R1's floor). If no corpus program reaches
 100 states today, that is itself a finding to record, not a reason to lower the floor silently.
 
-#### Count glossary — 43, 160, and 128 are three different quantities
+#### Count glossary — 44, 72, 128, and 160 are four different quantities
 
-This spec quotes three state counts, and they are easy to conflate because they were measured
+This spec quotes several state counts, and they are easy to conflate because they were measured
 differently. Stating the methodology for each, so a future reader does not treat one as a
 contradiction of another:
 
 | figure | what it counts | how it was measured |
 |---|---|---|
-| **43** | distinct `SharedState` **values**, summed per program | `SharedState.equals`/`hashCode` over each program's reachable space; **state only, program counters ignored** |
+| **44** | distinct `SharedState` **values**, unioned across all programs | `HashSet<SharedState>` over every program's reachable space; **state only, program counters ignored** |
+| **72** | distinct `SharedState` values, **summed per program** (states counted again for each program that reaches them) | the same per-program sets, added without deduplicating across programs |
 | **160** | distinct **(state, programCounters) positions** — the quantity R1 actually asserts injectivity over | `Position(state, counters)` records over every corpus program's `DfsResult.states()`, which is what the store's key is built from |
 | **128** | positions **reached** by the R6 falsification run, under a deliberately constant one-byte encoder | the same walk, with the lossy key collapsing everything |
 
-**Why 43 and 160 differ.** States recur across programs: a bug program and its JSON twin explore the
-same states, and several programs share a state space. 43 counts each distinct *state* once per
-program and ignores where in the schedule it was reached; 160 counts each distinct
-*(state, counters)* pair. 160 is therefore the correct denominator for R1 and 43 is not — a store
-keys on the pair.
+**Correction — an earlier revision of this spec recorded the total as 43 and listed `torn-counter`
+at 8.** Both were wrong: `torn-counter` reaches **9**, and the per-program column sums to **72**, not
+43. Re-measured 2026-10-01 after the CodeRabbit pass with a throwaway probe that computed the sum
+and the union separately; the probe was then deleted. The 43 figure was a hand transcription error,
+not a pre-12.07 staleness artifact — reintroducing the `DeadlockState.control` defect and re-measuring
+produced the *same* 72 and 44, so the corpus counts are independent of the 12.07 fix. 44 is the
+union, the figure closest to what a reader means by "distinct states in the corpus", and it is the
+one the `≥ 100` floor should eventually be read against.
+
+**Why 44 and 160 differ.** States recur across programs: a bug program and its JSON twin explore the
+same states, and several programs share a state space. 44 counts each distinct *state* once overall
+and ignores where in the schedule it was reached; 160 counts each distinct *(state, counters)* pair.
+160 is therefore the correct denominator for R1 and 44 is not — a store keys on the pair.
+
+**Why 72 exceeds 44.** 72 double-counts on purpose: it is the sum of the per-program column, where a
+state reached by three programs contributes three times. It exists because "how many states did we
+look at" is naturally answered that way when reading a per-program table, and recording only the union
+would make that table's column fail to add up to its own total.
 
 **Why 128 and 160 differ — and this is not noise.** Under the constant encoder, the store's key stops
 discriminating, so `isVisited` returns `true` for configurations it has not seen and DFS prunes them.
@@ -265,9 +279,9 @@ reports collisions that are not collisions.
 
 #### R1's floor is measured, and it is unattainable today — the finding the paragraph above predicted
 
-**[verified, 2026-10-01]** Walking every corpus program's reachable configuration space yields **43**
-distinct states in total, so the ≥ 100 floor cannot be met by any single program: the largest is
-`broken-peterson` / `broken-peterson-v2` at 15.
+**[verified, 2026-10-01]** Walking every corpus program's reachable configuration space yields **44**
+distinct states in the cross-program union (**72** summed per program), so the ≥ 100 floor cannot be
+met by any single program: the largest is `broken-peterson` / `broken-peterson-v2` at 15.
 
 | program | distinct states |
 |---|---|
@@ -277,16 +291,17 @@ distinct states in total, so the ≥ 100 floor cannot be met by any single progr
 | `deadlock` | 5 |
 | `double-checked-locking` | 8 |
 | `lost-update` | 6 |
-| `torn-counter` | 8 |
-| **total** | **43** |
+| `torn-counter` | 9 |
+| **sum of column** | **72** |
+| **union across programs** | **44** |
 
 This is the "no corpus program reaches 100 states today" case, recorded rather than silently absorbed.
 The consequence for implementation:
 
 - **R1's test SHALL NOT assert the ≥ 100 floor until 12.05 lands.** The floor is explicitly contingent
   on 12.05's higher-thread program, so asserting it now asserts a precondition that has not been met —
-  and, as implemented and observed, the test simply fails with `got 43`. The floor is a **deferred
-  assertion**, not a deleted one.
+  and, as implemented and observed, the test simply fails with `got 44` against the union. The floor is
+  a **deferred assertion**, not a deleted one.
 - **R1's test SHALL assert injectivity over the positions that exist**, since that is what makes the
   test falsifiable now, and SHALL record the measured count so a drop is visible.
 - **The ≥ 100 assertion is promoted in 12.05**, when the program that justifies it exists. Until then
@@ -294,8 +309,8 @@ The consequence for implementation:
   as a satisfied floor.
 - Note this is the same dependency that made R1 impossible to land first: **12.05 widens the corpus
   that 12.01 measures, but 12.01's contract underpins 12.05's new store tests.** The cycle is real.
-  It is broken by landing 12.01 with injectivity asserted over the reachable 43, and the count as a
-  recorded number, then promoting the floor when 12.05 supplies the states.
+  It is broken by landing 12.01 with injectivity asserted over the reachable positions, and the count
+  as a recorded number, then promoting the floor when 12.05 supplies the states.
 
 **R1's scope was also narrowed by Spec 12.07.** R1 now asserts injectivity of the **full
 `Configuration` key** — `encode(state) + "|" + programCounters.toString()`, the shape

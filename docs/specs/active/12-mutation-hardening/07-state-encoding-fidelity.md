@@ -393,6 +393,11 @@ on the affected field — which is exactly the accident that found this one.
       fields and are carried as tracked gaps by R3.
 - [ ] Every scalar-field case samples **multiple** values spanning zero, both signs, adjacent pairs,
       and the low-byte / low-short boundaries (`255`/`256`, `-1`/`255`, `65535`/`65536`) (R2a).
+- [ ] Every sampled spread is compared **pairwise**, each variant against every other, and not only
+      against a fixed baseline (R2b). **Demonstrated necessary:** against a low-byte encoder the
+      baseline-relative style produces **0** failing assertions while the pairwise style produces **7**;
+      and on the real code, truncating `PetersonState`'s `turn` to a byte **passes** the
+      baseline-relative probe and **fails** the pairwise one. See §R2b.
 - [ ] Every array-field case asserts **position matters** (a permutation such as `[true, false]` vs
       `[false, true]` encodes differently) and **shape matters** (arrays differing in length encode
       differently) (R2a). **Demonstrated** by temporarily replacing `flag`'s encoding with a count of
@@ -405,6 +410,12 @@ on the affected field — which is exactly the accident that found this one.
       and the allowlist holds exactly `DynamicState.decl` and `DynamicState.threadCount` (R3). **It makes
       no `encodeTo` call.** **Demonstrated** by adding a throwaway instance field to one class and
       confirming the check goes red and names it, then reverting.
+- [ ] `everyStateField_hasAnEncodingCase` **discovers** the state classes from the classpath rather
+      than from a hardcoded list (R3c). **Demonstrated necessary:** the hardcoded list was the exact
+      recurrence hole this spec exists to close — a seventh `SharedState` added later would simply not
+      be checked, and R3 would stay green with its encoding unpinned. Confirmed by adding a throwaway
+      `UntestedState` implementing `SharedState`: R3 went red naming `UntestedState.value`, then the
+      class was deleted.
 - [ ] `everyStateField_hasAnEncodingCase` **ignores** static fields — adding a `private static final`
       constant to any of the six classes keeps the check green (R3). No static fields exist today, so
       this guards the check against being defeated by an unrelated future constant.
@@ -475,6 +486,46 @@ domain*, which catches every realistic truncation, masking, parity, modulus, com
 length-loss encoding. The invariant in §Invariants is stated as a design requirement and labelled as
 such, so the spec does not claim a proof its tests cannot deliver. A test named
 `encoding_is_injective` would be asserting something no finite sample supports.
+
+#### R2b — comparing each variant only to a baseline is blind to variant-to-variant collapse
+
+The spread above was originally probed **relative to a single base value**: every sampled value was
+asserted to encode differently from `BASE_INT`, and nothing compared the sampled values against *each
+other*. That is weaker than it looks, and the weakness is measurable.
+
+**[verified, 2026-10-01]** With a hypothetical encoder that writes only an `int`'s low byte
+(`out.writeByte((byte) turn)`), and a base of 12_345 (low byte 57):
+
+| probe style | assertions failing under the lossy encoder |
+|---|---|
+| baseline-relative only | **0** — every sampled value differs from 57, so every assertion passes |
+| pairwise (every variant vs every other) | **7** — `0`/`256`, `1`/`-255`, `255`/`-1`, … all collapse |
+
+The baseline style is not merely weaker in degree; under this encoder it is **completely blind**. Every
+value in the spread looks different *from the base* while several are identical *to one another*, and
+those are precisely the pairs the stores would prune wrongly.
+
+This was then confirmed end-to-end on the real code rather than argued from a synthetic probe:
+`PetersonState.encodeTo`'s `out.writeInt(turn)` was temporarily changed to `out.writeByte((byte) turn)`
+and the suite was run twice.
+
+- with the baseline-relative probe only → **PASSED** (mutation undetected)
+- with the pairwise probe → **FAILED**: `PetersonState.turn across INT_SPREAD: variants 0 and 5 are
+  distinct states but share the encoding [0, 0, 0, -1, -1, -1, -1]`
+
+So R2a alone does not deliver what it claims. R2b requires the pairwise assertion, now applied to
+`PetersonState.turn` / `inCriticalSection`, `CounterState.counter` / `registers[0]`,
+`PairState.high` / `low` / `observedHigh` / `observedLow`, `DclState.lockOwner`,
+`DynamicState.fieldValues[count]` / `localValues[t]`, and all four `DeadlockState` flag combinations.
+
+The flag combinations matter for the commutative-summary row in the table above: `{0,1}` and `{1,0}`
+are distinct states that a count-of-set-flags cannot distinguish, and no baseline-relative probe would
+reveal it.
+
+`DclState.lockOwner` needed its own spread constant (`LOCK_OWNER_SPREAD`, `INT_SPREAD` minus `-1`)
+because the field is already `-1` when unlocked, making an `-1` probe a no-op. That was not handled by
+special-casing the assertion: the existing vacuity guard rejected it outright, which is the guard
+earning its place.
 
 Feasibility is confirmed: every field is reachable through the public accessors already on each class
 — `setControl`, `setTurn`, `setInCriticalSection`, `setFlag`, `setCounter`, `setRegister`, `setHigh` /

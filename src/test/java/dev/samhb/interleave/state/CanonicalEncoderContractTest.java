@@ -99,17 +99,19 @@ class CanonicalEncoderContractTest {
 
         // The count is recorded rather than floored at the spec's >=100 state-value floor, because
         // that floor is contingent on Spec 12.05 adding a higher-thread program: the corpus reaches
-        // only 43 distinct states today (largest single program 15), so asserting it here would assert
-        // a precondition that does not hold. See 12.01 "R1's floor is measured".
+        // only 44 distinct states today (72 summed per program, largest single program 15), so
+        // asserting it here would assert a precondition that does not hold. See 12.01 "R1's floor is
+        // measured".
         //
         // The >=150 guard below is therefore NOT that deferred floor -- it is a drift tripwire on the
-        // quantity R1 actually measures, store POSITIONS, which is 160. Three distinct quantities are
+        // quantity R1 actually measures, store POSITIONS, which is 160. Four distinct quantities are
         // in play and conflating them is the easiest mistake to make here:
-        //   43  distinct SharedState values      (state only; program counters ignored)
+        //   44  distinct SharedState values, unioned across programs   (state only; counters ignored)
+        //   72  the same states summed per program, so shared ones count once per program
         //  160  distinct (state, counters) pairs  <- what R1 asserts injectivity over, and this guard
         //  128  positions reached under the R6 falsification encoder, where a constant key makes
         //       isVisited over-report and DFS prunes 32 branches it should have explored
-        // See 12.01 "Count glossary".
+        // All four re-measured 2026-10-01. See 12.01 "Count glossary".
         assertTrue(keyByPosition.size() >= 150,
                 "reachable position count dropped from the recorded 160 — the corpus changed, so the "
                         + "recorded measurement and Spec 12.05's assumptions need re-checking");
