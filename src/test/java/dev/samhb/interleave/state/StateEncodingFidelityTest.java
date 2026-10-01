@@ -436,7 +436,21 @@ class StateEncodingFidelityTest {
                 PairState.class, DclState.class, DynamicState.class);
     }
 
-    /** The R2 cases above, recorded as machine-readable field coverage for R3 to check. */
+    /**
+     * The R2 cases above, recorded as machine-readable field coverage for R3 to check.
+     *
+     * <p><b>This map is hand-maintained and duplicates the R2 parity cases by hand.</b> R3's
+     * field-coverage check only verifies that every declared field is mentioned here or in
+     * {@link #TRACKED_GAPS} — it cannot detect that an entry here has stopped corresponding to a real
+     * parity case, because the two lists share no structure. A field listed here with its parity case
+     * deleted would leave the field-coverage test green while the actual encoding went unpinned.
+     *
+     * <p>So any change to the R2 parity cases must change this map in the same commit. If the two ever
+     * drift, the encoding gap 12.07 exists to prevent can re-enter through a deleted test rather than
+     * through a bug. That coupling is the price of R3 being a static check rather than a reflective one;
+     * the reflective alternative (reading the parity cases' field names out of the test bodies) is not
+     * possible in JUnit 5.
+     */
     private static Map<String, List<String>> coveredFieldsByClass() {
         Map<String, List<String>> covered = new TreeMap<>();
         covered.put(DeadlockState.class.getName(), List.of("flag", "control"));

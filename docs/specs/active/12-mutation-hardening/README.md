@@ -72,14 +72,21 @@ The run's 53 non-killed mutants are exactly `SURVIVED` (39) + `NO_COVERAGE` (14)
 scores as *not* detected. The five statuses that score as detected without an assertion behind them
 are all zero, so the percentage is not inflated by wall-time or memory kills (see Spec 12.06).
 
-**Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`]:
+**Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
+**post-12.01** column is current; the others are unchanged by 12.01 and still carry their `c5fdcd0`
+figures:
 
-| class | killed/total | coverage | non-killed |
-|---|---|---|---|
-| `CanonicalEncoder` | 6/12 | **50.0%** | 6 |
-| `HashingStateStore` | 46/61 | 75.4% | 15 |
-| `ContextBoundedExplorer` | 86/105 | 81.9% | 19 |
-| `BitstateStore` | 84/97 | 86.6% | 13 |
+| class | at `c5fdcd0` | coverage | **post-12.01** | coverage |
+|---|---|---|---|---|
+| `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** |
+| `HashingStateStore` | 46/61 | 75.4% | 46/61 | 75.4% |
+| `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% |
+| `BitstateStore` | 84/97 | 86.6% | 84/97 | 86.6% |
+
+`CanonicalEncoder` is the only row that moved, and it moved because its denominator shrank — 12.01
+deleted `equals` and its five unkillable mutants with it. The killed count did not change. Read that
+row as *dead code removed*, not *coverage earned*; the class total (7) is not comparable to the old
+one (12) without reading both.
 
 ## Spec Set Structure
 
@@ -195,14 +202,16 @@ details — the exact failure mode that produced PR #26's under-specified metric
 - ✅ **Equivalent mutants get a recorded suppression reason, not a contrived test.** Spec 12.02 §R4.
 - ✅ **CBS pruning survivors are not chased with more verdict-level tests.** Defect injection proved
   the corpus cannot expose them. Spec 12.05 builds the corpus program that can.
-- ✅ **`CanonicalEncoder.equals` is dead code.** Zero callers anywhere in the repository, including
-  tests, fixtures, and docs [verified by repo-wide grep, 2026-10-01]. The class carries **12** mutants,
-  6 killed and 6 not: 1 `SURVIVED` (`encode`'s `out.flush()`) and **5 `NO_COVERAGE`, all on `equals`**
-  [verified against `build/reports/pitest/mutations.xml`]. Deleting `equals` therefore removes **5 of
-  those 6 not-killed mutants**, moving the global total 275 → 270. An earlier wording here said "5 of
-  the 6 `CanonicalEncoder` mutants," which reads as though the class holds six; it holds twelve.
-  But it is a deletion of existing code, so it needs Sam's explicit sign-off — Spec 12.01 §R3 presents
-  the fork rather than assuming it.
+- ✅ **`CanonicalEncoder.equals` is dead code, and was DELETED** (Branch A, approved by Sam
+  2026-10-01; landed in Spec 12.01 §R4). Zero callers anywhere in the repository, including
+  tests, fixtures, and docs [verified by repo-wide grep immediately before deletion]. The class
+  carried **12** mutants, 6 killed and 6 not: 1 `SURVIVED` (`encode`'s `out.flush()`) and **5
+  `NO_COVERAGE`, all on `equals`** [verified against `build/reports/pitest/mutations.xml`]. Deleting it
+  removed **5 of those 6 not-killed mutants**, moving the global total 275 → 270 and the class to
+  **6/7 (85.7%)**. An earlier wording here said "5 of the 6 `CanonicalEncoder` mutants," which reads as
+  though the class holds six; it held twelve. The deletion was gated on explicit sign-off because it
+  removes existing code, and Spec 12.01 §R4 presented the fork rather than assuming it — that gate is
+  now discharged.
 - ✅ **`DeadlockState.encodeTo` omits `control`; it is a real defect but currently latent.** `equals`,
   `hashCode`, and `deepCopy` all treat `control` as identity, so the class contradicts itself
   [verified]. Latency is argued **per store**: `HashingStateStore` keys on a concatenated string, so

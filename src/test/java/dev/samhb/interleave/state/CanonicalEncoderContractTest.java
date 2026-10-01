@@ -97,10 +97,19 @@ class CanonicalEncoderContractTest {
                         + "reports one as already visited and prunes the other, silently losing a "
                         + "branch that might hold the only reachable violation");
 
-        // The count is recorded rather than floored. The >=100 floor in the spec is contingent on
-        // Spec 12.05 adding a higher-thread program; the whole corpus currently reaches far fewer, so
-        // asserting the floor here would assert a precondition that does not hold. See 12.01
-        // "R1's floor is measured" — measured 43 distinct states, largest single program 15.
+        // The count is recorded rather than floored at the spec's >=100 state-value floor, because
+        // that floor is contingent on Spec 12.05 adding a higher-thread program: the corpus reaches
+        // only 43 distinct states today (largest single program 15), so asserting it here would assert
+        // a precondition that does not hold. See 12.01 "R1's floor is measured".
+        //
+        // The >=150 guard below is therefore NOT that deferred floor -- it is a drift tripwire on the
+        // quantity R1 actually measures, store POSITIONS, which is 160. Three distinct quantities are
+        // in play and conflating them is the easiest mistake to make here:
+        //   43  distinct SharedState values      (state only; program counters ignored)
+        //  160  distinct (state, counters) pairs  <- what R1 asserts injectivity over, and this guard
+        //  128  positions reached under the R6 falsification encoder, where a constant key makes
+        //       isVisited over-report and DFS prunes 32 branches it should have explored
+        // See 12.01 "Count glossary".
         assertTrue(keyByPosition.size() >= 150,
                 "reachable position count dropped from the recorded 160 — the corpus changed, so the "
                         + "recorded measurement and Spec 12.05's assumptions need re-checking");
@@ -158,8 +167,9 @@ class CanonicalEncoderContractTest {
     }
 
     /**
-     * R4 — the human-readable complement to R1, kept because a property test over 43 configurations
-     * is unreadable when it fails. One field, one difference, one assertion.
+     * R1's human-readable complement, kept because the whole-corpus injectivity check reports its
+     * failure as two opaque hex keys with no indication of which field collided. Here it is one field,
+     * one difference, one assertion. This is the shape every future R1 failure report should take.
      */
     @Test
     @DisplayName("R1 complement: a single-field difference is visible in the store key")

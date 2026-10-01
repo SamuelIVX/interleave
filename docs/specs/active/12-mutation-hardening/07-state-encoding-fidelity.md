@@ -67,7 +67,8 @@ All claims [verified] by reading each `SharedState` implementation in full, plus
 
 ### The defect
 
-`DeadlockState.encodeTo` (`L45–48`) writes two of the class's three identity fields:
+**As it stood at `63c6a8d^` (the pre-fix state):** `DeadlockState.encodeTo` (`L45–48`) wrote two of
+the class's three identity fields:
 
 ```java
 public void encodeTo(DataOutput out) throws IOException {
@@ -76,6 +77,23 @@ public void encodeTo(DataOutput out) throws IOException {
     // `control` is never written
 }
 ```
+
+This snippet is historical and is kept as the record of what was wrong. **It no longer matches the
+source** — the fix writes `control` before the flags, and current line numbers have shifted.
+
+```java
+public void encodeTo(DataOutput out) throws IOException {
+    out.writeBoolean(control);       // the fix: written first so flags stay at their old offsets
+    out.writeBoolean(flag[0]);
+    out.writeBoolean(flag[1]);
+}
+```
+
+Field order is `control`, `flag[0]`, `flag[1]`. Writing `control` first rather than last is
+deliberate: it keeps both flags at the byte offsets a pre-fix reader would assume, which matters only
+for readability, but it also means a reader who skips the first byte lands on a flag rather than on
+padding. The order is not part of the encoding contract — injectivity is, and any order that writes
+all three fields satisfies it.
 
 The same class treats `control` as identity in three other places:
 

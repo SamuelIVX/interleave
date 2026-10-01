@@ -168,6 +168,7 @@ distinguish an injective encoder from a constant one.
       the revert (R6). **Observed:** with a constant one-byte encoder, R1 collapsed 128 positions onto
       49 keys and R5 reported 1 byte instead of 10. **R2 and R3 still passed** — determinism and
       injectivity are different properties, which is precisely why R1 exists separately.
+      The 128 is *not* a smaller version of the 160; see the count glossary immediately below.
 - [x] `./gradlew clean test javadoc` passes and Javadoc has no errors (R1–R6).
 - [x] After the change, `./gradlew pitest` reports `CanonicalEncoder` coverage strictly greater than
       50.0%: **6/7 = 85.7%** [verified 2026-10-01]. Note the denominator moved from 12 to 7 — the
@@ -233,6 +234,35 @@ higher-thread program precisely to widen this space; until then, assert against 
 chosen program reaches and require that count to be ≥ 100 (R1's floor). If no corpus program reaches
 100 states today, that is itself a finding to record, not a reason to lower the floor silently.
 
+#### Count glossary — 43, 160, and 128 are three different quantities
+
+This spec quotes three state counts, and they are easy to conflate because they were measured
+differently. Stating the methodology for each, so a future reader does not treat one as a
+contradiction of another:
+
+| figure | what it counts | how it was measured |
+|---|---|---|
+| **43** | distinct `SharedState` **values**, summed per program | `SharedState.equals`/`hashCode` over each program's reachable space; **state only, program counters ignored** |
+| **160** | distinct **(state, programCounters) positions** — the quantity R1 actually asserts injectivity over | `Position(state, counters)` records over every corpus program's `DfsResult.states()`, which is what the store's key is built from |
+| **128** | positions **reached** by the R6 falsification run, under a deliberately constant one-byte encoder | the same walk, with the lossy key collapsing everything |
+
+**Why 43 and 160 differ.** States recur across programs: a bug program and its JSON twin explore the
+same states, and several programs share a state space. 43 counts each distinct *state* once per
+program and ignores where in the schedule it was reached; 160 counts each distinct
+*(state, counters)* pair. 160 is therefore the correct denominator for R1 and 43 is not — a store
+keys on the pair.
+
+**Why 128 and 160 differ — and this is not noise.** Under the constant encoder, the store's key stops
+discriminating, so `isVisited` returns `true` for configurations it has not seen and DFS prunes them.
+The search therefore *reaches fewer* positions: 128 instead of 160. The shortfall is the
+over-pruning happening live and is visible in the test output, which is the most direct demonstration
+available that a lossy key silently discards search branches. It is a property of the falsification
+run, not a different measurement of the same thing.
+
+`Configuration` defines no `equals`/`hashCode` and so compares by identity, which is why the
+`Position` record exists: without it, one position reached under two programs counts twice and R1
+reports collisions that are not collisions.
+
 #### R1's floor is measured, and it is unattainable today — the finding the paragraph above predicted
 
 **[verified, 2026-10-01]** Walking every corpus program's reachable configuration space yields **43**
@@ -257,7 +287,7 @@ The consequence for implementation:
   on 12.05's higher-thread program, so asserting it now asserts a precondition that has not been met —
   and, as implemented and observed, the test simply fails with `got 43`. The floor is a **deferred
   assertion**, not a deleted one.
-- **R1's test SHALL assert injectivity over the 43 states that exist**, since that is what makes the
+- **R1's test SHALL assert injectivity over the positions that exist**, since that is what makes the
   test falsifiable now, and SHALL record the measured count so a drop is visible.
 - **The ≥ 100 assertion is promoted in 12.05**, when the program that justifies it exists. Until then
   R1 is under-strengthened by design, and that shall be stated in the PR body rather than presented
