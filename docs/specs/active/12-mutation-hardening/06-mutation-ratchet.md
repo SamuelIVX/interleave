@@ -268,21 +268,42 @@ evaluation; there is no explicit assertion step.
 
 ## Derivation Record
 
-Filled in when 12.01–12.05 land and PIT is re-run once. Until then it is deliberately empty rather
-than pre-filled with a prediction — the whole point of R2 is that the floor comes from a
-measurement, and writing a number here now would invite someone to treat it as the floor.
+Filled in as each spec lands. 12.01 is the **single writer** of the rows it measures, per R3; later
+specs amend rather than rewrite, so the progression stays auditable.
+
+**Row status:** the `post-12.01` row below is measured. The `final` row remains deliberately empty —
+the floor must come from a measurement taken *after* all remediation lands, and writing a number now
+would invite someone to treat it as the floor.
 
 | field | value |
 |---|---|
-| measured on | _pending Specs 12.01–12.05_ |
-| commit | _pending_ |
-| total mutants | _pending_ |
-| `KILLED` (PIT) | _pending_ |
-| assertion-backed kills (R6/R7) | _pending_ |
-| `KILLED` / total | _pending_ |
-| non-`KILLED` detected statuses | _pending — `TIMED_OUT`/`MEMORY_ERROR`/`NON_VIABLE`/`RUN_ERROR` must be **zero**; `EQUIVALENT` must be **at or below the allow-list** (R6)_ |
-| PIT's rounded figure | _pending_ |
-| **`mutationThreshold` set to** | _pending_ |
+| measured on | **post-12.01** (12.07 + 12.01 landed) |
+| commit | _pending commit — uncommitted working tree at time of writing_ |
+| total mutants | **270** (was 275; 12.01 §R4 deleted `equals`, removing 5) |
+| `KILLED` (PIT) | **222** — unchanged by 12.01 |
+| assertion-backed kills (R6/R7) | **not yet separated** — 12.06's own work; PIT reports 222 but the split between assertion kills and timeout kills is 12.06's to measure |
+| `KILLED` / total | **222/270 = 82.22%** (was 222/275 = 80.73%) |
+| non-`KILLED` detected statuses | `TIMED_OUT` / `MEMORY_ERROR` = **0**; `NON_VIABLE` / `RUN_ERROR` = **0** (population is empty today — Spec 12.06 §R3 trap); `EQUIVALENT` = **0 reported by PIT**, but **1 known equivalent** exists and is suppressed in prose only — `CanonicalEncoder.encode`'s `out.flush()` (L16), verified equivalent because the full suite passes without it (12.01 §R5). PIT does not classify it `EQUIVALENT`; it reports `SURVIVED` |
+| `SURVIVED` / `NO_COVERAGE` | **39 / 9** (was 39 / 14 — the 5 removed were all `NO_COVERAGE`) |
+| PIT's rounded figure | **82** |
+| **`mutationThreshold` set to** | _pending — deferred to 12.06_ |
+
+**Two cautions on reading this row.**
+
+1. **The rise from 80.73% to 82.22% is not new coverage.** The numerator (`KILLED` 222) did not move at
+   all. What changed is the denominator, because 5 unkillable mutants left it. Deleting dead code
+   therefore *raises the score without testing anything new* — precisely the shape of improvement a
+   ratchet must not reward blindly, and the reason 12.06 §R2 requires the floor to be derived from the
+   post-remediation run rather than accepted from whichever run happened to score highest.
+2. **The known-equivalent mutant is invisible to PIT.** PIT reports the L16 flush mutant as `SURVIVED`,
+   not `EQUIVALENT` — it cannot prove equivalence, only fail to kill it. So the `EQUIVALENT` count above
+   reads 0 while a real equivalent exists, and any allow-list built from PIT's own classification would
+   silently omit it. This is why 12.01 recorded the verdict by experiment rather than by reading the
+   report.
+
+**The mechanical exclusion filter for that mutant is deferred to 12.06**, not added by 12.01: a PIT
+filter changes the denominator and how exclusions are counted, and this table is where that accounting
+belongs. Until it lands, the suppression is prose-only and therefore not enforced by the build.
 
 **The last row is not allowed to equal the row above it.** At the current baseline PIT would render
 81 and the floor must be at most 80, because 81 is satisfiable only by the single mutant PR #29

@@ -55,6 +55,57 @@ All claims [verified] by reading `src/main/java/dev/samhb/interleave/state/Canon
 
 The five L24 mutants are the dead method. The L16 mutant is the flush.
 
+### R4 decision — `equals` DELETED (Branch A), decided by Sam 2026-10-01
+
+`equals(SharedState, SharedState)` is **removed**. The change is a pure 4-line deletion and nothing
+else in `CanonicalEncoder` moved [verified: `git diff` shows only those lines].
+
+Rationale, recorded so the decision can be revisited on evidence rather than memory:
+
+- **Zero callers**, re-verified immediately before deletion across `src/` and `docs/`.
+- **It was the worst-covered method in the PIT scope** — all five of its mutants `NO_COVERAGE`,
+  because no test ever executed the line.
+- **It was a trap, which is the substantive reason.** It answers "do these produce the same bytes?"
+  while a reader calling `encoder.equals(a, b)` would reasonably expect "are these the same state?"
+  The two differ whenever a state omits a field from its encoding — which is exactly the defect 12.07
+  found in `DeadlockState`. An untested public method on the correctness foundation invites the same
+  class of bug this set exists to eliminate, so leaving it was not the neutral option.
+- The counter-argument considered and rejected: "someone may need it later." Keeping dead code on a
+  maybe is how it becomes load-bearing by accident.
+
+**Consequence, measured:** global total **275 → 270**; `NO_COVERAGE` **14 → 9**; `KILLED` and
+`SURVIVED` unmoved at 222 and 39. `CanonicalEncoder` goes from 6/12 (50.0%) to **6/7 (85.7%)**, and
+mutation coverage rises 80.73% → 82.2%. Note the numerator did not move: deleting dead code removes
+work from the denominator without inventing coverage, and that is the honest shape of this change.
+
+### R5 verdict — the `out.flush()` mutant is EQUIVALENT, not uncovered
+
+**The verdict was settled empirically, not assumed.** With `out.flush()` deleted, **the entire 400-test
+suite still passes** [verified 2026-10-01]. The reason is mechanical: `ByteArrayOutputStream` ignores
+`flush()` — it is a no-op for an in-memory sink — and `baos.toByteArray()` returns the whole buffer
+regardless of any flush. Removing the call therefore cannot change observable behaviour.
+
+So the L16 mutant is **equivalent by construction**, and per Spec 12.02 §R4 the correct response is a
+**recorded suppression, not a contrived test**. A test that tries to kill it would have to assert an
+implementation detail of `ByteArrayOutputStream`, which is precisely the outcome §R4's adjudication
+procedure exists to prevent.
+
+**What was done instead, and what was deliberately not:**
+
+- `CanonicalEncoderContractTest.encode_flushRemovalIsUnobservable` pins the *consequence* — a
+  `PetersonState` encoding is exactly 10 bytes — rather than the mechanism. It stays green with the
+  flush removed, which is correct for an equivalent mutant, and it is what would notice if `baos` ever
+  became a stream whose `flush()` mattered. Expected length is derived from the field list
+  (`flag[0]`, `flag[1]` = 1 byte each; `turn`, `inCriticalSection` = 4 bytes each), **not** from a
+  remembered count. An early draft asserted 6, having forgotten `inCriticalSection`; the correct
+  figure is 10, and a 6-byte encoding would have silently dropped a field.
+- **The mechanical PIT exclusion filter is deferred to Spec 12.06**, not added here. Adding a filter
+  changes PIT's denominator and how excluded mutants are counted, and 12.06 owns exactly that
+  accounting — introducing it mid-set would move the number 12.06 has yet to pin. Recorded here so the
+  deferral is visible rather than forgotten.
+- **The flush call was kept.** Only `equals` was approved for deletion, and the flush is defensively
+  meaningful if `baos` is ever swapped for a buffering stream.
+
 **Existing coverage** [verified, `StateHashingTest`]: one equal-pair assertion covering `encode` and
 `hashCode` on the same pair of states. That is a smoke test, not a property test — it cannot
 distinguish an injective encoder from a constant one.
@@ -102,27 +153,28 @@ distinguish an injective encoder from a constant one.
 
 ## Acceptance Criteria
 
-- [ ] A test collects ≥ 100 distinct `SharedState` instances by walking a corpus program's
-      reachable configuration space, and asserts all encodings are pairwise distinct (R1).
-- [ ] A test asserts two encoder instances produce equal bytes for the same state (R3).
-- [ ] A test asserts repeated encoding of the same state is equal (R2).
-- [ ] `equals` is either deleted — in which case repo-wide grep returns zero references and the five
-      L24 mutants disappear from the next `./gradlew pitest` run — or retained and covered by a test
-      pinning its contract (R4).
-- [ ] The flush verdict is recorded in this spec's §Current State as `[verified]` with the
-      reasoning, and the L16 mutant is either killed by a test or suppressed with that reason (R5).
-- [ ] The falsification check in R6 is executed once, observed to fail, and reverted. The revert is
-      confirmed by a green suite (R6).
-- [ ] `./gradlew clean test javadoc` passes and Javadoc has no errors for the changed file (R1–R6).
-- [ ] After the change, `./gradlew pitest` reports `CanonicalEncoder` coverage strictly greater than
-      50.0%. Note the denominator moves: deleting `equals` removes its five mutants outright, leaving
-      6 killed of 7 total = **85.7%**, not 11/12. Do not read the class percentage without reading the
-      class total — the total-mutant assertion in Spec 12.06 §R5 covers the global count for the same
-      reason.
-- [ ] **This spec records the new global mutant total.** Deleting `equals` moves it off 275, and Specs
-      12.05 and 12.06 both assert against the post-12.01 figure without owning it. 12.01 writes the
-      measured value into the `total mutants` row of Spec 12.06's §Derivation Record, together with
-      the commit and the `CanonicalEncoder` class total, so the number has exactly one writer (R3).
+- [x] A test collects the reachable search positions by walking every corpus program and asserts all
+      store keys are pairwise distinct (R1). **Measured: 160 positions, 160 distinct keys** [verified
+      2026-10-01]. The `≥ 100` floor is **deferred, not met** — see "R1's floor is measured".
+- [x] A test asserts two encoder instances produce equal bytes for the same state (R3).
+- [x] A test asserts repeated encoding of the same state is equal (R2).
+- [x] `equals` is **deleted** (Branch A, Sam 2026-10-01). Repo-wide grep returns zero references and
+      the five L24 mutants are gone from `./gradlew pitest` — `NO_COVERAGE` fell 14 → 9 (R4).
+- [x] The flush verdict is recorded in §Current State as `[verified]` with the reasoning: deleting
+      `out.flush()` leaves the whole suite green, so the mutant is **equivalent** and receives a
+      recorded suppression rather than a contrived test. The mechanical PIT filter is deferred to
+      12.06, which owns the denominator accounting (R5).
+- [x] The R6 falsification check was executed, observed to fail, and reverted; the suite is green after
+      the revert (R6). **Observed:** with a constant one-byte encoder, R1 collapsed 128 positions onto
+      49 keys and R5 reported 1 byte instead of 10. **R2 and R3 still passed** — determinism and
+      injectivity are different properties, which is precisely why R1 exists separately.
+- [x] `./gradlew clean test javadoc` passes and Javadoc has no errors (R1–R6).
+- [x] After the change, `./gradlew pitest` reports `CanonicalEncoder` coverage strictly greater than
+      50.0%: **6/7 = 85.7%** [verified 2026-10-01]. Note the denominator moved from 12 to 7 — the
+      class percentage is not comparable across the deletion without reading both totals.
+- [x] **The new global mutant total is recorded.** `275 → 270`, `KILLED` 222 (unchanged), `SURVIVED`
+      39 (unchanged), `NO_COVERAGE` 14 → 9. Written into 12.06's §Derivation Record by this spec,
+      which is its single writer (R3).
 
 ## Design
 
@@ -161,10 +213,16 @@ it passes by construction, whatever the encoder does, including for a constant e
 
 Using `SharedState` value equality is sound here, and verified rather than assumed: all six
 implementations (`DynamicState`, `DeadlockState`, `PairState`, `DclState`, `CounterState`,
-`PetersonState`) override `equals` and `hashCode` [verified]. `SharedState.encodeTo`'s own Javadoc
-already states the contract this spec enforces — *"Two states that are equal must encode to identical
-bytes. The two properties are maintained together and tested together"* — so R1 is testing a
-documented interface guarantee, not inventing one.
+`PetersonState`) override `equals` and `hashCode` [verified].
+
+**R1's property is NOT the documented `SharedState` guarantee, and the distinction matters.** An early
+draft of this spec argued that R1 tests "a documented interface guarantee" because `SharedState`'s
+Javadoc said *"Two states that are equal must encode to identical bytes."* **That was wrong**, and the
+error is worth preserving because it is the natural misreading. The Javadoc guarantees
+*equal → identical*; the property R1 needs is the **converse**, *distinct → distinct*. Omitting a field
+from an encoding makes it **coarser**, which makes identical states encode identically *more* reliably
+— so the documented direction is structurally incapable of detecting the defect that 12.07 found.
+Spec 12.07 corrected the Javadoc to state both directions; R1 tests the one it never mentioned.
 
 If a future `SharedState` implementation omits value equality, that is a defect in its own right and
 SHALL be reported; it SHALL NOT be worked around by switching the dedup key.
@@ -174,6 +232,47 @@ Which program to walk: pick the corpus program with the largest reachable state 
 higher-thread program precisely to widen this space; until then, assert against whatever count the
 chosen program reaches and require that count to be ≥ 100 (R1's floor). If no corpus program reaches
 100 states today, that is itself a finding to record, not a reason to lower the floor silently.
+
+#### R1's floor is measured, and it is unattainable today — the finding the paragraph above predicted
+
+**[verified, 2026-10-01]** Walking every corpus program's reachable configuration space yields **43**
+distinct states in total, so the ≥ 100 floor cannot be met by any single program: the largest is
+`broken-peterson` / `broken-peterson-v2` at 15.
+
+| program | distinct states |
+|---|---|
+| `peterson` | 14 |
+| `broken-peterson` | 15 |
+| `broken-peterson-v2` | 15 |
+| `deadlock` | 5 |
+| `double-checked-locking` | 8 |
+| `lost-update` | 6 |
+| `torn-counter` | 8 |
+| **total** | **43** |
+
+This is the "no corpus program reaches 100 states today" case, recorded rather than silently absorbed.
+The consequence for implementation:
+
+- **R1's test SHALL NOT assert the ≥ 100 floor until 12.05 lands.** The floor is explicitly contingent
+  on 12.05's higher-thread program, so asserting it now asserts a precondition that has not been met —
+  and, as implemented and observed, the test simply fails with `got 43`. The floor is a **deferred
+  assertion**, not a deleted one.
+- **R1's test SHALL assert injectivity over the 43 states that exist**, since that is what makes the
+  test falsifiable now, and SHALL record the measured count so a drop is visible.
+- **The ≥ 100 assertion is promoted in 12.05**, when the program that justifies it exists. Until then
+  R1 is under-strengthened by design, and that shall be stated in the PR body rather than presented
+  as a satisfied floor.
+- Note this is the same dependency that made R1 impossible to land first: **12.05 widens the corpus
+  that 12.01 measures, but 12.01's contract underpins 12.05's new store tests.** The cycle is real.
+  It is broken by landing 12.01 with injectivity asserted over the reachable 43, and the count as a
+  recorded number, then promoting the floor when 12.05 supplies the states.
+
+**R1's scope was also narrowed by Spec 12.07.** R1 now asserts injectivity of the **full
+`Configuration` key** — `encode(state) + "|" + programCounters.toString()`, the shape
+`HashingStateStore.encode` actually builds (`L107–111`) — rather than injectivity of the state
+encoding alone. State-level injectivity is strictly stronger than either store requires and, as 12.07
+demonstrated, need not hold for the store to be correct; 12.07 owns the state-level property. See
+Spec 12.07 §R6.
 
 ### R6 — the falsification check
 
@@ -222,7 +321,11 @@ of the three outcomes available. Record the decision in this spec either way.
 - `encode_distinguishesSingleFieldDifference` (R1) — a falsifiable, human-readable complement: two
   states differing in exactly one field encode differently
 - `encode_flushRemovalIsUnobservable` (R5) — pins the flush verdict as a test *or* is replaced by a
-  recorded suppression
+  recorded suppression. **Byte count when written [verified 2026-10-01]:** `PetersonState` encodes
+  **four** fields — `flag[0]` and `flag[1]` (1 byte each) plus `turn` and `inCriticalSection` (4 bytes
+  each) = **10 bytes**. An early draft asserted 6, having miscounted two booleans and one int; the
+  correct figure is 10, and an implementation that wrote 6 would have silently dropped
+  `inCriticalSection`. Any such assertion SHALL be derived from the field list, not from a count.
 - `equals_contractIsPinned` (R4) — only if Branch B is chosen
 - `encoder_hasNoUnusedPublicMethods` (R4) — reflection over public methods asserting each has a
   caller or a test. Optional; include only if Branch B is chosen, since Branch A makes it vacuous.

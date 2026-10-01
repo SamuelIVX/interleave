@@ -3,9 +3,19 @@
 ## TL;DR
 
 Close the 39 mutation survivors and 14 no-coverage mutants that PR #28's PIT run left open, then
-ratchet the number so it cannot silently regress. Decomposed into six specs. The set is ordered by
+ratchet the number so it cannot silently regress. Decomposed into seven specs. The set is ordered by
 a hard dependency — **the encoder is upstream of both stores**, and **the ratchet must land last**
 because it must pin a post-remediation measurement, not today's number.
+
+**Spec 12.07 was added during implementation, not planning.** Writing 12.01's injectivity test turned
+up a real defect: `DeadlockState.encodeTo` omits the `control` field, so two states differing only in
+`control` encode identically while `equals`/`hashCode`/`deepCopy` all treat it as identity. A full
+audit of all six `SharedState` implementations found one confirmed defect and one latent gap; the
+other four are correct. It is **latent, not active** — `HashingStateStore` keys on a concatenated
+string, so different program counters deterministically mask the collision today; `BitstateStore` keys
+on a hash, so it does not, and no safety claim is made for it. It becomes a separate spec rather than a
+section of 12.01 because 12.01's R1 asserts `Configuration` injectivity, which *passes whether or not
+this defect is fixed*, so the two own different properties and need different tests.
 
 The uncomfortable finding that shapes this set: **PR #29's Part B moved the mutation score by
 exactly one mutant** (221 → 222 of 275). Of the 17 mutants Part B targeted, 1 is now killed and 16
@@ -15,7 +25,7 @@ catch three of six injected faults. It is a reason to expect little from more of
 **The remaining CBE pruning survivors cannot be closed by writing more verdict-level tests.** They
 need a corpus program with enough threads to make wrong dominance observable (Spec 12.05).
 
-## Status: active — nothing here has been implemented
+## Status: active — 12.07 and 12.01 implemented; 12.02–12.06 pending
 
 Every number below was measured against `build/reports/pitest/mutations.xml`. This set supersedes the
 `mutation-gap-register` working notes, which were never merged; their content is absorbed here, so
@@ -23,21 +33,35 @@ they are not a second source to drift against. Where an earlier draft of this ma
 something the measurement does not support, the correction is recorded in the spec that owns it —
 not left implicit (per `AGENTS.md` §10: a stale doc is worse than none).
 
+**Landed so far:**
+
+- **12.07** — `DeadlockState.encodeTo` now writes `control`; `SharedState`'s Javadoc states both
+  encoding directions; 11 tests including a reflection completeness guard. Verified: full suite green,
+  `deadlock` still `DEADLOCK` at 15 states, PIT total unmoved at 275 (`core.*` is outside PIT scope).
+- **12.01** — `CanonicalEncoder.equals` **deleted** (Branch A, Sam 2026-10-01); 5 contract tests;
+  R6 falsification executed and reverted. Measured: **270 total, 222 `KILLED`, 39 `SURVIVED`,
+  9 `NO_COVERAGE`**; `CanonicalEncoder` 6/12 (50.0%) → **6/7 (85.7%)**.
+
 ## Measured baseline
 
 Same config, same scope (`state.*` + `cb.*`), same 12 mutators, on both commits. All figures below
 are **[verified]** against `build/reports/pitest/mutations.xml` at each named commit; the current-run
 column was re-derived from the report rather than carried forward from an earlier draft.
 
-| | `313df44` (pre-Part-B) | `c5fdcd0` (post-Part-B, **current**) | delta |
-|---|---|---|---|
-| total mutants | 275 | 275 | 0 |
-| `KILLED` | 221 | 222 | +1 |
-| `SURVIVED` | 40 | 39 | −1 |
-| `NO_COVERAGE` | 14 | 14 | 0 |
-| mutation coverage | 80.36% | 80.73% | +0.4pp |
-| test strength | 221/261 = 84.67% | 222/261 = 85.06% | — |
-| `TIMED_OUT` / `MEMORY_ERROR` / `NON_VIABLE` / `RUN_ERROR` / `EQUIVALENT` | 0 | 0 | 0 |
+| | `313df44` (pre-Part-B) | `c5fdcd0` (post-Part-B) | delta | **post-12.01 (current)** |
+|---|---|---|---|---|
+| total mutants | 275 | 275 | 0 | **270** |
+| `KILLED` | 221 | 222 | +1 | **222** |
+| `SURVIVED` | 40 | 39 | −1 | **39** |
+| `NO_COVERAGE` | 14 | 14 | 0 | **9** |
+| mutation coverage | 80.36% | 80.73% | +0.4pp | **82.22%** |
+| test strength | 221/261 = 84.67% | 222/261 = 85.06% | — | **85%** |
+| `TIMED_OUT` / `MEMORY_ERROR` / `NON_VIABLE` / `RUN_ERROR` / `EQUIVALENT` | 0 | 0 | 0 | 0 |
+
+**The coverage rise is not new coverage.** `KILLED` did not move; the denominator shrank because 5
+unkillable mutants were deleted with the dead method. Deleting dead code raises the score without
+testing anything new, which is exactly why 12.06 must derive its floor from a post-remediation
+measurement rather than accept the highest number that has ever printed.
 
 `c5fdcd0` is the **current** baseline and the one every later number descends from; `313df44` is the
 pre-Part-B run, retained because Spec 12.06 §R2's threshold argument turns on the difference between
@@ -61,6 +85,7 @@ are all zero, so the percentage is not inflated by wall-time or memory kills (se
 
 | Spec | Title | Gap | Priority |
 |---|---|---|---|
+| [07-state-encoding-fidelity.md](07-state-encoding-fidelity.md) | `SharedState` Encoding Fidelity | **found during 12.01 implementation** | **HIGH / lands first** |
 | [01-encoder-contract.md](01-encoder-contract.md) | `CanonicalEncoder` Contract & Dead Code | 1 | **HIGH** |
 | [02-store-lifecycle.md](02-store-lifecycle.md) | `HashingStateStore` Lifecycle & Equivalent-Mutant Adjudication | 2, 5 | MED-HIGH |
 | [03-bitstate-diagnostics.md](03-bitstate-diagnostics.md) | `BitstateStore` Diagnostic Correctness | 3 | MED |
@@ -68,21 +93,46 @@ are all zero, so the percentage is not inflated by wall-time or memory kills (se
 | [05-corpus-coverage.md](05-corpus-coverage.md) | Corpus Program That Exposes Dominance Bugs | 6 | **HIGH / largest** |
 | [06-mutation-ratchet.md](06-mutation-ratchet.md) | Ratchet, Threshold Accounting & Wall-Time Kills | 7 | MED |
 
+The table is ordered by implementation sequence, not by number. **12.07 is numbered last and lands
+first** — see §Dependency Graph.
+
 Tests are co-located in each spec — no separate test spec.
 
 ## Dependency Graph
 
 ```
-01-encoder-contract
-   ├── 02-store-lifecycle
-   ├── 03-bitstate-diagnostics
-   └── 05-corpus-coverage        (needs encoder injectivity to trust any new store test)
+07-state-encoding-fidelity         (no dependency — the entry point)
+    └── 01-encoder-contract
+            ├── 02-store-lifecycle
+            ├── 03-bitstate-diagnostics
+            └── 05-corpus-coverage   (needs encoder injectivity to trust any new store test)
 
-04-trace-emission                (no hard dependency — can start in parallel)
+04-trace-emission                 (no hard dependency — can start in parallel)
 
-05-corpus-coverage
-   └── 06-mutation-ratchet       (ratchet pins post-remediation numbers — MUST land last)
+06-mutation-ratchet               (depends on EVERY remediation spec: 07, 01, 02, 03, 04, 05)
 ```
+
+**06 depends on all six remediation specs, not only 05.** The graph's edge from `05` is the *hard*
+dependency — 12.06 reads 12.05's post-change corpus configuration counts to derive its floor, so it
+cannot be written before 12.05 lands. But that is not the same as "05 is the only predecessor." The
+ratchet records a single mutant floor for the **whole** target, so landing it after only some of the
+remediation would pin a number that the specs still in flight are about to change — and 12.06 §R5
+requires a re-run whenever that happens, which defeats the point of a ratchet. The rule is
+therefore: **06 must follow every remediation spec**, including `04`, which has no dependency edge and
+could otherwise be left in flight indefinitely. If `04` is genuinely being deferred past the ratchet,
+that is a deliberate scope decision to record here, not a default.
+
+**Why 07 lands before 01, and why it is still numbered 07.** Both stores' keys route through
+`encodeTo`, and 12.01's test is what found the defect, so 12.07 is where implementation starts. It is
+appended rather than renumbered into position 1 because `01`–`06` cross-reference each other — 12.05
+and 12.06 name each other's requirements, and 12.06's §Derivation Record is the single writer for the
+post-12.01 mutant total. Renumbering would break those references to buy a tidier number.
+
+**07 and 01 own different properties, and neither test subsumes the other.** 12.07 asks whether each
+state emits every field its own `equals` treats as identity (the leaves). 12.01 asks whether the
+composer faithfully represents what it is given, as `Configuration` injectivity (the whole key). A
+green 12.01 R1 is therefore **not** evidence the encoding is complete — program counters mask the
+12.07 defect, so 12.01's test passes with or without the fix.
 
 **04 has no hard dependency.** Its requirements are test-side and its own `## Constraints` says so.
 The `L82`/`L87`/`L88` mutants it is adjacent to belong to 12.05's pruning surface, but that is an
@@ -98,12 +148,13 @@ actually earns.
 
 | # | Spec | Rationale |
 |---|---|---|
-| 1 | **01-encoder-contract** | Foundation. Every store key routes through it; no other spec's assertions can be trusted until injectivity is pinned. Compiles standalone. |
-| 2 | **03-bitstate-diagnostics** | User-facing output; highest visible value per line; independent of 02. |
-| 3 | **02-store-lifecycle** | Depends on 01 (encoder injectivity underpins its assertions). |
-| 4 | **04-trace-emission** | Depends on nothing new; safe to run parallel with 02/03. |
-| 5 | **05-corpus-coverage** | Largest item. Depends on 01. Touches the corpus and possibly the JSON DSL, so it is its own PR. |
-| 6 | **06-mutation-ratchet** | Depends on all of the above. One commit. |
+| 1 | **07-state-encoding-fidelity** | Entry point. No dependencies, and both stores' keys route through `encodeTo`. Fixes the confirmed `DeadlockState` defect and adds the reflection completeness check that prevents recurrence. Compiles standalone. |
+| 2 | **01-encoder-contract** | Foundation. Every store key routes through it; no other spec's assertions can be trusted until injectivity is pinned. Depends on 07. |
+| 3 | **03-bitstate-diagnostics** | User-facing output; highest visible value per line; independent of 02. |
+| 4 | **02-store-lifecycle** | Depends on 01 (encoder injectivity underpins its assertions). |
+| 5 | **04-trace-emission** | Depends on nothing new; safe to run parallel with 02/03. |
+| 6 | **05-corpus-coverage** | Largest item. Depends on 01. Touches the corpus and possibly the JSON DSL, so it is its own PR. |
+| 7 | **06-mutation-ratchet** | Depends on all of the above. One commit. |
 
 ## Conventions This Set Uses
 
@@ -145,9 +196,30 @@ details — the exact failure mode that produced PR #26's under-specified metric
 - ✅ **CBS pruning survivors are not chased with more verdict-level tests.** Defect injection proved
   the corpus cannot expose them. Spec 12.05 builds the corpus program that can.
 - ✅ **`CanonicalEncoder.equals` is dead code.** Zero callers anywhere in the repository, including
-  tests, fixtures, and docs [verified by repo-wide grep]. Deleting it removes 5 of the 6
-  `CanonicalEncoder` mutants. But it is a deletion of existing code, so it needs Sam's explicit
-  sign-off — Spec 12.01 §R3 presents the fork rather than assuming it.
+  tests, fixtures, and docs [verified by repo-wide grep, 2026-10-01]. The class carries **12** mutants,
+  6 killed and 6 not: 1 `SURVIVED` (`encode`'s `out.flush()`) and **5 `NO_COVERAGE`, all on `equals`**
+  [verified against `build/reports/pitest/mutations.xml`]. Deleting `equals` therefore removes **5 of
+  those 6 not-killed mutants**, moving the global total 275 → 270. An earlier wording here said "5 of
+  the 6 `CanonicalEncoder` mutants," which reads as though the class holds six; it holds twelve.
+  But it is a deletion of existing code, so it needs Sam's explicit sign-off — Spec 12.01 §R3 presents
+  the fork rather than assuming it.
+- ✅ **`DeadlockState.encodeTo` omits `control`; it is a real defect but currently latent.** `equals`,
+  `hashCode`, and `deepCopy` all treat `control` as identity, so the class contradicts itself
+  [verified]. Latency is argued **per store**: `HashingStateStore` keys on a concatenated string, so
+  different program counters deterministically yield different keys and the collision is masked;
+  `BitstateStore` keys on a hash narrowed to a bit, so different counters do **not** guarantee a
+  distinct bit and no safety argument is made for it (that store is lossy by design — Spec 12.03).
+  So an unchanged `deadlock` verdict is the *expected* result, argued for one store and unexamined for
+  the other — not evidence the defect is harmless. Fixed by Spec 12.07.
+- ✅ **The interface Javadoc states only half the contract.** `SharedState.encodeTo` documents *equal
+  states encode identically* and is silent on the converse — the direction the defect broke. An
+  omitted field makes an encoding **coarser**, which preserves the documented direction trivially, so
+  the documented direction cannot detect this class of defect at all. Spec 12.07 §R1 amends the
+  Javadoc; the gap is why the defect survived review.
+- ✅ **The fix ships with a guard, not just the fix.** `control` was added to `DeadlockState` and three
+  of the four identity sites were updated; `encodeTo` was the one missed, and nothing in the build
+  notices a field missing from a method. Spec 12.07 §R3's reflection completeness check makes the next
+  omission a build failure. The fix without the guard leaves the defect free to recur.
 
 ### Rejected alternatives
 
@@ -160,6 +232,9 @@ details — the exact failure mode that produced PR #26's under-specified metric
 | Pin absolute state counts to catch over-pruning | Pins the implementation, not the property; any legitimate optimisation to the visited key breaks it. Spec 12.05 §Non-Goals. |
 | Keep `equals` and write tests for it | An untested public method on the correctness foundation is worse than no method — but the alternative is a deletion decision, not a silent one. Spec 12.01 §R3. |
 | Widen `timeoutConstInMillis` to reduce wall-time kills | Widens the window in which *every* future mutant can be killed on time instead of on an assertion. Spec 12.06 §R6. |
+| Fix the `DeadlockState` defect inside 12.01 | 12.01's R1 asserts `Configuration` injectivity, which **passes whether or not the defect is fixed** — program counters mask it. A fix with no test that catches it is indistinguishable from no fix. Separate spec, separate property. Spec 12.07 §R6. |
+| One "encodes differently" assertion per state class | Satisfiable by the fields a class *does* encode, so `DeadlockState` passes it today with one of three identity fields missing. Requires one field isolated per case. Spec 12.07 §R2. |
+| Rely on the defect being masked as of today | Correctness-by-coincidence. The rescue is an unrelated key field, undocumented as load-bearing, and disappears the moment two configurations share counters. Spec 12.07 §Invariants. |
 
 ## Verification Checklist (per spec, filled in as each lands)
 
@@ -167,9 +242,11 @@ details — the exact failure mode that produced PR #26's under-specified metric
 - [ ] `./gradlew pitest` — re-run, and the spec's named mutants flipped to `KILLED`
 - [ ] `./gradlew pitest` — no mutant moved to `TIMED_OUT`/`MEMORY_ERROR` (Spec 12.06 §R6)
 - [ ] Falsification check named in the spec executed, and reverted
-- [ ] `./gradlew pitest` — total mutant count unchanged from the **recorded post-12.01 total**
-      (275 today; 270 if 12.01 §R3 takes Branch A and deletes `CanonicalEncoder.equals`, removing its
-      five mutants outright). A change means scope, mutator set, or runtime moved (Spec 12.06 §R5)
+- [ ] `./gradlew pitest` — total mutant count unchanged from the **recorded post-remediation total**
+      (**270 at the post-12.01 baseline**, measured; the 275 figure predates 12.01 §R4 deleting
+      `equals`). A change means scope, mutator set, or runtime moved (Spec 12.06 §R5). Spec 12.07 sits
+      outside the PIT scope (`state.*` + `cb.*`), so its production fix did not move the number — that
+      expectation is what makes the assertion meaningful.
 
 ## Skills Required
 
@@ -187,6 +264,18 @@ details — the exact failure mode that produced PR #26's under-specified metric
   expose an actual dominance defect in `ContextBoundedExplorer`. That is a success, not a scope
   violation — but it means 12.05 is not purely additive and its PR should be prepared to carry a
   production fix. Budget for that.
+- **Spec 12.07's encoding change will move byte-level expectations elsewhere.** Gaining one boolean at
+  the head of the `DeadlockState` encoding invalidates any hardcoded byte string or bitstate bit
+  position for `deadlock`. Spec 12.03's bitstate metrics are the most likely to need re-deriving, so
+  grep for hardcoded encoding expectations before merging 12.07.
+- **Spec 12.07's completeness check will break on a field rename.** That is intended — it forces a
+  conscious decision — but it surfaces as a build failure on a semantically null refactor. Whoever hits
+  it must add or re-point the case, not delete the assertion.
+- **`DynamicState.encodeTo` omits `decl` and `threadCount`.** Latent for the same masking reason as
+  `DeadlockState`, and confirmed unreachable today because no store spans two programs
+  (`InterleaveRunner` builds a store per run; `BenchmarkHarness` one per strategy per program). It is
+  escalated to the DSL spec set (`09-json-dsl-core`, `10-json-dsl-invariants`) rather than fixed here,
+  so it stays visible without 12.07 claiming a fix it did not make.
 - **The `runError`/`nonViable` population is zero today.** Both statuses score as detected, so a
   future run that starts producing them inflates the score silently. Spec 12.06 §R3 accounts for
   them; this is a latent trap, not a current problem.
