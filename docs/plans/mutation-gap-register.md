@@ -3,7 +3,7 @@
 **Status:** active. Part B landed as PR #29 (`c5fdcd0`); this register is the remaining work.
 
 **Source of truth:** PIT 1.30.0 scoped run on `main` @ `313df44` (post-PR #28), the baseline this
-register was written against. Baseline: 275 mutants, 221 killed (80% mutation coverage), 40
+register was written against. Baseline: 275 mutants, 221 killed (80.4% mutation coverage), 40
 survived, 14 no-coverage. Reproduce with `./gradlew pitest`; per-mutant detail in
 `build/reports/pitest/index.html`. Part B has since landed, so see **Post-Part-B
 re-measurement** for the current figure — the two differ, and the newer one is the number a
@@ -50,7 +50,8 @@ threshold to relax.
 
 ## Gap 1 — `CanonicalEncoder` is effectively untested (HIGH)
 
-**6 mutants: 5 no-coverage, 1 survived. Mutation coverage 50% — worst in scope.**
+**12 mutants: 6 killed, 1 survived, 5 no-coverage — mutation coverage 50% (6/12), worst in
+scope.** The 6 non-killed are the subject of this gap.
 
 The encoder is what every store's correctness rests on. `HashingStateStore.encode` and
 `BitstateStore.preemptionKey` both route through `CanonicalEncoder.encode` to build the
@@ -380,14 +381,14 @@ likewise absent from the extension.
 
 ### What is needed
 
-1. **Pin the baseline number, and assert the metric identity.** Record **80%** mutation coverage /
-   275 mutants / 221 killed as the expected figure for the scoped run — the pre-Part-B figure, not
-   the post-Part-B 80.7%. PR #29 moved the score by a single mutant, and pinning at 80.7% would
-   bank that one mutant as a floor, making any regression elsewhere a "pass" until it cost two.
-   80% makes the change score-neutral so future movement is attributable. When a ratchet lands,
-   that figure is the contract.
+1. **Pin the baseline number, and assert the metric identity.** The pre-Part-B run measured
+   **80.36%** (221/275) and the current run **80.73%** (222/275); PIT reports these as `80` and
+   `81`. Set `mutationThreshold = 80` — `81` passes *only* on the strength of the single mutant
+   PR #29 added and fails at the pre-Part-B baseline. See the sensitivity table in
+   *Post-Part-B re-measurement*. Because PIT rounds to an integer, assert the mutant count (275)
+   and killed count alongside the percentage; the rounded percentage cannot see a one-mutant move.
 2. **Before setting any non-zero threshold, re-measure.** The floor must come from a
-   post-remediation run of *this* register's items 1–4, not from today's 80%.
+   post-remediation run of *this* register's items 1–4, not from today's 80.7%.
 3. **On every plugin or PIT bump, diff the mutant count before trusting the percentage.** A
    sudden change in *total* (275) with no code change means the mutator set, the scope, or the
    runtime changed — investigate before reading the percentage.
@@ -414,7 +415,7 @@ deliberately over trusting the gate to catch small regressions.
 | 2 | Gap 4 — `onTraceCreated` (L214) | S | silent wrong-answer path, tests-as-written hide it |
 | 3 | Gap 2 — port `clear`/`preemptionEntryCount`/`freshCopy` | S | genuine leak/NPE risks, cheap tests |
 | 4 | Gap 3 — FPR closed-form + ctor boundaries | M | user-facing diagnostics |
-| 5 | Gaps 2/3 — hash-mixing mutants | S | **document as equivalent; do not test** |
+| 5 | Gaps 2/3 — hash-mixing mutants | S | **confirm equivalent individually, then suppress — see the caveat in Post-Part-B** |
 | 6 | Gap 4 — L41/L176 reachability | M | may need a constructed program |
 | 7 | **Gap 6 — corpus program that exposes dominance bugs** | **M** | **three of six injected defects pass today; this is the only real fix** |
 | 8 | Gap 7 — pin the baseline number before the ratchet | S | nothing detects baseline drift until this exists |
@@ -467,7 +468,7 @@ Re-run after PR #29 (`c5fdcd0`), same config, same scope, same 12 mutators:
 | `KILLED` | 221 | 222 | **+1** |
 | `SURVIVED` | 40 | 39 | −1 |
 | `NO_COVERAGE` | 14 | 14 | 0 |
-| mutation coverage | 80.0% | 80.7% | +0.7pp |
+| mutation coverage | 80.4% (221/275) | 80.7% (222/275) | +0.4pp |
 
 Zero `TIMED_OUT`/`MEMORY_ERROR`/`NON_VIABLE`/`RUN_ERROR`/`EQUIVALENT`, so nothing is inflating
 the count — Gap 7's guard still passes.
@@ -475,7 +476,7 @@ the count — Gap 7's guard still passes.
 ### The uncomfortable result
 
 **Part B moved the mutation score by one mutant.** Of the 17 mutants listed in the Part B table
-above as owned by B.1–B.3, **7 are now killed and 10 are still unconstrained**:
+above as owned by B.1–B.3, **1 is now killed and 16 are still unconstrained**:
 
 | target | baseline | now |
 |---|---|---|
@@ -493,9 +494,26 @@ valuable; they mostly do not constrain the *pruning decisions* that the survivin
 represent. Treat the mutant count as an underestimate of what Part B delivered, and do not
 read "80.7%" as "the suite got stronger" — it got one mutant stronger.
 
-The practical consequence for ratcheting: **do not set the floor at 80.7%.** Set it at 80% — the
-pre-Part-B figure — so this change is score-neutral and any future movement is attributable.
-A ratchet that requires the +1 risks rewarding regression for the single mutant it banks.
+The practical consequence for ratcheting: **set the floor at `mutationThreshold = 80`.** PIT
+reports mutation coverage rounded to the nearest integer — verified: `222/275` renders as `81%` in
+the HTML report, not `80%`. So the gate compares against a rounded number:
+
+| killed | exact | PIT reports | passes 80? | passes 81? |
+|---|---|---|---|---|
+| 222 (now) | 80.73% | **81** | yes | yes |
+| 221 (pre-Part-B) | 80.36% | 80 | yes | **no** |
+| 220 | 80.00% | 80 | yes | no |
+| 219 | 79.64% | 80 | yes | no |
+| 218 | 79.27% | **79** | **no** | no |
+
+**Threshold 81 passes today only because of the one mutant PR #29 added** — it fails at the
+pre-Part-B baseline of 221/275. Pinning there would make the gate depend entirely on that single
+kill: it would break the moment the count returns to 221, and would not catch a regression that
+cost two. Threshold 80 passes at 219/275 and first fails at 218/275, so it tolerates losing three
+kills before tripping. That tolerance is the integer-threshold blind spot below, and it is why
+this gate is a backstop against large regressions rather than a sensitive detector. Assert the
+mutant count and killed count alongside the percentage; the rounded percentage cannot see small
+movement.
 
 ### Gaps this re-measurement confirms are untouched
 
@@ -512,7 +530,10 @@ confirms they are all still open, with one caveat worth recording:
   as expected.
 - **Gap 5** — `HashingStateStore` L123 `freshCopy` null return still no-coverage.
 
-The caveat: `HashingStateStore` L52, L54, L98, L102, L103, L104 and L114 also survive (13
-survivors in that class, not the 1 the Part B table claimed). Those were outside Part B's scope
-and are not attributed to any gap above. They are hash-arithmetic and equivalent-mutant
-candidates, grouped under Gap 2 — worth confirming individually before assuming equivalence.
+The caveat: `HashingStateStore` has **14 survivors in total**, not 1 — L39 (owned by B.3) plus
+L52, L54, L98, L102, L103, L104 and L114. The 13 outside B.3's scope are not attributed to any gap
+above and the Part B table did not claim them. The priority list says to treat hash-mixing mutants
+as equivalent and not test them; the caveat here says to confirm each individually. **Confirm
+individually first, then suppress with a recorded reason** — treating them as equivalent on
+sight is what put an unverifiable claim in this register in the first place. Only after each is
+confirmed semantically free does "do not test" become correct.
