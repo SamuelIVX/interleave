@@ -72,8 +72,11 @@ class StateEncodingFidelityTest {
      * <p>{@code DclState.lockOwner} is {@code -1} when unlocked, so probing it with {@code -1} mutates
      * nothing and the case passes vacuously. {@code assertEncodingDiffers} rejects that outright
      * ("probe is vacuous"), which is how this constant came to exist rather than a skipped assertion.
+     *
+     * <p>{@code -1} is not thereby excluded from coverage: it participates in the pairwise comparison
+     * as the base state itself, so it is still required to encode distinctly from every owner id here.
      */
-    private static final int[] LOCK_OWNER_SPREAD = {0, 1, 2, 255, 256, 65535, 65536};
+    private static final int[] LOCK_OWNER_SPREAD = {0, 1, 2, -255, 255, 256, 65535, 65536};
 
     /**
      * R3/R3a — fields recorded as tracked gaps: known to be absent from the encoding, escalated to
@@ -375,6 +378,11 @@ class StateEncodingFidelityTest {
         assertEncodingDiffers("locked", base, withField(base, "locked", true));
 
         List<SharedState> owners = new ArrayList<>();
+        // The base (lockOwner == -1, unlocked) joins the pairwise set as a genuine variant. Excluded
+        // from LOCK_OWNER_SPREAD only because probing it there would be a no-op mutation, not because
+        // -1 is unimportant — "unlocked" must encode distinctly from every owner id, and the pairwise
+        // form is what actually requires that.
+        owners.add(base);
         for (int owner : LOCK_OWNER_SPREAD) {
             DclState state = withField(base, "lockOwner", owner);
             assertEncodingDiffers("lockOwner=" + owner, base, state);
@@ -426,6 +434,40 @@ class StateEncodingFidelityTest {
             locals.add(state);
         }
         assertAllEncodingsDistinct("DynamicState.localValues[t] across INT_SPREAD", locals);
+
+        // Position matters across threads, which the single-thread probes above cannot reach: a
+        // two-thread state whose locals are [1, 2] is a different state from [2, 1], and an encoding
+        // that is blind to which thread holds which value collides them.
+        //
+        // Demonstrated 2026-10-01: encoding each column in sorted order across threads — preserving
+        // every individual value and every per-thread probe above, but losing which thread held it —
+        // left the whole suite GREEN, because every prior local probe was single-threaded. The
+        // commutative-sum mutation was caught, but only incidentally by the thread-count probe, which
+        // compares one thread against two and so conflates shape with value.
+        StateDecl twoThreadLocal = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT)),
+                List.of(LocalDecl.ofInt("t", 0)));
+        DynamicState threadOrderA = new DynamicState(twoThreadLocal, 2);
+        threadOrderA.setLocalInt(0, "t", 1);
+        threadOrderA.setLocalInt(1, "t", 2);
+
+        DynamicState threadOrderB = new DynamicState(twoThreadLocal, 2);
+        threadOrderB.setLocalInt(0, "t", 2);
+        threadOrderB.setLocalInt(1, "t", 1);
+
+        assertEncodingDiffers("localValues thread order [1,2] vs [2,1]", threadOrderA, threadOrderB);
+
+        // Same thread count, so this cannot be satisfied by writing the count of threads or of locals.
+        List<SharedState> perThread = List.of(threadOrderA, threadOrderB);
+        assertAllEncodingsDistinct("DynamicState.localValues thread order", perThread);
+
+        // And the permuted pair must also differ from a state where both threads hold the same value.
+        DynamicState threadSame = new DynamicState(twoThreadLocal, 2);
+        threadSame.setLocalInt(0, "t", 1);
+        threadSame.setLocalInt(1, "t", 1);
+        assertEncodingDiffers("localValues [1,2] vs [1,1]", threadOrderA, threadSame);
+        assertAllEncodingsDistinct("DynamicState.localValues thread order and repeats",
+                List.of(threadOrderA, threadOrderB, threadSame));
 
         // Shape matters at the thread level: one thread versus two writes a different number of locals.
         assertEncodingDiffers("localValues thread count",

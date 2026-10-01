@@ -402,6 +402,11 @@ on the affected field — which is exactly the accident that found this one.
       `[false, true]` encodes differently) and **shape matters** (arrays differing in length encode
       differently) (R2a). **Demonstrated** by temporarily replacing `flag`'s encoding with a count of
       set bits, confirming the position probe goes red, then reverting.
+- [ ] `DynamicState`'s per-thread locals are probed with a **two-thread permutation** — `[1, 2]` vs
+      `[2, 1]`, both at `threadCount == 2`, plus `[1, 1]` — and all three compared pairwise (R2c).
+      **Demonstrated necessary:** encoding locals in sorted order across threads preserved every value
+      and every single-thread probe yet left the suite **green**, because one-thread probes cannot
+      express which thread holds which value.
 - [ ] No acceptance criterion, test name, or PR description claims the suite **proves** injectivity.
       The suite samples a representative domain (see §Invariants); full-domain injectivity is a design
       requirement the tests cannot establish, and the distinction is stated wherever the claim is made.
@@ -525,7 +530,43 @@ reveal it.
 `DclState.lockOwner` needed its own spread constant (`LOCK_OWNER_SPREAD`, `INT_SPREAD` minus `-1`)
 because the field is already `-1` when unlocked, making an `-1` probe a no-op. That was not handled by
 special-casing the assertion: the existing vacuity guard rejected it outright, which is the guard
-earning its place.
+earning its place. Excluding `-1` from the *sampled* spread does not drop it from coverage — the base
+state joins the pairwise set as a genuine variant, so "unlocked" is still required to encode distinctly
+from every owner id. Verified by truncating `lockOwner` to `out.writeByte`, which the pairwise
+comparison catches.
+
+#### R2c — one thread per probe cannot see *which* thread holds a value
+
+`DynamicState.localValues` is a `localValues[tid][slot]` grid, and until this was added **every local
+probe set thread 0 and varied one value**. A one-column spread over a one-thread grid cannot express
+the question that actually matters for a per-thread grid: whether the encoding preserves *which* thread
+holds which value.
+
+**[verified, 2026-10-01]** Two mutations, run against the suite as it stood:
+
+| mutation | caught? | by what |
+|---|---|---|
+| locals replaced by a commutative **sum** across all threads | yes | the *thread-count* probe, incidentally — it compares one thread against two, so it conflates shape with value |
+| locals encoded in **sorted order across threads** (every individual value preserved, thread identity lost) | **no — suite stayed green** | nothing |
+
+The second is the real gap. It preserves each thread's own local value, so every single-thread probe
+passes; it preserves the per-thread write count, so the thread-count probe passes; and it destroys
+exactly the property that makes `[1, 2]` and `[2, 1]` different states. Two configurations that the
+stores would prune as duplicates encoded identically.
+
+That is why the first mutation's capture does not count as coverage here — it was caught by a probe
+testing a different field property, and it would not survive an encoding that merely reordered rather
+than summed.
+
+R2c therefore requires a two-thread, same-declaration permutation probe: locals `[1, 2]` against `[2, 1]`,
+both with `threadCount == 2` so the assertion cannot be satisfied by writing a thread count or a local
+count, plus `[1, 1]` so the permutation is distinguished from a repeat. All three are compared pairwise.
+Re-running the sorted-order mutation against this addition fails as it should:
+`localValues thread order [1,2] vs [2,1]: expected different encodings`.
+
+The general lesson, which is the same one R2b exists to enforce: **a probe that varies one field at one
+index cannot establish a property about index identity.** Each of R2b and R2c was found by mutating the
+production encoder and observing a green suite, not by reviewing the assertions.
 
 Feasibility is confirmed: every field is reachable through the public accessors already on each class
 — `setControl`, `setTurn`, `setInCriticalSection`, `setFlag`, `setCounter`, `setRegister`, `setHigh` /
