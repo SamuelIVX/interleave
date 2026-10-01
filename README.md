@@ -121,6 +121,8 @@ This project is built from a frozen 7-spec plan. Each spec defines requirements,
 
 Specs: [`docs/specs/active`](docs/specs/active)
 
+Specs 1–10 are the original frozen plan. Spec 11 ([`11-context-bounded`](docs/specs/active/11-context-bounded/README.md)) added CBS and is shipped. Spec 12 ([`12-mutation-hardening`](docs/specs/active/12-mutation-hardening/README.md)) closes the mutation-testing gaps left by PIT and is **active — not started**; its six specs are ordered by dependency, and the ratchet (12.06) must land last.
+
 ## Tech stack
 
 - **Language:** Java 26+
