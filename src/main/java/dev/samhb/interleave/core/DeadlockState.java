@@ -43,6 +43,7 @@ public final class DeadlockState implements SharedState {
 
     @Override
     public void encodeTo(DataOutput out) throws IOException {
+        out.writeBoolean(control);
         out.writeBoolean(flag[0]);
         out.writeBoolean(flag[1]);
     }

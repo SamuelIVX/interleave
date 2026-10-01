@@ -1,0 +1,452 @@
+package dev.samhb.interleave.state;
+
+import dev.samhb.interleave.core.CounterState;
+import dev.samhb.interleave.core.DclState;
+import dev.samhb.interleave.core.DeadlockState;
+import dev.samhb.interleave.core.PairState;
+import dev.samhb.interleave.core.PetersonState;
+import dev.samhb.interleave.core.SharedState;
+import dev.samhb.interleave.format.dsl.DynamicState;
+import dev.samhb.interleave.format.dsl.FieldDecl;
+import dev.samhb.interleave.format.dsl.LocalDecl;
+import dev.samhb.interleave.format.dsl.StateDecl;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Encoding-fidelity tests for every {@link SharedState} implementation — Spec 12.07.
+ *
+ * <p>{@code encodeTo} is the leaf of both stores' visited-key, and a lossy leaf fails silently: two
+ * distinct states collide, the store answers "already visited" for a configuration it has never seen,
+ * and a reachable violation is pruned from the search. Nothing crashes and nothing reports an error.
+ * That is why {@link DeadlockState} could omit {@code control} from its encoding while {@code equals},
+ * {@code hashCode} and {@code deepCopy} all treated it as identity.
+ *
+ * <p>These tests pin the direction {@code SharedState}'s Javadoc originally did not state: distinct
+ * states must encode distinctly.
+ *
+ * <p><b>What these tests do and do not establish.</b> They establish that every identity field is
+ * represented in the encoding and that its encoding varies across a sampled domain, plus positional
+ * and shape sensitivity for arrays. They do <em>not</em> prove injectivity over the whole {@code int}
+ * domain, which no finite sample can. The injectivity requirement is a design invariant; these tests
+ * are its sampling.
+ */
+class StateEncodingFidelityTest {
+
+    /** Values used to sample an {@code int} field, chosen to catch the realistic lossy encodings. */
+    private static final int[] INT_SPREAD = {0, 1, -1, 2, 255, 256, -255, 65535, 65536};
+
+    /**
+     * A base value chosen to be outside {@link #INT_SPREAD}.
+     *
+     * <p>If the base held a value the spread also contains, the probe for that value would mutate
+     * nothing and the case would pass vacuously — asserting that a state encodes differently from
+     * itself. {@link #assertEncodingDiffers} now rejects that, but the base still avoids it by
+     * construction so every probe in the spread is a real mutation.
+     */
+    private static final int BASE_INT = 12_345;
+
+    /**
+     * R3/R3a — fields recorded as tracked gaps: known to be absent from the encoding, escalated to
+     * specs 09/10. {@code trackedGaps_areStillRealGaps} proves each entry is still genuinely a gap, so
+     * the record cannot outlive its reason.
+     */
+    private static final Map<String, List<String>> TRACKED_GAPS = Map.of(
+            "dev.samhb.interleave.format.dsl.DynamicState", List.of("decl", "threadCount"));
+
+    private static byte[] encode(SharedState state) {
+        ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        try (DataOutputStream out = new DataOutputStream(bytes)) {
+            state.encodeTo(out);
+        } catch (IOException e) {
+            throw new AssertionError("encoding failed", e);
+        }
+        return bytes.toByteArray();
+    }
+
+    /**
+     * Asserts two genuinely distinct states encode differently.
+     *
+     * <p>The {@code assertNotEquals} precondition is load-bearing. Without it a probe whose mutation
+     * was a no-op — the spread containing the base value, a setter that did not write — would pass
+     * vacuously, asserting that a state encodes differently from itself. That failure mode is
+     * invisible in a passing suite and is exactly the kind of silent gap this spec exists to close, so
+     * it is made loud here instead.
+     */
+    private static void assertEncodingDiffers(String what, SharedState a, SharedState b) {
+        if (a.equals(b)) {
+            throw new AssertionError(what + ": probe is vacuous — the two states are equal, so this "
+                    + "case would pass without testing anything");
+        }
+        byte[] ea = encode(a);
+        byte[] eb = encode(b);
+        if (Arrays.equals(ea, eb)) {
+            throw new AssertionError(
+                    what + ": expected different encodings but both were " + Arrays.toString(ea)
+                            + " (" + ea.length + " bytes)");
+        }
+    }
+
+    /** R2 — the targeted regression. This is the test that guards the {@code control} fix. */
+    @Test
+    @DisplayName("R6: DeadlockState differing only in control encodes differently")
+    void encodeDeadlockState_controlFlipped_changesEncoding() {
+        DeadlockState off = DeadlockState.of(false, false);
+        DeadlockState on = DeadlockState.of(false, false);
+        on.setControl(true);
+
+        assertFalse(off.equals(on), "precondition: equals must distinguish control");
+        assertEncodingDiffers("control flipped", off, on);
+    }
+
+    @Test
+    @DisplayName("R2: DeadlockState — flag and control each change the encoding")
+    void encodeDeadlockState_eachField_changesEncoding() {
+        DeadlockState base = DeadlockState.of(false, false);
+
+        DeadlockState flag0 = copy(base);
+        flag0.setFlag(0, true);
+        assertEncodingDiffers("flag[0]", base, flag0);
+
+        DeadlockState flag1 = copy(base);
+        flag1.setFlag(1, true);
+        assertEncodingDiffers("flag[1]", base, flag1);
+
+        DeadlockState ctrl = copy(base);
+        ctrl.setControl(true);
+        assertEncodingDiffers("control", base, ctrl);
+    }
+
+    @Test
+    @DisplayName("R2a: PetersonState — flag position matters, turn varies across the sampled domain")
+    void encodePetersonState_eachField_changesEncoding() {
+        PetersonState base = PetersonState.of(false, false, BASE_INT);
+
+        PetersonState flag0 = copy(base);
+        flag0.setFlag(0, true);
+        assertEncodingDiffers("flag[0]", base, flag0);
+
+        // Position matters: swapping the flags must not encode identically.
+        PetersonState flag1 = copy(base);
+        flag1.setFlag(1, true);
+        assertEncodingDiffers("flag[1]", base, flag1);
+        assertEncodingDiffers("flag permutation", flag0, flag1);
+
+        for (int value : INT_SPREAD) {
+            PetersonState turn = copy(base);
+            turn.setTurn(value);
+            assertEncodingDiffers("turn=" + value, base, turn);
+        }
+
+        PetersonState ics = copy(base);
+        ics.setInCriticalSection(1);
+        assertEncodingDiffers("inCriticalSection", base, ics);
+    }
+
+    @Test
+    @DisplayName("R2a: CounterState — counter sampled, registers positional and length sensitive")
+    void encodeCounterState_eachField_changesEncoding() {
+        CounterState base = CounterState.of(BASE_INT, 2);
+        base.setRegister(0, BASE_INT);
+
+        for (int value : INT_SPREAD) {
+            CounterState counter = copy(base);
+            counter.setCounter(value);
+            assertEncodingDiffers("counter=" + value, base, counter);
+        }
+
+        CounterState control = copy(base);
+        control.setControl(true);
+        assertEncodingDiffers("control", base, control);
+
+        for (int i = 0; i < INT_SPREAD.length; i++) {
+            CounterState reg = copy(base);
+            reg.setRegister(0, INT_SPREAD[i]);
+            assertEncodingDiffers("registers[0]=" + INT_SPREAD[i], base, reg);
+        }
+
+        // Position matters within the register array.
+        CounterState swapped = CounterState.of(0, 2);
+        swapped.setRegister(0, 11);
+        swapped.setRegister(1, 22);
+        CounterState permuted = CounterState.of(0, 2);
+        permuted.setRegister(0, 22);
+        permuted.setRegister(1, 11);
+        assertEncodingDiffers("registers permutation", swapped, permuted);
+
+        // Shape matters: a longer register array must not encode like a shorter one.
+        CounterState twoThreads = CounterState.of(0, 2);
+        CounterState threeThreads = CounterState.of(0, 3);
+        assertEncodingDiffers("registers length", twoThreads, threeThreads);
+    }
+
+    @Test
+    @DisplayName("R2a: PairState — all six identity fields reach the encoding")
+    void encodePairState_eachField_changesEncoding() {
+        PairState base = PairState.of(BASE_INT, BASE_INT);
+
+        for (int value : INT_SPREAD) {
+            PairState high = copy(base);
+            high.setHigh(value);
+            assertEncodingDiffers("high=" + value, base, high);
+
+            PairState low = copy(base);
+            low.setLow(value);
+            assertEncodingDiffers("low=" + value, base, low);
+        }
+
+        PairState control = copy(base);
+        control.setControl(true);
+        assertEncodingDiffers("control", base, control);
+
+        // observedHigh, observedLow and hasObservation have no public setter, so they are reached by
+        // reflection over non-final instance fields. They are still identity fields per equals.
+        for (int value : new int[]{1, 256}) {
+            assertEncodingDiffers("observedHigh=" + value,
+                    base, withField(base, "observedHigh", value));
+            assertEncodingDiffers("observedLow=" + value,
+                    base, withField(base, "observedLow", value));
+        }
+        assertEncodingDiffers("hasObservation", base, withField(base, "hasObservation", true));
+    }
+
+    @Test
+    @DisplayName("R2a: DclState — all six identity fields reach the encoding")
+    void encodeDclState_eachField_changesEncoding() {
+        DclState base = DclState.of(false);
+
+        DclState initialized = copy(base);
+        initialized.setInitialized(true);
+        assertEncodingDiffers("initialized", base, initialized);
+
+        // instance and observedInstance are Object-typed and encoded as presence booleans, which is a
+        // faithful projection: equals compares presence only, so any two distinct instances suffice.
+        DclState instance = copy(base);
+        instance.setInstance("instance");
+        assertEncodingDiffers("instance present", base, instance);
+
+        DclState observed = copy(base);
+        observed.setObservedInstance("instance");
+        assertEncodingDiffers("observedInstance present", base, observed);
+
+        DclState control = copy(base);
+        control.setControl(true);
+        assertEncodingDiffers("control", base, control);
+
+        // locked and lockOwner have no public setter; reached by reflection over non-final fields.
+        assertEncodingDiffers("locked", base, withField(base, "locked", true));
+        for (int owner : new int[]{0, 1}) {
+            assertEncodingDiffers("lockOwner=" + owner, base, withField(base, "lockOwner", owner));
+        }
+    }
+
+    @Test
+    @DisplayName("R2a: DynamicState — the fields it does encode vary with their values")
+    void encodeDynamicState_eachEncodedField_changesEncoding() {
+        StateDecl decl = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT), FieldDecl.ofBool("flag", false)),
+                List.of());
+        DynamicState base = new DynamicState(decl, 1);
+
+        for (int value : INT_SPREAD) {
+            DynamicState count = new DynamicState(decl, 1);
+            count.setInt("count", value);
+            assertEncodingDiffers("fieldValues[count]=" + value, base, count);
+        }
+
+        DynamicState flag = new DynamicState(decl, 1);
+        flag.setBool("flag", true);
+        assertEncodingDiffers("fieldValues[flag]", base, flag);
+
+        // localValues: a declaration carrying one local per thread, varied one thread at a time.
+        StateDecl withLocal = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT)),
+                List.of(LocalDecl.ofInt("t", 0)));
+        DynamicState localsBase = new DynamicState(withLocal, 1);
+        DynamicState localsChanged = new DynamicState(withLocal, 1);
+        localsChanged.setLocalInt(0, "t", 7);
+        assertEncodingDiffers("localValues[t]", localsBase, localsChanged);
+
+        // Shape matters at the thread level: one thread versus two writes a different number of locals.
+        assertEncodingDiffers("localValues thread count",
+                new DynamicState(withLocal, 1), new DynamicState(withLocal, 2));
+    }
+
+    /**
+     * R3a — each tracked gap is still a genuine gap.
+     *
+     * <p>This is deliberately a separate test from {@link #everyStateField_hasAnEncodingCase}, which
+     * never calls {@code encodeTo}. Here the omissions are asserted <em>directly</em>: two states
+     * differing only in the allowlisted field must encode identically. The day {@code encodeTo} starts
+     * writing that field, these encodings diverge and this test fails — so the allowlist cannot outlive
+     * the reason it exists.
+     */
+    @Test
+    @DisplayName("R3a: each tracked gap is still an encoding gap")
+    void trackedGaps_areStillRealGaps() {
+        // decl: two declarations identical in structure but differently named. Names are never
+        // written, so the encodings must be identical — a fact that stops holding once decl is encoded.
+        StateDecl namedX = new StateDecl(List.of(FieldDecl.ofInt("x", 1)), List.of());
+        StateDecl namedY = new StateDecl(List.of(FieldDecl.ofInt("y", 1)), List.of());
+        assertArrayEquals(encode(new DynamicState(namedX, 1)),
+                encode(new DynamicState(namedY, 1)),
+                "DynamicState.decl must still be absent from the encoding");
+
+        // threadCount: with no locals declared, the local loop emits nothing, so threadCount leaves no
+        // trace at all. Two states differing only in threadCount must therefore encode identically.
+        StateDecl noLocals = new StateDecl(List.of(FieldDecl.ofInt("x", 1)), List.of());
+        assertArrayEquals(encode(new DynamicState(noLocals, 1)),
+                encode(new DynamicState(noLocals, 2)),
+                "DynamicState.threadCount must still be absent from the encoding");
+    }
+
+    /**
+     * R3 — every instance field is accounted for.
+     *
+     * <p>Pure accounting: this test never calls {@code encodeTo}. It asks only whether each declared
+     * field has a parity case or a recorded tracked gap, so the failure mode it detects — a newly
+     * declared field with no coverage — stays distinct from R2's, which asks whether the fields are
+     * encoded correctly.
+     */
+    @Test
+    @DisplayName("R3: every non-static state field has a case or a tracked gap")
+    void everyStateField_hasAnEncodingCase() {
+        Map<String, List<String>> covered = coveredFieldsByClass();
+        List<String> problems = new ArrayList<>();
+
+        for (Class<?> type : stateClasses()) {
+            List<String> declared = instanceFieldNames(type);
+            List<String> gaps = TRACKED_GAPS.getOrDefault(type.getName(), List.of());
+            List<String> fields = covered.getOrDefault(type.getName(), List.of());
+
+            for (String name : declared) {
+                if (!fields.contains(name) && !gaps.contains(name)) {
+                    problems.add(type.getSimpleName() + "." + name
+                            + " has neither an encoding case nor a tracked-gap entry");
+                }
+            }
+            for (String gap : gaps) {
+                if (!declared.contains(gap)) {
+                    problems.add("tracked gap " + type.getSimpleName() + "." + gap
+                            + " names a field that no longer exists");
+                }
+            }
+        }
+
+        assertTrue(problems.isEmpty(), () -> String.join("\n", problems));
+    }
+
+    /**
+     * R3 — static fields are filtered out.
+     *
+     * <p>No state class declares a static field today, so the filter cannot be exercised against the
+     * real six. It is tested against a stand-in instead: without the filter, the first
+     * {@code private static final} constant added to a state class would fail R3 demanding an encoding
+     * case for it, and the natural response to that failure would be deleting the check. That trade
+     * costs the recurrence guard to accommodate an unrelated constant, so the filter is pinned here.
+     */
+    @Test
+    @DisplayName("R3: static fields are excluded from the completeness sweep")
+    void staticFields_areExcludedFromTheSweep() {
+        List<String> names = instanceFieldNames(WithAStaticConstant.class);
+        assertEquals(List.of("instanceOnly"), names,
+                "a static constant must not be swept, or the check becomes defeatable");
+    }
+
+    /** R2, converse direction — equal states must encode identically, or the fix over-separates. */
+    @Test
+    @DisplayName("R2: equal states encode identically for all five in-scope classes")
+    void equalStates_encodeIdentically() {
+        DeadlockState d1 = DeadlockState.of(true, false);
+        d1.setControl(true);
+        DeadlockState d2 = DeadlockState.of(true, false);
+        d2.setControl(true);
+        assertArrayEquals(encode(d1), encode(d2), "equal DeadlockStates must encode identically");
+
+        assertArrayEquals(encode(PetersonState.of(true, false, 1)),
+                encode(PetersonState.of(true, false, 1)), "equal PetersonStates");
+        assertArrayEquals(encode(CounterState.of(5, 2)),
+                encode(CounterState.of(5, 2)), "equal CounterStates");
+        assertArrayEquals(encode(PairState.of(1, 2)),
+                encode(PairState.of(1, 2)), "equal PairStates");
+        assertArrayEquals(encode(DclState.of(true)),
+                encode(DclState.of(true)), "equal DclStates");
+    }
+
+    /** Stand-in with one instance field and one static constant, used only to test the filter. */
+    private static final class WithAStaticConstant {
+        private static final int NOT_STATE = 7;
+        private int instanceOnly;
+    }
+
+    /** The non-static declared fields of a class — the exact set R3 requires to be accounted for. */
+    private static List<String> instanceFieldNames(Class<?> type) {
+        List<String> names = new ArrayList<>();
+        for (Field field : type.getDeclaredFields()) {
+            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            names.add(field.getName());
+        }
+        return names;
+    }
+
+/**
+     * A typed deep copy.
+     *
+     * <p>{@code deepCopy} is declared to return {@link SharedState} and the implementations do not
+     * narrow it, so the concrete type has to be recovered. The cast is sound because {@code deepCopy}
+     * constructs the same runtime type it was called on.
+     */
+    @SuppressWarnings("unchecked")
+    private static <T extends SharedState> T copy(T state) {
+        return (T) state.deepCopy();
+    }
+
+    /** Sets a non-final instance field on a deep copy, for the fields with no public setter. */
+    private static <T extends SharedState> T withField(T base, String fieldName, Object value) {
+        T copy = copy(base);
+        try {
+            Field field = copy.getClass().getDeclaredField(fieldName);
+            field.setAccessible(true);
+            field.set(copy, value);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError("could not set " + fieldName, e);
+        }
+        return copy;
+    }
+
+    private static List<Class<?>> stateClasses() {
+        return List.of(DeadlockState.class, PetersonState.class, CounterState.class,
+                PairState.class, DclState.class, DynamicState.class);
+    }
+
+    /** The R2 cases above, recorded as machine-readable field coverage for R3 to check. */
+    private static Map<String, List<String>> coveredFieldsByClass() {
+        Map<String, List<String>> covered = new TreeMap<>();
+        covered.put(DeadlockState.class.getName(), List.of("flag", "control"));
+        covered.put(PetersonState.class.getName(), List.of("flag", "turn", "inCriticalSection"));
+        covered.put(CounterState.class.getName(), List.of("counter", "control", "registers"));
+        covered.put(PairState.class.getName(),
+                List.of("high", "low", "control", "observedHigh", "observedLow", "hasObservation"));
+        covered.put(DclState.class.getName(),
+                List.of("initialized", "instance", "locked", "lockOwner", "control", "observedInstance"));
+        covered.put(DynamicState.class.getName(), List.of("fieldValues", "localValues"));
+        return covered;
+    }
+}

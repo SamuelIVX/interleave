@@ -22,15 +22,32 @@ public interface SharedState {
      */
     SharedState deepCopy();
 
-    /**
-     * Writes a canonical encoding of this state, used for hashing and for exact comparison.
-     *
-     * <p>Two states that are equal must encode to identical bytes. The two properties are
-     * maintained together and tested together; a mismatch would make the bitstate store prune real
-     * configurations.
-     *
-     * @param out the sink to write to
-     * @throws IOException if the sink fails
-     */
+/**
+ * Writes a canonical encoding of this state, used for hashing and for exact comparison.
+ *
+ * <p>The encoding is required in <em>both</em> directions, and the second one is the one that is easy
+ * to get wrong:
+ *
+ * <ul>
+ *   <li><b>Equal states encode identically.</b> Guaranteed here since the first draft; established by
+ *       {@code equals} agreeing with the written fields.
+ *   <li><b>Distinct states encode distinctly.</b> An encoding coarser than the state — for instance one
+ *       that omits a field {@code equals} treats as identity — merges genuinely different states. Both
+ *       stores key on this encoding, so such an omission can cause a real configuration to be
+ *       reported as already visited and pruned from the search.
+ * </ul>
+ *
+ * <p>Note the asymmetry that makes the second direction easy to overlook: an omission can only ever
+ * <em>preserve</em> the first direction, so the first guarantee is structurally incapable of detecting
+ * it. Every field that participates in {@code equals} and {@code hashCode} must therefore appear in
+ * {@code encodeTo}. Encoding a field as a faithful projection rather than its full value is
+ * acceptable, provided the projection distinguishes every pair of values {@code equals} distinguishes.
+ *
+ * <p>Spec 12.07 ({@code docs/specs/active/12-mutation-hardening/07-state-encoding-fidelity.md}) owns
+ * this contract and tests both directions per implementation.
+ *
+ * @param out the sink to write to
+ * @throws IOException if the sink fails
+ */
     void encodeTo(DataOutput out) throws IOException;
 }
