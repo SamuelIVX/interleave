@@ -226,8 +226,13 @@ pitest {
     // times out is to raise this budget so the real assertion gets its chance -- NOT to raise
     // `fasterThreshold`, which would add wall-time kills rather than remove them. The current
     // baseline has zero TIMED_OUT and zero MEMORY_ERROR; check that stays true before trusting
-    // the percentage. See docs/plans/mutation-gap-register.md, Gap 7
-    // ("the wall-time kill hazard -- live today").
+    // the percentage.
+    //
+    // Fuller write-up, including the six status-by-status kill classes and a mitigation table,
+    // is tracked separately in `docs/plans/mutation-gap-register.md` (Gap 7, "the wall-time kill
+    // hazard"). That document is NOT part of this change -- it is deliberately deferred to a
+    // follow-up -- so the evidence it is standing on is reproduced above rather than deferred to
+    // it.
     // api/InterleaveRunnerTest drives maxTime(1ms) and maxTime(30s), so the covering
     // set contains wall-clock-sensitive tests whose kills are non-deterministic under
     // parallel load. Re-run any surprising survivor before believing it.

@@ -341,7 +341,9 @@ class StoreEquivalenceTest {
         // (2) The exact store must reject an unmarked, demonstrably distinct state. This is the
         // assertion that grounds the whole file: every verdict-level claim elsewhere depends on
         // the exact store's answers being ground truth rather than merely authoritative.
-        //
+        assertFalse(exactStore.isVisited(stepped),
+            "precondition: the exact store must not claim to have seen an unmarked state");
+
         // The bitstate store's answer on that same state is deliberately not asserted in either
         // direction. A false positive there is its documented lossy behaviour; a false negative
         // only costs wasted work. Pinning either would encode the lossy behaviour as a
