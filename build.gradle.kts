@@ -189,12 +189,17 @@ pitest {
     //
     // PIT reports three distinct percentages with three different denominators, and
     // conflating them is how a ratchet ends up pinned to a figure PIT never produced.
-    // Measured on this scope against PIT 1.30.0:
+    // Measured on this scope against PIT 1.30.0.
     //
     //   line coverage      223/235 = 95%  <- gated by coverageThreshold
     //   mutation coverage  221/275 = 80%  <- gated by mutationThreshold
     //   test strength      221/261 = 85%  <- gated by testStrengthThreshold
     //
+    // Every figure in that block is the 313df44 (pre-Part-B) run, current as of this
+    // comment being written. After PR #29 the same scope measures 222/275 = 80.73%
+    // mutation coverage and 222/261 test strength -- both numerators moved with their
+    // denominators, so the two sets are not interchangeable. Re-read the report before
+    // trusting any number here; the ratchet itself lives in Spec 12.06.
     // Only test strength excludes NO_COVERAGE mutants. Mutation coverage counts all
     // 14 of them, which is why it is the right denominator for a ratchet: a score
     // that quietly ignores unexercised code hides the exact gap being measured. The
@@ -230,11 +235,10 @@ pitest {
     // The current baseline has zero TIMED_OUT and zero MEMORY_ERROR; check that stays true
     // before trusting the percentage.
     //
-    // Fuller write-up, including the six status-by-status kill classes and a mitigation table,
-    // is tracked separately in `docs/plans/mutation-gap-register.md` (Gap 7, "the wall-time kill
-    // hazard"). That document is NOT part of this change -- it is deliberately deferred to a
-    // follow-up -- so the evidence it is standing on is reproduced above rather than deferred to
-    // it.
+    // Fuller write-up, including the status-by-status kill classes and the accounting rule, is
+    // `docs/specs/active/12-mutation-hardening/06-mutation-ratchet.md` -- six statuses score as
+    // detected and only one of them is an assertion. Spec 12.06 owns the gate that makes the
+    // non-assertion ones count as survivors.
     // api/InterleaveRunnerTest drives maxTime(1ms) and maxTime(30s), so the covering
     // set contains wall-clock-sensitive tests whose kills are non-deterministic under
     // parallel load. Re-run any surprising survivor before believing it.
