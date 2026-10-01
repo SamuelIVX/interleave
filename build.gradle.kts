@@ -213,21 +213,34 @@ pitest {
     jvmArgs.set(listOf("-Xmx${pitestMaxMemoryMc}m"))
 
     // Must exceed the slowest covering test's normal runtime by a clear margin.
+    //
+    // TIMING OUT IS NOT A KILL, BUT PIT TREATS IT AS ONE. Verified in pitest-1.30.0.jar:
+    // DetectionStatus's static initialiser builds each constant as (name, ordinal, detected),
+    // and TIMED_OUT and MEMORY_ERROR both carry detected = true -- the same flag as KILLED. (So
+    // do NON_VIABLE, RUN_ERROR and EQUIVALENT; SURVIVED and NO_COVERAGE do not.) A mutant that
+    // makes a covering test exceed this budget is scored as killed and the mutation score rises
+    // without a single assertion firing.
+    //
+    // That matters more here than in a typical project. A mutant that merely breaks deduplication
+    // makes exploration exponentially slower, so exactly the mutants worth catching are the ones
+    // most likely to be killed on time instead of on an assertion. The fix for a mutant that
+    // times out is to raise `timeoutConstInMillis` or `timeoutFactor` so the real assertion gets
+    // its chance -- those are the only two timeout controls PIT 1.30.0 exposes (verified: the
+    // command-line jar holds TIMEOUT_CONST/TIMEOUT_FACTOR and zero occurrences of "faster").
+    // The current baseline has zero TIMED_OUT and zero MEMORY_ERROR; check that stays true
+    // before trusting the percentage.
+    //
+    // Fuller write-up, including the six status-by-status kill classes and a mitigation table,
+    // is tracked separately in `docs/plans/mutation-gap-register.md` (Gap 7, "the wall-time kill
+    // hazard"). That document is NOT part of this change -- it is deliberately deferred to a
+    // follow-up -- so the evidence it is standing on is reproduced above rather than deferred to
+    // it.
     // api/InterleaveRunnerTest drives maxTime(1ms) and maxTime(30s), so the covering
     // set contains wall-clock-sensitive tests whose kills are non-deterministic under
     // parallel load. Re-run any surprising survivor before believing it.
     // Named `timeoutConstInMillis` here, not `timeoutConstant`.
     timeoutConstInMillis.set(4000)
     timeoutFactor.set(BigDecimal("1.5"))
-
-    // PIT's `fasterThreshold` auto-kills any mutation running fasterThreshold x the
-    // baseline, which for a model checker is actively harmful: a mutant that merely
-    // breaks deduplication runs exponentially slower and gets auto-"killed" on wall
-    // time, inflating the score with kills no assertion produced. It is NOT settable
-    // through this plugin -- the property does not exist on the 1.19.0 extension -- so
-    // this relies on PIT's default (disabled) rather than setting 10.0. Re-check on every
-    // plugin bump: silently acquiring the option would turn every slow mutant into a
-    // free kill and inflate the baseline this whole exercise exists to measure.
 
     // Off for the baseline: incremental analysis reports unchanged classes from stored
     // history rather than re-running them, understating the real starting point. It is
