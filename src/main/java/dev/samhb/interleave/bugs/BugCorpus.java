@@ -18,6 +18,7 @@ public final class BugCorpus {
         programs.add(deadlock());
         programs.add(doubleCheckedLocking());
         programs.add(lostUpdate());
+        programs.add(lostUpdate3t());
         programs.add(tornCounter());
         return programs;
     }
@@ -45,6 +46,20 @@ public final class BugCorpus {
 
     public static BenchmarkProgram lostUpdate() {
         return LOADER.loadFromResource("programs/lost-update.json");
+    }
+
+    /**
+     * Three-thread lost update. Added by Spec 12.05 so that wrong dominance in
+     * {@code ContextBoundedExplorer} becomes observable.
+     *
+     * <p>Uses the {@code declarative} format rather than {@code typed} because the typed
+     * {@code counter} state is created by {@code StateRegistry} as {@code CounterState.of(counter)},
+     * which sizes its per-thread registers for exactly two threads. A three-thread typed program would
+     * throw on thread 2's register write. {@code DslLoader} sizes {@code DynamicState} from the
+     * declared thread count, so the declarative path is correct for any count the format allows.
+     */
+    public static BenchmarkProgram lostUpdate3t() {
+        return LOADER.loadFromResource("programs/lost-update-3t.json");
     }
 
     public static BenchmarkProgram tornCounter() {
