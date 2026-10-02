@@ -33,11 +33,20 @@ import java.util.*;
  * {@code double-checked-locking} missed its only violating configuration.
  * {@link dev.samhb.interleave.dpor.DporExplorer} takes the same trade-off for the same reason.
  *
- * <p><b>Residual limitation.</b> The reduction is still unsound for <em>trace completeness</em>, since
- * every execution the trace list reports is real but not every real execution appears. It remains
- * unsuitable whenever a specific schedule must appear in the output, even without an invariant. A caller
- * needing exhaustive configuration coverage should use
- * {@link dev.samhb.interleave.search.DfsExplorer}.
+ * <p><b>Residual limitation, not a bug and not repairable by a better persistent set.</b> The reduction
+ * is unsound for <em>trace completeness</em>: every execution the trace list reports is real, but not
+ * every real execution appears. That is what reduction is for — two orderings of independent actions reach
+ * the same configuration and POR keeps one — so no sound persistent set, and no sleep-set or DPOR
+ * method, restores them. A caller needing a specific schedule in the output must use
+ * {@link dev.samhb.interleave.search.DfsExplorer}, with or without an invariant.
+ *
+ * <p>What a real Godefroid {@code source} set <em>would</em> repair is the different and more useful
+ * property, <b>state reachability</b>. Measured with no invariant, the acyclic set is not
+ * reachability-complete: {@code broken-peterson-v2} visits 12 of 55 reachable configurations and
+ * {@code broken-peterson} 17 of 55, so a configuration can be pruned away entirely. Adding the
+ * {@code source} term would make every reachable configuration visited, which is precisely what would
+ * let the reduction be kept while an invariant is checked — the trade-off made above would not be
+ * needed. Complete configuration coverage is still not complete interleaving coverage.
  *
  * <p>Like the other explorers, this keys visited states through a {@link dev.samhb.interleave.state.HashingStateStore}
  * by default, so its visited set inherits that store's encoding fidelity.

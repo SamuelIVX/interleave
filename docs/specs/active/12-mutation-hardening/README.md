@@ -57,9 +57,26 @@ invariant now yields identical configuration counts and identical violation coun
 `StaticPorExplorer`, and `DporExplorer`. The reduction is retained, and still sound for what it is
 actually being asked, when no invariant is supplied.
 
-**Residual limitation, not a bug.** The reduction remains unsound for *trace completeness*: every reported
-execution is real, but not every real execution appears. A caller needing a specific schedule in the
-output should use `DfsExplorer` even without an invariant.
+**Residual limitation, not a bug, and not fixable by a better persistent set.** The reduction is unsound for
+*trace completeness*: every reported execution is real, but not every real execution appears. Two orderings
+of independent actions reach the same configuration and POR keeps one. That is the reduction doing its job,
+so no source set, sleep set, or DPOR method restores them. A caller needing a specific schedule in the
+output must use `DfsExplorer`, invariant or not.
+
+**What a source set would actually repair** is the different and more valuable property, *state
+reachability*. Measured with no invariant, the acyclic set is not reachability-complete:
+
+| program | DFS configurations | POR visits | not visited |
+|---|---|---|---|
+| `broken-peterson-v2` | 55 | 12 | **43** |
+| `broken-peterson` | 55 | 17 | 38 |
+| `peterson` | 42 | 18 | 24 |
+| `lost-update` | 13 | 9 | 4 |
+| `deadlock`, `torn-counter` | 15, 9 | 15, 9 | 0 |
+
+So a real `source` set would make every reachable configuration visited, which is exactly what would let
+the reduction be kept while an invariant is checked and remove the trade-off made above. It would still not
+add interleavings: complete configuration coverage is not complete interleaving coverage.
 
 **Why no test caught it.** `DslEquivalenceTest` runs all three explorers but compares `StaticPorExplorer`
 only against its own typed/declarative re-encoding, never against `DfsExplorer`'s verdict, and it does so
