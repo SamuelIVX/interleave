@@ -108,10 +108,10 @@ The same class treats `control` as identity in three other places:
 | `hashCode` | `L60` (`31 * result + Boolean.hashCode(control)`) | yes |
 | `encodeTo` | `L45–48` | **no** |
 
-**The Javadoc states only half the contract, and the defect breaks the half it does not state.**
-`SharedState.encodeTo`'s Javadoc (`L27–34`) says: *"Two states that are equal must encode to identical
-bytes. The two properties are maintained together and tested together; a mismatch would make the
-bitstate store prune real configurations."*
+**Before Spec 12.07, the Javadoc stated only half the contract, and the defect broke the half it did not
+state.** `SharedState.encodeTo`'s Javadoc (`L27–34`) said: *"Two states that are equal must encode to
+identical bytes. The two properties are maintained together and tested together; a mismatch would make
+the bitstate store prune real configurations."* §R1 has since amended it to state both directions.
 
 Read carefully, that guarantee is *equal states → identical bytes* — and the defect does **not** break
 it. Omitting `control` makes the encoding strictly **coarser**, which makes identical states encode
@@ -188,27 +188,42 @@ different counters and no merge reaches this store. Verified by walking the corp
 `DeadlockState` values by `equals`, 4 by encoding, yet the corresponding configurations stay distinct
 under this store's key.
 
-**`BitstateStore` — no argument offered.** Its key is `31 * encoder.hashCode(state) +
-programCounters.hashCode()` (`L355–357`), narrowed to a bit index. Different counters therefore give a
-different *hash* only usually, and a different *bit* even less reliably — the structure is lossy by
-construction, which is the whole reason Spec 12.03 governs it. So the "counters rescue it" reasoning
-does **not** apply here, and this spec asserts nothing about `BitstateStore`'s behaviour under the
-defect. This does not make the defect a live `BitstateStore` bug: that store already merges distinct
-configurations by design, so the defect adds no new failure mode. It does mean the "nothing is wrong
-today" verdict is **argued for `HashingStateStore` and merely unexamined for `BitstateStore`** — a
-distinction worth keeping, since collapsing the two would overstate the assurance. Bounding the
-`BitstateStore` side would require checking the actual bit positions of the affected configurations,
-which is 12.03's territory and is deliberately not attempted here.
+**`BitstateStore` — measured, and it is affected.** Its key is `31 * encoder.hashCode(state) +
+programCounters.hashCode()` (`L355–357`), narrowed to bit indices. Different counters therefore give a
+different *hash* only usually, and a different *bit* even less reliably, so the "counters rescue it"
+reasoning does **not** apply here.
 
-So **no verdict is wrong today** — argued for `HashingStateStore`, unexamined for `BitstateStore` as
-above. Three reasons that is not a dismissal:
+**[verified, 2026-10-02]** Measured directly rather than argued, by walking the corpus with a
+`BitstateStore` and counting distinct configurations reached, with the `control` omission present and
+then removed:
+
+| bitset size | `deadlock` configurations reached, pre-fix | post-fix |
+|---|---|---|
+| 1 024 | **14 of 15** | **15** |
+| 65 536 | 15 | 15 |
+| 1 048 576 | 15 | 15 |
+
+So the omission **does** change which configurations share Bloom-filter bits, and at 1 024 bits it
+costs one genuinely reachable configuration. An earlier revision of this spec claimed the defect "adds
+no new failure mode" because `BitstateStore` already merges configurations by design. That reasoning
+was wrong: the store's false positives are a *background* failure mode, but the omission shifts *which*
+states are affected, so it is a live contributor to the same symptom at small bitsets. The `deadlock`
+verdict itself survived in every configuration measured — the loss is coverage, not a flipped verdict —
+so this is a soundness gap in the visited set rather than a demonstrated missed violation.
+
+Bounding this properly means enumerating the actual bit positions of the affected configurations at a
+range of bitset sizes, which is Spec 12.03's territory and is deliberately not attempted here.
+
+So **no verdict is wrong today** — the `deadlock` verdict held in every store and bitset size measured —
+but that is a weaker statement than "nothing is wrong", and the visited-set loss above is a real defect
+in the reached set rather than a hypothetical. Three reasons this is not a dismissal:
 
 1. **The masking is incidental, not designed.** Nothing in `HashingStateStore` documents that program
    counters are load-bearing for correctness; they are there because a `Configuration` includes them.
    Relying on an unrelated field to rescue a broken one is a coincidence, and the rescue disappears the
    moment two configurations share counters and differ only in an omitted field.
-2. **The masking does not hold for `BitstateStore`** and no substitute argument is offered for it, so
-   the "nothing is wrong today" claim rests on one store and not on the design.
+2. **The masking does not hold for `BitstateStore`**, as measured above, so the "nothing is wrong today"
+   claim rests on one store rather than on the design.
 3. **`control` has no reader** outside `deepCopy`/`equals`/`hashCode` [verified: repo-wide grep finds
    no `control()` call in `src/main`]. That is *why* the defect is latent, not evidence it is
    harmless. `equals`/`hashCode` declare it identity; a future reader would inherit a store that

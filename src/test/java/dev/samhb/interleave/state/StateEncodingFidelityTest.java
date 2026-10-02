@@ -479,7 +479,39 @@ class StateEncodingFidelityTest {
         DynamicState localsBase = new DynamicState(withLocal, 1);
         DynamicState localsChanged = new DynamicState(withLocal, 1);
         localsChanged.setLocalInt(0, "t", 7);
-        assertEncodingDiffers("localValues[t]", localsBase, localsChanged);
+                assertEncodingDiffers("localValues[t]", localsBase, localsChanged);
+
+        // The boolean local branch. encodeTo writes an int local with writeInt and a boolean local with
+        // writeBoolean, and until this probe every declared local was an int, so the boolean arm was
+        // never executed. Dropping the boolean write entirely collapses a true local onto a false one and
+        // is caught by the probe below.
+        //
+        // Scoped honestly: writing the boolean as writeInt(true ? 1 : 0) is NOT caught here, because that
+        // still distinguishes true from false. It is a representation change, not a collision. A collision
+        // only appears once the two encodings can actually coincide, and the existing int-local probes
+        // catch that case -- replacing the whole local loop with a single boolean-to-int write is detected.
+        StateDecl withBoolLocal = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT)),
+                List.of(LocalDecl.ofBool("b", false)));
+        DynamicState boolLocalBase = new DynamicState(withBoolLocal, 1);
+        DynamicState boolLocalTrue = new DynamicState(withBoolLocal, 1);
+        boolLocalTrue.setLocalBool(0, "b", true);
+        assertEncodingDiffers("localValues[b] boolean", boolLocalBase, boolLocalTrue);
+        assertAllEncodingsDistinct("DynamicState.localValues[b] boolean",
+                List.of(boolLocalBase, boolLocalTrue));
+
+        // An int local and a boolean local in the same declaration must not alias: both start at 0 and
+        // false, and a type-blind encoder that wrote the boolean as an int would collapse the two.
+        StateDecl mixedLocals = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT)),
+                List.of(LocalDecl.ofInt("i", 0), LocalDecl.ofBool("b", false)));
+        DynamicState mixedBase = new DynamicState(mixedLocals, 1);
+        DynamicState mixedIntSet = new DynamicState(mixedLocals, 1);
+        mixedIntSet.setLocalInt(0, "i", 1);
+        DynamicState mixedBoolSet = new DynamicState(mixedLocals, 1);
+        mixedBoolSet.setLocalBool(0, "b", true);
+        assertAllEncodingsDistinct("DynamicState mixed int and boolean locals",
+                List.of(mixedBase, mixedIntSet, mixedBoolSet));
 
         // Full integer spread on the local, not just the single 7 above.
         List<SharedState> locals = new ArrayList<>();

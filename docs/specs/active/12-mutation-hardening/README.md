@@ -11,9 +11,11 @@ because it must pin a post-remediation measurement, not today's number.
 up a real defect: `DeadlockState.encodeTo` omits the `control` field, so two states differing only in
 `control` encode identically while `equals`/`hashCode`/`deepCopy` all treat it as identity. A full
 audit of all six `SharedState` implementations found one confirmed defect and one latent gap; the
-other four are correct. It is **latent, not active** — `HashingStateStore` keys on a concatenated
-string, so different program counters deterministically mask the collision today; `BitstateStore` keys
-on a hash, so it does not, and no safety claim is made for it. It becomes a separate spec rather than a
+other four are correct. It is **latent for `HashingStateStore`** — that store keys on a concatenated
+string, so different program counters deterministically mask the collision today. `BitstateStore` keys
+on a hash, so it is **not** masked: measured at a 1 024-bit store, the defect costs one reachable
+`deadlock` configuration (14 of 15), while the verdict itself holds at every bitset size measured. Its
+full effect there is unassessed and belongs to Spec 12.03. It becomes a separate spec rather than a
 section of 12.01 because 12.01's R1 asserts `Configuration` injectivity, which *passes whether or not
 this defect is fixed*, so the two own different properties and need different tests.
 
@@ -220,11 +222,11 @@ details — the exact failure mode that produced PR #26's under-specified metric
   distinct bit and no safety argument is made for it (that store is lossy by design — Spec 12.03).
   So an unchanged `deadlock` verdict is the *expected* result, argued for one store and unexamined for
   the other — not evidence the defect is harmless. Fixed by Spec 12.07.
-- ✅ **The interface Javadoc states only half the contract.** `SharedState.encodeTo` documents *equal
-  states encode identically* and is silent on the converse — the direction the defect broke. An
-  omitted field makes an encoding **coarser**, which preserves the documented direction trivially, so
-  the documented direction cannot detect this class of defect at all. Spec 12.07 §R1 amends the
-  Javadoc; the gap is why the defect survived review.
+- ✅ **Before Spec 12.07, the interface Javadoc stated only half the contract.** `SharedState.encodeTo`
+  documented *equal states encode identically* and was silent on the converse — the direction the defect
+  broke. An omitted field made an encoding **coarser**, which preserved the documented direction
+  trivially, so the documented direction could not detect this class of defect at all. Spec 12.07 §R1
+  amended the Javadoc to state both directions and resolved the gap.
 - ✅ **The fix ships with a guard, not just the fix.** `control` was added to `DeadlockState` and three
   of the four identity sites were updated; `encodeTo` was the one missed, and nothing in the build
   notices a field missing from a method. Spec 12.07 §R3's reflection completeness check makes the next

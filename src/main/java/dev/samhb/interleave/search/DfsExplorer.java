@@ -10,14 +10,16 @@ import java.util.*;
  * <p>Explores every reachable <em>configuration</em> up to an optional state budget, with no partial-order
  * reduction. Note that configurations and executions are different things: a configuration reached by
  * several schedules is expanded once, and the second arrival returns at the {@code isVisited} check
- * before recording its own trace. So the trace list holds one trace per distinct terminal
- * configuration, not one per interleaving — measured on the corpus, {@code peterson} visits 42
- * configurations and reports 2 traces. Coverage is therefore complete over the configuration space
- * subject to the store and budget, which is the property the reduced
+ * before its own suffix is explored. So coverage is complete over the configuration space subject to the
+ * store and budget — the property that justifies using this as the oracle for the reduced
  * {@link dev.samhb.interleave.por.StaticPorExplorer} and
- * {@link dev.samhb.interleave.dpor.DporExplorer} results are checked against; it is <em>not</em> a claim
- * that every execution appears. Cost is exponential in the number of threads, which is why the budget
- * exists.
+ * {@link dev.samhb.interleave.dpor.DporExplorer} results — while the trace list is <em>not</em> a
+ * per-execution record. Measured on the corpus, {@code peterson} visits 42 configurations and reports 2
+ * traces. The trace list is also not simply one entry per terminal configuration: a step returning
+ * {@link dev.samhb.interleave.core.StepOutcome#ASSERTION_FAILED} records a violation trace and abandons
+ * that edge without ever creating a successor, so traces can exist for edges that reach no terminal
+ * configuration. Use the trace list to find a counterexample, not to count executions. Cost is
+ * exponential in the number of threads, which is why the budget exists.
  *
  * <p><b>Visited states are keyed through an encoder.</b> The default store is a
  * {@link dev.samhb.interleave.state.HashingStateStore}, so a lossy encoding does not fail loudly — it
