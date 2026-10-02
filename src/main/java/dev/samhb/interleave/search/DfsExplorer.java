@@ -7,11 +7,17 @@ import java.util.*;
 /**
  * Exhaustive depth-first search oracle for concurrent programs.
  *
- * <p>Explores every reachable configuration up to an optional state budget, with no reduction, so the
- * trace list is complete: every execution of the program appears, which is what makes this the oracle
- * the reduced {@link dev.samhb.interleave.por.StaticPorExplorer} and
- * {@link dev.samhb.interleave.dpor.DporExplorer} results are checked against. Cost is exponential in
- * the number of threads, which is why the budget exists.
+ * <p>Explores every reachable <em>configuration</em> up to an optional state budget, with no partial-order
+ * reduction. Note that configurations and executions are different things: a configuration reached by
+ * several schedules is expanded once, and the second arrival returns at the {@code isVisited} check
+ * before recording its own trace. So the trace list holds one trace per distinct terminal
+ * configuration, not one per interleaving — measured on the corpus, {@code peterson} visits 42
+ * configurations and reports 2 traces. Coverage is therefore complete over the configuration space
+ * subject to the store and budget, which is the property the reduced
+ * {@link dev.samhb.interleave.por.StaticPorExplorer} and
+ * {@link dev.samhb.interleave.dpor.DporExplorer} results are checked against; it is <em>not</em> a claim
+ * that every execution appears. Cost is exponential in the number of threads, which is why the budget
+ * exists.
  *
  * <p><b>Visited states are keyed through an encoder.</b> The default store is a
  * {@link dev.samhb.interleave.state.HashingStateStore}, so a lossy encoding does not fail loudly — it

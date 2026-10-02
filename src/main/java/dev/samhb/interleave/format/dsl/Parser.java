@@ -6,25 +6,45 @@ import dev.samhb.interleave.format.registry.RegistryException;
  * Recursive-descent parser for the declarative expression language.
  *
  * <p>Grammar, loosest binding first. Each {@code parseX} handles one precedence level by calling the
- * next-tighter level first and then looping over the operators that may follow:
+ * next-tighter level first and then looping over the operators that may follow. The productions below
+ * describe what the parser <em>actually accepts</em>, including two asymmetries worth knowing about:
  *
  * <pre>
  *   parseOr    := parseAnd   ( '||' parseAnd )*
  *   parseAnd   := parseCmp   ( '&amp;&amp;'  parseCmp )*
  *   parseCmp   := parseAdd   ( ('==' | '!=' | '&lt;' | '&gt;' | '&lt;=' | '&gt;=') parseAdd )*
  *   parseAdd   := parseMul   ( ('+' | '-') parseMul )*
- *   parseMul   := parseUnary ( ('*' | '/' | '%') parseUnary )*
- *   parseUnary := '-' parseUnary | parsePrimary
- *   parsePrimary := '(' parseOr ')' | intLiteral | identifier | dotted path
+ *   parseMul   := parseUnary ( ('*' | '%') parseUnary )*
+ *   parseUnary := '!' parseUnary | '-' parseUnary | intLiteral | parsePrimary
+ *   parsePrimary := '(' parseOr ')' | intLiteral | 'true' | 'false' | 'tid'
+ *                | 'local' '.' IDENT ( '[' parseOr ']' )?
+ *                | IDENT ( '[' parseOr ']' )?
  * </pre>
+ *
+ * <p><b>No division.</b> {@code parseMul} accepts {@code *} and {@code %} but not {@code /}, so an
+ * expression like {@code a / b} raises a "trailing characters" error rather than parsing. That is the
+ * existing behaviour and is preserved deliberately here — the grammar block documents the parser, it
+ * does not describe a target.
+ *
+ * <p><b>Unary minus applies to more than literals.</b> {@code parseUnary} accepts both {@code !} and a
+ * general unary {@code -}, so {@code -x} parses to a negation of an identifier rather than being
+ * rejected. A minus directly before a digit is instead consumed by {@link #parseIntLit()}, which is why
+ * {@code -5} is a literal while {@code -x} is an operation. The digit lookahead exists only to pick
+ * between those two readings, not to require a digit after every {@code -}.
+ *
+ * <p><b>Recursion is not confined to primary.</b> Both {@link #parseUnary()} (into itself, for stacked
+ * operators) and {@link #parsePrimary()} (into {@link #parseOr()}, for a parenthesised expression)
+ * recurse, as does every array index, which is itself a full expression. {@link #checkNesting()} bounds
+ * all of it, so a pathological input raises {@link RegistryException} rather than exhausting the JVM
+ * stack.
  *
  * <p>Left associativity falls out of the loops: each level folds its operator onto the already-parsed
  * left operand, so {@code a - b - c} groups as {@code (a - b) - c} rather than {@code a - (b - c)}.
  *
  * <p>Recursion depth is bounded by {@code MAX_NESTING} via {@link #checkNesting()}, so a pathological
  * input such as thousands of nested parentheses raises {@link RegistryException} instead of exhausting
- * the JVM stack. That is why the guard sits on the way <em>into</em> each primary rather than being
- * left to the runtime.
+ * the JVM stack. That is why the guard sits on the way <em>into</em> each recursive call rather than
+ * being left to the runtime.
  */
 public final class Parser {
     private static final int MAX_NESTING = 64;
@@ -226,7 +246,11 @@ public final class Parser {
 
     // mul -> unary ( ("*" | "%") unary )*
     /**
-     * Parses {@code *}, {@code /}, and {@code %}, left-associatively.
+     * Parses {@code *} and {@code %}, left-associatively.
+     *
+     * <p>{@code /} is deliberately <em>not</em> accepted: there is no division operator in this
+     * language, and {@code a / b} fails at the trailing-character check rather than silently parsing as
+     * something else. Recorded here so the absence does not read as an oversight in this method.
      *
      * @return the parsed expression
      */
@@ -246,11 +270,15 @@ public final class Parser {
 
     // unary -> ("!" | "-")* primary
     /**
-     * Parses a unary minus, requiring a digit after it so {@code -x} is not silently accepted as a
-     * negated identifier — the grammar has no such form, and parsing it would defer the error to
-     * resolution where the message would be less specific.
+     * Parses a unary operator: either {@code !} or {@code -}, applied to a single operand.
+     *
+     * <p>A minus followed by a digit is diverted to {@link #parseIntLit()} so a negative literal is one
+     * token rather than a negation of a positive literal — both readings produce the same value for
+     * literals, but only the first keeps {@code -2147483648} representable. A minus before anything
+     * else is a genuine unary operator, so {@code -x} parses rather than failing.
      *
      * @return the parsed expression
+     * @throws RegistryException if nesting exceeds {@link #MAX_NESTING}
      */
     private Expr parseUnary() {
         skipWs();
@@ -284,13 +312,18 @@ public final class Parser {
     }
 
     /**
-     * Parses the innermost forms: parenthesised expressions, integer literals, identifiers, and dotted
-     * field paths such as {@code thread.state}.
+     * Parses the innermost forms: parenthesised expressions, integer literals, {@code true} /
+     * {@code false}, {@code tid}, {@code local.<name>} references, plain identifiers, and array
+     * subscripting in the form {@code name[index]} or {@code local.<name>[index]}.
      *
-     * <p>This is the only level that recurses, via a parenthesised expression calling back into
-     * {@link #parseOr()}; {@link #checkNesting()} bounds that cycle.
+     * <p>Recurses three ways: a parenthesised expression calls back into {@link #parseOr()}, and each
+     * array index is itself parsed as a full expression via {@link #parseOr()}. Both are bounded by
+     * {@link #checkNesting()}. Note there is no general dotted path such as {@code thread.state} —
+     * {@code local.} is the only dotted form, and {@code tid} is a bare keyword.
      *
      * @return the parsed expression
+     * @throws RegistryException if nesting exceeds {@link #MAX_NESTING}, a bracket is unterminated, or
+     *         an unexpected character or unsupported literal is encountered
      */
     private Expr parsePrimary() {
         skipWs();

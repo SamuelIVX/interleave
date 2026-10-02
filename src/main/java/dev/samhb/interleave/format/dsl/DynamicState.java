@@ -26,9 +26,12 @@ import java.util.Arrays;
  *       it is closed.
  * </ul>
  *
- * <p>Arrays are written as a length followed by each element. The length prefix is redundant for
- * injectivity, since every element is a fixed four-byte int and arrays of different length therefore
- * already produce byte sequences of different length; it is retained for explicitness.
+ * <p>Arrays are written as a length followed by each element. The length prefix is load-bearing and
+ * cannot be dropped: fixed-width elements make a <em>single</em> array's length recoverable from the
+ * total byte count, but the encoding concatenates all fields, so without prefixes the boundary between
+ * two adjacent arrays is invisible. Two declarations of {@code [p=[2], q=[]]} and {@code [p=[], q=[2]]}
+ * are distinct states under {@link #equals} that encode identically once the prefix is removed — the
+ * lone element simply migrates across the field boundary. See Spec 12.07 R2d.
  */
 public final class DynamicState implements SharedState {
     private final StateDecl decl;
@@ -235,11 +238,19 @@ public final class DynamicState implements SharedState {
      * Writes the canonical encoding: declared fields in order, then locals grouped by thread.
      *
      * <p>Every field is written as a type ordinal followed by its value, so an {@code INT} and a
-     * {@code BOOL} holding the same number do not alias. Locals follow in {@code [tid][slot]} order,
-     * which preserves which thread holds which value — a commutative summary such as a sum would
-     * collapse {@code [1,2]} onto {@code [2,1]}, two configurations {@link #equals} distinguishes.
+     * {@code BOOL} holding the same number do not alias. Arrays additionally carry a length prefix,
+     * because fields are concatenated and an unprefixed array would let its elements blur into the
+     * next field. Locals follow in {@code [tid][slot]} order, which preserves which thread holds which
+     * value — a commutative summary such as a sum would collapse {@code [1,2]} onto {@code [2,1]}, two
+     * configurations {@link #equals} distinguishes.
      *
-     * <p>{@code decl} is deliberately absent; see the class Javadoc.
+     * <p><b>This encoding is coarser than {@link #equals} in two known, deliberate ways.</b>
+     * {@code equals} compares the declaration and the thread count, and {@code encodeTo} writes neither,
+     * so states differing only in those compare unequal yet encode identically. Both omissions are
+     * tracked gaps escalated to Specs 09/10 — see the class Javadoc and
+     * {@code StateEncodingFidelityTest.trackedGaps_areStillRealGaps}, which fails the day either is
+     * closed. Everything else {@code equals} compares is written here, which is the property the
+     * {@link dev.samhb.interleave.core.SharedState} encoding contract requires.
      *
      * @param out the sink to write to
      * @throws IOException if the sink fails

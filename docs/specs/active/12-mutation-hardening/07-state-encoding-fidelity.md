@@ -411,6 +411,14 @@ on the affected field — which is exactly the accident that found this one.
       **Demonstrated necessary:** encoding locals in sorted order across threads preserved every value
       and every single-thread probe yet left the suite **green**, because one-thread probes cannot
       express which thread holds which value.
+- [ ] `DynamicState`'s `INT_ARRAY` branch is probed for element **value**, element **position**, and array
+      **length**, each with every other declared field held fixed (R2d). Value and position are caught by
+      the pairwise assertion; a commutative-summary encoding must fail it.
+- [ ] `DynamicState`'s array **length prefixes** are pinned by a **multi-array** boundary probe —
+      `[p=[2], q=[]]` vs `[p=[], q=[2]]` (R2e). A single-array probe cannot do this: one array's length is
+      recoverable from its byte count, so removing the prefix survives single-array probing and only a
+      concatenated encoding reveals the collision. **Demonstrated** by deleting
+      `out.writeInt(arr.length)`, which single-array probes miss and R2e catches.
 - [ ] No acceptance criterion, test name, or PR description claims the suite **proves** injectivity.
       The suite samples a representative domain (see §Invariants); full-domain injectivity is a design
       requirement the tests cannot establish, and the distinction is stated wherever the claim is made.
@@ -592,12 +600,37 @@ Probes added, all holding every other declared field fixed so each isolates one 
 - **length** — a different declaration with a different array length, since `setArrayElement` mutates in
   place and cannot change length
 
-**One negative result worth recording.** Deleting the `out.writeInt(arr.length)` prefix leaves the length
-probe green, and that is *correct* rather than a gap: every element is a fixed four-byte int, so arrays
-of different length already produce byte sequences of different length and cannot collide. The length
-prefix is redundant **for injectivity**. The probe is kept because it pins the observable property —
-distinct lengths must not share an encoding — rather than one particular way of achieving it. The
-summary mutation, which *is* a real collision, is caught.
+**Correction — the length prefix is NOT redundant; an earlier revision of this spec said it was, and
+that was wrong.** Deleting `out.writeInt(arr.length)` leaves the single-array length probe green, and
+that alone looks like an equivalent mutant: every element is a fixed four-byte int, so for one array
+alone, different lengths already yield different byte counts. The reasoning does not survive more than
+one array, because the encoding *concatenates* all declared fields and an unprefixed array makes the
+boundary between two adjacent arrays invisible.
+
+**[verified, 2026-10-01]** Two declarations, both `equals`-distinct:
+
+| declaration | with length prefix | without |
+|---|---|---|
+| `[p=[2], q=[]]` | distinct | — |
+| `[p=[], q=[2]]` | distinct | **collides with the row above** |
+
+The lone element simply migrates across the field boundary, and the two type ordinals match either way,
+so the encodings become byte-identical. Confirmed by removing the prefix from `DynamicState.encodeTo`
+and comparing the two states: `statesAreEqualsDifferent=true` while `encodingsEqual=true`. The prefix is
+load-bearing and must stay.
+
+So the probe's value is not that it catches the missing prefix — it does not, and no single-array probe
+could. It catches *summary* encodings, which are real collisions. The length assertion is kept because it
+pins the observable property rather than one implementation of it.
+
+The missing-prefix mutant is instead caught by a **multi-array boundary probe**, added as R2e after this
+correction: `[p=[2], q=[]]` against `[p=[], q=[2]]`, two `equals`-distinct states that encode identically
+once the prefix is gone. Verified by removing the prefix and observing R2e fail with
+`fieldValues array boundary: expected different encodings but both were [0, 0, 0, 2, 0, 0, 0, 2, 0, 0, 0, 2]`.
+
+Worth naming as the general shape of this defect: a **single** array's length is recoverable from the
+byte count, so the redundancy argument looks airtight until a second array appears. The claim was not
+wrong so much as scoped to a case that cannot occur on its own.
 
 Feasibility is confirmed: every field is reachable through the public accessors already on each class
 — `setControl`, `setTurn`, `setInCriticalSection`, `setFlag`, `setCounter`, `setRegister`, `setHigh` /

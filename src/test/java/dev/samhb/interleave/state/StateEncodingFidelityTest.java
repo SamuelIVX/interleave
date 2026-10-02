@@ -530,6 +530,48 @@ class StateEncodingFidelityTest {
     }
 
     /**
+     * R2e — a multi-array boundary probe, which is the only probe that can catch a dropped length prefix.
+     *
+     * <p>The single-array length probe in {@link #encodeDynamicState_eachEncodedField_changesEncoding}
+     * cannot detect removal of {@code out.writeInt(arr.length)}: for one array alone, fixed-width
+     * elements already make different lengths produce different byte counts, so the mutant survives.
+     * Two or more arrays are required, because the encoding concatenates declared fields and an
+     * unprefixed array leaves the boundary between adjacent arrays invisible.
+     *
+     * <p>The two declarations below are {@code [p=[2], q=[]]} and {@code [p=[], q=[2]]}. Without the
+     * prefix they encode to identical bytes — the element migrates across the field boundary and both
+     * type ordinals match — while {@code equals} keeps them distinct. Demonstrated 2026-10-01 by
+     * removing the prefix from {@code DynamicState.encodeTo} and observing
+     * {@code statesAreEqualsDifferent=true} with {@code encodingsEqual=true}.
+     */
+    @Test
+    @DisplayName("R2e: DynamicState array length prefixes keep adjacent arrays separable")
+    void encodeDynamicState_arrayLengthPrefixesSeparateAdjacentArrays() {
+        StateDecl elementFirst = new StateDecl(
+                List.of(FieldDecl.ofArray("p", new int[]{2}), FieldDecl.ofArray("q", new int[]{})), List.of());
+        StateDecl elementSecond = new StateDecl(
+                List.of(FieldDecl.ofArray("p", new int[]{}), FieldDecl.ofArray("q", new int[]{2})), List.of());
+
+        DynamicState first = new DynamicState(elementFirst, 1);
+        DynamicState second = new DynamicState(elementSecond, 1);
+
+        assertFalse(first.equals(second),
+                "precondition: the two declarations describe different states, so this probe is not "
+                        + "comparing a state against itself");
+        assertEncodingDiffers("fieldValues array boundary", first, second);
+
+        // Also a length migration against an empty-array neighbour of differing type, so the probe does
+        // not depend on this one pairing of sizes.
+        StateDecl twoThenEmpty = new StateDecl(
+                List.of(FieldDecl.ofArray("p", new int[]{7, 8}), FieldDecl.ofArray("q", new int[]{})), List.of());
+        StateDecl emptyThenTwo = new StateDecl(
+                List.of(FieldDecl.ofArray("p", new int[]{}), FieldDecl.ofArray("q", new int[]{7, 8})), List.of());
+        assertAllEncodingsDistinct("DynamicState array boundary across adjacent arrays",
+                List.of(first, second,
+                        new DynamicState(twoThenEmpty, 1), new DynamicState(emptyThenTwo, 1)));
+    }
+
+    /**
      * R3a — each tracked gap is still a genuine gap.
      *
      * <p>This is deliberately a separate test from {@link #everyStateField_hasAnEncodingCase}, which
@@ -648,7 +690,7 @@ class StateEncodingFidelityTest {
         return names;
     }
 
-/**
+    /**
      * A typed deep copy.
      *
      * <p>{@code deepCopy} is declared to return {@link SharedState} and the implementations do not

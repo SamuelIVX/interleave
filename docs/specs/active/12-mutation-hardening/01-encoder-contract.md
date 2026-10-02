@@ -401,9 +401,10 @@ of the three outcomes available. Record the decision in this spec either way.
 **File:** `src/test/java/dev/samhb/interleave/state/CanonicalEncoderContractTest.java`
 
 - `storeKey_isInjective_overReachableConfigurations` (R1) — collects positions through a
-  **value-keyed** walk, asserts one distinct key per position, requires ≥ 100 positions. **The walk
-  must not use the encoder** — see §R7. The `≥ 150` tripwire on positions replaces the deferred
-  `≥ 100` floor.
+  **value-keyed** walk, asserts one distinct store key per position, and asserts `≥ 150` positions as a
+  **drift tripwire** against the recorded 160. **The walk must not use the encoder** — see §R7. Note the
+  implemented assertion is the tripwire, not the spec's `≥ 100` state-value floor, which is deferred
+  until 12.05 supplies the corpus program that justifies it; see "R1's floor is measured".
 - `encode_isDeterministicAcrossCalls` (R2)
 - `encode_isDeterministicAcrossInstances` (R3) — two `CanonicalEncoder`s, same state, equal bytes
 - `storeKey_distinguishesSingleFieldDifference` (R1) — a falsifiable, human-readable complement: two

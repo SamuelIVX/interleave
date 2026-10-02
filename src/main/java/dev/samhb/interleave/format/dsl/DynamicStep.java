@@ -107,17 +107,28 @@ public final class DynamicStep implements Step {
     @Override
     public Set<MemoryLocation> writes() { return writes; }
 
-    @Override
     /**
      * Whether this step may run against the given state.
      *
-     * <p>A step with no guard is always enabled. Otherwise the guard is evaluated against the state,
-     * and a guard that errors or type-mismatches reports <em>disabled</em> rather than throwing, so a
-     * program that tests for an absent field degrades to "not this step" instead of failing the run.
+     * <p>Three outcomes, and the distinction between the last two is the whole point:
+     *
+     * <ul>
+     *   <li><b>No guard</b> — always enabled.
+     *   <li><b>Guard evaluates false</b> — disabled. This is the ordinary "not this step" case.
+     *   <li><b>Guard errors or yields a non-boolean</b> (out-of-bounds field, division by zero, wrong
+     *       type) — <em>still enabled</em>, so that {@link #execute} returns
+     *       {@link StepOutcome#ASSERTION_FAILED} and the explorers record it as a violation.
+     * </ul>
+     *
+     * <p>An erroring guard is deliberately <em>not</em> treated as a disabled step. Reporting it as
+     * "step does not apply here" would silently skip a program whose guard is broken, letting the search
+     * report a clean run for a program that never exercised the guarded branch. Surface the error
+     * instead.
      *
      * @param state the state to test the guard against
      * @return true if the step may run
      */
+    @Override
     public boolean enabled(SharedState state) {
         if (!(state instanceof DynamicState ds)) return false;
         if (guard == null) return true;
