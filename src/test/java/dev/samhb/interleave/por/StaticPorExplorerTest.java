@@ -130,4 +130,51 @@ class StaticPorExplorerTest {
             .anyMatch(t -> t.outcome() == dev.samhb.interleave.search.TraceOutcome.DEADLOCK) ? "DEADLOCK" : "PASS";
         assertEquals(dfsVerdict, porVerdict, "Verdicts must match");
     }
+
+    /**
+     * Characterisation test for a real soundness defect, pinned deliberately.
+     *
+     * <p>Static POR's persistent set is the acyclic set: a thread is kept only when it is dependent on
+     * another enabled thread, otherwise one arbitrary enabled thread is returned. Godefroid's sound
+     * construction is {@code source(c)} union the dependent set, and the missing {@code source} term is
+     * what makes this reduction preserve deadlock existence rather than state reachability. The
+     * consequence is that invariants are evaluated only on the reduced visited set, so a violation
+     * reachable only through pruned interleavings is never reported.
+     *
+     * <p>{@code broken-peterson-v2} is the sharpest case: {@link DfsExplorer} finds 5 violating
+     * configurations and reports {@code VIOLATION}, while this explorer reports {@code COMPLETED} -- a
+     * false pass against an expected verdict of {@code VIOLATION}. The test asserts the CURRENT,
+     * DEFECTIVE behaviour on purpose. It exists so that the false pass is visible and cannot be
+     * reintroduced unnoticed; whoever fixes the reduction (either disabling it under an invariant, as
+     * {@link dev.samhb.interleave.dpor.DporExplorer} already does, or computing a real {@code source}
+     * set) must INVERT this assertion, at which point it becomes the regression test for the fix.
+     */
+    @Test
+    void acyclicSetPruningMissesViolationsStaticPorIsUnsoundForInvariants() {
+        BenchmarkProgram program = BugCorpus.all().stream()
+            .filter(p -> "broken-peterson-v2".equals(p.name()))
+            .findFirst()
+            .orElseThrow();
+        Invariant invariant = program.invariant().orElseThrow();
+
+        DfsResult dfsResult = new DfsExplorer().explore(program.program(), invariant);
+        DfsResult porResult = new StaticPorExplorer().explore(program.program(), invariant);
+
+        // The exhaustive oracle does find the violation...
+        assertTrue(
+            dfsResult.traces().stream()
+                .anyMatch(t -> t.outcome() == dev.samhb.interleave.search.TraceOutcome.VIOLATION),
+            "DfsExplorer should report VIOLATION for broken-peterson-v2");
+
+        // ...and the corpus agrees the verdict really is VIOLATION, so this is not a corpus error.
+        assertEquals("VIOLATION", program.expectedVerdict());
+
+        // ...but the reduced search prunes every violating configuration. PINNED DEFECT: see Javadoc.
+        assertFalse(
+            porResult.traces().stream()
+                .anyMatch(t -> t.outcome() == dev.samhb.interleave.search.TraceOutcome.VIOLATION),
+            "StaticPorExplorer currently reports no violation for broken-peterson-v2. "
+            + "If this now passes the explorer has been fixed -- INVERT this assertion and update the "
+            + "StaticPorExplorer class Javadoc, which currently documents the defect.");
+    }
 }

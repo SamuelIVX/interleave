@@ -14,13 +14,31 @@ import java.util.*;
  * {@link IndependenceRelation}: two steps that neither read nor write each other's locations commute,
  * so an interleaving that runs them in one order has an equivalent with the other order removed.
  *
- * <p>Invariants are checked on every visited configuration, so a violation is reported wherever it
- * occurs rather than only along the reduced schedule set.
+ * <p><b>Invariants are checked only on visited configurations, and the visited set is a reduced one.</b>
+ * {@link #porDfs} evaluates the invariant at each configuration the persistent-set search reaches, so a
+ * violation is reported <em>whenever such a configuration is reached</em> — not whenever one occurs. The
+ * reduction skips configurations, so a violation reachable only through pruned interleavings is not
+ * reported at all. This is not a hypothetical: measured on the corpus, {@code broken-peterson-v2} yields
+ * 5 violating configurations under {@link dev.samhb.interleave.search.DfsExplorer} and reports
+ * {@link TraceOutcome#COMPLETED} here, i.e. a <b>false pass on a program whose expected verdict is
+ * {@link TraceOutcome#VIOLATION}</b>. {@code broken-peterson} misses 4 of 5, {@code
+ * double-checked-locking} misses 1 of 1. Callers needing exhaustive configuration coverage must use
+ * {@link dev.samhb.interleave.search.DfsExplorer}.
+ *
+ * <p><b>Root cause.</b> {@link PersistentSetComputer} computes the acyclic set — a thread is retained
+ * only when it is dependent on another enabled thread, and otherwise an arbitrary single thread is
+ * returned. Godefroid's sound persistent set is {@code source(c)} union the dependent set, where
+ * {@code source(c)} comes from a reverse-reachability analysis; without it the construction preserves the
+ * <em>existence</em> of a deadlock but not state reachability, so it is unsound for invariant checking.
+ * Note that {@link dev.samhb.interleave.dpor.DporExplorer} already guards against exactly this by
+ * disabling reduction whenever an invariant is supplied; the two sound repairs here are the same guard,
+ * or a real {@code source} set.
  *
  * <p><b>Pruning is unsound for trace completeness.</b> Every execution the trace list reports is a
  * real execution, but not every real execution appears, because independence-based reduction removes
  * interleavings that are equivalent up to reordering. Use {@link dev.samhb.interleave.search.DfsExplorer}
- * when a specific schedule must be present in the output.
+ * when a specific schedule must be present in the output, or when a missing violation would be worse than
+ * the extra cost.
  *
  * <p>Like the other explorers, this keys visited states through a {@link dev.samhb.interleave.state.HashingStateStore}
  * by default, so its visited set inherits that store's encoding fidelity.
