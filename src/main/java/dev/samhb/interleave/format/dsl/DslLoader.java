@@ -308,7 +308,16 @@ public final class DslLoader {
         else return new BenchmarkProgram(def.name(), program);
     }
 
-    /** containsLocalOrTid method. */
+    /**
+     * Reports whether an expression references a thread-local or a thread id.
+     *
+     * <p>Used to reject thread-dependent expressions in the places that must be thread-independent,
+     * such as an initial state definition or a step effect that would otherwise vary per thread without
+     * the analysis accounting for it.
+     *
+     * @param e the expression to inspect
+     * @return true if a local or tid reference appears anywhere in the tree
+     */
     private static boolean containsLocalOrTid(Expr e) {
         if (e instanceof Expr.LocalRef) return true;
         if (e instanceof Expr.TidRef) return true;
@@ -321,7 +330,16 @@ public final class DslLoader {
         return false;
     }
 
-    /** parseStateDecl method. */
+    /**
+     * Builds a {@link StateDecl} from the JSON {@code state} block.
+     *
+     * <p>Fields are required and locals optional. Every failure carries the JSON path that caused it,
+     * so a malformed program reports which entry is at fault rather than just that one exists.
+     *
+     * @param stateJson the {@code state} object from the program definition
+     * @return the parsed declaration
+     * @throws RegistryException if the block is missing, malformed, or names an invalid identifier
+     */
     private static StateDecl parseStateDecl(JsonObject stateJson) {
         if (!stateJson.has("fields")) throw new RegistryException("Missing required 'fields' at state.fields");
         JsonElement fieldsEl = stateJson.get("fields");
@@ -426,7 +444,18 @@ public final class DslLoader {
         return new StateDecl(fields, locals);
     }
 
-    /** parseStrictInt method. */
+    /**
+     * Reads a JSON value that must be an integer.
+     *
+     * <p>Deliberately stricter than {@code getAsInt()}, which silently truncates a float or throws a
+     * low-level exception on a non-numeric string. A program typo should be reported with its JSON
+     * path, not as a {@code NumberFormatException} from somewhere inside the loader.
+     *
+     * @param el the element to read
+     * @param path the JSON path, used in the failure message
+     * @return the parsed integer
+     * @throws RegistryException if the value is not an exact integer
+     */
     private static int parseStrictInt(JsonElement el, String path) {
         String s = el.getAsString();
         try {
@@ -436,7 +465,14 @@ public final class DslLoader {
         }
     }
 
-    /** validateName method. */
+    /**
+     * Rejects blank and over-long declared names.
+     *
+     * @param name the name to validate
+     * @param path the JSON path, used in the failure message
+     * @throws RegistryException if the name is null, blank, or longer than 64 characters
+     */
+
     private static void validateName(String name, String path) {
         if (name == null || name.isBlank()) throw new RegistryException("Name must be non-empty at " + path);
         if (name.length() > 64) throw new RegistryException("Identifier too long (>64) at " + path + ": " + name);

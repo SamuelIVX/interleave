@@ -112,7 +112,16 @@ public final class ProgramLoader {
         }
     }
 
-    /** readResource method. */
+    /**
+     * Reads a classpath resource as UTF-8 text.
+     *
+     * <p>Uses the context class loader rather than this class's own loader so the bundled corpus is
+     * found when the tool runs from an executable jar, where the two loaders differ.
+     *
+     * @param path the resource path
+     * @return the resource contents
+     * @throws RegistryException if the resource is absent or cannot be read
+     */
     private String readResource(String path) {
         var is = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
         if (is == null) {
@@ -125,7 +134,18 @@ public final class ProgramLoader {
         }
     }
 
-    /** load method. */
+    /**
+     * Validates and converts a parsed definition into an executable benchmark program.
+     *
+     * <p>Validation is layered deliberately: the format discriminator and the common top-level fields
+     * are checked <em>before</em> dispatching on format, so a missing name or empty thread list is
+     * reported as itself rather than surfacing as a {@code NullPointerException} from inside the
+     * declarative loader. Every message names the field or index at fault.
+     *
+     * @param def the parsed definition
+     * @return the executable program
+     * @throws RegistryException if any required field is missing or malformed
+     */
     private BenchmarkProgram load(ProgramDefinition def) {
         // Validate format discriminator (required per Spec 09)
         String format = def.format();

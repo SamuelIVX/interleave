@@ -6,7 +6,38 @@ import java.util.*;
 
 /**
  * Exhaustive depth-first search oracle for concurrent programs.
- * Explores all reachable configurations up to an optional state budget.
+ *
+ * <p>Explores every reachable <em>configuration</em> up to an optional state budget, with no partial-order
+ * reduction. Note that configurations and executions are different things: a configuration reached by
+ * several schedules is expanded once, and the second arrival returns at the {@code isVisited} check
+ * before its own suffix is explored. So coverage is complete over the configuration space subject to the
+ * store and budget — the property that justifies using this as the oracle for the reduced
+ * {@link dev.samhb.interleave.por.StaticPorExplorer} and
+ * {@link dev.samhb.interleave.dpor.DporExplorer} results — while the trace list is <em>not</em> a
+ * per-execution record. Measured on the corpus, {@code peterson} visits 42 configurations and reports 2
+ * traces. The trace list is also not simply one entry per terminal configuration: a step returning
+ * {@link dev.samhb.interleave.core.StepOutcome#ASSERTION_FAILED} records a violation trace and abandons
+ * that edge without ever creating a successor, so traces can exist for edges that reach no terminal
+ * configuration. Use the trace list to find a counterexample, not to count executions. Cost is
+ * exponential in the number of threads, which is why the budget exists.
+ *
+ * <p><b>An invariant limits configuration coverage here too.</b> A configuration that violates the
+ * invariant is recorded and abandoned without exploring its successors, so no configuration reachable only
+ * through a violating one is visited. Measured against a null-invariant run, that is 9 unvisited
+ * configurations on {@code broken-peterson} and {@code broken-peterson-v2}, 9 on
+ * {@code double-checked-locking} — where the totals match at 17 and only the membership differs — and 1 on
+ * {@code torn-counter}. Violation <em>detection</em> stays exhaustive: any violation on an untruncated path
+ * is found, and a truncation only happens after one has already been reported. Complete configuration
+ * coverage therefore requires passing a null invariant.
+ *
+ * <p><b>Visited states are keyed through an encoder.</b> The default store is a
+ * {@link dev.samhb.interleave.state.HashingStateStore}, so a lossy encoding does not fail loudly — it
+ * prunes configurations it has not seen, and a reachable violation can disappear silently. That makes
+ * this class the wrong instrument for measuring an encoder, and the reason
+ * {@code CanonicalEncoderContractTest} supplies its own value-keyed store instead of using this default:
+ * a sample filtered by the encoder under test cannot measure it. See Spec 12.01 §R7.
+ *
+ * <p>Instance state is reused across calls, so an explorer is not safe for concurrent use.
  */
 public final class DfsExplorer {
     private final HashingStateStore defaultStateStore;
@@ -17,7 +48,7 @@ public final class DfsExplorer {
     private StateVisitor stateVisitor;
     private long maxStatesBudget;
 
-    /** DfsExplorer method. */
+    /** Creates an explorer with an empty visited set and no budget limit. */
     public DfsExplorer() {
         this.defaultStateStore = new HashingStateStore();
         this.visitedStates = new LinkedHashMap<>();

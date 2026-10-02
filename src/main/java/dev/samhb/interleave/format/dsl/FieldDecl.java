@@ -21,13 +21,26 @@ public record FieldDecl(String name, FieldType type, int intInit, boolean boolIn
     }
 
     @Override
-    /** arrayInit method. */
+    /**
+     * Returns a defensive copy of the declared initial array contents.
+     *
+     * <p>Copies on every call rather than handing out the internal array: a caller that mutated the
+     * returned array would otherwise change the declaration's own initial value, so every subsequently
+     * constructed state would begin from silently altered data.
+     *
+     * @return a fresh copy of the initial contents, or null if not an array field
+     */
     public int[] arrayInit() {
         return arrayInit == null ? null : Arrays.copyOf(arrayInit, arrayInit.length);
     }
 
     @Override
-    /** equals method. */
+    /**
+     * Compares name, type, and the initial value for this type.
+     *
+     * @param o the object to compare against
+     * @return true if both declare the same field identically
+     */
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof FieldDecl that)) return false;
@@ -39,7 +52,11 @@ public record FieldDecl(String name, FieldType type, int intInit, boolean boolIn
     }
 
     @Override
-    /** hashCode method. */
+    /**
+     * Hashes consistently with {@link #equals}, hashing array contents rather than identity.
+     *
+     * @return a hash consistent with {@link #equals}
+     */
     public int hashCode() {
         int h = Objects.hash(name, type, intInit, boolInit);
         h = 31 * h + Arrays.hashCode(arrayInit);

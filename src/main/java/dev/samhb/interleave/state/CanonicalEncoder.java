@@ -20,10 +20,6 @@ public final class CanonicalEncoder implements Serializable {
         return baos.toByteArray();
     }
 
-    public boolean equals(SharedState a, SharedState b) {
-        return Arrays.equals(encode(a), encode(b));
-    }
-
     public int hashCode(SharedState state) {
         return Arrays.hashCode(encode(state));
     }
