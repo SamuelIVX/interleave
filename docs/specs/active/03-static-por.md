@@ -2,9 +2,13 @@
 
 ## TL;DR
 Implement static POR (Partial Order Reduction) for explicit-state model checking.
-Compute persistent sets from read/write access sets to avoid exploring equivalent
-interleavings. The static POR explorer must produce exactly the same final
-verdict as Spec 02's `DfsExplorer`, but explore fewer states.
+Compute the ample set — the persistent set, whose cut is the source set — from
+read/write access sets, so that avoiding equivalent interleavings does not cost any
+reachable configuration. The static POR explorer must produce exactly the same final
+verdict as Spec 02's `DfsExplorer`, and must visit exactly the same set of
+configurations; the saving is in transitions fired, not in states explored. **It does
+not explore fewer states — a sound reduction cannot, since it visits every reachable
+configuration. See R5.**
 
 **Amended 2026-10-02 after Spec 12.07's review surfaced a soundness defect.** Two
 corrections to this spec, both of which are load-bearing rather than editorial:
@@ -36,17 +40,47 @@ corrections to this spec, both of which are load-bearing rather than editorial:
   verdict on **every** corpus program carrying an invariant, not on one selected program.
   Verified by `StaticPorExplorerTest.withAnInvariantEveryExplorerAgreesWithDfsOnTheCorpus`;
   removing the guard fails 3 tests including that one.
-- **R4** `StaticPorExplorer` explores configurations using persistent sets instead
-  of all enabled steps. **Amended:** applies to the no-invariant case only. Under an
-  invariant it branches over all enabled threads, so the states-explored reduction is
-  given up; `supplyingAnInvariantDisablesTheReduction` asserts that trade-off
-  explicitly rather than leaving it implicit.
-- **R5** States-explored count from `StaticPorExplorer` is strictly less than or
-  equal to `DfsExplorer` for the same program. **Amended:** counts alone are
-  insufficient to establish anything. On `double-checked-locking` the acyclic set visits
-  the *same total* as `DfsExplorer` (17) with 9 configurations substituted, so a count
-  comparison passes while the visited sets differ. Any criterion relying on state counts
-  must compare visited-set membership, not totals.
+- **R4** `StaticPorExplorer` explores configurations using the computed set instead
+  of all enabled steps. **Amended:** in the current implementation that set is the
+  *acyclic* set, and it applies to the no-invariant case only — under an invariant
+  `porDfs` branches over all enabled threads, giving up the reduction entirely.
+  `supplyingAnInvariantDisablesTheReduction` asserts that trade-off rather than leaving
+  it implicit. R4 regains the invariant case when R2's reachability-sound set lands.
+- **R5** **Amended, and the criterion the original form got wrong.** The visited-set
+  relation is **not** a single relation — it differs by construction, and conflating them
+  is what let an unsound explorer pass:
+
+  | Construction | Expected visited set vs `DfsExplorer` | Status |
+  |---|---|---|
+  | acyclic set (current) | **strict subset** — `POR ⊊ DFS` | incomplete; the shortfall is a defect, not an efficiency |
+  | reachability-sound set (target) | **equality** — `POR = DFS` | complete; reduction is not visible in states at all |
+
+  **States-explored must not be used as the criterion for either.** Verified: `statesExplored`
+  equals the distinct-configuration count in both explorers, because each holds a visited set
+  and expands a configuration once. A reachability-sound reduction therefore visits the *same*
+  configurations as `DfsExplorer` and would score **equal**, not less — so a
+  "strictly fewer states" test would fail a *correct* implementation. Conversely the acyclic
+  set's 17-against-55 on `broken-peterson` is not evidence of efficiency; it is the count of
+  the configurations it failed to visit.
+
+  *On the status of that claim:* the `statesExplored == distinct configurations` half is
+  measured, above. The consequence — that a reachability-sound set yields visited-set
+  **equality** — follows from the persistent-set theorem, and is **not** verified in this
+  codebase because the sound construction is not implemented. It is recorded as the criterion
+  the R2 work must satisfy, not as an observed fact.
+
+  The original criterion — "states-explored strictly less than or equal to `DfsExplorer`" —
+  is satisfied by incompleteness, and so it passed while `StaticPorExplorer` returned a false
+  pass on `broken-peterson-v2`. It is withdrawn rather than tightened.
+
+  What replaces it: (a) the visited-set **equality** above for the sound construction, checked by
+  membership and not by totals — on `double-checked-locking` the acyclic set visits the same
+  *total* as `DfsExplorer` (17) with 9 configurations substituted, so any count comparison passes
+  while the sets differ; and (b) the reduction must be measured in **transitions fired**, which
+  is where a sound persistent set actually saves work. **(b) is currently unverifiable:** the
+  codebase has no edge-count metric, and `StateVisitor` exposes only state and trace hooks.
+  Building that metric is part of the R2 work below, because without it "explores fewer states"
+  remains a claim nothing can check.
 - **R6** Final invariant verdict is identical to `DfsExplorer`. **Amended:** holds over
   the whole corpus with an invariant. It previously passed on `lost-update` alone,
   which is one of only two corpus programs where the reduction happens to be correct.
@@ -85,7 +119,7 @@ visited does not currently hold.
 
 ## Known gap — the invariant guard, and the real fix
 
-**Current mitigation.** `porDfs` branches over the persistent set only when
+**Current mitigation.** `porDfs` branches over the *acyclic* set only when
 `invariant == null`; with an invariant it branches over every enabled thread, making the
 traversal identical to `DfsExplorer`'s. Violation **detection** is then exhaustive: every
 configuration reachable without first passing through a violating one is visited and
