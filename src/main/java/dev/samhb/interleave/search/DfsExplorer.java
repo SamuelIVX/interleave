@@ -21,6 +21,15 @@ import java.util.*;
  * configuration. Use the trace list to find a counterexample, not to count executions. Cost is
  * exponential in the number of threads, which is why the budget exists.
  *
+ * <p><b>An invariant limits configuration coverage here too.</b> A configuration that violates the
+ * invariant is recorded and abandoned without exploring its successors, so no configuration reachable only
+ * through a violating one is visited. Measured against a null-invariant run, that is 9 unvisited
+ * configurations on {@code broken-peterson} and {@code broken-peterson-v2}, 9 on
+ * {@code double-checked-locking} — where the totals match at 17 and only the membership differs — and 1 on
+ * {@code torn-counter}. Violation <em>detection</em> stays exhaustive: any violation on an untruncated path
+ * is found, and a truncation only happens after one has already been reported. Complete configuration
+ * coverage therefore requires passing a null invariant.
+ *
  * <p><b>Visited states are keyed through an encoder.</b> The default store is a
  * {@link dev.samhb.interleave.state.HashingStateStore}, so a lossy encoding does not fail loudly — it
  * prunes configurations it has not seen, and a reachable violation can disappear silently. That makes

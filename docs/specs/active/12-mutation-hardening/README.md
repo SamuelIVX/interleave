@@ -52,7 +52,16 @@ this — it disables reduction whenever an invariant is given — so the princip
 
 **The fix.** `porDfs` now branches over the persistent set only when `invariant == null`; with an
 invariant it branches over every enabled thread, which makes the traversal identical to `DfsExplorer`'s
-and the invariant check exhaustive over reachable configurations. Post-fix, every corpus program with an
+and violation detection **exhaustive** — every configuration reachable without first passing through a
+violating one is visited and checked. **This is not complete configuration coverage.** A violating
+configuration's successors are never explored, so configurations reachable only *beyond* a violation are
+never visited: measured against a null-invariant run, 9 configurations on `broken-peterson` and
+`broken-peterson-v2`, 9 on `double-checked-locking` (where the totals match at 17 and only the membership
+differs, so a count comparison would not show it), and 1 on `torn-counter`. The shortfall is harmless for
+detection, because the search truncates only after a violation has already been reported; what would be
+unsound is missing a violation on an untruncated path, and disabling the reduction is what rules that out.
+
+Post-fix, every corpus program with an
 invariant now yields identical configuration counts and identical violation counts across `DfsExplorer`,
 `StaticPorExplorer`, and `DporExplorer`. The reduction is retained, and still sound for what it is
 actually being asked, when no invariant is supplied.

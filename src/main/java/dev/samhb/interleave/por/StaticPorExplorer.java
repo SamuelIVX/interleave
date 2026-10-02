@@ -17,8 +17,22 @@ import java.util.*;
  * <p><b>An invariant disables the reduction entirely.</b> {@link #porDfs} branches over the
  * {@link PersistentSetComputer persistent set} only when no invariant is supplied. With an invariant it
  * branches over every enabled thread, making the traversal identical to
- * {@link dev.samhb.interleave.search.DfsExplorer} and the invariant check exhaustive over reachable
- * configurations.
+ * {@link dev.samhb.interleave.search.DfsExplorer} and violation detection <b>exhaustive</b>: every
+ * configuration that can be reached without first passing through a violating one is visited and checked.
+ *
+ * <p><b>That is weaker than complete configuration coverage, and the two must not be conflated.</b>
+ * {@link #porDfs} returns as soon as a configuration violates, so its successors are never explored and
+ * no configuration reachable only <em>through</em> a violating one is ever visited or checked. Measured
+ * with no invariant against with, the shortfall is 9 configurations on each of {@code broken-peterson}
+ * and {@code broken-peterson-v2}, 9 on {@code double-checked-locking} — where the totals happen to be
+ * equal at 17 and only the membership differs, so a count comparison would not reveal it — and 1 on
+ * {@code torn-counter}. A caller needing every reachable configuration visited must run with a null
+ * invariant and inspect the traces, not supply one.
+ *
+ * <p>Note the asymmetry that makes exhaustive detection the property worth having: a missed configuration
+ * reachable only past a violation costs nothing, because the violation itself has already been reported.
+ * What would be unsound is missing a violation that exists on a path never truncated — and disabling the
+ * reduction is what guarantees no such path exists.
  *
  * <p><b>Why the reduction cannot be kept under an invariant.</b> The persistent set computed by
  * {@link PersistentSetComputer} is the <em>acyclic</em> set: a thread is retained only when it is

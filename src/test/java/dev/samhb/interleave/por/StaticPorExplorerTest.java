@@ -158,8 +158,12 @@ class StaticPorExplorerTest {
      * false pass against an expected verdict of {@code VIOLATION}.
      *
      * <p>The fix is the guard {@link dev.samhb.interleave.dpor.DporExplorer} already applies: an
-     * invariant disables the reduction, so the traversal becomes exhaustive and the invariant check
-     * covers every reachable configuration.
+     * invariant disables the reduction, so the traversal visits every configuration reachable without
+     * first passing through a violating one, which makes violation detection exhaustive. That is the
+     * property asserted here, and it is deliberately not stated as complete configuration coverage — a
+     * violating configuration's successors are never explored, so configurations reachable only beyond a
+     * violation are never checked. That shortfall is harmless for detection, since the violation has
+     * already been reported by the time the search truncates.
      */
     @Test
     void anInvariantDisablesTheReductionSoViolationsCannotBeMissed() {
