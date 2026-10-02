@@ -29,38 +29,50 @@ need a corpus program with enough threads to make wrong dominance observable (Sp
 
 ## Status: active — 12.07 and 12.01 implemented; 12.02–12.06 pending
 
-### Defect found during 12.07 that this set does not own: `StaticPorExplorer` is unsound with an invariant
+### Fixed during 12.07: `StaticPorExplorer` was unsound with an invariant
 
-**Do not treat static POR as a faster `DfsExplorer` when an invariant is supplied.** It can return a
-false pass. Surfaced by a review comment on 12.07's `DfsExplorer` wording that turned out to apply more
-sharply to POR, then measured rather than argued:
+**Static POR could return a false pass when given an invariant.** Surfaced by a review comment on 12.07's
+`DfsExplorer` wording that turned out to apply more sharply to POR, then measured rather than argued.
+**Now fixed** by applying `DporExplorer`'s existing guard; the numbers before the fix:
 
-| corpus program | violating configurations `DfsExplorer` finds | `StaticPorExplorer` finds | its verdict |
+| corpus program | violating configurations `DfsExplorer` finds | `StaticPorExplorer` found (pre-fix) | verdict (pre-fix) |
 |---|---|---|---|
 | `broken-peterson-v2` | 5 | **0** | `COMPLETED` — **false pass**, expected `VIOLATION` |
 | `broken-peterson` | 5 | 1 | `VIOLATION` (right verdict, 4 violations missed) |
-| `double-checked-locking` | 1 | 1 | `VIOLATION` (misses the one violating configuration) |
+| `double-checked-locking` | 1 | 1 | `VIOLATION` (missed the one violating configuration) |
 | `lost-update`, `torn-counter` | 1 | 1 | `VIOLATION` (accidentally correct) |
 
 **Root cause.** `PersistentSetComputer` computes the *acyclic* set — a thread is retained only when it
 is dependent on another enabled thread, otherwise one arbitrary enabled thread is returned. Godefroid's
 sound persistent set is `source(c)` ∪ (dependent set), where `source(c)` comes from a reverse-reachability
 analysis. Without `source(c)` the construction preserves the *existence* of a deadlock but **not** state
-reachability, so it is unsound for invariant checking. `DporExplorer` already guards against precisely
-this — it disables reduction entirely when given an invariant, documented at its class Javadoc — so the
-project knows the principle; `StaticPorExplorer` just never applied it.
+reachability, so it is unsound for invariant checking. `DporExplorer` already guarded against precisely
+this — it disables reduction whenever an invariant is given — so the principle was known and
+`StaticPorExplorer` simply never applied it.
+
+**The fix.** `porDfs` now branches over the persistent set only when `invariant == null`; with an
+invariant it branches over every enabled thread, which makes the traversal identical to `DfsExplorer`'s
+and the invariant check exhaustive over reachable configurations. Post-fix, every corpus program with an
+invariant now yields identical configuration counts and identical violation counts across `DfsExplorer`,
+`StaticPorExplorer`, and `DporExplorer`. The reduction is retained, and still sound for what it is
+actually being asked, when no invariant is supplied.
+
+**Residual limitation, not a bug.** The reduction remains unsound for *trace completeness*: every reported
+execution is real, but not every real execution appears. A caller needing a specific schedule in the
+output should use `DfsExplorer` even without an invariant.
 
 **Why no test caught it.** `DslEquivalenceTest` runs all three explorers but compares `StaticPorExplorer`
-only against its own typed/declarative re-encoding, never against `DfsExplorer`'s verdict, and it does so on
-`lost-update` — one of the two corpus programs where the reduction happens to be correct.
-`StaticPorExplorerTest.staticPorReducesStatesWhenInvariantPresent` asserts verdict equality on that same
-program. Both therefore encode the false belief that this comparison is meaningful.
+only against its own typed/declarative re-encoding, never against `DfsExplorer`'s verdict, and it does so
+on `lost-update` — one of the two corpus programs where the reduction happens to be correct.
+`StaticPorExplorerTest.staticPorReducesStatesWhenInvariantPresent` *required* the reduction to survive an
+invariant, which is the unsound behaviour itself. Both encoded the false belief. The suite now carries
+`withAnInvariantEveryExplorerAgreesWithDfsOnTheCorpus`, the differential comparison that was missing, plus
+`supplyingAnInvariantDisablesTheReduction` and the inverted
+`anInvariantDisablesTheReductionSoViolationsCannotBeMissed`; all three fail if the guard is removed.
 
-**Two sound repairs**, neither in this set's scope: apply `DporExplorer`'s guard (drop the reduction when
-an invariant is present), or compute a real `source` set. Until then `DfsExplorer` is the only explorer
-that may be used to certify an invariant. The false guarantee has been removed from the class Javadoc, and
-`StaticPorExplorerTest.acyclicSetPruningMissesViolationsStaticPorIsUnsoundForInvariants` pins the defect
-deliberately — it asserts today's false pass, so a future fix flips it and cannot land unnoticed.
+**Proper follow-up, not done here.** Disabling the reduction is sound but gives up the speedup exactly
+when invariants are in play. Computing a real Godefroid `source` set would keep the reduction sound and is
+the better long-term fix; it is a genuine algorithm with its own spec, not a patch.
 
 Every number below was measured against `build/reports/pitest/mutations.xml`. This set supersedes the
 `mutation-gap-register` working notes, which were never merged; their content is absorbed here, so
