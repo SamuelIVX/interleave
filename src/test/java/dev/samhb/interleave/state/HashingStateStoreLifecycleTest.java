@@ -29,12 +29,18 @@ import static org.junit.jupiter.api.Assertions.*;
  * unsound, which is why the {@code TRUE_RETURNS} mutant on {@code isVisited} is the highest-priority
  * item in the spec despite being one line.
  *
- * <p><b>One test is deliberately white-box.</b> {@link #hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited()}
- * seeds the private {@code visitedHashes} prefilter by reflection. The reasoning is in that test's own
- * comment: it is the only way to reach the prefilter-hit / exact-miss branch without a real hash
- * collision, and an exhaustive walk of the reachable corpus found none. The <em>assertion</em> stays
- * behavioural — {@code isVisited} must answer {@code false} — reflection only arranges the precondition.
- * R7 forbids asserting on internal key strings or hash values, and this test asserts neither.
+ * <p><b>Two things here are white-box, both unavoidably.</b> R1 mandates verifying each collection
+ * <em>individually</em>, and no public method exposes {@code visitedHashes} or
+ * {@code preemptionHashes}, so {@link #clear_emptiesEveryCollection()} reads all four privately —
+ * without it, the L52 and L54 mutants survive. Separately, {@code Configuration} exposes only
+ * {@code initial} and {@code successor}, neither of which can place a thread at an arbitrary
+ * position, so the fixtures use its private constructor rather than being pinned to one program's
+ * traversal order.
+ *
+ * <p>Everything else asserts public behaviour only. In particular
+ * {@link #hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited()} reads no private
+ * state: it constructs a genuinely colliding pair and marks one, querying the other. R7 forbids
+ * asserting on internal key strings or hash values, and nothing here does.
  */
 class HashingStateStoreLifecycleTest {
 
