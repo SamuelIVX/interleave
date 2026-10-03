@@ -123,6 +123,15 @@ denominator.
   reasoning holds for the public API, which is why `clear_makesTheStoreBehaveAsNew` cannot kill them.
   R1 asks for per-collection verification, which is necessarily white-box, and
   `clear_emptiesEveryCollection` reads both prefilter sets by reflection and kills both.
+- **`state.toString()` is not a usable value key.** `DclState.instance` holds a bare `Object`, so its
+  `toString()` prints an identity hash that changes on every `deepCopy`. Two configurations the store
+  correctly treats as the same state therefore look distinct by string: measured on
+  `double-checked-locking`, **23 reachable configurations against 17 distinct encodings**, six pairs
+  colliding. The encoder is *not* at fault — `DclState.encodeTo` writes all six fields, and `instance`
+  is in its domain either null or set, so a presence flag is lossless. Any test helper keying on
+  `state.toString()` will admit duplicates, and a duplicate is legitimately reported visited once its
+  equivalent is marked. `reachableConfigurations` deduplicates through a probe `HashingStateStore`
+  instead, which is also the granularity the assertions are actually about.
 - **No real hash collision exists in the reachable corpus.** Enumerating every reachable configuration
   gave 212 configurations across 128 distinct hashes, and every colliding bucket held the *same*
   configuration, distinguished only by object identity because `Configuration` has no `equals`. So R4's

@@ -5,6 +5,7 @@ import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.core.CounterState;
 import dev.samhb.interleave.core.ModelThread;
 import dev.samhb.interleave.core.SharedState;
+import dev.samhb.interleave.core.Step;
 import dev.samhb.interleave.core.StepOutcome;
 import dev.samhb.interleave.search.StateStore;
 import org.junit.jupiter.api.Test;
@@ -14,7 +15,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -130,31 +130,71 @@ class HashingStateStoreLifecycleTest {
     }
 
     /**
-     * R3 — the copy is independent of the original in both directions.
+     * R3 — the copy is independent of the original in both directions, across both visitation APIs.
      *
      * <p>"Copy" that shares deduplication state with its source gives two searches the same visited set,
      * which is the cross-run contamination Spec 12.05's L87 test guards from the explorer side.
+     *
+     * <p>Both APIs are covered, and the preemption-aware one matters most: {@code ContextBoundedExplorer}
+     * drives {@code markVisited(config, lastThreadId, preemptions)} exclusively, and that path keeps its
+     * state in {@code preemptionHashes} and {@code minPreemptions} — collections the single-argument
+     * assertions never touch. A copy that leaked only that state would pass a single-API test and still
+     * silently pre-prune the next context-bounded search.
+     *
+     * <p>The source is populated <em>before</em> {@code freshCopy()} is called, which is the case that
+     * matters: copying an empty store proves nothing, since an empty store shares nothing by accident.
      */
     @Test
     void freshCopy_isIndependentOfTheOriginal() {
         HashingStateStore original = new HashingStateStore();
-        StateStore copy = original.freshCopy();
         Configuration onlyInOriginal = configurationAt(new CounterState(11), 1, 0);
         Configuration onlyInCopy = configurationAt(new CounterState(13), 1, 0);
+        Configuration costedInOriginal = configurationAt(new CounterState(12), 1, 0);
+        Configuration costedInCopy = configurationAt(new CounterState(14), 1, 0);
 
+        // Populate the source through both APIs before copying it.
         original.markVisited(onlyInOriginal);
-        copy.markVisited(onlyInCopy);
+        original.markVisited(costedInOriginal, 1, 4);
+        assertTrue(original.isVisited(onlyInOriginal), "precondition: original plain mark");
+        assertTrue(original.isVisited(costedInOriginal, 1, 4), "precondition: original costed mark");
 
-        assertTrue(original.isVisited(onlyInOriginal), "original lost its own mark");
-        assertTrue(copy.isVisited(onlyInCopy), "copy lost its own mark");
-        assertFalse(original.isVisited(onlyInCopy), "a mark in the copy leaked into the original");
-        assertFalse(copy.isVisited(onlyInOriginal), "a mark in the original leaked into the copy");
-        assertEquals(1, original.size(), "the original must hold exactly its own mark");
+        StateStore copy = original.freshCopy();
+
+        // The copy starts empty on both paths, despite a source that holds one of each.
+        assertFalse(copy.isVisited(onlyInOriginal),
+            "the copy inherited a plain mark from the original it was copied from");
+        assertFalse(copy.isVisited(costedInOriginal, 1, 4),
+            "the copy inherited a preemption-aware mark from the original it was copied from");
+        assertEquals(0, ((HashingStateStore) copy).preemptionEntryCount(),
+            "the copy inherited preemption entries from the original");
+        assertEquals(0, ((HashingStateStore) copy).size(), "the copy inherited plain states");
+
+        // Now mark the copy on both paths and confirm nothing flows back.
+        copy.markVisited(onlyInCopy);
+        copy.markVisited(costedInCopy, 0, 2);
+
+        assertTrue(copy.isVisited(onlyInCopy), "copy lost its own plain mark");
+        assertTrue(copy.isVisited(costedInCopy, 0, 2), "copy lost its own costed mark");
+        assertTrue(original.isVisited(onlyInOriginal), "original lost its own plain mark");
+        assertTrue(original.isVisited(costedInOriginal, 1, 4), "original lost its own costed mark");
+
+        assertFalse(original.isVisited(onlyInCopy), "a plain mark in the copy leaked into the original");
+        assertFalse(original.isVisited(costedInCopy, 0, 2),
+            "a preemption-aware mark in the copy leaked into the original");
+        assertFalse(copy.isVisited(onlyInOriginal), "a plain mark in the original leaked into the copy");
+        assertFalse(copy.isVisited(costedInOriginal, 1, 4),
+            "a preemption-aware mark in the original leaked into the copy");
+
+        assertEquals(1, original.size(), "the original must hold exactly its own plain mark");
+        assertEquals(1, original.preemptionEntryCount(),
+            "the original must hold exactly its own preemption entry");
         // freshCopy() is typed as the StateStore interface, which exposes no size(); the returned
-        // instance is a HashingStateStore, and asserting instanceof makes the cast below safe and
+        // instance is a HashingStateStore, and asserting instanceof makes the casts above safe and
         // turns this into a check on the concrete bookkeeping rather than the interface alone.
         assertInstanceOf(HashingStateStore.class, copy, "freshCopy() must return a HashingStateStore");
-        assertEquals(1, ((HashingStateStore) copy).size(), "the copy must hold exactly its own mark");
+        assertEquals(1, ((HashingStateStore) copy).size(), "the copy must hold exactly its own plain mark");
+        assertEquals(1, ((HashingStateStore) copy).preemptionEntryCount(),
+            "the copy must hold exactly its own preemption entry");
     }
 
     // ---------------------------------------------------------------- R4 — isVisited exactness
@@ -310,30 +350,64 @@ class HashingStateStoreLifecycleTest {
 
     // ---------------------------------------------------------------- helpers
 
-    /** Reachable configurations by value. {@code Configuration} has no {@code equals}. */
+    /**
+     * Every configuration reachable from {@code initial}, deduplicated the way the store deduplicates.
+     *
+     * <p>Deduplication uses a probe {@link HashingStateStore} rather than a value string, and that choice
+     * is forced: {@code DclState.instance} holds a bare {@code Object}, so {@code state.toString()} prints
+     * an identity hash that changes on every deep copy. Two configurations the store correctly treats as
+     * the same state therefore look distinct by string. Measured on {@code double-checked-locking}: 23
+     * reachable configurations, 17 distinct encodings. Keying on {@code toString()} therefore yields
+     * duplicates, and a duplicate is reported visited by the time its turn comes — correctly, since an
+     * exact-deduplication store must answer yes once an equivalent state is marked.
+     *
+     * @param threads the program's threads, used to step each thread and to build successors
+     * @param initial the seed configuration, normally {@code program.initialConfiguration()}
+     * @return distinct reachable configurations in breadth-first discovery order
+     */
     private static List<Configuration> reachableConfigurations(List<ModelThread> threads,
                                                                Configuration initial) {
         List<Configuration> out = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
         Deque<Configuration> queue = new ArrayDeque<>();
+        HashingStateStore seen = new HashingStateStore();
         queue.add(initial);
         while (!queue.isEmpty()) {
             Configuration c = queue.poll();
-            if (!seen.add(configurationValueKey(c))) continue;
+            if (seen.isVisited(c)) continue;
+            seen.markVisited(c);
             out.add(c);
-            for (int t = 0; t < threads.size(); t++) {
-                if (c.programCounters().get(t) >= threads.get(t).steps().size()) continue;
-                if (!threads.get(t).enabled(c.state())) continue;
-                queue.add(c.successor(t, null, threads, c.state().deepCopy()));
+            // Mirrors DfsExplorer.dfs exactly. Three details matter, and getting any of them wrong
+            // yields a synthetic walk rather than the search's reachable set:
+            //   - candidates come from config.enabledThreadIds(), NOT ModelThread.enabled(), which
+            //     reads the thread's own program counter and would never advance here;
+            //   - the step is executed on a deep copy, so the shared state actually changes;
+            //   - ASSERTION_FAILED is recorded and not descended into, matching the search.
+            for (int threadId : c.enabledThreadIds()) {
+                ModelThread thread = threads.get(threadId);
+                int pc = c.programCounters().get(threadId);
+                if (pc >= thread.steps().size()) continue;
+                Step step = thread.steps().get(pc);
+
+                SharedState nextState = c.state().deepCopy();
+                StepOutcome outcome = step.execute(nextState);
+                if (outcome == StepOutcome.ASSERTION_FAILED) continue;
+
+                queue.add(c.successor(threadId, outcome, threads, nextState));
             }
         }
         return out;
     }
 
-    private static String configurationValueKey(Configuration c) {
-        return c.state().toString() + "|" + c.programCounters();
-    }
-
+    /**
+     * Whether all four collections of {@code store} hold data.
+     *
+     * <p>Used as the precondition of the {@code clear()} test: an assertion that each collection is empty
+     * afterwards is only meaningful if each was full beforehand, and without this the test would pass
+     * trivially against a store whose collections were never populated.
+     *
+     * @return true only when all four of {@code visitedHashes}, {@code visitedStates},
+     *     {@code preemptionHashes}, and {@code minPreemptions} are non-empty
+     */
     private static boolean plainCollectionsPopulated(HashingStateStore store) {
         return !fieldSet(store, "visitedHashes").isEmpty()
             && !fieldSet(store, "visitedStates").isEmpty()
@@ -341,6 +415,16 @@ class HashingStateStoreLifecycleTest {
             && !fieldMap(store, "minPreemptions").isEmpty();
     }
 
+    /**
+     * Reads one of the store's private hash prefilter sets by reflection.
+     *
+     * <p>Needed only by R1's per-collection assertions. No public method exposes these sets, so
+     * verifying each collection individually — which R1 requires — is white-box by construction.
+     *
+     * @param name the field name, one of {@code visitedHashes} or {@code preemptionHashes}
+     * @return the live set held by the store
+     * @throws IllegalStateException if the field is renamed or inaccessible
+     */
     @SuppressWarnings("unchecked")
     private static Set<Integer> fieldSet(HashingStateStore store, String name) {
         try {
@@ -352,6 +436,12 @@ class HashingStateStoreLifecycleTest {
         }
     }
 
+    /**
+     * Reads {@code minPreemptions} by reflection, for the same reason as {@link #fieldSet}: the exact
+     * preemption bookkeeping has no public accessor beyond its size.
+     *
+     * @throws IllegalStateException if the field is renamed or inaccessible
+     */
     @SuppressWarnings("unchecked")
     private static Map<String, Integer> fieldMap(HashingStateStore store, String name) {
         try {
