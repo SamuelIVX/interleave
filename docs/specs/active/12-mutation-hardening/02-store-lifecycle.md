@@ -228,8 +228,12 @@ not. R6 covers all 9 of these low-priority survivors.
       `preemptionEntryCount_countsDistinctConfigThreadPairs`.
 - [x] §Current State carries a verdict row for all 9 low-priority survivors, each marked
       `equivalent — <reason>` or `tested — <test name>` (R6). All 9 equivalent; see §R6 adjudication.
-- [x] A repo-wide grep confirms no test asserts a literal hash value (R7). No hash value appears in
-      any assertion; reflection is used only to arrange preconditions.
+- [x] A repo-wide grep confirms no test asserts a literal hash value (R7). The single assertion that
+      mentions `hashCode()` compares two *computed* values — `[0,31]` against `[1,0]` — to prove the R4
+      fixture genuinely collides. It hardcodes no hash number, so it survives any change to the store's
+      hashing. Reflection is used for exactly two purposes: constructing fixtures and arranging
+      preconditions, and reading the four collections in `clear_emptiesEveryCollection`'s post-clear
+      assertions — the per-collection check R1 requires, and the reason L52 and L54 are killed.
 - [x] `./gradlew clean test javadoc` passes.
 - [x] `./gradlew pitest` shows `HashingStateStore` above 75.4%, and specifically that L52, L54 and
       L123 are `KILLED`. Measured 75.4% → **85.2%**; L39, L52, L54, L98 ×2, L123 all KILLED.
@@ -334,9 +338,13 @@ R4 originally reached the prefilter by injecting a hash into `visitedHashes`. Th
 colliding pair is now constructed instead, so the R4 test asserts only public behaviour and reads no
 private state at all.
 
-R7 forbids asserting on internal key strings or hash values, and none of these tests does: reflection only
-*arranges* preconditions. Every assertion is on public behaviour (`isVisited`, `markVisited`, `size`,
-`preemptionEntryCount`), plus the R1 collection sizes that R1 explicitly requires.
+R7 forbids asserting on internal key strings or hash values, and none of these tests does. Reflection is
+used in two ways, neither of which asserts on a hash value or a key string: it constructs fixtures and
+arranges preconditions, and it reads the four collections' sizes *after* `clear()` in
+`clear_emptiesEveryCollection`. That second use is precisely the per-collection criterion R1 demands — no
+public method exposes the prefilter sets, so that they were emptied cannot be verified otherwise — and
+those four post-clear assertions are what kill L52 and L54. Every other assertion is on public behaviour
+(`isVisited`, `markVisited`, `size`, `preemptionEntryCount`).
 
 **Falsification checks (not committed):**
 - Return `null` from `freshCopy()`; `freshCopy_returnsANonNullUsableStore` must go red (L123).
