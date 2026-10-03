@@ -24,10 +24,26 @@ exactly one mutant** (221 → 222 of 275). Of the 17 mutants Part B targeted, 1 
 are still unconstrained, 6 of which never reached a test at all. That is not a reason to distrust
 Part B — the verdict-level tests it added are genuinely valuable and defect injection confirms they
 catch three of six injected faults. It is a reason to expect little from more of the same shape.
-**The remaining CBE pruning survivors cannot be closed by writing more verdict-level tests.** They
-need a corpus program with enough threads to make wrong dominance observable (Spec 12.05).
+**The remaining CBE pruning survivors cannot be closed by writing more verdict-level tests — and,
+measured, they cannot be closed by a bigger corpus either.** See Spec 12.05 §TL;DR: the 3-thread
+program moved *no* mutant statuses, and injected dominance defects 4–6 already turn the suite red at
+HEAD. They needed direct assertions, which is what 12.05 now does.
 
-## Status: active — 12.07 and 12.01 implemented; 12.02–12.06 pending
+## Status: active — 12.07, 12.01, and 12.05 implemented; 12.02, 12.03, 12.04, 12.06 pending
+
+Verified 2026-10-02 by running PIT scoped to each target class. "Pending" is measured, not
+bookkeeping — every mutant 12.02 and 12.03 names is still open:
+
+| spec | target class | killed | survived | no coverage |
+|---|---|---|---|---|
+| 12.02 | `state.HashingStateStore` | 46 / 61 | 14 | 1 |
+| 12.03 | `state.BitstateStore` | 84 / 97 | 11 | 2 |
+
+The three specs name test files that **do not yet exist** — `HashingStateStoreLifecycleTest`,
+`BitstateStoreDiagnosticsTest`, and `TraceEmissionTest`. What exists in `state/` today is
+`CanonicalEncoderContractTest`, `StateEncodingFidelityTest`, `StateHashingTest`,
+`StateStorePreemptionTest`, and `StoreEquivalenceTest`, none of which covers the mutants 12.02 and
+12.03 name. That is why every target in those two specs survives against the current suite.
 
 ### Fixed during 12.07: `StaticPorExplorer` was unsound with an invariant
 
@@ -274,7 +290,9 @@ details — the exact failure mode that produced PR #26's under-specified metric
   it as a real hazard; it was not, and the corrected write-up is in Spec 12.06.
 - ✅ **Equivalent mutants get a recorded suppression reason, not a contrived test.** Spec 12.02 §R4.
 - ✅ **CBS pruning survivors are not chased with more verdict-level tests.** Defect injection proved
-  the corpus cannot expose them. Spec 12.05 builds the corpus program that can.
+  the corpus cannot expose them, and PIT confirmed the corpus program moves none of them. Spec 12.05
+  was **rescoped 2026-10-02** from "build a corpus program" to "assert the four contracts directly",
+  which closed 8 of 13 in the class (86/105 → 94/105 killed). The corpus program is kept for coverage.
 - ✅ **`CanonicalEncoder.equals` is dead code, and was DELETED** (Branch A, approved by Sam
   2026-10-01; landed in Spec 12.01 §R4). Zero callers anywhere in the repository, including
   tests, fixtures, and docs [verified by repo-wide grep immediately before deletion]. The class
@@ -311,6 +329,7 @@ details — the exact failure mode that produced PR #26's under-specified metric
 | Ratchet at the current 80.7% / integer 81 | Passes only because of one mutant; breaks if that mutant regresses, and hides regressions that cost two. Spec 12.06 §R2. |
 | Ratchet on `testStrength` (85%) instead | Excludes `NO_COVERAGE` mutants, so it cannot see exactly the gap being measured. Spec 12.06 §R1. |
 | Write more differential tests for the CBE survivors | Defect injection shows 3 of 6 injected dominance defects pass every such test. More of the same shape has near-zero expected yield. Spec 12.05. |
+| Add a 3-thread corpus program to kill the CBE survivors | **Tried and measured; moved zero mutants.** Injected defects 4–6 were already caught at HEAD, and PIT showed no status change with the program present. Kept for coverage; the mutants needed direct assertions. Spec 12.05 §TL;DR. |
 | Pin absolute state counts to catch over-pruning | Pins the implementation, not the property; any legitimate optimisation to the visited key breaks it. Spec 12.05 §Non-Goals. |
 | Keep `equals` and write tests for it | An untested public method on the correctness foundation is worse than no method — but the alternative is a deletion decision, not a silent one. Spec 12.01 §R3. |
 | Widen `timeoutConstInMillis` to reduce wall-time kills | Widens the window in which *every* future mutant can be killed on time instead of on an assertion. Spec 12.06 §R6. |
@@ -342,10 +361,10 @@ details — the exact failure mode that produced PR #26's under-specified metric
 
 ## Known Risks
 
-- **Spec 12.05 may find a real bug.** A corpus program designed to expose wrong dominance could
-  expose an actual dominance defect in `ContextBoundedExplorer`. That is a success, not a scope
-  violation — but it means 12.05 is not purely additive and its PR should be prepared to carry a
-  production fix. Budget for that.
+- **Spec 12.05 was rescoped, so this risk is retired.** The original risk was that a corpus program
+  designed to expose wrong dominance might expose an actual `ContextBoundedExplorer` defect. It did
+  not — the premise behind the corpus approach was falsified, and the four contract tests that replaced
+  it found no defect. 12.05 is now purely additive. Spec 12.05 §TL;DR.
 - **Spec 12.07's encoding change will move byte-level expectations elsewhere.** Gaining one boolean at
   the head of the `DeadlockState` encoding invalidates any hardcoded byte string or bitstate bit
   position for `deadlock`. Spec 12.03's bitstate metrics are the most likely to need re-deriving, so
