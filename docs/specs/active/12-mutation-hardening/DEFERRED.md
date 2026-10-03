@@ -21,7 +21,7 @@ Refs are `file:line` against `main` at `92b58b6`.
 | [A4](#a4) | Sound `StaticPorExplorer` fix disables the reduction whenever an invariant is given | perf regression | low | unassigned |
 | [B1](#b1) | `SharedState.toString()` is not value-based — `DclState.instance` prints identity hash | latent trap | **med** | unassigned |
 | [B2](#b2) | `Configuration` has neither `equals` nor `hashCode` | design debt | low | unassigned |
-| [C1](#c1) | R7 (no hash assertions) forbids the only way to kill 4 `BitstateStore` mutants | **rule conflict** | **high** | 12.06 / Sam |
+| ~~[C1](#c1)~~ | ~~R7 (no hash assertions) forbids the only way to kill 4 `BitstateStore` mutants~~ | **closed — premise was false** | — | closed 2026-10-03 |
 | [D1](#d1) | Building a `Configuration` fixture requires reflection | test tax | low | unassigned |
 | [D2](#d2) | No shared procedure for deriving expected values of numeric formulas | test tax | low | unassigned |
 | [E1](#e1) | Per-class PIT table drifted for two classes before 12.03 caught it | process | **med** | 12.06 |
@@ -176,15 +176,35 @@ method and point all three call sites at it. The second also retires B1 as a haz
 ## C. Unresolved rule conflicts — needs a decision, not just work
 
 ### C1
-R7 forbids the only available way to kill four `BitstateStore` mutants
+~~R7 forbids the only available way to kill four `BitstateStore` mutants~~ — **closed, premise falsified**
 {: #c1}
 
-This is the one entry in this register that is a genuine dilemma rather than queued work.
+**Resolution (2026-10-03).** Closed without a ruling, because the dilemma it described did not exist.
+**R7 was never the blocker.** `lossyBitstateFilter_stillSurfacesTheDeadlock` kills two of the four at
+the observation level, asserting only on a reported outcome through the public seam — no hash value
+appears anywhere in it. The store simply has to be exercised at a size where collisions actually
+occur; 64 bits does that, and the 1,000,003-bit default never does on a corpus this small, which is
+why every earlier attempt failed. Option 2 below was therefore never needed.
 
-**The conflict.** Spec 12.03 leaves `L333`, `L343` (×2) and `L357` `SURVIVED`. These are the
-`doubleHash` index arithmetic in `BitstateStore`. Spec 12.03's R7 — inherited from 12.02 — forbids any
-assertion referencing a hash value. Killing those four requires constructing a pair that collides
-under the mutant but not the original, which is *precisely* a hash-structure claim.
+The three still `SURVIVED` are a different problem, and an easier one: across **1,080 measured
+configurations** (7 corpus programs × 10 sizes × 6 hash counts × 2 bounds) they change **no reported
+verdict at all**. They are unobservable, not forbidden. PIT agrees independently at 82 covering tests
+each. They stay in the denominator as a measured floor; 12.03 §R6 records why, including the two ways
+of closing them that were considered and rejected on purpose.
+
+**No decision is needed from 12.06 or Sam.** R7 stands unamended. The record below is kept because the
+wrong reasoning is more dangerous than no reasoning — it invited a permanent "rule conflict" that would
+have licensed a hash-structure exception nobody needed.
+
+---
+
+<details>
+<summary>Original entry, retained because the reasoning was wrong in an instructive way</summary>
+
+**The conflict as originally recorded.** Spec 12.03 leaves `L333`, `L343` (×2) and `L357` `SURVIVED`.
+These are the `doubleHash` index arithmetic in `BitstateStore`. Spec 12.03's R7 — inherited from 12.02
+— forbids any assertion referencing a hash value. Killing those four requires constructing a pair that
+collides under the mutant but not the original, which is *precisely* a hash-structure claim.
 
 **The 12.02 verdict does not transfer, and this is the part worth being careful about.** 12.02
 adjudicated nine `HashingStateStore` survivors *equivalent*, with a proof: the hash feeds only the
@@ -207,9 +227,11 @@ rather than decided unilaterally.
    sequence has the right *shape* (k indices, all in `[0, size)`) without naming any value. Weaker, and
    I have not verified it kills all four.
 
-**Recommendation.** Option 2, scoped tightly. The tension is real and permanent, and option 1 leaves
-the suite quietly unable to test its own hash. Whoever picks up 12.06 should decide explicitly, because
-12.06's ratchet will otherwise pin 4 without recording that the number is a policy choice.
+**Recommendation (superseded).** Option 2, scoped tightly. *Wrong*: the tension was neither real nor
+permanent, and the suite was never unable to test its own hash — it just had to test it through the
+seam rather than through the hash.
+
+</details>
 
 ---
 
@@ -338,7 +360,8 @@ See [E2](#e2). Verified: `BitstateStoreDiagnosticsTest` uses `CounterState` only
 
 84/97 (86.6%) → 93/97 (95.9%), `NO_COVERAGE` 2 → 0. All seven lines fully killed; the nine mutants
 killed are exactly the nine the spec named. Falsification demonstrated per mutant with the production
-file restored byte-identical. The 4 remaining survivors are covered by [C1](#c1), not by this entry.
+file restored byte-identical. The 4 survivors left by this entry were covered by [C1](#c1), which
+has since been closed: one was killed at the observation level and 3 remain as a measured floor.
 
 ### G4
 `HashingStateStore`'s 9 survivors — **adjudicated equivalent, deliberately left `SURVIVED`**
