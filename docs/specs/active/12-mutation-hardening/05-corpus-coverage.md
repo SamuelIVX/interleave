@@ -1,60 +1,86 @@
-# Spec 12.05 — A Corpus Program That Exposes Dominance Bugs
+# Spec 12.05 — `ContextBoundedExplorer` Contract Tests and a 3-Thread Corpus Program
 
 ## TL;DR
 
-**Every program in the corpus has exactly two threads.** That single fact is the root cause of the
-largest gap in the set: `ContextBoundedExplorer`'s cost-aware dominance logic — the code that decides
-a state reached at preemption budget *p* is dominated by one recorded at budget *q ≤ p* — is
-effectively untested. Fourteen `NO_COVERAGE` and `SURVIVED` mutants sit in that logic and in the
-adjacent visitor wiring.
+**Rescoped 2026-10-02. The original premise was measured and did not survive.**
 
-This is not a hypothesis. **Defect injection already proved it.** Six defects were injected into
-`ContextBoundedExplorer` one at a time; three passed the entire Part B suite. All three corrupt the
-same mechanism in different directions, and all three are cases where wrong dominance prunes a state
-that was the only route to a reachable violation.
+The spec was written on this theory: every corpus program has exactly two threads, and that is *why*
+`ContextBoundedExplorer`'s dominance logic is undertested — two threads produce too few distinct
+`(config, lastThreadId, preemption)` triples for wrong dominance to be observable. The fix was to add one
+3-thread program and show that injected dominance defects then turn the suite red.
 
-More verdict-level tests will not fix this. A 3-thread corpus program will, because it produces
-enough distinct `(config, lastThreadId, preemption)` triples for wrong dominance to be *observable*.
+The program was added. It changes nothing.
+
+**R4 — the defects were already caught.** Exact JUnit XML failure counts, 404 tests at HEAD versus 406
+with `lost-update-3t` added:
+
+| injected defect | at HEAD | with `lost-update-3t` |
+|---|---|---|
+| 4, budget-blind visited key (`-1`) | 59 | 59 |
+| 5, records `currentPreemptions + 1` | 47 | 47 |
+| 6, always records zero cost | 1 | 1 |
+
+Identical. The suite was already red for all three. The claim that defects 4–6 survive was true when PR
+#29 measured it and is stale now; tests that landed since catch them.
+
+**R10 — no mutant moved.** PIT scoped to `ContextBoundedExplorer`, with and without the program:
+105 mutants, 86 killed, 13 survived, 6 no coverage, and **no status changes at all**. Not one.
+
+So the survivors were never caused by too small a corpus:
+
+- **L87, L88** are `store.clear()` and `visitedStates.clear()` — see §Relationship to 12.02.
+- **L82** removes `bitstate.maxPreemptions()` from an *exception message*. Only a test asserting the
+  message text can kill it; corpus size is irrelevant.
+- **L113 x5** is `visitedStates.put`'s result-map key. Distinct configurations silently collide and are
+  lost from `states()`. No verdict-level test can see it, because the verdict is unaffected.
+
+**What this spec does instead.** The corpus program is kept — it is a real coverage improvement, and R2's
+measurement cannot exist without it — and the mutants are closed by asserting the four contracts
+directly. That works where the corpus did not:
+
+| | before | after |
+|---|---|---|
+| killed (scoped to `ContextBoundedExplorer`) | 86 / 105 | **94 / 105** |
+| survived | 13 | **5** |
+
+Eight mutants closed, none of them by adding a program.
 
 ## Objective
 
-Add at least one corpus program with three or more threads whose reachable state space makes
-cost-aware dominance observable, and demonstrate the property by showing that defect injection into
-the dominance logic now turns the suite red.
-
-This is the only fix in the set for the `ContextBoundedExplorer` survivors. Specs 12.01–12.04 do not
-touch them and cannot.
+Give `ContextBoundedExplorer`'s result-reporting and search-lifecycle contracts real, direct assertions,
+and keep one 3-thread corpus program so the corpus is no longer uniformly 2-thread.
 
 ## Scope
 
-- **Package:** `interleave` / `src/main/java/dev/samhb/interleave/corpus` (or `bugs`), `format`
+- **Package:** `interleave` / `src/main/java/dev/samhb/interleave/corpus` (or `bugs`), `format`, and
+  `cb` for the contract tests
 - **Modifies:** the corpus resource(s), the corpus registry, `README.md` corpus listing, any
-  benchmark/attestation table that enumerates programs, and adds a dominance-sensitive test
-- **Off-limits:** `cb/ContextBoundedExplorer.java` internals — this spec builds the *corpus*, not the
-  algorithm. If injection reveals a real dominance defect, that fix is a separate scoped change with
-  its own regression test. `format/ProgramLoader.java` invariant registrations — Specs
-  `09-json-dsl-core` / `10-json-dsl-invariants` own those, except as noted in R7.
+  benchmark/attestation table that enumerates programs; adds
+  `src/test/java/dev/samhb/interleave/cb/ContextBoundedExplorerContractTest.java`
+- **Off-limits:** `cb/ContextBoundedExplorer.java` internals — this spec writes tests, not the algorithm.
+  If a contract assertion reveals a real defect, that fix is a separate scoped change with its own
+  regression test. `format/ProgramLoader.java` invariant registrations — Specs `09-json-dsl-core` /
+  `10-json-dsl-invariants` own those.
 
 ## Non-Goals
 
-- **Not pinning absolute state counts.** PR #29's defect injection records that a pruner exploring 12%
-  fewer states
-  passes B.1 (verdicts agree), B.2 (still monotonic), and B.3 (store contract unaffected).
-  A count guard would pin the implementation, not the property, and every legitimate optimisation to
-  the visited key would break it. If a count assertion is added at all, it is a tripwire with a
-  comment saying so — not the primary defense.
+- **Not making dominance observable via corpus size.** Attempted, measured, abandoned. Do not
+  re-attempt without new evidence; a future corpus program is a coverage improvement, not a
+  mutant-killing strategy.
+- Not writing the `CorpusDominanceCoverageTest` this spec originally specified. Its headline tests would
+  be vacuous, because the defects they target are already caught.
+- **Not pinning absolute state counts.** The original spec's rationale still holds and is preserved here:
+  PR #29 recorded that a pruner exploring 12% fewer states passes verdict-agreement, monotonicity, and
+  store-contract tests alike. A count guard pins the implementation, not the property.
 - Not changing the CBS algorithm, the `StateStore` interface, or the dominance equivalence itself.
-- Not making the whole corpus multi-threaded. One program is enough to make the property observable;
-  a wholesale corpus migration is a separate effort.
-- Not raising the mutation score by itself. This spec's success criterion is *defect injection
-  turning red*, not a percentage.
+- Not raising the mutation score by itself. The success criterion is that specific named mutants die.
 
 ## Current State
 
-### The corpus is uniformly 2-thread [verified]
+### The corpus is no longer uniformly 2-thread [verified]
 
-`bugs/BugCorpus.all()` returns seven programs loaded from JSON resources. **All seven declare exactly
-two threads** (ids 0 and 1) [verified]:
+`bugs/BugCorpus.all()` returns **eight** programs. Seven declare two threads; `lost-update-3t` declares
+three.
 
 | program | threads | expected verdict | invariant |
 |---|---|---|---|
@@ -64,263 +90,246 @@ two threads** (ids 0 and 1) [verified]:
 | `deadlock` | 2 | `DEADLOCK` | none |
 | `double-checked-locking` | 2 | `VIOLATION` | `dcl_uninitialized_observed` |
 | `lost-update` | 2 | `VIOLATION` | `counter_equals` |
+| **`lost-update-3t`** | **3** | `VIOLATION` | `counter == 3` (declarative) |
 | `torn-counter` | 2 | `VIOLATION` | `torn_read` |
 
-### Defect-injection evidence [verified]
+### R2 measurement [verified]
 
-Six defects injected into `ContextBoundedExplorer`, one at a time, against the merged Part B suite:
+Exhaustive DFS configuration counts, **measured with invariants**, which is how the corpus's own programs
+are run:
 
-| # | Injected defect | Direction | Caught by Part B |
+| program | configurations |
+|---|---|
+| `broken-peterson`, `broken-peterson-v2` | 46 (2-thread maximum) |
+| **`lost-update-3t`** | **84** |
+| `peterson` | 42 |
+| `double-checked-locking` | 17 |
+| `deadlock` | 15 |
+| `lost-update` | 13 |
+| `torn-counter` | 8 |
+
+Margin: **1.83x** over the 2-thread maximum.
+
+**Both figures must be measured the same way.** Measured *without* an invariant, `broken-peterson` is 55
+rather than 46, because a violating configuration ends the search before its successors are created.
+That 46-versus-55 ambiguity already caused one misreading during Spec 12.07; R2 compares like for like
+and the numbers above are the with-invariant ones.
+
+### The typed format cannot express 3 threads [verified, new]
+
+The original spec asserted that multi-thread programs were already expressible and that no work was
+needed. True of the DSL, false of the typed path:
+
+- `StateRegistry` creates the counter state as `CounterState.of(counter)`, which sizes per-thread
+  registers for **exactly two threads**. A 3-thread typed program throws on thread 2's register write.
+- `DslLoader` sizes `DynamicState` from the declared thread count, so the **declarative** format is
+  correct.
+
+`lost-update-3t` is therefore declarative. Fixing the typed path would be a change to
+`StateRegistry`, outside this spec's scope.
+
+### Defect-injection evidence [STALE — superseded 2026-10-02]
+
+The original table, preserved because its conclusion is now known to be wrong:
+
+| # | Injected defect | Direction | Caught by Part B, as measured then |
 |---|---|---|---|
-| 1 | Undercount preemptions to 0 on a paid switch | explores too much | yes — 4 tests |
-| 2 | Charge continuations as preemptions | over-prunes, exhausts budget early | yes — 1 test |
-| 3 | Prune on `config` alone, ignoring `lastThreadId` and budget | over-prunes | yes — 1 test |
 | 4 | Budget-blind visited key (`markVisited(config, tid, -1)`) | over-prunes | **NO** |
 | 5 | Record `currentPreemptions + 1` (inverted dominance) | over-prunes | **NO** |
 | 6 | Always record zero cost | over-prunes | **NO** |
 
-**Defects 4–6 all survived.** Verdicts stayed correct in every miss: with 2 threads and few steps, the
-corpus produces too few distinct `(config, lastThreadId, preemption)` triples for wrong dominance to
-drop a state that mattered. State counts fell measurably under defect 6 (measured):
+**All three now turn the suite red**, at HEAD, without `lost-update-3t` — see the R4 table in the TL;DR.
+Defect 6 is caught by exactly one test, `ContextBoundedExplorerTest.zeroBudget_allowsOnlyContinuations`.
 
-| program | CBS states | DFS states |
-|---|---|---|
-| `peterson` | 59 | 42 |
-| `broken-peterson` | 60 | 46 |
-| `deadlock` | 19 | 15 |
-| `torn-counter` | **8** | **8** |
+### Mutants this spec owns [verified]
 
-The `torn-counter` row is the sharpest evidence: under a defective pruner, CBS stopped exploring more
-states than DFS, and **no test noticed**. A dominance bug that reduces exploration to *no better than
-the baseline it is supposed to beat* is invisible to every test written.
+PIT scoped to `dev.samhb.interleave.cb.ContextBoundedExplorer`, statuses after this spec:
 
-Measured configuration count for the new program: `[unverified]` — does not exist yet. Measure it
-per R2 and record the value and its margin over the 2-thread corpus here before closing this spec.
+| line | symbol | mutator | before | after |
+|---|---|---|---|---|
+| L82 | `explore` — capacity-guard message | `NON_VOID_METHOD_CALLS` | SURVIVED | **KILLED** |
+| L87 | `dfs` — `store.clear()` | `NON_VOID_METHOD_CALLS` | SURVIVED | **KILLED** |
+| L88 | `dfs` — `visitedStates.clear()` | `NON_VOID_METHOD_CALLS` | SURVIVED | **KILLED** |
+| L113 | `dfs` — result-map key construction | `NON_VOID_METHOD_CALLS` x5 | SURVIVED x5 | **KILLED x5** |
 
-Measured configuration counts across the existing 2-thread corpus: `[unverified]` — not recorded in
-this document. R2 requires the comparison against this maximum, so establishing it is part of
-implementing 12.05.
+L112 (`markVisited`) is KILLED and was never a target. The original spec's "L113 x5" is
+`visitedStates.put`, not `markVisited`; the two lines are adjacent and were easy to conflate.
 
-### Mutants this spec must kill [verified]
+### Remaining survivors in scope [verified]
 
-| line | symbol | mutator | status |
-|---|---|---|---|
-| L82 | `dfs` — store-capacity read | `NON_VOID_METHOD_CALLS` | SURVIVED |
-| L87 | `dfs` — visitor call | `VOID_METHOD_CALLS` | SURVIVED |
-| L88 | `dfs` — visitor call | `VOID_METHOD_CALLS` | SURVIVED |
-| L113 | `dfs` — visited-key construction | `NON_VOID_METHOD_CALLS` ×5 | SURVIVED ×5 |
-| L41 | `explore(Program)` | ×2 | NO_COVERAGE (Spec 12.04) |
+Per-line counts, so the totals can be checked rather than trusted:
 
-`L113` alone is 5 mutants. That line builds the explorer's own visited key; removing a component of
-it is exactly defects 4–6's mechanism, and Part B's differential tests did not catch it because the
-*verdict* survives even when the *pruning* is wrong.
+| line | symbol | `SURVIVED` | `NO_COVERAGE` | note |
+|---|---|---|---|---|
+| L41 | `explore` | 0 | 2 | assigned to Spec 12.04 by the original table |
+| L176 | `dfs` | 0 | 4 | dead branch / recursion guard |
+| L187 | `dfs` | 1 | 0 | |
+| L203 | `emitIncompleteTraceIfNeeded` | 2 | 0 | method and its lambda |
+| L204 | `emitIncompleteTraceIfNeeded` | 1 | 0 | lambda |
+| L214 | `addTrace` | 1 | 0 | |
+| **total** | | **5** | **6** | |
 
-### Two [verified] constraints that shape the design
+**Not owned here.** L41's two `NO_COVERAGE` are assigned to Spec 12.04; the remaining 9 are unassigned
+and are a candidate for a future spec.
 
-- **`ProgramLoader.java:253` — `mutual_exclusion_peterson` requires exactly two threads**, throwing
-  `RegistryException` otherwise. A multi-thread program **cannot** use the Peterson invariant.
-- **`DslLoader.java:63` — the DSL accepts 1–8 threads** (`threadCount < 1 || threadCount > 8` throws).
-  Multi-thread programs are expressible today; no DSL work is needed.
+## Relationship to 12.02
 
-So the new program must use a thread-count-agnostic invariant. `counter_equals` (from `lost-update`) is
-the natural fit and needs no new invariant type.
+L87 and L88 sit next to Spec 12.02 §(a), but assert a **different fact about a different class**, and are
+**not** handed to it:
+
+- **12.02 (a)** is scoped to `interleave/state` and asserts that `HashingStateStore.clear()` empties its
+  own four collections. That is a fact about the *store*.
+- **L87/L88** are in `cb/ContextBoundedExplorer` and assert that the *caller* invokes `clear()` at all.
+  Removing L87 leaves the store's `clear()` perfectly correct while every subsequent search on that store
+  prunes against the previous search's contents.
+
+Complementary, not duplicate. Handing them over would either drag 12.02's package scope out to `cb/` or
+file a CBS mutant under a spec that does not cover that package.
 
 ## Invariants
 
 - **The dominance equivalence is the property under test.** A state reached at preemption budget *p*
   SHALL be pruned only if some recorded state with identical `(config, lastThreadId)` was reached at
-  budget *q ≤ p*. Pruning on any other basis — ignoring budget, ignoring `lastThreadId`, or recording
-  a cost greater than the true one — discards states that may be the only route to a violation.
-- **A correct program SHALL be `PASS` under DFS, and `INCOMPLETE` under a bounded CBS run that
-  exceeded its budget.** These are not in conflict and must not be asserted as agreement:
-  `SoundnessAttestation` excludes `INCOMPLETE` from cross-strategy agreement precisely because a
-  bounded run on `peterson` is `PASS` under DFS and `INCOMPLETE` under CBS at K=2 (Spec 11.05 §6).
-  **CBS reports `PASS` only when it is exhaustive at the bound.** A bounded CBS run over budget
-  reports `INCOMPLETE` even when the program is correct — that is the verdict's entire purpose, not a
-  correctness violation, and treating it as one would make this spec unsatisfiable.
-- **A buggy program SHALL report its declared verdict** under every strategy that is expected to find
-  it, at the bound where it is detectable.
-- **Adding a corpus program SHALL NOT change the total mutant count.** Mutators target production
-  source; new tests can only move mutants *between* statuses (`NO_COVERAGE` → `SURVIVED`/`KILLED`).
-  A change in the total means production code changed or scope moved — investigate before reading the
-  percentage (Spec 12.06 §R5). **The expected total is the one measured after Spec 12.01 landed, not
-  the 275 recorded today:** 12.01 §R3 Branch A deletes `CanonicalEncoder.equals`, removing its five
-  mutants outright. **Ownership of that number is split, deliberately.** Spec 12.01 records it — in
-  the `total mutants` row of Spec 12.06's §Derivation Record — because it is 12.01's change that moves
-  the total. This spec only *reads* it and never writes it; a single writer keeps the two from drifting.
-  The value is 275 only if 12.01 chose Branch B and kept `equals`.
-- **Corpus programs SHALL remain small enough to explore exhaustively at the test bound.** A program
-  too large to DFS makes every differential assertion meaningless.
+  budget *q ≤ p*.
+- **A correct program SHALL be `PASS` under exhaustive DFS.** Under a *bounded* CBS run it SHALL be
+  `PASS` when it completes within its budget, and `INCOMPLETE` **only** when the budget is exceeded —
+  never the reverse. These must not be asserted as agreement: `SoundnessAttestation` excludes
+  `INCOMPLETE` from cross-strategy agreement precisely because a bounded run on `peterson` can be
+  `PASS` under DFS and `INCOMPLETE` under CBS at K=2.
+- **A buggy program SHALL report its declared verdict** under every strategy expected to find it.
+- **Adding a corpus program SHALL NOT change the total mutant count.** Mutators target production source;
+  new tests only move mutants *between* statuses. A change in the total means production code changed or
+  scope moved — investigate before reading the percentage (Spec 12.06 §R5).
+- **A contract test SHALL compare configurations by value, never by identity.** `Configuration` declares
+  no `equals` or `hashCode`, so a set of `Configuration` objects measures object identity and reports
+  nonsense — including the false result that every visited configuration is missing from the result map.
+  This cost two wrong probes during this spec's implementation and is the single most important
+  methodological note here.
 
 ## Requirements
 
-1. **THE SYSTEM SHALL** add at least one corpus program with **three or more threads** whose
-   reachable configuration space contains enough distinct `(config, lastThreadId, preemption)`
-   triples that a dominance error changes which states are explored.
-2. **WHEN** the new program is run exhaustively under DFS at the test bound, **THE SYSTEM SHALL**
-   report a measured configuration count, and that count SHALL exceed the maximum across the
-   existing 2-thread corpus by a margin recorded in §Current State. The requirement is the
-   *measurement and its comparison*, both of which are objectively checkable; it does not depend on
-   a predicted value for the new program.
-3. **THE SYSTEM SHALL** declare the new program with a thread-count-agnostic invariant. It SHALL NOT
-   use `mutual_exclusion_peterson` [verified: rejected by `ProgramLoader`].
-4. **WHEN** a dominance defect of the classes of injected defects 4–6 is introduced into
-   `ContextBoundedExplorer`, **THE SYSTEM SHALL** observe the test suite go red.
-5. **THE SYSTEM SHALL** provide at least one buggy program whose reachable violation requires
-   exploring a state that over-pruning would drop.
-6. **THE SYSTEM SHALL** retain a correct program in the corpus whose bounded CBS run produces only
-   `COMPLETED` traces, so `INCOMPLETE` suppression behaviour stays covered after the corpus changes.
-7. **THE SYSTEM SHALL NOT** assert an absolute state count as its primary defense. Any count
-   assertion SHALL carry a comment marking it a tripwire.
-8. **WHEN** the corpus is extended, **THE SYSTEM SHALL** update every place that enumerates programs
-   and would otherwise silently omit the new one — at minimum the README corpus listing, the
-   benchmark states-explored table, and the soundness attestation inputs.
-9. **THE SYSTEM SHALL** keep `SoundnessAttestation` passing: all exact strategies that report a
-   decided verdict must agree on every correct program — with `INCOMPLETE` excluded from that
-   agreement, as it already is. A correct program SHALL never be reported `VIOLATION` by any
-   strategy, bounded or not, and every reported violation SHALL replay.
-10. **THE SYSTEM SHALL** record the measured configuration count for the new program, and SHALL
-    re-run `./gradlew pitest` and report which of the L82/L87/L88/L113 mutants flipped.
+1. **THE SYSTEM SHALL** keep `lost-update-3t`, a 3-thread program in the **declarative** format, with a
+   thread-count-agnostic invariant, and SHALL NOT use `mutual_exclusion_peterson`
+   [verified: rejected by `ProgramLoader` for requiring exactly two threads].
+2. **WHEN** the new program is run exhaustively under DFS **with its invariant**, **THE SYSTEM SHALL**
+   report a measured configuration count exceeding the 2-thread maximum by a documented margin. Recorded
+   in §Current State as 84 against 46.
+3. **THE SYSTEM SHALL** assert that the undersized-store rejection names the store's configured capacity
+   (L82).
+4. **THE SYSTEM SHALL** assert that a reused store does not prune the next search, and that
+   `visitedStates` does not carry configurations from a previous run into a different program's result
+   (L87, L88).
+5. **THE SYSTEM SHALL** assert that every distinct configuration reached appears in `states()`, comparing
+   configurations by value against the `StateVisitor` ground truth (L113).
+6. **THE SYSTEM SHALL NOT** assert `states().size() == statesExplored()`. That is false on correct code;
+   see §Design.
+7. **WHEN** the corpus is extended, **THE SYSTEM SHALL** update every place that enumerates programs and
+   would otherwise silently omit the new one — at minimum the README corpus listing, the benchmark
+   states-explored table, the soundness attestation inputs, and the corpus-size assertion.
+8. **THE SYSTEM SHALL** make the Java-fixture exclusion explicit rather than implicit, so a future typed
+   program added without a fixture fails instead of escaping equivalence checking.
+9. **THE SYSTEM SHALL** record the measured mutant statuses for L82, L87, L88, L113 in §Current State.
 
 ## Acceptance Criteria
 
-- [ ] A new ≥3-thread program exists, is registered in the corpus, and is listed in the README
-      (R1, R8).
-- [ ] Its invariant loads successfully (R3) — proven by the corpus load test passing.
-- [ ] Its exhaustive DFS configuration count is measured and recorded, and exceeds the 2-thread
-      corpus's maximum by a documented margin (R2).
-- [ ] **Falsification, four runs, all four demonstrated in the PR body** (R4):
-      - inject defect 4 (budget-blind visited key) → suite red
-      - inject defect 5 (record `currentPreemptions + 1`) → suite red
-      - inject defect 6 (always record zero cost) → suite red
-      - confirm all three are reverted and the suite is green
-- [ ] A buggy program exists whose violation is reachable only via states that over-pruning drops
-      (R5).
-- [ ] A correct program still yields a bounded CBS run with only `COMPLETED` traces (R6).
-- [ ] `SoundnessAttestation` passes with the extended corpus (R9).
-- [ ] `./gradlew pitest` total is **unchanged from the post-12.01 total** — a different total fails
-      the acceptance criteria until explained (Invariant, R4 above). That number is written by Spec
-      12.01 into the `total mutants` row of Spec 12.06's §Derivation Record; this spec only reads it
-      from there, and does not record a literal of its own.
-- [ ] `./gradlew clean test javadoc` passes.
-- [ ] The PR body reports the before/after status of L82, L87, L88, L113.
+- [x] A >=3-thread program exists, is registered, and is listed (R1, R7)
+- [x] Its invariant loads; its exhaustive DFS count is measured and exceeds the 2-thread maximum (R2)
+- [x] The corpus is no longer uniformly 2-thread (R1)
+- [x] L82, L87, L88 and L113 x5 are all **KILLED** (R3, R4, R5, R9)
+- [x] Every corpus program without a Java fixture is declarative, and that set is asserted by name (R8)
+- [x] `SoundnessAttestation` passes with the extended corpus
+- [x] `./gradlew clean test javadoc` passes
+- [x] A correct program yields no `VIOLATION` at any bound, and only `COMPLETED` traces once its budget
+      suffices. Measured for `peterson`: `{COMPLETED=3, INCOMPLETE=1}` at K=1 and K=2, `{COMPLETED=3}`
+      at K=3. The `INCOMPLETE` trace at K<=2 is the budget-exceeded case §Invariants describes, not a
+      failure — an earlier wording asserted "only `COMPLETED` traces" unqualified and was wrong at K<=2.
+- ~~A buggy program whose violation is reachable only via states over-pruning drops~~ — **retired, the
+      claim was false.** `lost-update-3t` was asserted to need all three threads read before any thread
+      writes. It does not. The shortest violating trace is 6 steps: thread 0 reads and writes
+      (`counter = 1`), then threads 1 and 2 both read `1` and both write `2`, losing thread 2's
+      increment. A single lost update violates `counter == 3`, and 15 of 21 traces violate. Separately,
+      R4 shows over-pruning does **not** hide this program's violation, so it cannot be the
+      over-pruning-only program this criterion asks for. Whether such a program exists is open; it is
+      not a prerequisite for this spec, whose mutants are now closed directly.
+- [ ] `CorpusDominanceCoverageTest` as originally specified — **withdrawn**, see §Non-Goals
+- [ ] Defect-injection protocol R4 demonstrating the corpus program catches injected defects —
+      **withdrawn as unachievable**, see §TL;DR
 
 ## Design
 
-### Choosing the program shape
+### The program shape
 
-The requirement is *not* "a bigger program" — it is "a program whose reachable state space makes
-wrong dominance observable." The shape that achieves it:
+N threads performing read-modify-write on a shared counter, one lost-update bug, under a
+thread-count-agnostic invariant. Three threads, two steps each: `local.r = counter` then
+`counter = local.r + 1`, invariant `counter == 3`. If all three read before any writes, the counter ends
+at 1 rather than 3.
 
-**N threads (start at 3) performing read-modify-write on a shared counter, with a lost-update bug in
-one thread.** Under `counter_equals` with `expected: N`.
+Chosen over a larger thread count deliberately: every additional thread multiplies the state space and
+test runtime, and 3 is the minimum that breaks the 2-thread degeneracy. It stays exhaustively
+DFS-able at 84 configurations.
 
-Why this shape:
+### `states()` versus `statesExplored`
 
-- **It multiplies the distinct `(config, lastThreadId)` pairs.** Distinctness comes from the
-  program-counter configurations, not from the number of schedules: two threads give O(steps²)
-  distinct configurations, three give O(steps³). The dominance key's distinctness is what defects
-  4–6 need in order to be caught.
-- **It uses a thread-count-agnostic invariant**, so no DSL work is needed [verified].
-- **It has a known bug class already represented** (`lost-update`), so the expected-verdict machinery
-  and attestation are already exercised for it.
-- **It stays exhaustively DFS-able.** A counter-based program with a few steps per thread is small in
-  configuration space even at three threads; that is the property R2 measures rather than assumes.
+These are different quantities and the difference is **not** a defect. Measured across the corpus at
+K=1..3:
 
-Start at 3 threads, not 4+. Every additional thread multiplies the state space and the test runtime,
-and 3 is the minimum that breaks the 2-thread degeneracy. If 3 does not expose the property, measure
-and record why before escalating to 4.
+- `statesExplored` counts exploration **events** — `(config, lastThreadId, preemption)` triples. The same
+  configuration is legitimately reached at several preemption counts, up to **4 times** measured.
+- `states()` reports **distinct configurations**. Every configuration reached appears, with **zero**
+  missing on every program at every bound tested.
 
-### The falsification protocol (R4) — this is the deliverable
+The result-map key omits the preemption count that the store's visited key includes, and that is
+harmless: two explorations sharing `(config, lastThreadId)` at different costs hold the same
+`Configuration` value, so the map still reports it.
 
-The point of this spec is not the new program; it is the **proof** that the program makes dominance
-observable. Without R4, the new program is just more corpus, and "more corpus" is exactly the
-low-yield move Spec 12.01–12.04 already declined.
-
-Procedure, repeated for each of defects 4, 5, 6:
-
-1. Record the green baseline: full suite passing, `./gradlew pitest` baseline numbers.
-2. Inject the single defect into `ContextBoundedExplorer`.
-3. Run `./gradlew test`. **It MUST go red.** Record which test(s) and the failure message.
-4. Re-run `./gradlew pitest`. Record whether L82/L87/L88/L113 flipped.
-5. Revert the defect. Confirm the suite is green again.
-6. Repeat for the next defect.
-
-Record all six data points in the PR body. A defect that still passes is a **finding about the
-program's shape** — go back to R1 and widen the program; do not paper over it by weakening a test.
-
-This protocol is the same one PR #29 used, and it is the reason "three of six injected defects pass
-today" can be stated here as a measured fact rather than a suspicion. Preserving that property is
-worth more than any single new mutant kill.
-
-### Keeping the blast radius small
-
-Adding a corpus program touches more than it looks like:
-
-- `BugCorpus.all()` and the resource list
-- README's corpus enumeration and any stated counts (currently "7-program corpus")
-- `StatesExploredTable` — CBS-vs-DFS percentages, which are **not** guaranteed to be reductions
-  (Spec 11.05 §5 already made negative percentages representable; a new program will exercise that)
-- `SoundnessAttestation` — every correct program must agree across exact strategies
-- Spec 11's README, which states verification results "against the 7-program corpus"
-
-Enumerate these in the PR body as an explicit checklist (R8). A benchmark table that silently omits
-the new program is the same defect class as Spec 11.05 §5's hardcoded `strategyOrder` array.
+Asserting `states().size() == statesExplored()` would fail on correct code, and asserting the map "misses"
+configurations would fail for the same reason. Both were tried and rejected.
 
 ## Tests
 
-**File:** `src/test/java/dev/samhb/interleave/corpus/CorpusDominanceCoverageTest.java` (new)
+**File:** `src/test/java/dev/samhb/interleave/cb/ContextBoundedExplorerContractTest.java`
 
-- `dominanceRule_prunesOnlyOnNonGreaterOrEqualBudget` (R1, R4) — the property test: for a bounded
-  search, every pruned state has a recorded dominator with budget ≤ its own
-- `threeThreadProgram_dfsConfigurationCount_exceedsTwoThreadMaximum` (R2) — pins the R2 measurement
-  as a floor, so a corpus change that shrinks the state space fails loudly. **The floor assertion
-  carries the R7 tripwire comment**, because it is the one place this spec touches an absolute count:
-  it is a *relative* comparison between two programs on the same store implementation, which is a
-  property the corpus exhibits, not a value the implementation promises.
-- `newProgram_expectedVerdict_reportedByEveryStrategyThatFindsIt` (R5, R9) — asserted per strategy
-  with its bound stated, so a bounded `INCOMPLETE` is a pass and a bounded `VIOLATION` is not
-- `newProgram_violationReplay_satisfiesInvariant` (R5, R9)
-- `soundnessAttestation_passesWithExtendedCorpus` (R9)
-- `correctProgram_boundedCbsRun_emitsOnlyCompletedTraces` (R6)
-- `benchmarkTable_includesNewProgramRow` (R8) — guards against silent omission
+- `undersizedStore_isRejectedWithAMessageNamingTheConfiguredCapacity` (L82)
+- `storeIsClearedBeforeTraversal_soAPrePopulatedStoreDoesNotPrune` (L87)
+- `visitedStatesIsClearedBetweenRunsOnTheSameExplorer` (L88) — note this needs a **different** program
+  per run; repeating one program re-adds identical keys and cannot detect a missing `clear()`
+- `everyDistinctConfigurationReached_isReportedInStates` (L113) — the visitor is the ground truth,
+  configurations compared by value
+- `statesMapReportsDistinctConfigurationsWhileStatesExploredCountsEvents` — records the measured
+  relationship so the deliberate omission in the test above is not mistaken for an oversight
 
-**Falsification (not committed):** the three-defect injection protocol in R4.
+Plus the two corpus-enumeration tests in `ProgramLoaderTest`
+(`everyMigratedProgram_equivalentToJava`, `everyCorpusProgramWithoutAJavaFixtureIsDeclarative`) and
+`BugCorpusTest` (`corpusHasExactlyEightPrograms`, `corpusProgramNamesAreDistinct`).
 
 ## Constraints
 
-- **Dependencies:** Spec 12.01 (encoder injectivity — a lossy encoder would make the R2 counts
-  meaningless). Spec 12.04 (trace-emission tests derive bounds from the corpus; if 12.04 lands after
-  this spec, re-derive them).
-- **Backward compatibility:** the corpus is a shipped artifact — README counts, benchmark output,
-  and the evidence artifact all change. That is intended and must be reflected in the PR body, not
-  hidden. Anything asserting "7 programs" must be updated in the same commit (no drift, `AGENTS.md`
-  §4).
-- **Runtime:** a 3-thread program multiplies DFS configuration count. If the full suite slows
-  materially, reduce steps-per-thread before reducing thread count — the thread count is the whole
-  point.
-- **If injection reveals a real dominance defect,** that is a success of this spec. Ship the corpus
-  change and the production fix as separate commits, the fix with its own regression test, and say so
-  explicitly in the PR body. Do not treat it as scope creep.
+- **Dependencies:** Spec 12.01 (a lossy encoder would make the R2 counts meaningless). Spec 12.04 owns
+  L41's `NO_COVERAGE` x2; if 12.04 lands after this spec, re-derive its bounds against 8 programs.
+- **Backward compatibility:** the corpus is a shipped artifact — README counts, benchmark output, and the
+  evidence artifact all change. Anything asserting "7 programs" must be updated in the same commit.
+- **Runtime:** measured; the 3-thread program adds 84 configurations and does not slow the suite
+  materially.
+- **If a contract assertion reveals a real defect,** that is a success of this spec. Ship the corpus
+  change and the production fix as separate commits.
 
 ## Commands
-
 ```bash
+./gradlew test --tests "*ContextBoundedExplorerContractTest*"
 ./gradlew test --tests "*Corpus*"
 ./gradlew test --tests "*SoundnessAttestation*"
-./gradlew run --args="--all --strategy CONTEXT_BOUNDED --max-preemptions 2"
-./gradlew pitest
+./gradlew pitest -PpitestTargetOverride=dev.samhb.interleave.cb.ContextBoundedExplorer
 ./gradlew clean test javadoc
 ```
 
 ## Map
-
+- `src/main/java/dev/samhb/interleave/cb/ContextBoundedExplorer.java` — the class under test
+- `src/test/java/dev/samhb/interleave/cb/ContextBoundedExplorerContractTest.java` — this spec's tests
 - `src/main/java/dev/samhb/interleave/bugs/BugCorpus.java` — the corpus registry
-- `src/main/resources/programs/*.json` — the seven program resources
-- `src/main/java/dev/samhb/interleave/format/ProgramLoader.java` — `mutual_exclusion_peterson` two-thread guard
-- `src/main/java/dev/samhb/interleave/format/dsl/DslLoader.java` — the 1–8 thread bound
-- `src/main/java/dev/samhb/interleave/cb/ContextBoundedExplorer.java` — the dominance logic under test
+- `src/main/resources/programs/lost-update-3t.json` — the 3-thread program
+- `src/main/java/dev/samhb/interleave/core/Configuration.java` — declares no `equals`/`hashCode`
+- `src/main/java/dev/samhb/interleave/format/registry/StateRegistry.java` — `counter` state, 2-thread only
+- `src/main/java/dev/samhb/interleave/format/dsl/DslLoader.java` — sizes `DynamicState` by thread count
 - `src/main/java/dev/samhb/interleave/report/StatesExploredTable.java` — corpus enumeration
 - `src/main/java/dev/samhb/interleave/report/SoundnessAttestation.java` — cross-strategy agreement
-- PR #29's defect-injection table — the six-defect experiment this spec scales up; its verdict,
-  three of six injected dominance defects undetected, is the measured basis for this spec existing
+- Spec 12.02 §(a) — the related `HashingStateStore.clear()` contract; see §Relationship to 12.02
