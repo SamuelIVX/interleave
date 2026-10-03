@@ -252,43 +252,62 @@ class ContextBoundedExplorerTest {
         }
     }
 
+    /**
+     * Spec 12.03 section R6. BitstateStore keys on a hash narrowed to a bit, so a wrong hash changes
+     * which states collide -- and a collision makes isVisited answer "seen" for a state that was
+     * never marked. The search then prunes that state without examining it, so a genuinely bad hash
+     * makes this tool silently miss bugs. Unlike HashingStateStore there is no exact confirmation
+     * layer: the bit array is the answer.
+     *
+     * <p>So this is asserted end to end through the public seam, with no hash value anywhere, which
+     * is what lets R7 stand unamended.
+     *
+     * <p>64 bits is a contract, not a tuning knob. It must be small enough that collisions occur at
+     * all -- at the 1,000,003-bit default the corpus is far too small to collide, which is why every
+     * earlier attempt to kill these mutants failed -- and large enough that correct code still solves
+     * the program.
+     *
+     * <p>The two hash counts are not arbitrary; each isolates a different fold in the hash:
+     *
+     * <ul>
+     *   <li>{@code k=1} routes every state through a single bit, the most collision-exposed
+     *       configuration available, and isolates the quality of {@code hashCode()} itself.
+     *   <li>{@code k=2} is the production default, which pulls in the preemption fold in
+     *       {@code preemptionHashIndices} that {@code k=1} never reaches.
+     * </ul>
+     *
+     * <p>Measured over 1,080 configurations -- all 7 corpus programs x 10 array sizes x 6 hash counts
+     * x 2 context bounds -- these are the only two that separate a correct hash from a broken one on
+     * bug detection. Both were confirmed by injecting each mutant and watching this test fail.
+     *
+     * <p>Accounting note, so the score is not misread later: this test's net contribution is
+     * <em>one</em> kill, not two. It also turns an {@code L333} arithmetic mutant red, but
+     * {@code costAwareCheck_bothStoresAgree} already killed that one by comparing
+     * {@code statesExplored} across stores. See Spec 12.03 section R6.
+     *
+     * <p>If this test ever needs retuning, re-measure that grid; do not adjust the size until it goes
+     * green. A size at which nothing collides cannot fail, and would silently stop testing anything.
+     *
+     * <p>Not brittle in the usual way: a better hash collides less, so it passes more reliably. Only
+     * a genuinely worse hash fails this. A hash-value assertion would be the opposite -- it would
+     * break on any change at all, including an improvement.
+     */
     @Test
     void lossyBitstateFilter_stillSurfacesTheDeadlock() {
-        // Spec 12.03 section R6. BitstateStore keys on a hash narrowed to a bit, so a wrong hash
-        // changes which states collide -- and a collision makes isVisited answer "seen" for a state
-        // that was never marked. The search then prunes that state without examining it, so a
-        // genuinely bad hash makes this tool silently miss bugs. Unlike HashingStateStore there is
-        // no exact second check: the bit array is the answer.
-        //
-        // So this is asserted end to end through the public seam, with no hash value anywhere, which
-        // is what lets R7 stand unamended.
-        //
-        // 64 bits is a contract, not a tuning knob. It must be small enough that collisions occur
-        // at all -- at the 1,000,003-bit default the corpus is far too small to collide, which is
-        // exactly why these mutants survived every earlier attempt to kill them -- and large enough
-        // that correct code still solves the program.
-        //
-        // The two hash counts are not arbitrary; each isolates a different fold in the hash:
-        //
-        //   k=1  every state maps through a single bit, so this is the most collision-exposed
-        //        configuration available and it isolates the quality of hashCode() itself.
-        //   k=2  the production default, which pulls in the preemption fold in
-        //        preemptionHashIndices that k=1 never reaches.
-        //
-        // Measured over 1,080 configurations -- all 7 corpus programs x 10 array sizes x 6 hash
-        // counts x 2 context bounds -- these are the only two that separate a correct hash from a
-        // broken one on bug detection. Both were confirmed by injecting each mutant and watching
-        // this test fail.
-        //
-        // If this test ever needs retuning, re-measure that grid; do not adjust the size until it
-        // goes green. A size at which nothing collides cannot fail, and would silently stop
-        // testing anything.
         Program program = named("deadlock").program();
 
         assertSurfacesDeadlock(program, 1, "k=1");
         assertSurfacesDeadlock(program, 2, "k=2");
     }
 
+    /**
+     * Runs the search at bound 2 through a 64-bit {@link BitstateStore} and asserts that a deadlock is
+     * still reported.
+     *
+     * @param program a program with a reachable deadlock at bound 2
+     * @param numHashFunctions the store's hash count; 1 and 2 isolate different folds in the hash
+     * @param label how to describe this configuration in the failure message
+     */
     private static void assertSurfacesDeadlock(Program program, int numHashFunctions, String label) {
         BitstateStore store = new BitstateStore(64, numHashFunctions, 2);
         DfsResult result = new ContextBoundedExplorer().explore(program, null, store, null, 2);

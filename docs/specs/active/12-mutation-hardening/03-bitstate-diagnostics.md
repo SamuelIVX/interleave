@@ -269,12 +269,28 @@ earlier draft of this section claimed the only way to observe them was a hash-st
 putting them in direct tension with R7. That was wrong, and the measurement that corrected it is
 recorded below rather than quietly dropped.
 
-**`lossyBitstateFilter_stillSurfacesTheDeadlock` kills two of them without naming a hash value.** The
-store is exercised at 64 bits — small enough that collisions actually occur, which the 1,000,003-bit
-default never permits on a corpus this small, and that is precisely why every earlier attempt to kill
-these failed. At `k=1` and `k=2` the correct hash still surfaces the deadlock, and `L357` and one
-`L333` variant stop surfacing it. R7 is untouched: the assertion is on a reported outcome, through the
-public seam, and no hash value appears anywhere in it.
+**`lossyBitstateFilter_stillSurfacesTheDeadlock` kills `L357` without naming a hash value**, and the
+score moves 93/97 → 94/97. The store is exercised at 64 bits — small enough that collisions actually
+occur, which the 1,000,003-bit default never permits on a corpus this small, and that is why every
+earlier attempt to kill these failed. R7 is untouched: the assertion is on a reported outcome, through
+the public seam, and no hash value appears anywhere in it.
+
+**The exact accounting, because the two numbers do not add up the way they first appear to.** The
+test turns *two* mutants red when injected, but only one of them is a net gain:
+
+| | before | after |
+|---|---|---|
+| `L357` (`31 * result + pc` → `-`) | `SURVIVED` | **`KILLED`** — net gain |
+| `L333` (`31 * hash` → `31 / hash`) | already `KILLED` | still `KILLED` — **no delta** |
+
+The second row is the trap. `31 / hashCode(config)` was verified killed by this test, and the
+falsification table records it — but `costAwareCheck_bothStoresAgree` already killed it, because it
+compares `statesExplored` between the exact and bitstate stores and a degraded `31 *` breaks that
+agreement. So 93/97 → 94/97 is **one** kill, not two. Recording both rows here so nobody re-counts the
+`L333` arithmetic as available headroom later.
+
+PIT confirms this independently: running the scoped report at base `52fd0fe` and again on this branch
+gives survivor sets that differ in exactly one member — `L357`.
 
 **The remaining three are unobservable, not forbidden.** Measured across **1,080 configurations** —
 all 7 corpus programs × 10 array sizes × 6 hash counts × 2 context bounds — the two `L343` index
@@ -284,21 +300,21 @@ emitted, never in whether a bug is reported. PIT agrees independently, having ru
 against each and leaving all three `SURVIVED`.
 
 The reason is structural, and worth stating because it generalises: **the hash only matters in the
-over-pruned regime, and that regime is exactly where the tool has already stopped finding bugs.**
+over-pruned regime, and that regime is precisely where the tool has already stopped finding bugs.**
 Configurations large enough for correct code to find a bug are too collision-free for the hash to
 matter; configurations small enough for the hash to matter are too over-pruned for the bug to be
 found. No setting in between exists on this corpus.
 
 So the resolution is **not** a narrow hash-structure exception, and R7 stands unamended. The three
 stay `SURVIVED` deliberately so 12.06's ratchet records them as a measured floor for this class
-rather than losing them from the denominator. Two ways to close them were considered and rejected on
-purpose:
+rather than losing them from the denominator. Two ways to close them were considered and rejected
+deliberately:
 
 - Asserting on `COMPLETED`-trace emission. It would kill them, but partial-trace emission is Spec
-  12.04's subject matter, not 12.03's, and the assertion would be incidental — it would break on
+  12.04's subject, not 12.03's, and the assertion would be incidental — it would break on
   unrelated changes while pinning nothing about hash quality.
-- Asserting a hash value. Forbidden by R7, correctly, and unnecessary: the two killed mutants prove
-  the observation level suffices where the behaviour is observable at all.
+- Asserting a hash value. Forbidden by R7, correctly, and unnecessary: the kill above proves the
+  observation level suffices wherever the behaviour is observable at all.
 
 `BitstateStore` closes at **94/97 (96.9%)**, `NO_COVERAGE` 0, three documented survivors.
 
