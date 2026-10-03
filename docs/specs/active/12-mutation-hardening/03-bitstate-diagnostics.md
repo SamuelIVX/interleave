@@ -29,8 +29,9 @@ actually computes — and make the constructor's rejection boundaries exact rath
 
 - Changing the FPR formula. It is the standard `(1 - e^(-kn/m))^k`. The bug surface is that we do not
   test it, not that it is wrong [verified by reading the body].
-- Improving hash selectivity (the `doubleHash` index arithmetic). Spec 12.02 §R4 adjudicates those
-  mutants as equivalent-or-not; this spec does not re-litigate.
+- Improving hash selectivity (the `doubleHash` index arithmetic). Out of scope here, but note the
+  reason differs from 12.02 and the verdict does **not** transfer: 12.02's survivors were *equivalent*,
+  where these four are not. See §R6 adjudication.
 - Changing `--store bitstate` defaults or the `APPROXIMATE_PASS` labelling, which Spec 11.04 settled.
 
 ## Current State
@@ -90,9 +91,11 @@ Totals: 11 `SURVIVED` + 2 `NO_COVERAGE` = 13. **Five** of the survivors are insi
 `estimatedFalsePositiveRate` (`L298`, `L300` ×2, `L301` ×2) — the highest concentration of
 user-facing diagnostics in the set.
 
-`L333`, `L343` and `L357` are hash-arithmetic and out of scope here; Spec 12.02 §R4 adjudicates
-them. `L333`, `L343` and `L357` each sit on a line that **also** carries killed mutants, so a
-line-grouped inventory that reports only the dominant status undercounts by three.
+`L333`, `L343` and `L357` are hash-arithmetic and out of scope here. `L333`, `L343` and `L357` each
+sit on a line that **also** carries killed mutants, so a line-grouped inventory that reports only the
+dominant status undercounts by three. Measured after implementation: these four are the *only*
+survivors, and they are **not** equivalent — `BitstateStore` has no exact confirmation layer, so a
+different hash genuinely changes answers. See §R6 adjudication.
 
 ## Invariants
 
@@ -134,29 +137,142 @@ line-grouped inventory that reports only the dominant status undercounts by thre
 
 ## Acceptance Criteria
 
-- [ ] `estimatedFalsePositiveRate()` is asserted `== 0.0` on a fresh store (R1).
-- [ ] At least three literal closed-form cases pass within `1e-9` (R2), including at least one with
+- [x] `estimatedFalsePositiveRate()` is asserted `== 0.0` on a fresh store (R1).
+      `estimatedFalsePositiveRate_emptyStore_isZeroNotNaN`.
+- [x] At least three literal closed-form cases pass within `1e-9` (R2), including at least one with
       `preemptionStatesMarked > 0` so the `n` sum at `L294` is exercised, **and at least one that has
       marked at two or more distinct preemption levels so `vectorsInUse() > 1`** — the L298 mutant is
       invisible at `vectorsInUse() == 1` (R2, R4).
-- [ ] A monotonicity test over an increasing `statesMarked` sequence passes (R3).
-- [ ] **Falsification:** all **five** FPR mutants — `L298` (`MATH`), `L300` (`INVERT_NEGS` and
+      Three cases (A/B/C) plus a fourth isolating the `L294` sum. Case B marks at preemption levels 0
+      and 1 *and* plain, so `vectorsInUse() == 3`.
+- [x] A monotonicity test over an increasing `statesMarked` sequence passes (R3).
+      `estimatedFalsePositiveRate_isMonotonicInStatesMarked`, checked at all 400 steps rather than at
+      the endpoints, so a non-monotone excursion that returns to its starting value is still caught.
+- [x] **Falsification:** all **five** FPR mutants — `L298` (`MATH`), `L300` (`INVERT_NEGS` and
       `MATH`), and both at `L301` (`NON_VOID_METHOD_CALLS`, `PRIMITIVE_RETURNS`) — are individually
       injected in turn, and the corresponding assertion is observed to go red, then reverted. All
       five must be demonstrated; a test that kills only some of the formula mutants is not the test
       this spec asks for. The two accessor mutants (`L201`, `L210`) are demonstrated separately
       under R8.
-- [ ] Boundary tests assert rejection at `size == 0` and acceptance at `size == 1`, and likewise for
+      All demonstrated; see §Falsification results. `L300` was additionally exercised in a third
+      form (`-k/n/m`) beyond the two PIT mutates it, since `INVERT_NEGS` and `MATH` do not obviously
+      cover every rewrite of the exponent term.
+- [x] Boundary tests assert rejection at `size == 0` and acceptance at `size == 1`, and likewise for
       `numHashFunctions` (R5, R6).
-- [ ] `maxPreemptions == 0` constructs successfully and `bitCount()`/`estimatedFalsePositiveRate()`
+- [x] `maxPreemptions == 0` constructs successfully and `bitCount()`/`estimatedFalsePositiveRate()`
       behave (R7) — **and slot 0 is actually exercised** by marking and querying through the bounded
       APIs `markVisited(config, tid, 0)` / `isVisited(config, tid, 0)`. Constructing the store proves
       only that the array has one slot; it does not prove slot 0 is reachable or correct, and lazy
       allocation means the slot stays `null` until a mark lands in it (R7).
-- [ ] `size()` and `numHashFunctions()` return the constructor arguments (R8).
-- [ ] `./gradlew clean test javadoc` passes.
-- [ ] `./gradlew pitest` shows `BitstateStore` above 86.6% and specifically L68, L71, L201, L210,
-      L298, L300, L301 all `KILLED`.
+      `constructor_zeroMaxPreemptions_allocatesAndExercisesSlotZero` marks and queries level 0, and
+      additionally asserts that level 1 is refused rather than wrapped.
+- [x] `size()` and `numHashFunctions()` return the constructor arguments (R8).
+      `size_returnsConstructedCapacity`, `numHashFunctions_returnsConstructedK`, and
+      `accessors_areTheQuantitiesTheFormulaConsumes`.
+- [x] `./gradlew clean test javadoc` passes.
+- [x] `./gradlew pitest` shows `BitstateStore` above 86.6% and specifically L68, L71, L201, L210,
+      L298, L300, L301 all `KILLED`. Measured 86.6% → **95.9%**; all seven lines fully killed.
+
+## Measured Results
+
+Scoped PIT, `dev.samhb.interleave.state.BitstateStore`, measured 2026-10-03 on `main` at `92b58b6`:
+
+| | killed | survived | no coverage | score |
+|---|---|---|---|---|
+| before | 84 | 11 | 2 | 84/97 = 86.6% |
+| **after** | **93** | **4** | **0** | **93/97 = 95.9%** |
+
+Exactly the nine mutants this spec names were killed, and nothing else moved. Per line:
+
+| line | mutants | before | after |
+|---|---|---|---|
+| `L68` `<init>` | 2 | 1 `SURVIVED` | both `KILLED` |
+| `L71` `<init>` | 2 | 1 `SURVIVED` | both `KILLED` |
+| `L201` `size()` | 1 | `NO_COVERAGE` | `KILLED` |
+| `L210` `numHashFunctions()` | 1 | `NO_COVERAGE` | `KILLED` |
+| `L298` FPR `m` | 2 | 1 `SURVIVED` | both `KILLED` |
+| `L300` FPR exponent | 5 | 2 `SURVIVED` | all `KILLED` |
+| `L301` FPR `Math.pow` | 2 | 2 `SURVIVED` | both `KILLED` |
+
+`NO_COVERAGE` went to zero. That is the substantive part of the change: those two accessors were not
+merely unasserted, they were never called by any test, so the FPR's two inputs had no coverage at all.
+
+### Falsification results — executed, not asserted
+
+Each mutant injected into the production source in turn, the suite run, the file restored. All
+injections left `BitstateStore.java` byte-identical afterwards (`git diff` clean).
+
+| injected | tests that went red |
+|---|---|
+| `L68` `size <= 0` → `size < 0` | `constructor_rejectsNonPositiveSize_atBoundary` |
+| `L71` `k <= 0` → `k < 0` | `constructor_rejectsNonPositiveNumHashFunctions_atBoundary` |
+| `L201` `return size` → `return 0` | 5, incl. `size_returnsConstructedCapacity` |
+| `L210` `return numHashFunctions` → `return 0` | 3, incl. `numHashFunctions_returnsConstructedK` |
+| `L298` `size * vectorsInUse()` → `size / vectorsInUse()` | **`estimatedFalsePositiveRate_matchesClosedForm_forKnownInputs` only** |
+| `L300` `exp(-kn/m)` → `exp(+kn/m)` | 4, incl. the closed-form test |
+| `L300` `-k * n / m` → `-k / n / m` | 4, incl. the closed-form test |
+| `L300` `-k * n / m` → `-k * n * m` | 3, incl. the closed-form test |
+| `L301` `Math.pow(prob, k)` → `0.0` | 4, incl. the closed-form test and the zero-bound test |
+
+Two rows carry more weight than the rest.
+
+**`L298` is killed by exactly one test.** That is the design working as intended rather than a
+coincidence: the mutant flips `*` to `/` in `m`, and at `vectorsInUse() == 1` it evaluates `size / 1`,
+which is numerically identical to `size * 1`. Cases A, C and D all sit at `vectorsInUse() == 1` and
+would each have passed. This is arithmetic, not an observation — the separation against the mutant is
+*exactly zero* for those three cases. Only case B, which drives the store to three vectors in use,
+constrains the line at all.
+
+**`L68` and `L71` are each killed by exactly one test**, and only their own. A guard tested solely with
+negative inputs would pass against `size < 0`, because that mutant also rejects every negative. The
+discriminating input is the boundary itself, `size == 0` and `k == 0`, which is why the tests are
+named `_atBoundary` rather than testing rejection generically.
+
+### The literals, and how they were obtained
+
+Four expected values, each computed twice by independent routes that agree to within `1e-45`: a
+hand-summed Taylor series for `e^-x` with the final power taken by binary exponentiation, and an
+arbitrary-precision library call. Neither route calls `estimatedFalsePositiveRate()`, and none is
+recomputed in the test body.
+
+| case | size | k | n | vectors | `m` | `k*n/m` | expected | mutant separation |
+|---|---|---|---|---|---|---|---|---|
+| A | 1000 | 3 | 100 | 1 | 1000 | 0.3 | `0.017410586496326586` | `L298`: **0** |
+| B | 1000 | 3 | 200 | **3** | 3000 | 0.2 | `0.0059562427789458935` | `L298`: 0.5756 |
+| C | 1000 | 4 | 250 | 1 | 1000 | 1.0 | `0.15966130015118526` | `L298`: **0** |
+| D | 1000 | 3 | 50 | 1 | 1000 | 0.15 | `0.0027025811482068833` | `L300`: 0.0069 |
+
+The `1e-9` tolerance is loose only against double rounding — the true values are irrational, so exact
+equality is unavailable. The nearest wrong answer across all nine mutants is ~0.0069 away, leaving
+roughly six orders of magnitude of headroom.
+
+Case A's literal also matches the value this spec stated before implementation, computed
+independently. Two unrelated derivations agreeing is worth recording; a single derivation agreeing
+with itself is not.
+
+### R6 — adjudication of the 4 remaining survivors
+
+`L333`, `L343` (×2) and `L357` survive. **They are not equivalent, and the 12.02 verdict does not
+transfer.** That distinction matters, so it is stated rather than glossed:
+
+- 12.02 adjudicated nine `HashingStateStore` survivors *equivalent* because a hash change provably
+  cannot alter any answer — the prefilter decides only whether an exact check runs, and the exact
+  check decides the answer.
+- `BitstateStore` has **no exact confirmation layer at all**. `grep` finds no `contains` and no
+  `encode` outside the hashing itself: the bitset *is* the store's answer. A different hash
+  genuinely produces different answers, because it produces different collisions.
+
+So these four are real, reachable behaviour changes. They survive because **no test pins which
+configurations must not collide** — and pinning that requires asserting on hash structure, which R7
+forbids. R7 (inherited from 12.02, and correct there) says no assertion may reference a hash value;
+the only way to observe `L343` is to construct a pair that collides under the mutant but not the
+original, which is exactly a hash-level claim. **R7 and these four mutants are in direct tension,
+and R7 wins by design.**
+
+That tension is worth surfacing rather than burying, because it is a genuine constraint on the
+remaining work: closing them means either permitting one narrow, deliberately-marked hash-structure
+assertion, or accepting them as a documented floor. Left `SURVIVED` deliberately so 12.06's ratchet
+records 4 as the known floor for this class rather than losing them from the denominator.
 
 ## Design
 
@@ -216,19 +332,30 @@ allocation.
 
 **File:** `src/test/java/dev/samhb/interleave/state/BitstateStoreDiagnosticsTest.java`
 
-- `estimatedFalsePositiveRate_emptyStore_isZero_notNaN` (R1)
-- `estimatedFalsePositiveRate_matchesClosedForm_forKnownInputs` (R2, R4) — ≥ 3 literal cases, at
-  least one with `maxPreemptions > 0`
-- `estimatedFalsePositiveRate_includesPreemptionStatesInCount` (R2) — the `L294` sum
+Thirteen tests. The names below are the names that exist; where implementation renamed a planned
+name, the old name is kept struck through in the note so the spec still names what it asked for.
+
+- `estimatedFalsePositiveRate_emptyStore_isZeroNotNaN` (R1)
+- `estimatedFalsePositiveRate_matchesClosedForm_forKnownInputs` (R2, R4) — three literal cases A/B/C;
+  B marks at two preemption levels *and* plain, so `vectorsInUse() == 3`
+- `estimatedFalsePositiveRate_includesPreemptionStatesInCount` (R2) — the `L294` sum, isolated by
+  making `statesMarked == 0`
 - `estimatedFalsePositiveRate_isMonotonicInStatesMarked` (R3)
-- `constructor_rejectsNonPositiveSize` / `constructor_acceptsSizeOfOne` (R5)
-- `constructor_rejectsNonPositiveNumHashFunctions` / `constructor_acceptsOneHashFunction` (R6)
-- `constructor_rejectsNegativeMaxPreemptions` / `constructor_acceptsZeroMaxPreemptions` (R7)
-- `constructor_zeroMaxPreemptions_allocatesSinglePreemptionBitSet` (R7) — asserts via observable
-  behaviour (`bitCount()`, FPR), not by reflecting into the private field; **also** marks and queries
-  preemption level `0` through the bounded APIs so the slot is exercised, not merely sized
+- `constructor_rejectsNonPositiveSize_atBoundary` / `constructor_acceptsSizeOfOne` (R5) — planned as
+  `constructor_rejectsNonPositiveSize`; renamed because the boundary is the whole point of the test
+- `constructor_rejectsNonPositiveNumHashFunctions_atBoundary` / `constructor_acceptsOneHashFunction` (R6)
+- `constructor_rejectsNegativeMaxPreemptions` / `constructor_zeroMaxPreemptions_allocatesAndExercisesSlotZero` (R7)
+  — the planned pair `...rejectsNegativeMaxPreemptions` / `...acceptsZeroMaxPreemptions` collapsed into
+  one test, since the acceptance case is only meaningful together with the slot-0 exercise. Asserts
+  via observable behaviour (`bitCount()`, FPR), never by reflecting into `preemptionBitsets`; marks
+  and queries level `0` through the bounded APIs so the slot is exercised, not merely sized, and
+  asserts level `1` is refused rather than wrapped
 - `size_returnsConstructedCapacity` (R8)
 - `numHashFunctions_returnsConstructedK` (R8)
+- `accessors_areTheQuantitiesTheFormulaConsumes` (R8) — **beyond this spec's inventory.** Pins that
+  `size()` and `numHashFunctions()` are the values the formula consumes by recomputing case A from the
+  accessor readings alone. Without it, both accessors could return swapped or scaled values that every
+  other test tolerated, since R8's two tests only compare each accessor to its own constructor argument.
 
 **Falsification (not committed, five runs):** inject each of `L298`, `L300` (×2), and `L301` (×2) in
 turn; confirm the matching assertion goes red; revert. All five demonstrated in the PR body, plus

@@ -29,14 +29,21 @@ measured, they cannot be closed by a bigger corpus either.** See Spec 12.05 §TL
 program moved *no* mutant statuses, and injected dominance defects 4–6 already turn the suite red at
 HEAD. They needed direct assertions, which is what 12.05 now does.
 
-## Status: active — 12.07, 12.01, 12.02, and 12.05 implemented; 12.03, 12.04, 12.06 pending
+> **Deferred register.** [DEFERRED.md](DEFERRED.md) collects every problem found while
+> implementing this set that was deliberately *not* fixed — defects, latent traps, an unresolved
+> conflict between two of the set's own rules, and test-infrastructure debt. Read it before scoping
+> new work in this area: one entry ([C1](DEFERRED.md#c1)) is a live dilemma that 12.06 has to
+> resolve rather than inherit silently, and four entries are closed so nobody re-investigates them.
 
-Measured 2026-10-02 by running PIT scoped to each target class:
+## Status: active — 12.07, 12.01, 12.02, 12.03, and 12.05 implemented; 12.04, 12.06 pending
 
-| spec | target class | killed | survived | no coverage | state |
-|---|---|---|---|---|---|
-| **12.02** | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
-| 12.03 | `state.BitstateStore` | 84 / 97 | 11 | 2 | pending |
+PIT results from runs scoped to each target class; measurement dates are shown per row, because a
+single date across rows would misattribute provenance:
+
+| spec | measured | target class | killed | survived | no coverage | state |
+|---|---|---|---|---|---|---|
+| **12.02** | 2026-10-02 | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
+| **12.03** | 2026-10-03 | `state.BitstateStore` | **93 / 97 (95.9%)** | 4 | 0 | **done** |
 
 **12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
 46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
@@ -45,11 +52,17 @@ against the exact encoding, so no change to the hash can alter any answer. They 
 deliberately, so 12.06's ratchet sees them as a known floor rather than losing them from the
 denominator.
 
-12.03 and 12.04 still name test files that **do not exist**: `BitstateStoreDiagnosticsTest` and
-`TraceEmissionTest`. `state/` today contains `CanonicalEncoderContractTest`,
-`StateEncodingFidelityTest`, `StateHashingTest`, `StateStorePreemptionTest`,
-`HashingStateStoreLifecycleTest`, and `StoreEquivalenceTest`. That is why every target 12.03 names
-still survives.
+**12.03 closed all seven of its named lines** — L68, L71, L201, L210, L298, L300, L301 — taking the
+class from 84/97 (86.6%) to 93/97 (95.9%) and `NO_COVERAGE` from 2 to 0. The nine mutants killed are
+exactly the nine it named; nothing else moved. Its 4 remaining survivors (`L333`, `L343` ×2, `L357`)
+are hash arithmetic and are **not** equivalent, unlike 12.02's nine: `BitstateStore` has no exact
+confirmation layer, so a different hash genuinely changes answers. They survive only because closing
+them requires a hash-structure assertion, which R7 forbids — a tension R7 wins by design.
+
+12.04 still names a test file that **does not exist**: `TraceEmissionTest`. `state/` today contains
+`CanonicalEncoderContractTest`, `StateEncodingFidelityTest`, `StateHashingTest`,
+`StateStorePreemptionTest`, `HashingStateStoreLifecycleTest`, `StoreEquivalenceTest`, and
+`BitstateStoreDiagnosticsTest`.
 
 ### Fixed during 12.07: `StaticPorExplorer` was unsound with an invariant
 
@@ -168,20 +181,22 @@ scores as *not* detected. The five statuses that score as detected without an as
 are all zero, so the percentage is not inflated by wall-time or memory kills (see Spec 12.06).
 
 **Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
-**post-12.01** column is current; the others are unchanged by 12.01 and still carry their `c5fdcd0`
-figures:
+**current** column reflects 12.01, 12.02 and 12.03; the `c5fdcd0` figures are the pre-spec baseline.
+Each row carries its own measurement date, because a single date across rows would misattribute
+provenance — three of these four figures were taken on three different days:
 
-| class | at `c5fdcd0` | coverage | **post-12.01** | coverage |
-|---|---|---|---|---|
-| `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** |
-| `HashingStateStore` | 46/61 | 75.4% | 46/61 | 75.4% |
-| `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% |
-| `BitstateStore` | 84/97 | 86.6% | 84/97 | 86.6% |
+| class | at `c5fdcd0` | coverage | **current** | coverage | measured | moved by |
+|---|---|---|---|---|---|---|
+| `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 2026-10-01 | 12.01 (denominator shrank) |
+| `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 2026-10-02 | 12.02 |
+| `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% | `c5fdcd0` | — |
+| `BitstateStore` | 84/97 | 86.6% | **93/97** | **95.9%** | 2026-10-03 | 12.03 |
 
-`CanonicalEncoder` is the only row that moved, and it moved because its denominator shrank — 12.01
-deleted `equals` and its five unkillable mutants with it. The killed count did not change. Read that
-row as *dead code removed*, not *coverage earned*; the class total (7) is not comparable to the old
-one (12) without reading both.
+`CanonicalEncoder` moved for a different reason than the other two: its denominator shrank, because
+12.01 deleted `equals` and its five unkillable mutants with it. The killed count did not change. Read
+that row as *dead code removed*, not *coverage earned*; the class total (7) is not comparable to the
+old one (12) without reading both. `HashingStateStore` and `BitstateStore` moved by genuinely killing
+mutants, and in both cases the survivors that remain are adjudicated rather than unexamined.
 
 ## Spec Set Structure
 
@@ -371,10 +386,13 @@ details — the exact failure mode that produced PR #26's under-specified metric
   designed to expose wrong dominance might expose an actual `ContextBoundedExplorer` defect. It did
   not — the premise behind the corpus approach was falsified, and the four contract tests that replaced
   it found no defect. 12.05 is now purely additive. Spec 12.05 §TL;DR.
-- **Spec 12.07's encoding change will move byte-level expectations elsewhere.** Gaining one boolean at
-  the head of the `DeadlockState` encoding invalidates any hardcoded byte string or bitstate bit
-  position for `deadlock`. Spec 12.03's bitstate metrics are the most likely to need re-deriving, so
-  grep for hardcoded encoding expectations before merging 12.07.
+- ~~**Spec 12.07's encoding change will move byte-level expectations elsewhere.**~~ **Checked; did
+  not materialise for 12.03.** Gaining one boolean at the head of the `DeadlockState` encoding
+  invalidates any hardcoded byte string or bitstate bit position for `deadlock`, and 12.03's bitstate
+  metrics were named here as the most likely casualty. Verified otherwise: `BitstateStoreDiagnosticsTest`
+  builds every fixture from `CounterState`, so no `deadlock` byte string or bit position appears in it
+  and its literals are unaffected. The general hazard stands for any *future* test that pins a
+  `DeadlockState` encoding or bit position — grep for such expectations before adding one.
 - **Spec 12.07's completeness check will break on a field rename.** That is intended — it forces a
   conscious decision — but it surfaces as a build failure on a semantically null refactor. Whoever hits
   it must add or re-point the case, not delete the assertion.
