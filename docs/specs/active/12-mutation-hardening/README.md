@@ -29,6 +29,12 @@ measured, they cannot be closed by a bigger corpus either.** See Spec 12.05 §TL
 program moved *no* mutant statuses, and injected dominance defects 4–6 already turn the suite red at
 HEAD. They needed direct assertions, which is what 12.05 now does.
 
+> **Deferred register.** [DEFERRED.md](DEFERRED.md) collects every problem found while
+> implementing this set that was deliberately *not* fixed — defects, latent traps, an unresolved
+> conflict between two of the set's own rules, and test-infrastructure debt. Read it before scoping
+> new work in this area: one entry ([C1](DEFERRED.md#c1)) is a live dilemma that 12.06 has to
+> resolve rather than inherit silently, and four entries are closed so nobody re-investigates them.
+
 ## Status: active — 12.07, 12.01, 12.02, 12.03, and 12.05 implemented; 12.04, 12.06 pending
 
 Measured 2026-10-02 by running PIT scoped to each target class:
