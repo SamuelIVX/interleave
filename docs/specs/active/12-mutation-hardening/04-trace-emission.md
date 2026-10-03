@@ -59,10 +59,17 @@ reproduce.
 - `L176` — inside `dfs`, four `NO_COVERAGE` mutants. The survey reports this region as a list copy
   plus a `Trace.of` construction. It is the `ASSERTION_FAILED` branch, **not** the invariant check at
   `:120–123`, so it is reached only by a step that *returns* `ASSERTION_FAILED` — which only
-  `DynamicStep` does, and no corpus program is declarative. Exact reachability is therefore
-  **unestablished**, and §R10 makes establishing it a requirement rather than assuming either way.
+  `DynamicStep` does. **R10 has now settled this; see below.**
 
-**Mutation inventory — 105 mutants, 86 killed (81.9%), 19 not killed:**
+**Result of this spec's implementation — 105 mutants, 100 killed (95.2%), 5 not killed.**
+Measured on the full default scope (`state.*` + `cb.*`) against `main`, because a target-scoped PIT
+run reports a *different* figure for the same class: scoping changes which covering tests PIT
+selects. Baseline on `main` was 246/270 killed (91.1%) with `NO_COVERAGE` 6; this spec takes it to
+**252/270 (93.3%)**, `NO_COVERAGE` 4, test strength 95%, with **no regressions**. All five named
+targets are `KILLED`: `L41` ×2, `L203` ×2, `L204`, `L214`. What remains in this class is `L176` ×4
+(`NO_COVERAGE`, see R10) and `L187` (Spec 12.05's).
+
+**Original mutation inventory — 105 mutants, 86 killed (81.9%), 19 not killed:**
 
 | line | symbol | mutator | status |
 |---|---|---|---|
@@ -85,6 +92,58 @@ undercounts by four.
 takes `L41`, `L176`, `L203`, `L204`, `L214`. Note `L87`/`L88` are also visitor calls — Spec 12.05
 adjudicates those as pruning-side, this spec owns only the `addTrace` path, and neither spec may
 claim the other's mutants.
+
+## R10 Verdict — `L176` is **not dead code**
+
+**[verified]** by instrumentation *and* by path analysis, in that order, because the two directions
+are not symmetric. A firing counter proves reachability; a silent one proves nothing.
+
+**1. Instrumentation.** A write placed inside the branch, run across the whole suite (**445 tests**,
+including the DSL suites), never fired — the file was never created. That establishes only that *the
+executions run so far* did not reach it.
+
+**2. Path analysis.** `dfs` has exactly two call sites: the initial call from `explore` and its own
+recursive call. Both reach `L176` only when `step.execute(...)` returns `ASSERTION_FAILED`, and that
+return has exactly one producer, `DynamicStep` — every other occurrence of the constant in
+`src/main/java` is either the enum declaration or a comparison against it. `DynamicStep` is
+constructed in one place, `DslLoader.java:205`, which runs only when a program's `format` is
+`declarative` (`ProgramLoader:194`).
+
+**One of this spec's stated premises is wrong, and it matters.** The prior recorded above says "no
+corpus program is declarative — all seven are `typed` [verified]". That is false:
+`programs/lost-update-3t.json` declares `"format": "declarative"` and is loaded into `BugCorpus`
+(`BugCorpus.java:62`). The premise being wrong does not make the region reachable, but it removes the
+reason it was thought to be dead.
+
+**Why it still does not fire.** `DynamicStep.execute` returns `ASSERTION_FAILED` for a *runtime
+evaluation error* — a non-`DynamicState` state, a guard that does not evaluate to `BOOL`, an
+out-of-range index, an `EvalException`. A guard evaluating **false** is `BLOCKED`, which is the normal
+path. So a well-formed declarative program never returns `ASSERTION_FAILED`, which is exactly what the
+instrumented run shows.
+
+**Verdict: a real coverage gap contingent on the corpus, not dead code.** The producer is live on a
+supported feature (Specs 09–10). Deleting the region would assert that no declarative program can ever
+reach it — a claim about the DSL's future, not about today's corpus — and under `AGENTS.md` §2 that
+deletion needs Sam's sign-off and its own PR regardless. If a declarative program that trips a runtime
+evaluation error ever enters the corpus, the four mutants become a genuine gap; the
+`dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram` test fails when that happens, because a
+`VIOLATION` trace carrying an `ASSERTION_FAILED` outcome can only come from this branch.
+
+## Two findings worth carrying forward
+
+**R5 has no corpus witness, and the reason is structural.** The requirement asks for a run that exceeds
+the budget *and* deadlocks. No corpus program is ever both, and the cause is an observability limit
+rather than an accident: boundedness is only visible while nothing suppresses `INCOMPLETE`, so a
+program that deadlocks can never *report* that it was also bounded — the property under test is what
+hides its own premise. `corpusSuppliesNoDeadlockWhileBoundedWitness` pins that over the corpus, and
+R5 is tested against a purpose-built three-thread program instead, with boundedness established by
+state growth (7 states at K=0 against 9 at K=1 — the bound demonstrably binds). That is what kills
+`L204`, the `DEADLOCK` comparison, which no `VIOLATION`-based test can reach.
+
+**Scope-scoped PIT runs are not comparable to full-scope ones.** A `pitestTargetOverride` run scoped
+to this class reports 105 mutants and a different kill count for the *same* class, because scoping
+changes covering-test selection. The figures in this spec are all full-scope. Per-class numbers in the
+README table follow the same rule.
 
 ## Invariants
 
@@ -261,6 +320,37 @@ directly and belong in the record:
 
 **Falsification check (not committed):** remove the `onTraceCreated` call from `addTrace`; confirm the
 visitor assertion fails and the `getTraces()` assertion in the same test passes; revert.
+
+### As implemented
+
+Twelve tests, all named in the file: `addTrace_notifiesVisitor_withIdenticalTraceInstance` (R1, R3),
+`explore_reportsEveryTraceToVisitor` (R3), `addTrace_nullVisitor_stillRecordsTrace` (R2),
+`incompleteTrace_suppressedWhenViolationFound` (R4), `incompleteTrace_suppressedWhenDeadlockFound` (R5),
+`corpusSuppliesNoDeadlockWhileBoundedWitness` (R5, the corpus-gap pin),
+`incompleteTrace_emittedWhenOnlyCompletedTracesExist` (R6),
+`incompleteTrace_absentWhenBudgetNeverExceeded` (R7),
+`exhaustiveAtBound_reportsPass_notIncomplete` (R8), `explore_withoutInvariant_delegatesCorrectly` (R9),
+`dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram` (R10),
+`traces_areDeterministicAcrossRuns` (R11).
+
+Two names differ from the plan above, both to say what they assert: the R10 test is named for the
+branch it watches rather than `dfsHelperRegion_reachability`, and R5 needed a second test because the
+corpus cannot supply its witness. No test is skipped or disabled.
+
+**Falsification result (performed, production restored byte-identical).** Disabling the
+`onTraceCreated` call:
+
+| test | outcome |
+|---|---|
+| `addTrace_notifiesVisitor_withIdenticalTraceInstance` | **RED** — `expected: <5> but was: <0>` |
+| `explore_reportsEveryTraceToVisitor` | **RED** — `expected: <4> but was: <0>` |
+| `addTrace_nullVisitor_stillRecordsTrace` | green |
+| the other nine | green |
+
+The numbers are the whole point: `getTraces()` still held **5** traces while the visitor recorded
+**0**, so every observation through the returned list stayed correct while the notification vanished.
+That is the divergence this spec exists to pin, and it is only visible because the two assertions sit
+in one test.
 
 ## Constraints
 
