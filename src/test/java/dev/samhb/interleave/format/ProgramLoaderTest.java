@@ -7,6 +7,7 @@ import dev.samhb.interleave.search.Invariant;
 import dev.samhb.interleave.format.registry.RegistryException;
 import org.junit.jupiter.api.Test;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -16,10 +17,55 @@ class ProgramLoaderTest {
 
     private final ProgramLoader loader = new ProgramLoader();
 
+    /**
+     * Every corpus program that has a Java fixture is verified against it.
+     *
+     * <p>The fixtures exist to prove the JSON resources faithfully re-encode the original Java
+     * implementations, so only programs that were <em>migrated</em> can be checked this way. Spec 12.05
+     * added {@code lost-update-3t}, which is newly authored in the declarative format and has no Java
+     * predecessor, so there is nothing for it to be equivalent to.
+     *
+     * <p>That exclusion is stated here rather than left implicit, and
+     * {@link #everyCorpusProgramWithoutAJavaFixtureIsDeclarative} asserts the two sets partition the
+     * corpus. So a future <em>typed</em> program added without a fixture fails that test instead of
+     * quietly escaping equivalence checking, which is the silent-omission failure Spec 12.05 R8 names.
+     */
+    /**
+     * The corpus partitions into migrated programs, which have a Java fixture and are checked against
+     * it, and newly authored declarative programs, which do not.
+     *
+     * <p>This is what keeps {@link #everyMigratedProgram_equivalentToJava} honest. That test iterates a
+     * hand-written list, so a program added to {@code BugCorpus.all()} but not to that list would be
+     * silently unchecked. Here the two sets are compared by name against the whole corpus, so such an
+     * omission fails instead of passing quietly -- the silent-omission failure Spec 12.05 R8 names.
+     */
     @Test
-    /** Tests loadAllSevenPrograms_equivalentToJava. */
-    void loadAllSevenPrograms_equivalentToJava() {
-        // Load all 7 programs from JSON and compare with Java BugCorpus equivalents
+    void everyCorpusProgramWithoutAJavaFixtureIsDeclarative() {
+        Set<String> fixtureNames = new HashSet<>();
+        for (BenchmarkProgram fixture : BugCorpus.allJavaFixtures()) {
+            fixtureNames.add(fixture.name());
+        }
+
+        Set<String> withoutFixture = new HashSet<>();
+        for (BenchmarkProgram program : BugCorpus.all()) {
+            if (!fixtureNames.contains(program.name())) {
+                withoutFixture.add(program.name());
+            }
+        }
+
+        // Naming the expected set, rather than just its size, so an added program forces a decision.
+        assertEquals(Set.of("lost-update-3t"), withoutFixture,
+            "Exactly the declarative, newly authored programs should lack a Java fixture. A typed program "
+                + "must have one, because the fixture is what verifies its JSON encoding. If this set "
+                + "changes, update everyMigratedProgram_equivalentToJava and its javadoc.");
+
+        assertEquals(BugCorpus.all().size(), fixtureNames.size() + withoutFixture.size(),
+            "Fixtures and non-fixtures must partition the corpus; a program in neither set is unchecked");
+    }
+
+    @Test
+    void everyMigratedProgram_equivalentToJava() {
+        // Load the migrated (typed) programs from JSON and compare with Java BugCorpus equivalents
         // Use Java fixtures as baseline (NOT BugCorpus.all() which loads from JSON)
         List<BenchmarkProgram> jsonPrograms = List.of(
             loader.loadFromResource("programs/peterson.json"),
@@ -33,10 +79,10 @@ class ProgramLoaderTest {
 
         List<BenchmarkProgram> javaPrograms = BugCorpus.allJavaFixtures();
 
-        assertEquals(7, jsonPrograms.size());
-        assertEquals(7, javaPrograms.size());
+        assertEquals(javaPrograms.size(), jsonPrograms.size(),
+            "Every migrated program needs a Java fixture; these two lists must stay the same length");
 
-        for (int i = 0; i < 7; i++) {
+        for (int i = 0; i < jsonPrograms.size(); i++) {
             BenchmarkProgram jsonProg = jsonPrograms.get(i);
             BenchmarkProgram javaProg = javaPrograms.get(i);
 

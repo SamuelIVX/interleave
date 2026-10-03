@@ -24,6 +24,21 @@ survivors are equivalent mutants with a per-mutant adjudication backed by eviden
 - **Off-limits:** `state/CanonicalEncoder.java` — Spec 12.01 owns it; this spec's tests depend on
   12.01 landing first, but must not modify it. `state/BitstateStore.java` — Spec 12.03.
 
+## Relationship to 12.05
+
+Spec 12.05 kills two surviving mutants at `cb/ContextBoundedExplorer` L87 and L88 — `store.clear()` and
+`visitedStates.clear()`. These sit next to §(a) below but are **not** handed to this spec, because they
+assert a different fact about a different class:
+
+- **§(a) here** is scoped to `interleave/state` and asserts that `HashingStateStore.clear()` empties its
+  own four collections. A fact about the *store*.
+- **L87/L88 in 12.05** are in `cb` and assert that the *caller* invokes `clear()` at all. Removing L87
+  leaves the store's own `clear()` perfectly correct while every subsequent search on that store prunes
+  against the previous search's contents.
+
+Complementary, not duplicate. Filing them here would either drag this spec's package scope out to `cb/`
+or record a CBS mutant under a spec that does not cover that package.
+
 ## Non-Goals
 
 - Changing the `StateStore` interface or either implementation's search semantics.
@@ -31,6 +46,7 @@ survivors are equivalent mutants with a per-mutant adjudication backed by eviden
   shipped and specified; this spec tests it, not redesigns it.
 - Asserting on specific hash *values*. Hash values are an implementation detail; tests that pin them
   break on every legitimate change to the encoding.
+- **Not the `clear()` call sites in `cb`.** See §Relationship to 12.05.
 
 ## Current State
 
