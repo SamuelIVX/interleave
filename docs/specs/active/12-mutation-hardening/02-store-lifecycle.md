@@ -127,7 +127,11 @@ denominator.
   gave 212 configurations across 128 distinct hashes, and every colliding bucket held the *same*
   configuration, distinguished only by object identity because `Configuration` has no `equals`. So R4's
   first disposition could not be satisfied from the corpus, and per R4 corpus-only absence cannot
-  justify a suppression either. The precondition is arranged directly instead — see the test's comment.
+  justify a suppression either. The pair is therefore *constructed*: `List.hashCode()` is mixed-radix
+  in base 31, so `[0, 31]` and `[1, 0]` both hash to 992 while printing differently. Over an identical
+  `SharedState` that makes the two encodings differ and the two store hashes equal. This satisfies
+  option 1 as written, so no spec amendment was needed — see the test's comment for why counter `31`
+  being unreachable is the finding rather than a defect in the fixture.
 
 Note the asymmetry: `clear()` at `L53` and `L55` have killed mutants but `L52` and `L54` do not.
 Partial coverage is worse than none here — a test that calls `clear()` and asserts *something*
@@ -208,8 +212,9 @@ not. R6 covers all 9 of these low-priority survivors.
       `false` — **or**, if no reachable colliding pair exists in the current corpus, that absence is
       documented as the recorded suppression R4 permits, with the search for such a pair recorded.
       Either way the line is accounted for (R4).
-      `hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited` — first disposition, killed.
-      The pair is arranged by reflection rather than drawn from the corpus; see §Two findings.
+      `hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited` — option 1 satisfied as
+      written: a real colliding pair is constructed, one is marked and the other queried. No suppression
+      and no spec amendment were required.
 - [x] `preemptionEntryCount()` tests cover 0, 1, N, and the merge case (R5).
       `preemptionEntryCount_countsDistinctConfigThreadPairs`.
 - [x] §Current State carries a verdict row for all 9 low-priority survivors, each marked
@@ -307,10 +312,18 @@ They are folded into the tests above.
 
 ### Reflection is required by R1, not incidental [verified]
 
-Three helpers reach into `HashingStateStore` privately: the four per-collection assertions in R1, the
-prefilter hash in R4, and the fixture constructor. R1 mandates verifying each collection *individually*,
-and no public method exposes `visitedHashes` or `preemptionHashes` — so per-collection verification is
-white-box by construction, not by choice. Without it, L52 and L54 survive.
+Only two things reach in privately, both unavoidable:
+
+- **The four per-collection assertions in R1.** R1 mandates verifying each collection *individually*, and
+  no public method exposes `visitedHashes` or `preemptionHashes`, so per-collection verification is
+  white-box by construction, not by choice. Without it, L52 and L54 survive.
+- **The fixture constructor.** `Configuration` exposes only `initial` and `successor`, neither of which
+  can place a thread at an arbitrary position, and a fixture pinned to one program's traversal order
+  would break the moment that order changes.
+
+R4 originally reached the prefilter by injecting a hash into `visitedHashes`. That was removed: the
+colliding pair is now constructed instead, so the R4 test asserts only public behaviour and reads no
+private state at all.
 
 R7 forbids asserting on internal key strings or hash values, and none of these tests does: reflection only
 *arranges* preconditions. Every assertion is on public behaviour (`isVisited`, `markVisited`, `size`,

@@ -5,12 +5,11 @@ import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.core.CounterState;
 import dev.samhb.interleave.core.ModelThread;
 import dev.samhb.interleave.core.SharedState;
-import dev.samhb.interleave.search.StateStore;
 import dev.samhb.interleave.core.StepOutcome;
+import dev.samhb.interleave.search.StateStore;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
@@ -162,44 +161,55 @@ class HashingStateStoreLifecycleTest {
      * every configuration whose hash is already present is reported as visited regardless of whether it
      * was ever marked.
      *
-     * <p><b>Why reflection.</b> Reaching that branch needs a hash collision: two distinct
-     * configurations sharing a hash, where one is marked and the other queried. Enumerating every
-     * reachable configuration in the corpus (212 configurations, 128 distinct hashes) produced <b>no such
-     * pair</b> — every colliding bucket held the same configuration, distinguished only by object
-     * identity, because {@code Configuration} declares no {@code equals}. R4 states that corpus-only
-     * absence cannot by itself support a suppression, so the precondition is arranged directly by
-     * injecting the unseen configuration's hash into the prefilter. The assertion remains behavioural.
+     * <p><b>The colliding pair.</b> Reaching that branch needs two distinct configurations sharing a
+     * hash, one marked and the other queried. Enumerating every reachable configuration in the corpus
+     * (212 configurations, 128 distinct hashes) produced no such pair — every colliding bucket held the
+     * same configuration, distinguished only by object identity, because {@code Configuration} declares
+     * no {@code equals}. So the pair is constructed instead.
+     *
+     * <p>It needs only that {@code List.hashCode()} collide while {@code toString()} does not, since the
+     * store hashes {@code counters} and keys on {@code counters.toString()}. List hashing is mixed-radix
+     * in base 31, so {@code [0, 31]} and {@code [1, 0]} both hash to 992 ({@code 31·0+31 == 31·1+0}) while
+     * printing differently. Over an identical {@code SharedState} that makes the two encodings differ and
+     * the two store hashes equal.
+     *
+     * <p>Counter {@code 31} is not a reachable thread position, which is exactly why the corpus has no
+     * colliding pair. That is the finding, not a weakness of the fixture: the store promises exactness
+     * for any two configurations, not only reachable ones, and the exact check — not the hash — is what
+     * makes that promise hold.
      */
     @Test
-    void hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited() throws Exception {
+    void hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited() {
         HashingStateStore store = new HashingStateStore();
-        Configuration marked = configurationAt(new CounterState(17), 2, 0);
-        Configuration unseen = configurationAt(new CounterState(19), 1, 0);
+        Configuration marked = configurationWithCounters(new CounterState(17), List.of(0, 31));
+        Configuration unseen = configurationWithCounters(new CounterState(17), List.of(1, 0));
+
+        // The pair must genuinely collide, or the test silently stops reaching L39 and passes for the
+        // wrong reason — exactly the failure that makes prefilter-guarded mutants so persistent.
+        // List hashing is 961 + 31*t0 + t1, so [0,31] and [1,0] both hash to 992.
+        assertEquals(List.of(0, 31).hashCode(), List.of(1, 0).hashCode(),
+            "precondition: the two counter lists must collide on hash");
+        assertNotEquals(List.of(0, 31).toString(), List.of(1, 0).toString(),
+            "precondition: the two counter lists must differ in the key's text");
 
         store.markVisited(marked);
-        assertTrue(store.isVisited(marked), "precondition: the marked state must be reported visited");
+        assertTrue(store.isVisited(marked), "precondition: the marked configuration must be reported visited");
 
-        // Arrange the collision: the unseen configuration's hash is present in the prefilter even
-        // though its exact encoding never was.
-        int unseenHash = storeHash(store, unseen);
-        Set<Integer> prefilter = fieldSet(store, "visitedHashes");
-        prefilter.add(unseenHash);
-        assertTrue(prefilter.contains(unseenHash),
-            "precondition: the prefilter must now hit for the unseen configuration");
-
+        // The marked configuration's hash is now in the prefilter, and the unseen one shares it, so
+        // isVisited reaches L39 rather than short-circuiting at the prefilter.
         assertFalse(store.isVisited(unseen),
-            "a prefilter hit on a configuration that was never marked must not report it visited; "
+            "a configuration that collides on hash but was never marked must not be reported visited; "
                 + "isVisited is exact and the hash is only an optimisation");
     }
 
     /**
-     * R4 — the same property across the whole reachable corpus, so the guarantee is not resting on one
-     * synthetic pair.
+     * R4 — the same property across the whole reachable corpus, both directions.
      *
-     * <p>Walks every reachable configuration and asserts the store's answers agree with its own marks:
-     * nothing it never marked is ever reported visited. This holds by construction today because no two
-     * distinct reachable configurations collide, so it is a regression guard for the store's core
-     * promise rather than a mutant killer.
+     * <p>Walks every reachable configuration and asserts the store agrees with its own marks in both
+     * directions: before a configuration is marked it must be reported unvisited, and afterwards
+     * visited. The "before" half matters independently — it is the only assertion here that would notice
+     * a store reporting configurations as visited which it has never seen, across the whole corpus rather
+     * than for one hand-picked configuration.
      */
     @Test
     void isVisited_neverReportsAnUnmarkedConfigurationAsVisited() {
@@ -208,11 +218,14 @@ class HashingStateStoreLifecycleTest {
                 program.program().initialConfiguration());
 
             HashingStateStore store = new HashingStateStore();
-            for (Configuration config : reachable) store.markVisited(config);
-
             for (Configuration config : reachable) {
+                assertFalse(store.isVisited(config),
+                    program.name() + ": " + config.programCounters()
+                        + " must not be reported visited before it is marked");
+                store.markVisited(config);
                 assertTrue(store.isVisited(config),
-                    "every marked configuration must be reported visited: " + config.programCounters());
+                    program.name() + ": " + config.programCounters()
+                        + " must be reported visited once marked");
             }
 
             // An unmarked configuration built from a state no walk visited.
@@ -322,12 +335,6 @@ class HashingStateStoreLifecycleTest {
             && !fieldMap(store, "minPreemptions").isEmpty();
     }
 
-    private static int storeHash(HashingStateStore store, Configuration config) throws Exception {
-        Method m = HashingStateStore.class.getDeclaredMethod("hashCode", Configuration.class);
-        m.setAccessible(true);
-        return (Integer) m.invoke(store, config);
-    }
-
     @SuppressWarnings("unchecked")
     private static Set<Integer> fieldSet(HashingStateStore store, String name) {
         try {
@@ -360,6 +367,14 @@ class HashingStateStoreLifecycleTest {
         List<Integer> counters = new ArrayList<>();
         counters.add(threadPosition);
         counters.add(0);
+        return newConfiguration(state, counters, List.of(0, 1), false, false);
+    }
+
+    /**
+     * Builds a configuration with explicit program counters, for the R4 colliding pair. The counters are
+     * deliberately not plausible thread positions — see that test's comment.
+     */
+    private static Configuration configurationWithCounters(CounterState state, List<Integer> counters) {
         return newConfiguration(state, counters, List.of(0, 1), false, false);
     }
 

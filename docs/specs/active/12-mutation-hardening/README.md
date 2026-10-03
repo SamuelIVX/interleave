@@ -29,21 +29,27 @@ measured, they cannot be closed by a bigger corpus either.** See Spec 12.05 §TL
 program moved *no* mutant statuses, and injected dominance defects 4–6 already turn the suite red at
 HEAD. They needed direct assertions, which is what 12.05 now does.
 
-## Status: active — 12.07, 12.01, and 12.05 implemented; 12.02, 12.03, 12.04, 12.06 pending
+## Status: active — 12.07, 12.01, 12.02, and 12.05 implemented; 12.03, 12.04, 12.06 pending
 
-Verified 2026-10-02 by running PIT scoped to each target class. "Pending" is measured, not
-bookkeeping — every mutant 12.02 and 12.03 names is still open:
+Measured 2026-10-02 by running PIT scoped to each target class:
 
-| spec | target class | killed | survived | no coverage |
-|---|---|---|---|---|
-| 12.02 | `state.HashingStateStore` | 46 / 61 | 14 | 1 |
-| 12.03 | `state.BitstateStore` | 84 / 97 | 11 | 2 |
+| spec | target class | killed | survived | no coverage | state |
+|---|---|---|---|---|---|
+| **12.02** | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
+| 12.03 | `state.BitstateStore` | 84 / 97 | 11 | 2 | pending |
 
-The three specs name test files that **do not yet exist** — `HashingStateStoreLifecycleTest`,
-`BitstateStoreDiagnosticsTest`, and `TraceEmissionTest`. What exists in `state/` today is
-`CanonicalEncoderContractTest`, `StateEncodingFidelityTest`, `StateHashingTest`,
-`StateStorePreemptionTest`, and `StoreEquivalenceTest`, none of which covers the mutants 12.02 and
-12.03 name. That is why every target in those two specs survives against the current suite.
+**12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
+46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
+rather than an observation: the hash feeds only the prefilter, and both `isVisited` overloads confirm
+against the exact encoding, so no change to the hash can alter any answer. They are left `SURVIVED`
+deliberately, so 12.06's ratchet sees them as a known floor rather than losing them from the
+denominator.
+
+12.03 and 12.04 still name test files that **do not exist**: `BitstateStoreDiagnosticsTest` and
+`TraceEmissionTest`. `state/` today contains `CanonicalEncoderContractTest`,
+`StateEncodingFidelityTest`, `StateHashingTest`, `StateStorePreemptionTest`,
+`HashingStateStoreLifecycleTest`, and `StoreEquivalenceTest`. That is why every target 12.03 names
+still survives.
 
 ### Fixed during 12.07: `StaticPorExplorer` was unsound with an invariant
 
