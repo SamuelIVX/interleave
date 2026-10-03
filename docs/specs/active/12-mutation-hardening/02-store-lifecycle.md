@@ -286,25 +286,44 @@ re-deriving it (DRY — one authoritative representation per fact).
 
 ## Tests
 
-**File:** `src/test/java/dev/samhb/interleave/state/HashingStateStoreLifecycleTest.java`
+**File:** `src/test/java/dev/samhb/interleave/state/HashingStateStoreLifecycleTest.java` — 8 tests.
 
-- `clear_emptiesVisitedHashes_visitedStates_preemptionHashes_andMinPreemptions` (R1) — **four
-  separate assertions**, not one aggregate
-- `clear_afterMarkingVisited_makesStoreReportNothingVisited` (R2)
-- `clear_resetsSizeAndPreemptionEntryCount_toZero` (R2)
-- `freshCopy_isNonNull` (R3)
-- `freshCopy_isIndependentOfOriginal` (R3)
-- `isVisited_hashPrefilterHitButExactMiss_returnsFalse` (R4) — the mutant-killing test; requires the
-  colliding pair from Design R4
-- `preemptionEntryCount_isZeroBeforeAnyMark` (R5)
-- `preemptionEntryCount_countsDistinctConfigThreadPairs` (R5)
-- `preemptionEntryCount_mergeOfSameKey_doesNotIncreaseCount` (R5)
-- `markVisited_sameKeyDifferentBudget_keepsMinimum` (R5) — pins the min-merge, which is the whole
-  point of the cost-aware scheme
+| test | requirement | purpose |
+|---|---|---|
+| `clear_emptiesEveryCollection` | R1 | **four separate assertions**, one per collection, read by reflection. Kills L52 and L54. |
+| `clear_makesTheStoreBehaveAsNew` | R2 | `size() == 0`, `preemptionEntryCount() == 0`, `isVisited` false for pre-clear states, and re-marking still works. |
+| `freshCopy_returnsANonNullUsableStore` | R3 | non-null, immediately usable. Kills L123. |
+| `freshCopy_isIndependentOfTheOriginal` | R3 | no leakage in either direction. |
+| `hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited` | R4 | prefilter hit + exact miss must answer false. Kills L39. |
+| `isVisited_neverReportsAnUnmarkedConfigurationAsVisited` | R4 | corpus-wide regression guard on the store's core promise. |
+| `preemptionEntryCount_countsDistinctConfigThreadPairs` | R5 | 0, 1, N, and the min-merge case. Kills L98 ×2. |
+| `preemptionAwareness_keepsTheMinimumRecordedBudget` | R5 | dominance query against the recorded minimum. |
 
-**Falsification check (not committed):** delete `preemptionHashes.clear()` from `clear()`; confirm
-the R2 test goes red; revert. A second check: return `null` from `freshCopy()`; confirm R3 goes red;
-revert.
+Several planned tests were merged: the spec previously listed `clear_resetsSizeAndPreemptionEntryCount_toZero`
+and `clear_afterMarkingVisited_makesStoreReportNothingVisited` separately, and `preemptionEntryCount_isZeroBeforeAnyMark`
+and `preemptionEntryCount_mergeOfSameKey_doesNotIncreaseCount` separately. Each pair shared a fixture and a
+single observable surface, so splitting them produced two tests that had to be read together to see anything.
+They are folded into the tests above.
+
+### Reflection is required by R1, not incidental [verified]
+
+Three helpers reach into `HashingStateStore` privately: the four per-collection assertions in R1, the
+prefilter hash in R4, and the fixture constructor. R1 mandates verifying each collection *individually*,
+and no public method exposes `visitedHashes` or `preemptionHashes` — so per-collection verification is
+white-box by construction, not by choice. Without it, L52 and L54 survive.
+
+R7 forbids asserting on internal key strings or hash values, and none of these tests does: reflection only
+*arranges* preconditions. Every assertion is on public behaviour (`isVisited`, `markVisited`, `size`,
+`preemptionEntryCount`), plus the R1 collection sizes that R1 explicitly requires.
+
+**Falsification checks (not committed):**
+- Return `null` from `freshCopy()`; `freshCopy_returnsANonNullUsableStore` must go red (L123).
+- Replace `return visitedStates.contains(encoded);` at L39 with `return true;`
+  `hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited` must go red.
+- Delete `preemptionHashes.clear()` at L54; **`clear_emptiesEveryCollection`** must go red —
+  **not** `clear_makesTheStoreBehaveAsNew`, which stays green because no public method can observe a
+  stale prefilter once the exact set is cleared. An earlier version of this section named the R2 test
+  and would have sent a reviewer to a green run.
 
 ## Constraints
 
