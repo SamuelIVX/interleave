@@ -29,14 +29,14 @@ measured, they cannot be closed by a bigger corpus either.** See Spec 12.05 §TL
 program moved *no* mutant statuses, and injected dominance defects 4–6 already turn the suite red at
 HEAD. They needed direct assertions, which is what 12.05 now does.
 
-## Status: active — 12.07, 12.01, 12.02, and 12.05 implemented; 12.03, 12.04, 12.06 pending
+## Status: active — 12.07, 12.01, 12.02, 12.03, and 12.05 implemented; 12.04, 12.06 pending
 
 Measured 2026-10-02 by running PIT scoped to each target class:
 
 | spec | target class | killed | survived | no coverage | state |
 |---|---|---|---|---|---|
 | **12.02** | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
-| 12.03 | `state.BitstateStore` | 84 / 97 | 11 | 2 | pending |
+| **12.03** | `state.BitstateStore` | **93 / 97 (95.9%)** | 4 | 0 | **done** |
 
 **12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
 46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
@@ -45,11 +45,17 @@ against the exact encoding, so no change to the hash can alter any answer. They 
 deliberately, so 12.06's ratchet sees them as a known floor rather than losing them from the
 denominator.
 
-12.03 and 12.04 still name test files that **do not exist**: `BitstateStoreDiagnosticsTest` and
-`TraceEmissionTest`. `state/` today contains `CanonicalEncoderContractTest`,
-`StateEncodingFidelityTest`, `StateHashingTest`, `StateStorePreemptionTest`,
-`HashingStateStoreLifecycleTest`, and `StoreEquivalenceTest`. That is why every target 12.03 names
-still survives.
+**12.03 closed all seven of its named lines** — L68, L71, L201, L210, L298, L300, L301 — taking the
+class from 84/97 (86.6%) to 93/97 (95.9%) and `NO_COVERAGE` from 2 to 0. The nine mutants killed are
+exactly the nine it named; nothing else moved. Its 4 remaining survivors (`L333`, `L343` ×2, `L357`)
+are hash arithmetic and are **not** equivalent, unlike 12.02's nine: `BitstateStore` has no exact
+confirmation layer, so a different hash genuinely changes answers. They survive only because closing
+them requires a hash-structure assertion, which R7 forbids — a tension R7 wins by design.
+
+12.04 still names a test file that **does not exist**: `TraceEmissionTest`. `state/` today contains
+`CanonicalEncoderContractTest`, `StateEncodingFidelityTest`, `StateHashingTest`,
+`StateStorePreemptionTest`, `HashingStateStoreLifecycleTest`, `StoreEquivalenceTest`, and
+`BitstateStoreDiagnosticsTest`.
 
 ### Fixed during 12.07: `StaticPorExplorer` was unsound with an invariant
 
@@ -168,20 +174,20 @@ scores as *not* detected. The five statuses that score as detected without an as
 are all zero, so the percentage is not inflated by wall-time or memory kills (see Spec 12.06).
 
 **Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
-**post-12.01** column is current; the others are unchanged by 12.01 and still carry their `c5fdcd0`
-figures:
+**current** column reflects 12.01, 12.02 and 12.03; the `c5fdcd0` figures are the pre-spec baseline:
 
-| class | at `c5fdcd0` | coverage | **post-12.01** | coverage |
-|---|---|---|---|---|
-| `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** |
-| `HashingStateStore` | 46/61 | 75.4% | 46/61 | 75.4% |
-| `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% |
-| `BitstateStore` | 84/97 | 86.6% | 84/97 | 86.6% |
+| class | at `c5fdcd0` | coverage | **current** | coverage | moved by |
+|---|---|---|---|---|---|
+| `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 12.01 (denominator shrank) |
+| `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 12.02 |
+| `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% | — |
+| `BitstateStore` | 84/97 | 86.6% | **93/97** | **95.9%** | 12.03 |
 
-`CanonicalEncoder` is the only row that moved, and it moved because its denominator shrank — 12.01
-deleted `equals` and its five unkillable mutants with it. The killed count did not change. Read that
-row as *dead code removed*, not *coverage earned*; the class total (7) is not comparable to the old
-one (12) without reading both.
+`CanonicalEncoder` moved for a different reason than the other two: its denominator shrank, because
+12.01 deleted `equals` and its five unkillable mutants with it. The killed count did not change. Read
+that row as *dead code removed*, not *coverage earned*; the class total (7) is not comparable to the
+old one (12) without reading both. `HashingStateStore` and `BitstateStore` moved by genuinely killing
+mutants, and in both cases the survivors that remain are adjudicated rather than unexamined.
 
 ## Spec Set Structure
 
