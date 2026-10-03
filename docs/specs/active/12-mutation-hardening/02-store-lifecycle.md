@@ -68,22 +68,79 @@ prefilter hits, then confirm against the exact encoded state. The `BooleanTrue` 
 survives — returning `true` unconditionally would make every state look visited, and no test
 catches it. That is Spec 12.03-adjacent work in spirit but lives in this class; §R3 below owns it.
 
-**Mutation inventory — 61 mutants, 46 killed (75.4%), 15 not killed:**
+**Mutation inventory — 61 mutants, 46 killed (75.4%), 15 not killed.** Superseded 2026-10-02 by the
+measurement below; kept so the delta is checkable.
 
-| line | symbol | mutator | status | priority |
-|---|---|---|---|---|
-| L39 | `isVisited(Configuration)` | `TRUE_RETURNS` | SURVIVED | **high** — catastrophic-if-real |
-| L52 | `clear` — `visitedHashes.clear()` | `VOID_METHOD_CALLS` | SURVIVED | **high** — leak |
-| L54 | `clear` — `preemptionHashes.clear()` | `VOID_METHOD_CALLS` | SURVIVED | **high** — leak |
-| L98 | `preemptionEntryCount` | `NON_VOID_METHOD_CALLS` | SURVIVED | med |
-| L98 | `preemptionEntryCount` | `PRIMITIVE_RETURNS` | SURVIVED | med |
-| L102 | `preemptionHash`/key helper | `NON_VOID_METHOD_CALLS` | SURVIVED | low — R4 |
-| L103 | `preemptionHash` | `MATH` ×2, `NON_VOID_METHOD_CALLS` | SURVIVED ×3 | low — R4 |
-| L104 | `preemptionHash` | `PRIMITIVE_RETURNS` | SURVIVED | low — R4 |
-| L114 | `preemptionHashIndices`/key helpers | `MATH` ×2, `NON_VOID_METHOD_CALLS`, `PRIMITIVE_RETURNS` | SURVIVED ×4 | low — R4 |
-| L123 | `freshCopy` | `NULL_RETURNS` | **NO_COVERAGE** | **high** — NPE |
+| line | symbol | mutator | before | after | priority |
+|---|---|---|---|---|---|
+| L39 | `isVisited(Configuration)` | `TRUE_RETURNS` | SURVIVED | **KILLED** | **high** — catastrophic-if-real |
+| L52 | `clear` — `visitedHashes.clear()` | `VOID_METHOD_CALLS` | SURVIVED | **KILLED** | **high** — leak |
+| L54 | `clear` — `preemptionHashes.clear()` | `VOID_METHOD_CALLS` | SURVIVED | **KILLED** | **high** — leak |
+| L98 | `preemptionEntryCount` | `NON_VOID_METHOD_CALLS`, `PRIMITIVE_RETURNS` | SURVIVED ×2 | **KILLED ×2** | med |
+| L102 | `hashCode` — `31 * result +` | `NON_VOID_METHOD_CALLS` | SURVIVED | SURVIVED | low — R6, equivalent |
+| L103 | `hashCode` — `31 * result` | `MATH` ×2, `NON_VOID_METHOD_CALLS` | SURVIVED ×3 | SURVIVED ×3 | low — R6, equivalent |
+| L104 | `hashCode` — `result` | `PRIMITIVE_RETURNS` | SURVIVED | SURVIVED | low — R6, equivalent |
+| L114 | `preemptionHash` — `31 * hashCode + tid` | `MATH` ×2, `NON_VOID_METHOD_CALLS`, `PRIMITIVE_RETURNS` | SURVIVED ×4 | SURVIVED ×4 | low — R6, equivalent |
+| L123 | `freshCopy` | `NULL_RETURNS` | **NO_COVERAGE** | **KILLED** | **high** — NPE |
 
-Totals: 14 `SURVIVED` + 1 `NO_COVERAGE` = 15.
+**After: 61 mutants, 52 killed (85.2%), 9 survived, 0 no coverage.** Every high- and medium-priority
+target is closed.
+
+### R6 adjudication — the 9 remaining survivors [verified]
+
+All nine are **equivalent**, and the argument is a proof rather than an observation:
+
+`hashCode(Configuration)` and `preemptionHash(Configuration, int)` feed only the two prefilter sets.
+No public method exposes a hash — `size()` reads `visitedStates`, `preemptionEntryCount()` reads
+`minPreemptions`, and both `isVisited` overloads confirm against the exact encoding (`visitedStates`
+and `minPreemptions`) after consulting the prefilter. The prefilter therefore decides *whether* the
+exact check runs, never *what it answers*.
+
+Substituting a different hash function — which is what each of these mutants does — cannot change the
+answer to any public method. A degenerate hash that made every configuration collide would still return
+correct answers; it would only cost the optimisation. Correctness does not depend on the hash being
+injective, or being any particular function.
+
+Per-mutant verdict, all *equivalent — the hash feeds only the prefilter; the exact check is
+authoritative*:
+
+| line | count | verdict |
+|---|---|---|
+| L102 | 1 | equivalent |
+| L103 | 3 | equivalent |
+| L104 | 1 | equivalent |
+| L114 | 4 | equivalent |
+
+No suppression was recorded in the PIT config. These nine are left as `SURVIVED` deliberately: the
+ratchet in Spec 12.06 must see them as a known floor rather than have them quietly vanish from the
+denominator.
+
+### Two findings that contradict earlier reasoning [verified]
+
+- **L52 and L54 are observable after all.** They were assumed unobservable on the reasoning that no
+  public method reads a prefilter set without also reading the exact set, which `clear()` empties
+  together — so "prefilter stale, exact empty" and "fully cleared" look identical through the API. That
+  reasoning holds for the public API, which is why `clear_makesTheStoreBehaveAsNew` cannot kill them.
+  R1 asks for per-collection verification, which is necessarily white-box, and
+  `clear_emptiesEveryCollection` reads both prefilter sets by reflection and kills both.
+- **`state.toString()` is not a usable value key.** `DclState.instance` holds a bare `Object`, so its
+  `toString()` prints an identity hash that changes on every `deepCopy`. Two configurations the store
+  correctly treats as the same state therefore look distinct by string: measured on
+  `double-checked-locking`, **23 reachable configurations against 17 distinct encodings**, six pairs
+  colliding. The encoder is *not* at fault — `DclState.encodeTo` writes all six fields, and `instance`
+  is in its domain either null or set, so a presence flag is lossless. Any test helper keying on
+  `state.toString()` will admit duplicates, and a duplicate is legitimately reported visited once its
+  equivalent is marked. `reachableConfigurations` deduplicates through a probe `HashingStateStore`
+  instead, which is also the granularity the assertions are actually about.
+- **No real hash collision exists in the reachable corpus.** Enumerating every reachable configuration
+  gave 212 configurations across 128 distinct hashes, and every colliding bucket held the *same*
+  configuration, distinguished only by object identity because `Configuration` has no `equals`. So R4's
+  first disposition could not be satisfied from the corpus, and per R4 corpus-only absence cannot
+  justify a suppression either. The pair is therefore *constructed*: `List.hashCode()` is mixed-radix
+  in base 31, so `[0, 31]` and `[1, 0]` both hash to 992 while printing differently. Over an identical
+  `SharedState` that makes the two encodings differ and the two store hashes equal. This satisfies
+  option 1 as written, so no spec amendment was needed — see the test's comment for why counter `31`
+  being unreachable is the finding rather than a defect in the fixture.
 
 Note the asymmetry: `clear()` at `L53` and `L55` have killed mutants but `L52` and `L54` do not.
 Partial coverage is worse than none here — a test that calls `clear()` and asserts *something*
@@ -153,23 +210,33 @@ not. R6 covers all 9 of these low-priority survivors.
 
 ## Acceptance Criteria
 
-- [ ] A test populates all four collections, calls `clear()`, and asserts each is empty
+- [x] A test populates all four collections, calls `clear()`, and asserts each is empty
       **individually** — four separate assertions, so a partial clear fails (R1).
-- [ ] A test asserts `size() == 0`, `preemptionEntryCount() == 0`, and `isVisited == false` for a
-      pre-clear state after `clear()` (R2).
-- [ ] A test asserts `freshCopy()` is non-null and that marking in the copy leaves the original
-      unchanged (R3).
-- [ ] `isVisited` is driven down the hash-prefilter-hit path with an unseen state and asserted
+      `clear_emptiesEveryCollection`.
+- [x] A test asserts `size() == 0`, `preemptionEntryCount() == 0`, and `isVisited == false` for a
+      pre-clear state after `clear()` (R2). `clear_makesTheStoreBehaveAsNew`.
+- [x] A test asserts `freshCopy()` is non-null and that marking in the copy leaves the original
+      unchanged (R3). `freshCopy_returnsANonNullUsableStore`, `freshCopy_isIndependentOfTheOriginal`.
+- [x] `isVisited` is driven down the hash-prefilter-hit path with an unseen state and asserted
       `false` — **or**, if no reachable colliding pair exists in the current corpus, that absence is
       documented as the recorded suppression R4 permits, with the search for such a pair recorded.
       Either way the line is accounted for (R4).
-- [ ] `preemptionEntryCount()` tests cover 0, 1, N, and the merge case (R5).
-- [ ] §Current State carries a verdict row for all 9 low-priority survivors, each marked
-      `equivalent — <reason>` or `tested — <test name>` (R6).
-- [ ] A repo-wide grep confirms no test asserts a literal hash value (R7).
-- [ ] `./gradlew clean test javadoc` passes.
-- [ ] `./gradlew pitest` shows `HashingStateStore` above 75.4%, and specifically that L52, L54 and
-      L123 are `KILLED`.
+      `hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited` — option 1 satisfied as
+      written: a real colliding pair is constructed, one is marked and the other queried. No suppression
+      and no spec amendment were required.
+- [x] `preemptionEntryCount()` tests cover 0, 1, N, and the merge case (R5).
+      `preemptionEntryCount_countsDistinctConfigThreadPairs`.
+- [x] §Current State carries a verdict row for all 9 low-priority survivors, each marked
+      `equivalent — <reason>` or `tested — <test name>` (R6). All 9 equivalent; see §R6 adjudication.
+- [x] A repo-wide grep confirms no test asserts a literal hash value (R7). The single assertion that
+      mentions `hashCode()` compares two *computed* values — `[0,31]` against `[1,0]` — to prove the R4
+      fixture genuinely collides. It hardcodes no hash number, so it survives any change to the store's
+      hashing. Reflection is used for exactly two purposes: constructing fixtures and arranging
+      preconditions, and reading the four collections in `clear_emptiesEveryCollection`'s post-clear
+      assertions — the per-collection check R1 requires, and the reason L52 and L54 are killed.
+- [x] `./gradlew clean test javadoc` passes.
+- [x] `./gradlew pitest` shows `HashingStateStore` above 75.4%, and specifically that L52, L54 and
+      L123 are `KILLED`. Measured 75.4% → **85.2%**; L39, L52, L54, L98 ×2, L123 all KILLED.
 
 ## Design
 
@@ -237,25 +304,56 @@ re-deriving it (DRY — one authoritative representation per fact).
 
 ## Tests
 
-**File:** `src/test/java/dev/samhb/interleave/state/HashingStateStoreLifecycleTest.java`
+**File:** `src/test/java/dev/samhb/interleave/state/HashingStateStoreLifecycleTest.java` — 8 tests.
 
-- `clear_emptiesVisitedHashes_visitedStates_preemptionHashes_andMinPreemptions` (R1) — **four
-  separate assertions**, not one aggregate
-- `clear_afterMarkingVisited_makesStoreReportNothingVisited` (R2)
-- `clear_resetsSizeAndPreemptionEntryCount_toZero` (R2)
-- `freshCopy_isNonNull` (R3)
-- `freshCopy_isIndependentOfOriginal` (R3)
-- `isVisited_hashPrefilterHitButExactMiss_returnsFalse` (R4) — the mutant-killing test; requires the
-  colliding pair from Design R4
-- `preemptionEntryCount_isZeroBeforeAnyMark` (R5)
-- `preemptionEntryCount_countsDistinctConfigThreadPairs` (R5)
-- `preemptionEntryCount_mergeOfSameKey_doesNotIncreaseCount` (R5)
-- `markVisited_sameKeyDifferentBudget_keepsMinimum` (R5) — pins the min-merge, which is the whole
-  point of the cost-aware scheme
+| test | requirement | purpose |
+|---|---|---|
+| `clear_emptiesEveryCollection` | R1 | **four separate assertions**, one per collection, read by reflection. Kills L52 and L54. |
+| `clear_makesTheStoreBehaveAsNew` | R2 | `size() == 0`, `preemptionEntryCount() == 0`, `isVisited` false for pre-clear states, and re-marking still works. |
+| `freshCopy_returnsANonNullUsableStore` | R3 | non-null, immediately usable. Kills L123. |
+| `freshCopy_isIndependentOfTheOriginal` | R3 | no leakage in either direction. |
+| `hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited` | R4 | prefilter hit + exact miss must answer false. Kills L39. |
+| `isVisited_neverReportsAnUnmarkedConfigurationAsVisited` | R4 | corpus-wide regression guard on the store's core promise. |
+| `preemptionEntryCount_countsDistinctConfigThreadPairs` | R5 | 0, 1, N, and the min-merge case. Kills L98 ×2. |
+| `preemptionAwareness_keepsTheMinimumRecordedBudget` | R5 | dominance query against the recorded minimum. |
 
-**Falsification check (not committed):** delete `preemptionHashes.clear()` from `clear()`; confirm
-the R2 test goes red; revert. A second check: return `null` from `freshCopy()`; confirm R3 goes red;
-revert.
+Several planned tests were merged: the spec previously listed `clear_resetsSizeAndPreemptionEntryCount_toZero`
+and `clear_afterMarkingVisited_makesStoreReportNothingVisited` separately, and `preemptionEntryCount_isZeroBeforeAnyMark`
+and `preemptionEntryCount_mergeOfSameKey_doesNotIncreaseCount` separately. Each pair shared a fixture and a
+single observable surface, so splitting them produced two tests that had to be read together to see anything.
+They are folded into the tests above.
+
+### Reflection is required by R1, not incidental [verified]
+
+Only two things reach in privately, both unavoidable:
+
+- **The four per-collection assertions in R1.** R1 mandates verifying each collection *individually*, and
+  no public method exposes `visitedHashes` or `preemptionHashes`, so per-collection verification is
+  white-box by construction, not by choice. Without it, L52 and L54 survive.
+- **The fixture constructor.** `Configuration` exposes only `initial` and `successor`, neither of which
+  can place a thread at an arbitrary position, and a fixture pinned to one program's traversal order
+  would break the moment that order changes.
+
+R4 originally reached the prefilter by injecting a hash into `visitedHashes`. That was removed: the
+colliding pair is now constructed instead, so the R4 test asserts only public behaviour and reads no
+private state at all.
+
+R7 forbids asserting on internal key strings or hash values, and none of these tests does. Reflection is
+used in two ways, neither of which asserts on a hash value or a key string: it constructs fixtures and
+arranges preconditions, and it reads the four collections' sizes *after* `clear()` in
+`clear_emptiesEveryCollection`. That second use is precisely the per-collection criterion R1 demands — no
+public method exposes the prefilter sets, so that they were emptied cannot be verified otherwise — and
+those four post-clear assertions are what kill L52 and L54. Every other assertion is on public behaviour
+(`isVisited`, `markVisited`, `size`, `preemptionEntryCount`).
+
+**Falsification checks (not committed):**
+- Return `null` from `freshCopy()`; `freshCopy_returnsANonNullUsableStore` must go red (L123).
+- Replace `return visitedStates.contains(encoded);` at L39 with `return true;`
+  `hashPrefilterHitOnAnUnseenConfiguration_isStillReportedNotVisited` must go red.
+- Delete `preemptionHashes.clear()` at L54; **`clear_emptiesEveryCollection`** must go red —
+  **not** `clear_makesTheStoreBehaveAsNew`, which stays green because no public method can observe a
+  stale prefilter once the exact set is cleared. An earlier version of this section named the R2 test
+  and would have sent a reviewer to a green run.
 
 ## Constraints
 
