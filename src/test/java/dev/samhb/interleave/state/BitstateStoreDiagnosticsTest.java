@@ -2,7 +2,6 @@ package dev.samhb.interleave.state;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -359,8 +358,6 @@ class BitstateStoreDiagnosticsTest {
             "precondition: the literal follows from the accessor values alone");
         assertEquals(0.017410586496326586, store.estimatedFalsePositiveRate(), 1e-9,
             "the store's estimate must agree with its own accessors");
-
-        assertInstanceOf(BitstateStore.class, store, "the store is concrete, so the casts are safe");
     }
 
     // ---------------------------------------------------------------- fixtures

@@ -37,12 +37,13 @@ HEAD. They needed direct assertions, which is what 12.05 now does.
 
 ## Status: active — 12.07, 12.01, 12.02, 12.03, and 12.05 implemented; 12.04, 12.06 pending
 
-Measured 2026-10-02 by running PIT scoped to each target class:
+PIT results from runs scoped to each target class; measurement dates are shown per row, because a
+single date across rows would misattribute provenance:
 
-| spec | target class | killed | survived | no coverage | state |
-|---|---|---|---|---|---|
-| **12.02** | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
-| **12.03** | `state.BitstateStore` | **93 / 97 (95.9%)** | 4 | 0 | **done** |
+| spec | measured | target class | killed | survived | no coverage | state |
+|---|---|---|---|---|---|---|
+| **12.02** | 2026-10-02 | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
+| **12.03** | 2026-10-03 | `state.BitstateStore` | **93 / 97 (95.9%)** | 4 | 0 | **done** |
 
 **12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
 46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
@@ -180,14 +181,16 @@ scores as *not* detected. The five statuses that score as detected without an as
 are all zero, so the percentage is not inflated by wall-time or memory kills (see Spec 12.06).
 
 **Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
-**current** column reflects 12.01, 12.02 and 12.03; the `c5fdcd0` figures are the pre-spec baseline:
+**current** column reflects 12.01, 12.02 and 12.03; the `c5fdcd0` figures are the pre-spec baseline.
+Each row carries its own measurement date, because a single date across rows would misattribute
+provenance — three of these four figures were taken on three different days:
 
-| class | at `c5fdcd0` | coverage | **current** | coverage | moved by |
-|---|---|---|---|---|---|
-| `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 12.01 (denominator shrank) |
-| `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 12.02 |
-| `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% | — |
-| `BitstateStore` | 84/97 | 86.6% | **93/97** | **95.9%** | 12.03 |
+| class | at `c5fdcd0` | coverage | **current** | coverage | measured | moved by |
+|---|---|---|---|---|---|---|
+| `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 2026-10-01 | 12.01 (denominator shrank) |
+| `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 2026-10-02 | 12.02 |
+| `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% | `c5fdcd0` | — |
+| `BitstateStore` | 84/97 | 86.6% | **93/97** | **95.9%** | 2026-10-03 | 12.03 |
 
 `CanonicalEncoder` moved for a different reason than the other two: its denominator shrank, because
 12.01 deleted `equals` and its five unkillable mutants with it. The killed count did not change. Read
@@ -383,10 +386,13 @@ details — the exact failure mode that produced PR #26's under-specified metric
   designed to expose wrong dominance might expose an actual `ContextBoundedExplorer` defect. It did
   not — the premise behind the corpus approach was falsified, and the four contract tests that replaced
   it found no defect. 12.05 is now purely additive. Spec 12.05 §TL;DR.
-- **Spec 12.07's encoding change will move byte-level expectations elsewhere.** Gaining one boolean at
-  the head of the `DeadlockState` encoding invalidates any hardcoded byte string or bitstate bit
-  position for `deadlock`. Spec 12.03's bitstate metrics are the most likely to need re-deriving, so
-  grep for hardcoded encoding expectations before merging 12.07.
+- ~~**Spec 12.07's encoding change will move byte-level expectations elsewhere.**~~ **Checked; did
+  not materialise for 12.03.** Gaining one boolean at the head of the `DeadlockState` encoding
+  invalidates any hardcoded byte string or bitstate bit position for `deadlock`, and 12.03's bitstate
+  metrics were named here as the most likely casualty. Verified otherwise: `BitstateStoreDiagnosticsTest`
+  builds every fixture from `CounterState`, so no `deadlock` byte string or bit position appears in it
+  and its literals are unaffected. The general hazard stands for any *future* test that pins a
+  `DeadlockState` encoding or bit position — grep for such expectations before adding one.
 - **Spec 12.07's completeness check will break on a field rename.** That is intended — it forces a
   conscious decision — but it surfaces as a build failure on a semantically null refactor. Whoever hits
   it must add or re-point the case, not delete the assertion.
