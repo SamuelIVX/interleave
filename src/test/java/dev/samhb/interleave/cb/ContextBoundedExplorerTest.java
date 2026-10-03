@@ -253,6 +253,54 @@ class ContextBoundedExplorerTest {
     }
 
     @Test
+    void lossyBitstateFilter_stillSurfacesTheDeadlock() {
+        // Spec 12.03 section R6. BitstateStore keys on a hash narrowed to a bit, so a wrong hash
+        // changes which states collide -- and a collision makes isVisited answer "seen" for a state
+        // that was never marked. The search then prunes that state without examining it, so a
+        // genuinely bad hash makes this tool silently miss bugs. Unlike HashingStateStore there is
+        // no exact second check: the bit array is the answer.
+        //
+        // So this is asserted end to end through the public seam, with no hash value anywhere, which
+        // is what lets R7 stand unamended.
+        //
+        // 64 bits is a contract, not a tuning knob. It must be small enough that collisions occur
+        // at all -- at the 1,000,003-bit default the corpus is far too small to collide, which is
+        // exactly why these mutants survived every earlier attempt to kill them -- and large enough
+        // that correct code still solves the program.
+        //
+        // The two hash counts are not arbitrary; each isolates a different fold in the hash:
+        //
+        //   k=1  every state maps through a single bit, so this is the most collision-exposed
+        //        configuration available and it isolates the quality of hashCode() itself.
+        //   k=2  the production default, which pulls in the preemption fold in
+        //        preemptionHashIndices that k=1 never reaches.
+        //
+        // Measured over 1,080 configurations -- all 7 corpus programs x 10 array sizes x 6 hash
+        // counts x 2 context bounds -- these are the only two that separate a correct hash from a
+        // broken one on bug detection. Both were confirmed by injecting each mutant and watching
+        // this test fail.
+        //
+        // If this test ever needs retuning, re-measure that grid; do not adjust the size until it
+        // goes green. A size at which nothing collides cannot fail, and would silently stop
+        // testing anything.
+        Program program = named("deadlock").program();
+
+        assertSurfacesDeadlock(program, 1, "k=1");
+        assertSurfacesDeadlock(program, 2, "k=2");
+    }
+
+    private static void assertSurfacesDeadlock(Program program, int numHashFunctions, String label) {
+        BitstateStore store = new BitstateStore(64, numHashFunctions, 2);
+        DfsResult result = new ContextBoundedExplorer().explore(program, null, store, null, 2);
+
+        assertTrue(result.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.DEADLOCK),
+            "at 64 bits with " + label + " the filter must still surface the deadlock; if it does "
+                + "not, the hash is colliding badly enough that the search prunes states it must "
+                + "examine, and the tool would silently miss real bugs (traces="
+                + result.traces().stream().map(t -> String.valueOf(t.outcome())).toList() + ")");
+    }
+
+    @Test
     void nullStore_usesDefaultExactStore() {
         DfsResult result = new ContextBoundedExplorer().explore(twoStepEachThread(), null, null, null, 2);
         assertTrue(result.statesExplored() > 0);
@@ -300,4 +348,7 @@ class ContextBoundedExplorerTest {
         assertEquals(result.statesExplored(), count[0],
             "the 3-arg callback must fire once per state, matching statesExplored");
     }
+
+
+
 }

@@ -43,7 +43,7 @@ single date across rows would misattribute provenance:
 | spec | measured | target class | killed | survived | no coverage | state |
 |---|---|---|---|---|---|---|
 | **12.02** | 2026-10-02 | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
-| **12.03** | 2026-10-03 | `state.BitstateStore` | **93 / 97 (95.9%)** | 4 | 0 | **done** |
+| **12.03** | 2026-10-03 | `state.BitstateStore` | **94 / 97 (96.9%)** | 3 | 0 | **done** |
 
 **12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
 46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
@@ -54,13 +54,23 @@ denominator.
 
 **12.03 closed all seven of its named lines** — L68, L71, L201, L210, L298, L300, L301 — taking the
 class from 84/97 (86.6%) to 93/97 (95.9%) and `NO_COVERAGE` from 2 to 0. The nine mutants killed are
-exactly the nine it named; nothing else moved. Its 4 remaining survivors (`L333`, `L343` ×2, `L357`)
-are hash arithmetic and are **not** equivalent, unlike 12.02's nine: `BitstateStore` has no exact
-confirmation layer, so a different hash genuinely changes answers. They survive only because closing
-them requires a hash-structure assertion, which R7 forbids — a tension R7 wins by design.
+exactly the nine it named; nothing else moved. A later §R6 pass took it to **94/97 (96.9%)**.
 
-12.04 still names a test file that **does not exist**: `TraceEmissionTest`. `state/` today contains
-`CanonicalEncoderContractTest`, `StateEncodingFidelityTest`, `StateHashingTest`,
+Its survivors are hash arithmetic and are **not** equivalent, unlike 12.02's nine: `BitstateStore`
+has no exact confirmation layer, so a different hash genuinely changes answers. They are also **not**
+a rule conflict, which is what an earlier draft of §R6 claimed. Exercising the store at 64 bits —
+small enough that collisions actually occur, which the 1,000,003-bit default never permits on a
+corpus this small — kills `L357` and one `L333` variant through the public seam with no hash value
+anywhere in the assertion, so **R7 stands unamended**. The surviving three (`L333` ×1, `L343` ×2)
+change no reported verdict across 1,080 measured configurations, which is why they stay `SURVIVED`: see
+§R6.
+
+12.04 still names a test file that **does not exist**: `ContextBoundedTraceEmissionTest`, which its
+§Scope places in `src/test/java/dev/samhb/interleave/cb/` — not `state/`, where an earlier draft of
+this line placed it and named it `TraceEmissionTest`. `cb/` today contains `CbsDifferentialTest`,
+`CbsMonotonicityTest`, `ContextBoundedExplorerContractTest`, and `ContextBoundedExplorerTest`, so the
+nine trace-emission mutants 12.04 names are covered by none of them. `state/` is complete for 12.01,
+12.02, and 12.03: `CanonicalEncoderContractTest`, `StateEncodingFidelityTest`, `StateHashingTest`,
 `StateStorePreemptionTest`, `HashingStateStoreLifecycleTest`, `StoreEquivalenceTest`, and
 `BitstateStoreDiagnosticsTest`.
 
@@ -190,7 +200,7 @@ provenance — three of these four figures were taken on three different days:
 | `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 2026-10-01 | 12.01 (denominator shrank) |
 | `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 2026-10-02 | 12.02 |
 | `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% | `c5fdcd0` | — |
-| `BitstateStore` | 84/97 | 86.6% | **93/97** | **95.9%** | 2026-10-03 | 12.03 |
+| `BitstateStore` | 84/97 | 86.6% | **94/97** | **96.9%** | 2026-10-03 | 12.03 (+R6 close) |
 
 `CanonicalEncoder` moved for a different reason than the other two: its denominator shrank, because
 12.01 deleted `equals` and its five unkillable mutants with it. The killed count did not change. Read

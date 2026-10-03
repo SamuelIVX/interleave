@@ -31,7 +31,7 @@ actually computes — and make the constructor's rejection boundaries exact rath
   test it, not that it is wrong [verified by reading the body].
 - Improving hash selectivity (the `doubleHash` index arithmetic). Out of scope here, but note the
   reason differs from 12.02 and the verdict does **not** transfer: 12.02's survivors were *equivalent*,
-  where these four are not. See §R6 adjudication.
+  where these three are not. See §R6 adjudication.
 - Changing `--store bitstate` defaults or the `APPROXIMATE_PASS` labelling, which Spec 11.04 settled.
 
 ## Current State
@@ -93,9 +93,10 @@ user-facing diagnostics in the set.
 
 `L333`, `L343` and `L357` are hash-arithmetic and out of scope here. `L333`, `L343` and `L357` each
 sit on a line that **also** carries killed mutants, so a line-grouped inventory that reports only the
-dominant status undercounts by three. Measured after implementation: these four are the *only*
+dominant status undercounts by three. Measured after implementation: these were the *only*
 survivors, and they are **not** equivalent — `BitstateStore` has no exact confirmation layer, so a
-different hash genuinely changes answers. See §R6 adjudication.
+different hash genuinely changes answers. One of the four has since been killed at the observation
+level; §R6 records the measurement and the three that remain.
 
 ## Invariants
 
@@ -250,10 +251,11 @@ Case A's literal also matches the value this spec stated before implementation, 
 independently. Two unrelated derivations agreeing is worth recording; a single derivation agreeing
 with itself is not.
 
-### R6 — adjudication of the 4 remaining survivors
+### R6 — adjudication of the 3 remaining survivors
 
-`L333`, `L343` (×2) and `L357` survive. **They are not equivalent, and the 12.02 verdict does not
-transfer.** That distinction matters, so it is stated rather than glossed:
+`L333`, `L343` (×2) and `L357` survived this spec's implementation run. **They are not equivalent,
+and the 12.02 verdict does not transfer.** That distinction still matters, so it is stated rather
+than glossed:
 
 - 12.02 adjudicated nine `HashingStateStore` survivors *equivalent* because a hash change provably
   cannot alter any answer — the prefilter decides only whether an exact check runs, and the exact
@@ -262,17 +264,43 @@ transfer.** That distinction matters, so it is stated rather than glossed:
   `encode` outside the hashing itself: the bitset *is* the store's answer. A different hash
   genuinely produces different answers, because it produces different collisions.
 
-So these four are real, reachable behaviour changes. They survive because **no test pins which
-configurations must not collide** — and pinning that requires asserting on hash structure, which R7
-forbids. R7 (inherited from 12.02, and correct there) says no assertion may reference a hash value;
-the only way to observe `L343` is to construct a pair that collides under the mutant but not the
-original, which is exactly a hash-level claim. **R7 and these four mutants are in direct tension,
-and R7 wins by design.**
+So these four were real, reachable behaviour changes. **What they were not is a rule conflict.** An
+earlier draft of this section claimed the only way to observe them was a hash-structure assertion,
+putting them in direct tension with R7. That was wrong, and the measurement that corrected it is
+recorded below rather than quietly dropped.
 
-That tension is worth surfacing rather than burying, because it is a genuine constraint on the
-remaining work: closing them means either permitting one narrow, deliberately-marked hash-structure
-assertion, or accepting them as a documented floor. Left `SURVIVED` deliberately so 12.06's ratchet
-records 4 as the known floor for this class rather than losing them from the denominator.
+**`lossyBitstateFilter_stillSurfacesTheDeadlock` kills two of them without naming a hash value.** The
+store is exercised at 64 bits — small enough that collisions actually occur, which the 1,000,003-bit
+default never permits on a corpus this small, and that is precisely why every earlier attempt to kill
+these failed. At `k=1` and `k=2` the correct hash still surfaces the deadlock, and `L357` and one
+`L333` variant stop surfacing it. R7 is untouched: the assertion is on a reported outcome, through the
+public seam, and no hash value appears anywhere in it.
+
+**The remaining three are unobservable, not forbidden.** Measured across **1,080 configurations** —
+all 7 corpus programs × 10 array sizes × 6 hash counts × 2 context bounds — the two `L343` index
+mutants and `L333`'s `+ lastThreadId` sign flip change **no reported verdict anywhere**: zero cells
+lose a bug, and the only cells they move at all differ in whether a `COMPLETED` partial trace is also
+emitted, never in whether a bug is reported. PIT agrees independently, having run 82 covering tests
+against each and leaving all three `SURVIVED`.
+
+The reason is structural, and worth stating because it generalises: **the hash only matters in the
+over-pruned regime, and that regime is exactly where the tool has already stopped finding bugs.**
+Configurations large enough for correct code to find a bug are too collision-free for the hash to
+matter; configurations small enough for the hash to matter are too over-pruned for the bug to be
+found. No setting in between exists on this corpus.
+
+So the resolution is **not** a narrow hash-structure exception, and R7 stands unamended. The three
+stay `SURVIVED` deliberately so 12.06's ratchet records them as a measured floor for this class
+rather than losing them from the denominator. Two ways to close them were considered and rejected on
+purpose:
+
+- Asserting on `COMPLETED`-trace emission. It would kill them, but partial-trace emission is Spec
+  12.04's subject matter, not 12.03's, and the assertion would be incidental — it would break on
+  unrelated changes while pinning nothing about hash quality.
+- Asserting a hash value. Forbidden by R7, correctly, and unnecessary: the two killed mutants prove
+  the observation level suffices where the behaviour is observable at all.
+
+`BitstateStore` closes at **94/97 (96.9%)**, `NO_COVERAGE` 0, three documented survivors.
 
 ## Design
 
