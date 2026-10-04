@@ -441,6 +441,40 @@ green scoped run must not read as "the gate passed".
 Cost of the redundancy on the success path: the ratchet runs twice, at ~700 ms. That is cheaper than
 the alternative and it is the only arrangement that reports on both the success and failure paths.
 
+## Rejected: "pass `-PfullMutation` for the full-scope gate"
+
+CodeRabbit reviewed the `Mutation (scoped)` → `Mutation` rename and reported that the step omits
+`-PfullMutation`, so "CI can report a package-limited run under the full-scope label". **Not applied,
+and applying it would have broken CI.** Recorded because it will be raised again otherwise, and
+because the reasoning error is the same shape as the `finalizedBy` one above — a plausible-sounding
+mechanism, asserted rather than measured.
+
+`-PfullMutation` is real (`build.gradle.kts`, "widens to the whole engine"), but it selects a
+*different* scope, not a fuller version of this one. The gate is defined on the default scope,
+`state.*` + `cb.*`: `EXPECTED_TOTAL_MUTANTS = 270` and the floor are pinned to it, and this spec says
+so twice — the current-behaviour table above labels that column **"full scope (CI)"**, and the `final`
+row's `measured on` reads *"Measured on full scope (`state.*` + `cb.*`)"*. The default scope **is** the
+gate's scope.
+
+Measured rather than argued:
+
+| | gate scope (CI, default) | `-PfullMutation` |
+|---|---|---|
+| `targetClasses` | `state.*`, `cb.*` | `dev.samhb.interleave.*` |
+| expected total | **270** | **2330**, unfinished after 40 min across 10 classes |
+| classes outside the gate scope | 0 | `cli`, `dpor`, `format`, `format.dsl`, `report`, … |
+| runtime | **4m58s** (CI) | >40 min single-threaded, stopped early |
+| R5 verdict | PASS | **FAIL** — total ≠ 270 |
+
+That last row is the decisive one. R5 hard-fails on any total other than 270 — demonstrated earlier in
+this set, where a 97-mutant `BitstateStore` report was rejected with *"expected 270 mutants, PIT
+generated 97"*. A population past 2330 and still climbing is not a rounding difference to be
+reconciled; it is a different gate. Against the job's 45-minute timeout it would also very likely time
+out, converting a clean gate into a timeout — a worse failure than the misnaming it was meant to fix.
+
+The rename that triggered the comment is correct on its own evidence: the job passes no
+`-PpitestTargetOverride`, and its own log records 270 mutants at 256/270.
+
 ## Derivation Record
 
 Filled in as each spec lands. 12.01 is the **single writer** of the rows it measures, per R3; later
