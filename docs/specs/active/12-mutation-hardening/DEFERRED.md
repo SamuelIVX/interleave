@@ -25,10 +25,11 @@ that commit rather than trusted from the previous pin; the base label was stale,
 | ~~[C1](#c1)~~ | ~~R7 (no hash assertions) forbids the only way to kill 4 `BitstateStore` mutants~~ | **closed — premise was false** | — | closed 2026-10-03 |
 | [D1](#d1) | Building a `Configuration` fixture requires reflection | test tax | low | unassigned |
 | [D2](#d2) | No shared procedure for deriving expected values of numeric formulas | test tax | low | unassigned |
-| [E1](#e1) | Per-class PIT table drifted for two classes before 12.03 caught it | process | **med** | 12.06 |
+| [E1](#e1) | Per-class PIT table drifted for two classes before 12.03 caught it | process | **med** | 12.06 — mitigated, not closed; see entry |
 | [E2](#e2) | Spec-recorded numbers go stale as sibling specs land | process | **med** | all future specs |
-| [E3](#e3) | `CanonicalEncoder`'s equivalent `flush()` mutant has no recorded PIT suppression | accounting | low | 12.06 |
+| ~~[E3](#e3)~~ | ~~`CanonicalEncoder`'s equivalent `flush()` mutant has no recorded PIT suppression~~ | **closed — reason now machine-readable** | — | closed 2026-10-03 |
 | [E4](#e4) | 1 mutant has no owning spec — `ContextBoundedExplorer` L187 | accounting | low | unassigned |
+| [E5](#e5) | Ratchet can fail CI on a wall-clock timeout indistinguishable from a regression | process | **med** | first CI run of the 12.06 gate |
 
 Closed during this set, recorded so nobody re-investigates: [G1](#g1)–[G4](#g4).
 
@@ -289,6 +290,28 @@ claims and a single percentage column conflates them. The new column separates t
 **To close.** Treat the table as generated from `build/reports/pitest/mutations.xml` at ratchet time,
 rather than hand-maintained per spec landing.
 
+**Mitigated by 12.06, not closed.** The `mutationRatchet` task now reads
+`build/reports/pitest/mutations.xml` and prints a per-class census on every run, so the authoritative
+numbers are emitted by the build rather than transcribed by hand:
+
+```
+  per class:
+    ContextBoundedExplorer :      104/105
+    BitstateStore :               94/97
+    CanonicalEncoder :            6/7
+    HashingStateStore :           52/61
+```
+
+A reviewer now diffs those against the README table instead of re-running PIT by hand, which is what
+made this drift invisible for two specs.
+
+**What is still open.** The README table remains hand-maintained. Nothing *fails* when it disagrees
+with the census — the mitigation improves detection, it does not enforce it. Closing this properly
+means generating the table, or gating on the comparison. Neither is done, deliberately: parsing a
+Markdown table inside `build.gradle.kts` couples the build to a documentation format, and a gate
+that breaks when someone reflows a table gets switched off rather than fixed. That trade is a
+judgement call for whoever picks it up, so it is recorded rather than silently taken.
+
 ### E2
 Spec-recorded numbers go stale as sibling specs land
 {: #e2}
@@ -319,6 +342,37 @@ and 12.06 record deferring the filter.
 
 **To close.** 12.06, which owns the denominator accounting. Deliberately not added mid-set: a filter
 changes how excluded mutants count, and doing it early would move the number 12.06 has yet to pin.
+
+**Closed by 12.06 — by recording, not by filtering.** The deferral's condition is discharged: 12.06
+has pinned the number (256/270, floor 94). It did **not** add a PIT exclusion filter, because that
+would drop the denominator to 269 and lift the score to 95.17% without a single additional test —
+the exact move R2 exists to prevent. Removing a proven-equivalent mutant is defensible practice in
+general; doing it *in the same change that sets the floor* would make the floor unfalsifiable.
+
+Instead `KNOWN_EQUIVALENT_SURVIVORS` in `build.gradle.kts` names the mutant and its 12.01 §R5 reason,
+and the ratchet prints the survivor decomposition:
+
+```
+  non-kills with a recorded reason : 1
+    dev.samhb.interleave.state.CanonicalEncoder:16 — 12.01 R5 — out.flush() removed leaves the full suite green; verified equivalent by experiment, not inferred from PIT's status.
+  non-kills with NO recorded reason: 13
+```
+
+The mutant still sits in the denominator and still counts against the floor; what changed is that its
+reason is machine-readable instead of prose-only, which was this entry's entire stated cost. The
+ratchet also warns when a recorded entry stops appearing among the non-kills, so the list cannot rot
+silently.
+
+**"Non-kill", not "survivor".** The list covers every status other than `KILLED`, so `NO_COVERAGE`
+appears in it too — `NO_COVERAGE` is the other way a mutant fails to be killed, and it stays in the
+denominator. An earlier draft excluded it and labelled the output "survivors", which under-reported
+the unexercised code the gate exists to surface. Both `SURVIVED` and `NO_COVERAGE` carry
+`detected = false` in `DetectionStatus`, and that is the operative test.
+
+**Why not `EQUIVALENT_ALLOW_LIST`.** That mechanism exists for mutants PIT classifies `EQUIVALENT`.
+PIT reports this one `SURVIVED` — it cannot prove equivalence, only fail to kill — so the allow-list
+never sees it. The two lists are different mechanisms for the same underlying problem, which is why
+both exist and why this mutant belongs to neither allow-list alone.
 
 ### E4
 One mutant has no owning spec — `ContextBoundedExplorer` L187
@@ -370,6 +424,40 @@ argument. Either is a decision. Silence is not.
 Deliberately **not** claimed equivalent in the meantime: an unmeasured equivalence argument is how
 this set produced three separate defects during 12.04, each an asserted mechanism that turned out
 false when checked.
+
+### E5
+The ratchet can fail CI on a wall-clock timeout it cannot distinguish from a real regression
+{: #e5}
+
+**What.** 12.06 makes the build **fail** on any `TIMED_OUT` or `MEMORY_ERROR` mutant. That is R6's
+intent — a mutant bought with wall time is not a kill — but it converts a previously reporting-only
+signal into a hard gate, and the population most likely to trigger it is nondeterministic.
+
+**Why CI specifically.** `InterleaveRunnerTest` drives `maxTime(1ms)` and `maxTime(30s)`, so the
+covering set contains wall-clock-sensitive tests. Locally every PIT run is single-threaded, because
+AGENTS.md mandates `--max-workers=1 -PpitestThreads=1` on a 10-core machine. **CI runs parallel**,
+deliberately — runners are ephemeral and have no other load. So the load profile that would produce a
+spurious `TIMED_OUT` is the one profile this gate has never been run under. Every local measurement in
+this set, including the 256/270 floor itself, is single-threaded and therefore cannot speak to it.
+
+**Measured.** Nothing. That is the point: zero timeouts observed locally, zero runs observed under CI
+parallelism. The 45-minute `mutation` job timeout against a ~2m50s local runtime is the only
+headroom evidence, and that bounds total runtime, not per-mutant wall time.
+
+**Cost if left.** A red `mutation` job whose cause is a timing artefact rather than a regression. The
+diagnosis is not obvious from the failure text, which is a deliberate choice for readability — it
+does not say "this may be load-induced". Worse, the tempting response is the one R6 explicitly
+forbids: raising `timeoutConstInMillis` as a blanket policy, which widens the window in which every
+future mutant can be bought with time. The correct response is per-mutant.
+
+**To close.** Wait for the first CI run of the 12.06 gate and see whether it is green. If a timeout
+appears, adjudicate before changing anything: re-run that single mutant scoped, single-threaded, and
+decide whether it is genuinely slow or load-induced. Do **not** pre-emptively loosen the budget to
+avoid a hypothetical red build — that trades a known, documented failure mode for an invisible one.
+
+**Deliberately not mitigated in 12.06.** Adding a retry or a "known-flaky timeout" allowance would
+have been easy and would defeat the gate: R6 exists precisely because a timeout is not a kill, and
+an allowance is a hole with a delay. Recorded rather than built.
 
 ---
 

@@ -37,7 +37,7 @@ HEAD. They needed direct assertions, which is what 12.05 now does.
 > [G](DEFERRED.md#g1) (G1–G4). One entry remains open and unassigned —
 > [E4](DEFERRED.md#e4), a single unowned mutant at `L187`.
 
-## Status: active — 12.07, 12.01, 12.02, 12.03, 12.04, and 12.05 implemented; 12.06 pending
+## Status: active — 12.07, 12.01, 12.02, 12.03, 12.04, 12.05, and 12.06 all implemented
 
 PIT results from runs scoped to each target class; measurement dates are shown per row, because a
 single date across rows would misattribute provenance:
@@ -47,6 +47,12 @@ single date across rows would misattribute provenance:
 | **12.02** | 2026-10-02 | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
 | **12.03** | 2026-10-03 | `state.BitstateStore` | **94 / 97 (96.9%)** | 3 | 0 | **done** |
 | **12.04** | 2026-10-03 | `cb.ContextBoundedExplorer` | **104 / 105 (99.0%)** | 1 | 0 | **done** |
+| **12.05** | 2026-10-03 | *(none — corpus)* | **256 / 270 (94.8%)** | 14 | 0 | **done** |
+| **12.06** | 2026-10-03 | *(none — build/CI)* | **floor pinned at 94** | — | — | **done** |
+
+**12.05 and 12.06 changed no production code**, so the 270 total is unchanged from 12.04 and 12.05's row
+is the aggregate rather than a per-class figure. 12.06 derived the floor from it: **94**, not the
+rounded 95 PIT prints.
 
 **12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
 46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
