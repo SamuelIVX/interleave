@@ -70,8 +70,11 @@ change no reported verdict across 1,080 measured configurations, which is why th
 class from 94/105 (89.5%) to **100/105 (95.2%)** and `NO_COVERAGE` from 6 to 4, with no regressions
 anywhere in the scope. The falsification it exists to demonstrate holds: deleting the
 `onTraceCreated` call leaves `getTraces()` **fully populated** (5 traces) while the visitor records
-**0**, so the two tests that assert through the visitor go red and the `getTraces()`-based assertion
-in the same test stays green.
+**0**. Precisely: the assertion that goes red is the `getTraces().size()` versus
+`visitor.traceCount()` comparison, while the `assertFalse(result.traces().isEmpty())` check before it
+stays green — and the identity loop after it is *vacuous* under the mutation, since the visitor
+receives nothing to iterate. So the divergence is real but narrower than "the list assertion stays
+green" suggests, and the identity loop is not what detects it.
 
 Two findings in it are worth more than the score. **`L204` needed a witness the corpus cannot
 supply** — boundedness is unobservable once anything suppresses `INCOMPLETE`, and no corpus program
@@ -204,9 +207,11 @@ scores as *not* detected. The five statuses that score as detected without an as
 are all zero, so the percentage is not inflated by wall-time or memory kills (see Spec 12.06).
 
 **Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
-**current** column reflects 12.01, 12.02 and 12.03; the `c5fdcd0` figures are the pre-spec baseline.
-Each row carries its own measurement date, because a single date across rows would misattribute
-provenance — three of these four figures were taken on three different days:
+**current** column reflects 12.01, 12.02, 12.03 and 12.04; the `c5fdcd0` figures are the pre-spec
+baseline. Every figure in the **current** column is a **full-scope** PIT run (`state.*` + `cb.*`), not a
+`-PpitestTargetOverride` run — scoping changes which covering tests PIT selects and reports a different
+count for the same class, so the two are not comparable. Each row carries its own measurement date,
+because a single date across rows would misattribute provenance:
 
 | class | at `c5fdcd0` | coverage | **current** | coverage | measured | moved by |
 |---|---|---|---|---|---|---|

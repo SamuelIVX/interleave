@@ -140,7 +140,7 @@ R5 is tested against a purpose-built three-thread program instead, with boundedn
 state growth (7 states at K=0 against 9 at K=1 — the bound demonstrably binds). That is what kills
 `L204`, the `DEADLOCK` comparison, which no `VIOLATION`-based test can reach.
 
-**Scope-scoped PIT runs are not comparable to full-scope ones.** A `pitestTargetOverride` run scoped
+**Target-scoped PIT runs are not comparable to full-scope ones.** A `pitestTargetOverride` run scoped
 to this class reports 105 mutants and a different kill count for the *same* class, because scoping
 changes covering-test selection. The figures in this spec are all full-scope. Per-class numbers in the
 README table follow the same rule.
@@ -349,8 +349,13 @@ corpus cannot supply its witness. No test is skipped or disabled.
 
 The numbers are the whole point: `getTraces()` still held **5** traces while the visitor recorded
 **0**, so every observation through the returned list stayed correct while the notification vanished.
-That is the divergence this spec exists to pin, and it is only visible because the two assertions sit
-in one test.
+Stated precisely, since it is easy to overclaim: the assertion that turns red is the
+`getTraces().size()` versus `visitor.traceCount()` comparison. The
+`assertFalse(result.traces().isEmpty())` before it stays green, and the identity loop after it is
+**vacuous** under this mutation because the visitor receives nothing to iterate — so the identity
+check is not what detects the defect, and the divergence is narrower than "the list assertions stay
+green" suggests. It is still the divergence this spec exists to pin, and it is only visible because
+the list check and the count check sit in one test.
 
 ## Constraints
 

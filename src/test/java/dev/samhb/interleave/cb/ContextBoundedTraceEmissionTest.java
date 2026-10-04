@@ -39,10 +39,15 @@ import static org.junit.jupiter.api.Assertions.fail;
  * <p>{@code addTrace} writes to two places: a list the explorer owns, and a callback it does not.
  * Removing the callback leaves every observation through {@code getTraces()} correct while silently
  * starving any caller using {@link StateVisitor}. That asymmetry is the reason this file exists, and
- * it is why {@link #addTrace_notifiesVisitor_withIdenticalTraceInstance()} deliberately carries both
- * assertions in one test: the falsification check for this spec requires that deleting
- * {@code onTraceCreated} turns the visitor assertion red <em>while the list assertion stays
+ * it is why {@link #addTrace_notifiesVisitor_withIdenticalTraceInstance()} deliberately carries the
+ * list check and the callback check in one test: the falsification check for this spec requires that
+ * deleting {@code onTraceCreated} turns the count comparison red <em>while the list assertion stays
  * green</em>. If both went red together the test would no longer be demonstrating the divergence.
+ *
+ * <p>Stated precisely, because the distinction is easy to overclaim: what goes red is the
+ * {@code getTraces().size()} versus {@code visitor.traceCount()} comparison. The
+ * {@code assertFalse(result.traces().isEmpty())} check before it stays green, and the identity loop
+ * after it is vacuous under the mutation because the visitor receives nothing to iterate.
  *
  * <p>Bounds are never hardcoded. Every test that depends on the preemption budget derives its bound
  * in-test from a predicate over the search, so a corpus change surfaces as a failure with a readable
@@ -69,12 +74,19 @@ class ContextBoundedTraceEmissionTest {
         DfsResult result = new ContextBoundedExplorer()
             .explore(program.program(), program.invariant().orElseThrow(), null, visitor, 2);
 
-        // The list-side assertion. Stays green when onTraceCreated is deleted.
+        // List-side assertion. Stays green when the onTraceCreated call is removed: getTraces()
+        // still returns every trace, because addTrace writes the list independently.
         assertFalse(result.traces().isEmpty(), "the run should have produced traces to compare");
+
+        // This count comparison is the assertion that detects the missing callback. Remove
+        // onTraceCreated and it fails with the list still fully populated -- 5 traces against 0
+        // recorded -- which is the divergence this test exists to pin.
         assertEquals(result.traces().size(), visitor.traceCount(),
             "every recorded trace must be offered to the visitor");
 
-        // The callback-side assertion. This is the one that must go red.
+        // Identity check on what the visitor did receive. Note this loop is vacuous when the
+        // callback is missing, since the visitor's list is then empty -- it confirms the instances
+        // handed over are the very objects in traces, and is not what detects the defect.
         for (Trace seen : visitor.traces()) {
             assertTrue(containsIdentical(result.traces(), seen),
                 "the visitor must receive the identical Trace instance that lands in traces, not a copy");
@@ -220,30 +232,14 @@ class ContextBoundedTraceEmissionTest {
      * because it was suppressed.
      *
      * <p><b>If this test ever fails, that is good news:</b> the corpus has acquired a program that
-     * both deadlocks and exceeds the budget, which is exactly the witness this requirement needs. Add
-     * the real covering test at that point rather than relaxing this assertion — the {@code DEADLOCK}
-     * half of the suppression rule is untested until then.
+     * both deadlocks and exceeds the budget. R5's {@code DEADLOCK} half is already covered, by
+     * {@link #incompleteTrace_suppressedWhenDeadlockFound()} against a purpose-built program; what
+     * this test watches is whether a <em>corpus</em> witness has appeared, at which point the
+     * purpose-built program can be retired in favour of one driven by the corpus.
      */
     @Test
     void corpusSuppliesNoDeadlockWhileBoundedWitness() {
-        Set<Integer> bounded = new TreeSet<>();
-        Set<Integer> deadlocking = new TreeSet<>();
-
-        for (BenchmarkProgram program : BugCorpus.all()) {
-            for (int k = 0; k <= MAX_PROBE_BOUND; k++) {
-                DfsResult result = run(program, null, k);
-                if (hasOutcome(result, TraceOutcome.DEADLOCK)) {
-                    deadlocking.add(k);
-                }
-                if (hasOutcome(result, TraceOutcome.INCOMPLETE)) {
-                    bounded.add(k);
-                }
-            }
-        }
-
-        assertFalse(deadlocking.isEmpty(),
-            "expected at least one corpus program to deadlock; if none does, this test is vacuous"
-                + " and R5's DEADLOCK branch has lost its only possible witness class");
+        boolean anyProgramDeadlocked = false;
 
         // Per-program disjointness, because 'bounded at some K' and 'deadlocks at some K' are
         // properties of a program, not of the corpus as a whole.
@@ -270,6 +266,7 @@ class ContextBoundedTraceEmissionTest {
             if (programDeadlocking.isEmpty()) {
                 continue;
             }
+            anyProgramDeadlocked = true;
             assertTrue(Collections.disjoint(programBounded, programDeadlocking),
                 program.name() + " is now both budget-bounded (K=" + programBounded
                     + ") and deadlocking (K=" + programDeadlocking + "). That is the R5 witness this"
@@ -279,6 +276,10 @@ class ContextBoundedTraceEmissionTest {
                     + " since the preemption bound no longer binds; if it has not, a DEADLOCK"
                     + " witness may now exist");
         }
+
+        assertTrue(anyProgramDeadlocked,
+            "expected at least one corpus program to deadlock; if none does, this test is vacuous"
+                + " and R5's DEADLOCK branch has lost its only possible witness class");
     }
 
     /**
