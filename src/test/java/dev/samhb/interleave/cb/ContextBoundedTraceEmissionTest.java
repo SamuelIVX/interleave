@@ -9,6 +9,7 @@ import dev.samhb.interleave.core.Program;
 import dev.samhb.interleave.core.SharedState;
 import dev.samhb.interleave.core.Step;
 import dev.samhb.interleave.core.StepOutcome;
+import dev.samhb.interleave.format.ProgramLoader;
 import dev.samhb.interleave.search.DfsResult;
 import dev.samhb.interleave.search.Invariant;
 import dev.samhb.interleave.search.StateVisitor;
@@ -411,6 +412,11 @@ class ContextBoundedTraceEmissionTest {
      * {@code ASSERTION_FAILED} in any emitted trace's outcomes is precisely "this branch did not
      * run". If a declarative program that trips a runtime evaluation error ever enters the corpus,
      * this fails and the four {@code NO_COVERAGE} mutants become a real gap to close.
+     *
+     * <p>Scope this carefully, because it is the one claim in the file that a reader is likely to
+     * over-generalise. It says the corpus does not reach the branch. It does not say the branch is
+     * unreachable, which was the error in the original finding — see
+     * {@link #dfsAssertionFailedBranch_executesWhenDeclarativeStepDividesByZero()}.
      */
     @Test
     void dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram() {
@@ -436,6 +442,70 @@ class ContextBoundedTraceEmissionTest {
         assertTrue(violatingTracesSeen > 0,
             "sanity: the corpus must produce some invariant VIOLATION traces, otherwise this test"
                 + " would pass vacuously");
+    }
+
+    /**
+     * R10 — the {@code ASSERTION_FAILED} branch is reachable after all, and this is the program that
+     * reaches it.
+     *
+     * <p>The original finding closed with "so a well-formed declarative program never returns
+     * {@code ASSERTION_FAILED}". That is false, and the DSL refutes it in three places.
+     * {@code Parser} admits {@code '%'} as a multiplicative operator; {@code TypeChecker} checks only
+     * that both operands are {@code INT}, and has no notion of a divisor being zero; and
+     * {@code Evaluator} throws {@code EvalException("% by zero")} at run time, which
+     * {@code DynamicStep.execute} catches and returns as {@code ASSERTION_FAILED}.
+     *
+     * <p>So the program below is well formed — it type-checks and loads without complaint. At run
+     * time its only step divides by a field pinned to zero, the explorer reports the resulting
+     * {@code ASSERTION_FAILED} as a {@code VIOLATION} trace, and the branch executes. The assertion
+     * is deliberately narrow: a {@code VIOLATION} trace on its own would not prove anything, because
+     * the invariant check emits those too. The discriminator is a {@code VIOLATION} trace
+     * <em>carrying</em> an {@code ASSERTION_FAILED} outcome, which only the step branch can produce.
+     *
+     * <p>Built inline rather than added to the corpus on purpose.
+     * {@link #dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram()} measures a live property of
+     * the corpus, and adding a program that trips the branch would make that test fail by
+     * construction — destroying a real signal to make this one pass. Keeping the witness here also
+     * keeps it next to the finding it corrects.
+     *
+     * <p>This closes the four {@code NO_COVERAGE} mutants at L176. It also revises the finding's
+     * reasoning without changing its verdict: the branch is live for the same reason before and
+     * after, but now reachability is demonstrated rather than argued from a premise that turned out
+     * to be wrong.
+     */
+    @Test
+    void dfsAssertionFailedBranch_executesWhenDeclarativeStepDividesByZero() {
+        BenchmarkProgram program = new ProgramLoader().load("""
+            {
+              "format": "declarative",
+              "name": "modulo-by-zero",
+              "state": {
+                "fields": [
+                  {"name": "counter", "type": "int", "init": 0},
+                  {"name": "divisor", "type": "int", "init": 0}
+                ],
+                "locals": [{"name": "r", "type": "int", "init": 0}]
+              },
+              "threads": [
+                {"id": 0, "steps": [{"effects": ["local.r = 10 % divisor"]}]}
+              ],
+              "invariant": {"expr": "counter == 0"},
+              "expected_verdict": "VIOLATION"
+            }
+            """);
+
+        DfsResult result = run(program, program.invariant().orElse(null), 0);
+
+        List<Trace> violations = result.traces().stream()
+            .filter(trace -> trace.outcome() == TraceOutcome.VIOLATION)
+            .toList();
+
+        assertFalse(violations.isEmpty(),
+            "a step dividing by zero must surface as a VIOLATION trace; " + program.name() + " at K=0"
+                + " produced " + result.traces().size() + " trace(s) and none was VIOLATION");
+        assertTrue(violations.stream().anyMatch(t -> t.outcomes().contains(StepOutcome.ASSERTION_FAILED)),
+            "a VIOLATION trace carrying ASSERTION_FAILED can only originate at the dfs step branch,"
+                + " which is the region this test exists to cover; got " + violations);
     }
 
     // --- R11: determinism -------------------------------------------------------------
@@ -481,17 +551,34 @@ class ContextBoundedTraceEmissionTest {
     /** A shared state holding one boolean flag per thread. */
     private static final class FlagState implements SharedState {
 
+        /** One flag per thread, indexed by thread id. */
         private final boolean[] flags;
 
+        /**
+         * Wraps a flag array.
+         *
+         * @param flags the backing array, indexed by thread id
+         */
         FlagState(boolean[] flags) {
             this.flags = flags;
         }
 
+        /**
+         * Clones the flags, so the successor state shares nothing with this one.
+         *
+         * @return an independent state over a cloned flag array
+         */
         @Override
         public SharedState deepCopy() {
             return new FlagState(flags.clone());
         }
 
+        /**
+         * Writes the flags positionally, in thread-id order.
+         *
+         * @param out the sink to write to
+         * @throws IOException if the sink rejects the write
+         */
         @Override
         public void encodeTo(DataOutput out) throws IOException {
             for (boolean flag : flags) {
@@ -499,16 +586,28 @@ class ContextBoundedTraceEmissionTest {
             }
         }
 
+        /**
+         * Two states are equal when their flags agree position by position.
+         *
+         * @param other the object to compare against
+         * @return true if {@code other} is a {@code FlagState} with the same flags
+         */
         @Override
         public boolean equals(Object other) {
             return other instanceof FlagState state && Arrays.equals(flags, state.flags);
         }
 
+        /**
+         * @return a hash consistent with {@link #equals(Object)}
+         */
         @Override
         public int hashCode() {
             return Arrays.hashCode(flags);
         }
 
+        /**
+         * @return the flags as a bracketed list, for readable assertion failures
+         */
         @Override
         public String toString() {
             return Arrays.toString(flags);
@@ -518,27 +617,53 @@ class ContextBoundedTraceEmissionTest {
     /** Raises this thread's own flag and advances. Always enabled. */
     private static final class SetFlag implements Step {
 
+        /** The thread whose flag this step raises. */
         private final int id;
 
+        /**
+         * Binds the step to a thread.
+         *
+         * @param id the thread id whose flag this step sets
+         */
         SetFlag(int id) {
             this.id = id;
         }
 
+        /**
+         * Reads nothing: the step writes a flag and reads nothing back.
+         *
+         * @return an empty location set
+         */
         @Override
         public Set<MemoryLocation> reads() {
             return Set.of();
         }
 
+        /**
+         * The flag lives in the shared state, not in a {@link MemoryLocation}, so this is empty.
+         *
+         * @return an empty location set
+         */
         @Override
         public Set<MemoryLocation> writes() {
             return Set.of();
         }
 
+        /**
+         * @param state the current state, unused
+         * @return always true — this step is never parked
+         */
         @Override
         public boolean enabled(SharedState state) {
             return true;
         }
 
+        /**
+         * Raises this thread's flag and advances.
+         *
+         * @param state the successor state to mutate
+         * @return {@link StepOutcome#ADVANCED}
+         */
         @Override
         public StepOutcome execute(SharedState state) {
             ((FlagState) state).flags[id] = true;
@@ -555,26 +680,55 @@ class ContextBoundedTraceEmissionTest {
      */
     private static final class BlockIfTwoFlagsSet implements Step {
 
+        /**
+         * Reads nothing — the step inspects the flag count, which is not a tracked location.
+         *
+         * @return an empty location set
+         */
         @Override
         public Set<MemoryLocation> reads() {
             return Set.of();
         }
 
+        /**
+         * Writes nothing — the step blocks rather than mutating state.
+         *
+         * @return an empty location set
+         */
         @Override
         public Set<MemoryLocation> writes() {
             return Set.of();
         }
 
+        /**
+         * Enabled until two flags are up, which is what lets the search park the thread.
+         *
+         * @param state the current state
+         * @return true while fewer than two flags are set
+         */
         @Override
         public boolean enabled(SharedState state) {
             return countSet(state) < 2;
         }
 
+        /**
+         * Blocks rather than terminating once two flags are up, so the terminal state is a deadlock
+         * rather than a clean finish.
+         *
+         * @param state the successor state, inspected but not mutated
+         * @return {@link StepOutcome#BLOCKED} at two flags, otherwise {@link StepOutcome#ADVANCED}
+         */
         @Override
         public StepOutcome execute(SharedState state) {
             return countSet(state) < 2 ? StepOutcome.ADVANCED : StepOutcome.BLOCKED;
         }
 
+        /**
+         * Counts the raised flags.
+         *
+         * @param state the state to inspect
+         * @return how many threads have raised their flag
+         */
         private static int countSet(SharedState state) {
             int set = 0;
             for (boolean flag : ((FlagState) state).flags) {
@@ -696,13 +850,25 @@ class ContextBoundedTraceEmissionTest {
      */
     private static final class RecordingVisitor implements StateVisitor {
 
+        /** Every trace reported so far, held by reference so identity can be asserted. */
         private final List<Trace> traces = new ArrayList<>();
 
+        /**
+         * Records nothing, and does so deliberately: this spec is about trace notification, so a
+         * state callback here would be dead weight that reads like an oversight.
+         *
+         * @param config the configuration just visited, unused
+         */
         @Override
         public void onStateVisited(Configuration config) {
             // Nothing to record; this spec is about trace notification, not state notification.
         }
 
+        /**
+         * Keeps the reported instance rather than a copy of it.
+         *
+         * @param trace the trace just created
+         */
         @Override
         public void onTraceCreated(Trace trace) {
             traces.add(trace);

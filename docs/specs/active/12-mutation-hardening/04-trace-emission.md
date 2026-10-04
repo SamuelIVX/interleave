@@ -59,9 +59,9 @@ reproduce.
 - `L176` — inside `dfs`, four `NO_COVERAGE` mutants. The survey reports this region as a list copy
   plus a `Trace.of` construction. It is the `ASSERTION_FAILED` branch, **not** the invariant check at
   `:120–123`, so it is reached only by a step that *returns* `ASSERTION_FAILED` — which only
-  `DynamicStep` does. **R10 has now settled this; see below.**
+  `DynamicStep` does. **R10 settled this, and all four are now killed; see below.**
 
-**Result of this spec's implementation — 105 mutants, 100 killed (95.2%), 5 not killed.**
+**Result of this spec's implementation — 105 mutants, 104 killed (99.0%), 1 not killed.**
 Three different baselines are in play in this document and conflating them is how the wrong number
 gets quoted, so they are named:
 
@@ -71,10 +71,16 @@ gets quoted, so they are named:
 | `main` at this spec, this class | **94/105 (89.5%)** | measured on `main` before this spec — the real starting point |
 | `main` at this spec, full scope | **246/270 (91.1%)** | whole-scope starting point, `NO_COVERAGE` 6 |
 
-This spec takes the class to **100/105 (95.2%)** and the full scope to **252/270 (93.3%)**,
-`NO_COVERAGE` 4, test strength 95%, with **no regressions**. All five named targets are `KILLED`:
-`L41` ×2, `L203` ×2, `L204`, `L214`. What remains in this class is `L176` ×4 (`NO_COVERAGE`, see R10)
-and `L187` (Spec 12.05's).
+This spec takes the class to **104/105 (99.0%)** and the full scope to **256/270 (94.8%)**,
+`NO_COVERAGE` **0**, test strength 95%, with **no regressions**. All ten mutant variants across this
+spec's five named locations are `KILLED`: `L41` ×2, `L176` ×4, `L203` ×2, `L204`, `L214`. The single
+survivor in this class is `L187`, which belongs to Spec 12.05.
+
+`NO_COVERAGE` reaching **0** across the whole scope is the part worth stating plainly, because it is
+the first time that has been true in this set. Before this spec the class carried four uncovered
+mutants at `L176`; the witness program added for R10
+(`dfsAssertionFailedBranch_executesWhenDeclarativeStepDividesByZero`) kills all four, so no mutant in
+`state.*` or `cb.*` is now uncovered for want of a test.
 
 **Original mutation inventory (at `c5fdcd0`) — 105 mutants, 86 killed (81.9%), 19 not killed:**
 
@@ -100,7 +106,7 @@ takes `L41`, `L176`, `L203`, `L204`, `L214`. Note `L87`/`L88` are also visitor c
 adjudicates those as pruning-side, this spec owns only the `addTrace` path, and neither spec may
 claim the other's mutants.
 
-## R10 Verdict — `L176` is **not dead code**
+## R10 Verdict — `L176` is **reachable**, and now covered
 
 **[verified]** by instrumentation *and* by path analysis, in that order, because the two directions
 are not symmetric. A firing counter proves reachability; a silent one proves nothing.
@@ -122,19 +128,33 @@ corpus program is declarative — all seven are `typed` [verified]". That is fal
 (`BugCorpus.java:62`). The premise being wrong does not make the region reachable, but it removes the
 reason it was thought to be dead.
 
-**Why it still does not fire.** `DynamicStep.execute` returns `ASSERTION_FAILED` for a *runtime
-evaluation error* — a non-`DynamicState` state, a guard that does not evaluate to `BOOL`, an
+**Why the corpus does not exercise it.** `DynamicStep.execute` returns `ASSERTION_FAILED` for a
+*runtime evaluation error* — a non-`DynamicState` state, a guard that does not evaluate to `BOOL`, an
 out-of-range index, an `EvalException`. A guard evaluating **false** is `BLOCKED`, which is the normal
-path. So a well-formed declarative program never returns `ASSERTION_FAILED`, which is exactly what the
-instrumented run shows.
+path. Instrumenting the branch across the full suite, the tested corpus produces no
+`ASSERTION_FAILED` outcome at all.
 
-**Verdict: a real coverage gap contingent on the corpus, not dead code.** The producer is live on a
-supported feature (Specs 09–10). Deleting the region would assert that no declarative program can ever
-reach it — a claim about the DSL's future, not about today's corpus — and under `AGENTS.md` §2 that
-deletion needs Sam's sign-off and its own PR regardless. If a declarative program that trips a runtime
-evaluation error ever enters the corpus, the four mutants become a genuine gap; the
-`dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram` test fails when that happens, because a
-`VIOLATION` trace carrying an `ASSERTION_FAILED` outcome can only come from this branch.
+**But "the corpus does not" is not "it cannot", and the first draft of this finding had it backwards.**
+It concluded that a well-formed declarative program never returns `ASSERTION_FAILED`. That is false,
+and the DSL refutes it in three places: `Parser` admits `%` as a multiplicative operator
+(`Parser.java:261`); `TypeChecker` checks only that both operands are `INT`, with no notion of a
+divisor being zero (`TypeChecker.java:61`); and `Evaluator` throws `EvalException("% by zero")` at run
+time (`Evaluator.java:131`), which `DynamicStep.execute` catches and returns as `ASSERTION_FAILED`. A
+program of `local.r = 10 % divisor` over a field pinned to zero type-checks, loads without complaint,
+and trips the branch on its only step.
+
+**Which makes the region reachable, and under R10 that obliges a covering test rather than a
+verdict.** `dfsAssertionFailedBranch_executesWhenDeclarativeStepDividesByZero` builds precisely that
+program and asserts a `VIOLATION` trace carrying an `ASSERTION_FAILED` outcome. The assertion is
+narrow on purpose: a `VIOLATION` trace alone would prove nothing, because the invariant check emits
+those too — the discriminator is one *carrying* `ASSERTION_FAILED`, which only the step branch can
+produce. That kills all four `NO_COVERAGE` mutants, and this class now reports `NO_COVERAGE` 0.
+
+The witness is built in-test rather than added to the corpus deliberately.
+`dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram` measures a live property of the corpus, so
+a corpus program that trips the branch would fail it by construction — destroying a real signal to make
+this one pass. That test stays useful: if such a program ever enters the corpus, it fails, and the
+failure message says R10 needs revisiting.
 
 ## Two findings worth carrying forward
 
@@ -151,8 +171,9 @@ state growth (7 states at K=0 against 9 at K=1 — the bound demonstrably binds)
 originally recorded that a `-PpitestTargetOverride` run reports a *different* kill count for the same
 class, on the stated grounds that scoping changes covering-test selection. That was never tested and it
 is false: scoping leaves `targetTests` untouched, so coverage and kills are unchanged. Measured both ways
-on `ContextBoundedExplorer` at this commit — target-scoped **100/105** with `NO_COVERAGE` 4, full-scope
-**100/105** with `NO_COVERAGE` 4. All four classes in the README table agree the same way.
+on `ContextBoundedExplorer` at this commit — target-scoped **104/105** with `NO_COVERAGE` 0,
+full-scope **104/105** with `NO_COVERAGE` 0. All four classes in the README table agree the same
+way.
 
 What scoping *does* change is the denominator, so a scoped run's percentage is not comparable to a
 full-scope percentage. The real hazard was different and far more ordinary: the `86/105` above was
@@ -220,22 +241,22 @@ Quote full-scope totals when the number being reported is a total.
 
 ## Acceptance Criteria
 
-- [ ] A `StateVisitor` test records every `onTraceCreated` call and asserts the count equals
+- [x] A `StateVisitor` test records every `onTraceCreated` call and asserts the count equals
       `getTraces().size()` (R1, R3).
-- [ ] The R3 test asserts reference identity (`assertSame`), not `equals` (R3).
-- [ ] A test passes `null` as the visitor and asserts `getTraces()` is still populated (R2).
-- [ ] `L214`'s mutant is killed. **Falsification:** delete the `onTraceCreated` call, confirm the
+- [x] The R3 test asserts reference identity (`assertSame`), not `equals` (R3).
+- [x] A test passes `null` as the visitor and asserts `getTraces()` is still populated (R2).
+- [x] `L214`'s mutant is killed. **Falsification:** delete the `onTraceCreated` call, confirm the
       visitor test goes red **while a `getTraces()`-based assertion in the same test stays green**,
       then revert. The divergence is the point — if the `getTraces()` assertion also goes red, the
       test is not demonstrating what this spec exists to pin.
-- [ ] R4–R8 each have a named test using a corpus program that produces the required trace mix
+- [x] R4–R8 each have a named test using a corpus program that produces the required trace mix
       (R4–R7).
-- [ ] `explore(Program)` is called by at least one test and both `L41` mutants become `KILLED` (R9).
-- [ ] The `L176` reachability verdict is recorded in §Current State as `[verified]` with the
+- [x] `explore(Program)` is called by at least one test and both `L41` mutants become `KILLED` (R9).
+- [x] The `L176` reachability verdict is recorded in §Current State as `[verified]` with the
       instrumented method or the caller enumeration that established it (R10).
-- [ ] A determinism test runs the same program twice and asserts equal trace sequences (R11).
-- [ ] `./gradlew clean test javadoc` passes.
-- [ ] `./gradlew pitest` shows `L41`, `L203`, `L204`, `L214` `KILLED`.
+- [x] A determinism test runs the same program twice and asserts equal trace sequences (R11).
+- [x] `./gradlew clean test javadoc` passes.
+- [x] `./gradlew pitest` shows `L41`, `L203`, `L204`, `L214` `KILLED`.
 
 ## Design
 
@@ -317,6 +338,11 @@ directly and belong in the record:
   so they are the right corpus for R4/R5/R6 — and the wrong evidence for `L176`.
 - If a declarative program is ever added to the corpus, `L176` becomes reachable and these four
   `NO_COVERAGE` mutants become a genuine gap. Recording that dependency is part of R10's output.
+
+  **Superseded — the dependency was not the operative one.** `L176` turned out to be reachable with no
+  corpus change at all, and all four mutants are now killed, so the conditional describes a gap that no
+  longer exists. The finding is left in place because the reasoning error it records is the reason the
+  spec now carries a witness test instead of an argument; see §R10 Verdict.
 
 ## Tests
 

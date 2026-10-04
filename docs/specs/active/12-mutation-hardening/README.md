@@ -44,7 +44,7 @@ single date across rows would misattribute provenance:
 |---|---|---|---|---|---|---|
 | **12.02** | 2026-10-02 | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
 | **12.03** | 2026-10-03 | `state.BitstateStore` | **94 / 97 (96.9%)** | 3 | 0 | **done** |
-| **12.04** | 2026-10-03 | `cb.ContextBoundedExplorer` | **100 / 105 (95.2%)** | 1 | 4 | **done** |
+| **12.04** | 2026-10-03 | `cb.ContextBoundedExplorer` | **104 / 105 (99.0%)** | 1 | 0 | **done** |
 
 **12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
 46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
@@ -66,9 +66,9 @@ anywhere in the assertion, so **R7 stands unamended**. The surviving three (`L33
 change no reported verdict across 1,080 measured configurations, which is why they stay `SURVIVED`: see
 §R6.
 
-**12.04 closed all five of its named targets** — `L41` ×2, `L203` ×2, `L204`, `L214` — taking the
-class from 94/105 (89.5%) to **100/105 (95.2%)** and `NO_COVERAGE` from 6 to 4, with no regressions
-anywhere in the scope. The falsification it exists to demonstrate holds: deleting the
+**12.04 closed all ten of its mutant variants across its five named locations** — `L41` ×2, `L176`
+×4, `L203` ×2, `L204`, `L214` — taking the class from 94/105 (89.5%) to **104/105 (99.0%)** and
+`NO_COVERAGE` from 6 to **0**, with no regressions anywhere in the scope. The falsification it exists to demonstrate holds: deleting the
 `onTraceCreated` call leaves `getTraces()` **fully populated** (5 traces) while the visitor records
 **0**. Precisely: the assertion that goes red is the `getTraces().size()` versus
 `visitor.traceCount()` comparison, while the `assertFalse(result.traces().isEmpty())` check before it
@@ -79,10 +79,16 @@ green" suggests, and the identity loop is not what detects it.
 Two findings in it are worth more than the score. **`L204` needed a witness the corpus cannot
 supply** — boundedness is unobservable once anything suppresses `INCOMPLETE`, and no corpus program
 is ever both budget-bounded and deadlocking, so R5 is tested against a purpose-built three-thread
-program instead. And **`L176`'s reachability is settled as *not dead code***: instrumented across the
-full suite it never fires, but the path analysis shows it needs a `DynamicStep` returning
-`ASSERTION_FAILED`, which is a runtime-evaluation error rather than a guard evaluating false — and the
-corpus *does* contain a declarative program, so the producer is live.
+program instead. And **`L176` is reachable — and now covered**, which is a stronger result than the
+*not dead code* verdict the finding originally reached: a `DynamicStep` returns `ASSERTION_FAILED` for
+a runtime-evaluation error rather than a guard evaluating false, and `%` by zero is exactly such an
+error. `Parser` admits `%`, `TypeChecker` checks only that both operands are `INT`, and `Evaluator`
+throws at run time — so `local.r = 10 % divisor` over a field pinned to zero is a *well-formed*
+program that trips the branch. That the corpus never does this is a fact about the corpus, not a
+property of the DSL; the first draft of the finding claimed the latter, and was wrong. A purpose-built
+witness now kills all four mutants. It is built in-test rather than added to the corpus on purpose,
+because the corpus-wide `dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram` test would then
+fail by construction — losing a real signal to make this one pass.
 
 `cb/` now also holds `ContextBoundedTraceEmissionTest` alongside `CbsDifferentialTest`,
 `CbsMonotonicityTest`, `ContextBoundedExplorerContractTest`, and `ContextBoundedExplorerTest`.
@@ -209,9 +215,9 @@ are all zero, so the percentage is not inflated by wall-time or memory kills (se
 **Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
 **current** column reflects 12.01, 12.02, 12.03 and 12.04; the `c5fdcd0` figures are the pre-spec
 baseline. Every figure in the **current** column was re-verified against a single **full-scope** PIT run
-(`state.*` + `cb.*`, 270 mutants, 252 killed) at 2026-10-03, and all four rows match it exactly. That
+(`state.*` + `cb.*`, 270 mutants, 256 killed) at 2026-10-03, and all four rows match it exactly. That
 matters because a per-class figure is the same scoped or full-scope — verified on
-`ContextBoundedExplorer`, which reports 100/105 either way — so these numbers are scope-independent and
+`ContextBoundedExplorer`, which reports 104/105 either way — so these numbers are scope-independent and
 only their dates matter. The `c5fdcd0` column does not match that run, because it predates every spec in
 this set; those figures are kept to show each class's starting point, not its present one. Each row
 carries its own measurement date, because a single date across rows would misattribute provenance:
@@ -220,7 +226,7 @@ carries its own measurement date, because a single date across rows would misatt
 |---|---|---|---|---|---|---|
 | `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 2026-10-01 | 12.01 (denominator shrank) |
 | `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 2026-10-02 | 12.02 |
-| `ContextBoundedExplorer` | 86/105 | 81.9% | **100/105** | **95.2%** | 2026-10-03 | 12.04 |
+| `ContextBoundedExplorer` | 86/105 | 81.9% | **104/105** | **99.0%** | 2026-10-03 | 12.04 |
 | `BitstateStore` | 84/97 | 86.6% | **94/97** | **96.9%** | 2026-10-03 | 12.03 (+R6 close) |
 
 `CanonicalEncoder` moved for a different reason than the other two: its denominator shrank, because
