@@ -440,20 +440,30 @@ deliberately — runners are ephemeral and have no other load. So the load profi
 spurious `TIMED_OUT` is the one profile this gate has never been run under. Every local measurement in
 this set, including the 256/270 floor itself, is single-threaded and therefore cannot speak to it.
 
-**Measured.** Nothing. That is the point: zero timeouts observed locally, zero runs observed under CI
-parallelism. The 45-minute `mutation` job timeout against a ~2m50s local runtime is the only
-headroom evidence, and that bounds total runtime, not per-mutant wall time.
+**Measured.** One CI run at `d14680d`, 4m58s, full scope, default parallel PIT: **green.** 270
+mutants, 256 killed, `TIMED_OUT 0`, `MEMORY_ERROR 0`, `NON_VIABLE 0`, `RUN_ERROR 0`, and the ratchet
+itself ran and passed on the full-scope floor. So the risk that motivated this entry did not
+materialise on its first outing, and the 256/270 floor is no longer single-threaded-only evidence.
+
+One run is one run. It does not retire the risk — a wall-clock-sensitive mutant can pass under load
+and fail under load, and CI runner load varies. What it does mean is that the entry is no longer
+prediction-only, and that whoever hits a red `mutation` job now knows a clean run existed on the same
+code shape. Note also that this run was *parallel by accident of configuration*: the job is named
+`Mutation (scoped)` but passes no `-PpitestTargetOverride`, so it was always the full scope. Renamed
+to `Mutation` in this pass; had it genuinely been scoped, this entry would still say "nothing".
+
+**To close.** E5 closes when the full-scope parallel gate has been green across enough runs that a
+single timeout is more plausibly a regression than a flake — or, more honestly, when it is judged not
+worth further tracking. Not closed on one run. If a timeout does appear, adjudicate before changing
+anything: re-run that single mutant scoped and single-threaded, and decide whether it is genuinely
+slow or load-induced. Do **not** pre-emptively loosen the budget to avoid a hypothetical red build —
+that trades a known, documented failure mode for an invisible one.
 
 **Cost if left.** A red `mutation` job whose cause is a timing artefact rather than a regression. The
 diagnosis is not obvious from the failure text, which is a deliberate choice for readability — it
 does not say "this may be load-induced". Worse, the tempting response is the one R6 explicitly
 forbids: raising `timeoutConstInMillis` as a blanket policy, which widens the window in which every
 future mutant can be bought with time. The correct response is per-mutant.
-
-**To close.** Wait for the first CI run of the 12.06 gate and see whether it is green. If a timeout
-appears, adjudicate before changing anything: re-run that single mutant scoped, single-threaded, and
-decide whether it is genuinely slow or load-induced. Do **not** pre-emptively loosen the budget to
-avoid a hypothetical red build — that trades a known, documented failure mode for an invisible one.
 
 **Deliberately not mitigated in 12.06.** Adding a retry or a "known-flaky timeout" allowance would
 have been easy and would defeat the gate: R6 exists precisely because a timeout is not a kill, and
