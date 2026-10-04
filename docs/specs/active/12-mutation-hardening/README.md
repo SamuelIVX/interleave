@@ -35,7 +35,7 @@ HEAD. They needed direct assertions, which is what 12.05 now does.
 > new work in this area: one entry ([C1](DEFERRED.md#c1)) is a live dilemma that 12.06 has to
 > resolve rather than inherit silently, and four entries are closed so nobody re-investigates them.
 
-## Status: active — 12.07, 12.01, 12.02, 12.03, and 12.05 implemented; 12.04, 12.06 pending
+## Status: active — 12.07, 12.01, 12.02, 12.03, 12.04, and 12.05 implemented; 12.06 pending
 
 PIT results from runs scoped to each target class; measurement dates are shown per row, because a
 single date across rows would misattribute provenance:
@@ -44,6 +44,7 @@ single date across rows would misattribute provenance:
 |---|---|---|---|---|---|---|
 | **12.02** | 2026-10-02 | `state.HashingStateStore` | **52 / 61 (85.2%)** | 9 | 0 | **done** |
 | **12.03** | 2026-10-03 | `state.BitstateStore` | **94 / 97 (96.9%)** | 3 | 0 | **done** |
+| **12.04** | 2026-10-03 | `cb.ContextBoundedExplorer` | **100 / 105 (95.2%)** | 1 | 4 | **done** |
 
 **12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
 46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
@@ -65,14 +66,29 @@ anywhere in the assertion, so **R7 stands unamended**. The surviving three (`L33
 change no reported verdict across 1,080 measured configurations, which is why they stay `SURVIVED`: see
 §R6.
 
-12.04 still names a test file that **does not exist**: `ContextBoundedTraceEmissionTest`, which its
-§Scope places in `src/test/java/dev/samhb/interleave/cb/` — not `state/`, where an earlier draft of
-this line placed it and named it `TraceEmissionTest`. `cb/` today contains `CbsDifferentialTest`,
-`CbsMonotonicityTest`, `ContextBoundedExplorerContractTest`, and `ContextBoundedExplorerTest`, so the
-nine trace-emission mutants 12.04 names are covered by none of them. `state/` is complete for 12.01,
-12.02, and 12.03: `CanonicalEncoderContractTest`, `StateEncodingFidelityTest`, `StateHashingTest`,
-`StateStorePreemptionTest`, `HashingStateStoreLifecycleTest`, `StoreEquivalenceTest`, and
-`BitstateStoreDiagnosticsTest`.
+**12.04 closed all five of its named targets** — `L41` ×2, `L203` ×2, `L204`, `L214` — taking the
+class from 94/105 (89.5%) to **100/105 (95.2%)** and `NO_COVERAGE` from 6 to 4, with no regressions
+anywhere in the scope. The falsification it exists to demonstrate holds: deleting the
+`onTraceCreated` call leaves `getTraces()` **fully populated** (5 traces) while the visitor records
+**0**. Precisely: the assertion that goes red is the `getTraces().size()` versus
+`visitor.traceCount()` comparison, while the `assertFalse(result.traces().isEmpty())` check before it
+stays green — and the identity loop after it is *vacuous* under the mutation, since the visitor
+receives nothing to iterate. So the divergence is real but narrower than "the list assertion stays
+green" suggests, and the identity loop is not what detects it.
+
+Two findings in it are worth more than the score. **`L204` needed a witness the corpus cannot
+supply** — boundedness is unobservable once anything suppresses `INCOMPLETE`, and no corpus program
+is ever both budget-bounded and deadlocking, so R5 is tested against a purpose-built three-thread
+program instead. And **`L176`'s reachability is settled as *not dead code***: instrumented across the
+full suite it never fires, but the path analysis shows it needs a `DynamicStep` returning
+`ASSERTION_FAILED`, which is a runtime-evaluation error rather than a guard evaluating false — and the
+corpus *does* contain a declarative program, so the producer is live.
+
+`cb/` now also holds `ContextBoundedTraceEmissionTest` alongside `CbsDifferentialTest`,
+`CbsMonotonicityTest`, `ContextBoundedExplorerContractTest`, and `ContextBoundedExplorerTest`.
+`state/` is complete for 12.01, 12.02, and 12.03: `CanonicalEncoderContractTest`,
+`StateEncodingFidelityTest`, `StateHashingTest`, `StateStorePreemptionTest`,
+`HashingStateStoreLifecycleTest`, `StoreEquivalenceTest`, and `BitstateStoreDiagnosticsTest`.
 
 ### Fixed during 12.07: `StaticPorExplorer` was unsound with an invariant
 
@@ -191,15 +207,20 @@ scores as *not* detected. The five statuses that score as detected without an as
 are all zero, so the percentage is not inflated by wall-time or memory kills (see Spec 12.06).
 
 **Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
-**current** column reflects 12.01, 12.02 and 12.03; the `c5fdcd0` figures are the pre-spec baseline.
-Each row carries its own measurement date, because a single date across rows would misattribute
-provenance — three of these four figures were taken on three different days:
+**current** column reflects 12.01, 12.02, 12.03 and 12.04; the `c5fdcd0` figures are the pre-spec
+baseline. Every figure in the **current** column was re-verified against a single **full-scope** PIT run
+(`state.*` + `cb.*`, 270 mutants, 252 killed) at 2026-10-03, and all four rows match it exactly. That
+matters because a per-class figure is the same scoped or full-scope — verified on
+`ContextBoundedExplorer`, which reports 100/105 either way — so these numbers are scope-independent and
+only their dates matter. The `c5fdcd0` column does not match that run, because it predates every spec in
+this set; those figures are kept to show each class's starting point, not its present one. Each row
+carries its own measurement date, because a single date across rows would misattribute provenance:
 
 | class | at `c5fdcd0` | coverage | **current** | coverage | measured | moved by |
 |---|---|---|---|---|---|---|
 | `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 2026-10-01 | 12.01 (denominator shrank) |
 | `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 2026-10-02 | 12.02 |
-| `ContextBoundedExplorer` | 86/105 | 81.9% | 86/105 | 81.9% | `c5fdcd0` | — |
+| `ContextBoundedExplorer` | 86/105 | 81.9% | **100/105** | **95.2%** | 2026-10-03 | 12.04 |
 | `BitstateStore` | 84/97 | 86.6% | **94/97** | **96.9%** | 2026-10-03 | 12.03 (+R6 close) |
 
 `CanonicalEncoder` moved for a different reason than the other two: its denominator shrank, because
