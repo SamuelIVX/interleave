@@ -32,8 +32,10 @@ HEAD. They needed direct assertions, which is what 12.05 now does.
 > **Deferred register.** [DEFERRED.md](DEFERRED.md) collects every problem found while
 > implementing this set that was deliberately *not* fixed — defects, latent traps, an unresolved
 > conflict between two of the set's own rules, and test-infrastructure debt. Read it before scoping
-> new work in this area: one entry ([C1](DEFERRED.md#c1)) is a live dilemma that 12.06 has to
-> resolve rather than inherit silently, and four entries are closed so nobody re-investigates them.
+> new work in this area. Two groups are closed so nobody re-investigates them: [C1](DEFERRED.md#c1),
+> whose premise turned out to be false in 12.03, and the four recorded under
+> [G](DEFERRED.md#g1) (G1–G4). One entry remains open and unassigned —
+> [E4](DEFERRED.md#e4), a single unowned mutant at `L187`.
 
 ## Status: active — 12.07, 12.01, 12.02, 12.03, 12.04, and 12.05 implemented; 12.06 pending
 

@@ -8,8 +8,9 @@ forgotten, and so the next person does not have to re-derive a finding from scra
 records what was found, the evidence, why it was deferred, what it costs if left, and what closing
 it would take.
 
-**Status as of 2026-10-03**, after 12.07, 12.01, 12.02, 12.05, and 12.03 landed.
-Refs are `file:line` against `main` at `92b58b6`.
+**Status as of 2026-10-03**, after 12.07, 12.01, 12.02, 12.05, 12.03, and 12.04 landed.
+Refs are `file:line` against `main` at `ba3fe01`. Every ref below was re-opened and re-verified at
+that commit rather than trusted from the previous pin; the base label was stale, the refs were not.
 
 ## Summary
 
@@ -27,7 +28,7 @@ Refs are `file:line` against `main` at `92b58b6`.
 | [E1](#e1) | Per-class PIT table drifted for two classes before 12.03 caught it | process | **med** | 12.06 |
 | [E2](#e2) | Spec-recorded numbers go stale as sibling specs land | process | **med** | all future specs |
 | [E3](#e3) | `CanonicalEncoder`'s equivalent `flush()` mutant has no recorded PIT suppression | accounting | low | 12.06 |
-| [E4](#e4) | 9 mutants have no owning spec | accounting | low | unassigned |
+| [E4](#e4) | 1 mutant has no owning spec — `ContextBoundedExplorer` L187 | accounting | low | unassigned |
 
 Closed during this set, recorded so nobody re-investigates: [G1](#g1)–[G4](#g4).
 
@@ -320,17 +321,55 @@ and 12.06 record deferring the filter.
 changes how excluded mutants count, and doing it early would move the number 12.06 has yet to pin.
 
 ### E4
-Nine mutants have no owning spec
+One mutant has no owning spec — `ContextBoundedExplorer` L187
 {: #e4}
 
 **What.** 12.05 assigned `L41`'s two `NO_COVERAGE` to 12.04 and recorded that *"the remaining 9 are
-unassigned and are a candidate for a future spec."*
+unassigned and are a candidate for a future spec."* Those nine were L176 ×4, L187, L203 ×2, L204 and
+L214. 12.04 closed the eight it owned — L176 ×4, L203 ×2, L204 and L214 — leaving **L187**.
 
-**Why it matters.** Unassigned mutants are the ones that drift — they appear in no acceptance criterion,
-so no spec's completion implies they were addressed.
+12.04 reports ten kills in this class, and the two extra are the separately-assigned `L41` pair,
+which were never part of the unassigned nine. Keeping the two pools distinct is the whole point of
+this entry: the number that matters here is eight-of-nine, not ten.
 
-**To close.** Assign them, or record an explicit decision that they are below the bar. Either is a
-decision; silence is not.
+**Which mutant.** `ContextBoundedExplorer.java:187`, inside `dfs`, the DEADLOCK guard:
+
+```java
+if (enabled.isEmpty() && !config.allTerminated()) {
+```
+
+One `SURVIVED` mutant, `NonVoidMethodCallMutator` — *"removed call to
+`Configuration::allTerminated`"* — at index 327. PIT reports `numberOfTestsRun='44'` and an empty
+`killingTest`: 44 tests exercised the line and none killed it. Verified in
+`build/reports/pitest/mutations.xml`.
+
+**What the mutation does.** Removing the call leaves `!allTerminated()` vacuously true, so the
+condition collapses to `enabled.isEmpty()` and the DEADLOCK trace is emitted in states where every
+thread has already terminated. A completed search would then report a failure it did not find.
+
+**Why it survives: NOT ESTABLISHED.** This is recorded as unknown rather than guessed. The obvious
+explanation — that the guard is redundant, since a terminated thread is not enabled — is *not* a
+proof: `enabled.isEmpty()` is equally true when threads are blocked rather than finished, and that
+is precisely the deadlock case the guard is not there to catch. Distinguishing the two needs a test
+that asserts a completed search emits no DEADLOCK trace, and no test asserts that.
+
+The region itself is well covered, which is what makes the gap narrow. The other three mutants on
+L187 are `KILLED`: both `NegateConditionalsMutator` variants by
+`ContextBoundedExplorerTest.deadlockProgram_needsAPaidPreemption()`, and the
+`List::isEmpty` removal by `ContextBoundedExplorerTest.lossyBitstateFilter_stillSurfacesTheDeadlock()`.
+
+**Why it matters.** An unowned mutant is the kind that drifts — it appears in no acceptance
+criterion, so no spec's completion implies it was addressed. Left alone it stays in 12.06's
+denominator as a survivor with no owner and no recorded reasoning, which is the accounting hole
+this entry exists to prevent.
+
+**To close.** Either assert that a run whose threads all terminate emits no DEADLOCK trace — the
+obvious candidate, and the most likely reason the mutant survives — or record a proven-equivalence
+argument. Either is a decision. Silence is not.
+
+Deliberately **not** claimed equivalent in the meantime: an unmeasured equivalence argument is how
+this set produced three separate defects during 12.04, each an asserted mechanism that turned out
+false when checked.
 
 ---
 

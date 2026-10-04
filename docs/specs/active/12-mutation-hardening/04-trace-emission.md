@@ -75,7 +75,9 @@ gets quoted, so they are named:
 This spec takes the class to **104/105 (99.0%)** and the full scope to **256/270 (94.8%)**,
 `NO_COVERAGE` **0**, test strength 95%, with **no regressions**. All ten mutant variants across this
 spec's five named locations are `KILLED`: `L41` ×2, `L176` ×4, `L203` ×2, `L204`, `L214`. The single
-survivor in this class is `L187`, which belongs to Spec 12.05.
+survivor in this class is `L187`. It was 12.05's by the original assignment, but 12.05 landed first
+and left it unowned; it is now recorded as an explicit deferral in [DEFERRED.md E4](DEFERRED.md#e4)
+rather than silently attributed to a spec that does not claim it.
 
 `NO_COVERAGE` reaching **0** across the whole scope is the part worth stating plainly, because it is
 the first time that has been true in this set. Before this spec the class carried four uncovered

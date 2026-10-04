@@ -155,22 +155,34 @@ PIT scoped to `dev.samhb.interleave.cb.ContextBoundedExplorer`, statuses after t
 L112 (`markVisited`) is KILLED and was never a target. The original spec's "L113 x5" is
 `visitedStates.put`, not `markVisited`; the two lines are adjacent and were easy to conflate.
 
-### Remaining survivors in scope [verified]
+### Remaining survivors in scope [verified as of 12.05's implementation]
 
-Per-line counts, so the totals can be checked rather than trusted:
+Per-line counts, so the totals can be checked rather than trusted. The **note** column is annotated
+where a later spec has since acted on a line:
 
 | line | symbol | `SURVIVED` | `NO_COVERAGE` | note |
 |---|---|---|---|---|
-| L41 | `explore` | 0 | 2 | assigned to Spec 12.04 by the original table |
-| L176 | `dfs` | 0 | 4 | dead branch / recursion guard |
-| L187 | `dfs` | 1 | 0 | |
-| L203 | `emitIncompleteTraceIfNeeded` | 2 | 0 | method and its lambda |
-| L204 | `emitIncompleteTraceIfNeeded` | 1 | 0 | lambda |
-| L214 | `addTrace` | 1 | 0 | |
+| L41 | `explore` | 0 | 2 | assigned to Spec 12.04 by the original table — **since closed, `KILLED` ×2** |
+| L176 | `dfs` | 0 | 4 | recorded here as "dead branch / recursion guard" — **that reading was wrong; see below** |
+| L187 | `dfs` | 1 | 0 | **the one mutant still unowned — see [DEFERRED.md E4](DEFERRED.md#e4)** |
+| L203 | `emitIncompleteTraceIfNeeded` | 2 | 0 | method and its lambda — **since closed, `KILLED` ×2** |
+| L204 | `emitIncompleteTraceIfNeeded` | 1 | 0 | lambda — **since closed, `KILLED`** |
+| L214 | `addTrace` | 1 | 0 | **since closed, `KILLED`** |
 | **total** | | **5** | **6** | |
 
-**Not owned here.** L41's two `NO_COVERAGE` are assigned to Spec 12.04; the remaining 9 are unassigned
-and are a candidate for a future spec.
+**The L176 reading in this table was wrong, and 12.04 corrected it.** Labelling L176 a "dead branch"
+rested on the claim that a well-formed declarative program can never return `ASSERTION_FAILED`. That
+is false: `%` is an ordinary multiplicative operator, `TypeChecker` checks only that both operands
+are `INT`, and `Evaluator` throws `EvalException("% by zero")` at run time. A well-formed program
+dividing by a zero-valued field trips the branch, 12.04 built that program as a witness, and all
+four mutants are `KILLED`. The table is left showing what was measured *here* rather than silently
+rewritten — the wrong reasoning is the reason the witness test exists.
+
+**Not owned here.** L41's two `NO_COVERAGE` were assigned to Spec 12.04, leaving 9 unassigned —
+L176 ×4, L187, L203 ×2, L204 and L214 — and "a candidate for a future spec". 12.04 closed the eight
+it owned, so **`L187` is the sole remainder**, now recorded as an explicit deferral in
+[DEFERRED.md E4](DEFERRED.md#e4) rather than left to drift. 12.04's own total is ten kills; the two
+beyond these eight are the `L41` pair, which were never in the unassigned pool.
 
 ## Relationship to 12.02
 
