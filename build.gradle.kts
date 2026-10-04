@@ -427,17 +427,69 @@ tasks.register("mutationRatchet") {
     // did not succeed. So `mutationRatchet` was silently skipped whenever PIT failed,
     // which is exactly when the census is wanted.
     //
-    // Running it standalone now re-reads whatever report exists and fails loudly if none
-    // does, which is the behaviour a gate should have anyway. See the report check below.
+    // Running it standalone now re-reads whatever report exists and refuses it if none does or
+    // if it predates the source tree. See the staleness guard in the body — dropping
+    // `dependsOn(pitest)` is what made the finalizer work, and it also opened a false-green
+    // that the guard closes.
 
     val report = layout.buildDirectory.file("reports/pitest/mutations.xml")
+    // Deliberately NOT `dependsOn(pitest)` — see above for why that broke the finalizer.
+    // Compiling is a different matter and is safe: these succeed even when `pitest` fails, and
+    // they are what makes the staleness guard below content-accurate rather than mtime-naive.
+    dependsOn(tasks.named("classes"), tasks.named("testClasses"))
 
     doLast {
         val xml = report.get().asFile
         if (!xml.isFile) {
+            // NOT a build-ordering failure any more — `dependsOn(pitest)` is gone, so this task
+            // no longer implies PIT ran first. The likelier causes are that PIT never ran, or
+            // that it died before writing anything (a compile error, or the job being killed).
+            // The finalizer runs even in those cases, so this error can appear ALONGSIDE the
+            // real failure rather than instead of it; the first error in the log is the cause.
             throw GradleException(
-                "Ratchet: no mutation report at ${xml.path}. PIT did not run, so there is "
-                    + "nothing to gate. This is a build-ordering failure, not a pass."
+                "Ratchet: no mutation report at ${xml.path}. PIT produced no XML, so there is " +
+                    "nothing to gate. Either `pitest` was not run in this invocation, or it " +
+                    "failed before writing a report (a compile error, or the job being killed).\n" +
+                    "If this is the only error, run `./gradlew pitest` first. If another error " +
+                    "precedes this one, that is the cause and this is only its consequence."
+            )
+        }
+
+        // Staleness guard. Removing `dependsOn(pitest)` (above) is what made the finalizer work,
+        // and it also means this task can now be run on its own against whatever report happens
+        // to be lying around. Without this check that is a false green: edit production or test
+        // source, run `mutationRatchet`, and a report generated from the PREVIOUS source still
+        // satisfies both the total-mutant count and the floor. The gate would report PASS for
+        // code it never looked at.
+        //
+        // Compared against COMPILED CLASSES, not source files, and that distinction is the whole
+        // design. Gradle decides up-to-dateness by content hash, not mtime, so `touch`, `git
+        // checkout` and `git stash` all bump mtimes without changing a byte -- and a first attempt
+        // that compared against `src/` reported a stale report after a bare `touch`, then found
+        // `pitest` itself UP-TO-DATE and agreed nothing had changed. Both were right; the
+        // heuristic was wrong. Class files are only rewritten when content really changes, so they
+        // carry exactly the signal being asked about.
+        //
+        // `dependsOn(classes, testClasses)` makes that signal current before it is read: editing
+        // source recompiles, which makes the classes newer than the report, which is the stale
+        // case. And because those dependencies still succeed when `pitest` fails, the finalizer
+        // keeps running on the failure path -- the original bug. If compilation itself fails,
+        // these dependencies fail and the finalizer is skipped, so the misleading missing-report
+        // error does not appear at all.
+        val newestClass = listOf(
+            layout.buildDirectory.dir("classes/java/main"),
+            layout.buildDirectory.dir("classes/java/test"),
+        ).map { it.get().asFile }
+            .filter { it.isDirectory }
+            .flatMap { it.walkTopDown().filter { f -> f.isFile }.toList() }
+            .maxByOrNull { it.lastModified() }
+        if (newestClass != null && xml.lastModified() < newestClass.lastModified()) {
+            throw GradleException(
+                "Ratchet: the mutation report predates the compiled classes.\n" +
+                    "  report : ${xml.path}\n" +
+                    "  newer  : ${newestClass.path}\n" +
+                    "A report generated before that change cannot describe the current code, so " +
+                    "passing it here would be a false green. Re-run `./gradlew pitest`."
             )
         }
 

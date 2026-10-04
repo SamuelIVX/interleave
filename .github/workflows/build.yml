@@ -57,13 +57,13 @@ jobs:
       - name: Run PIT (scoped)
         run: ./gradlew pitest --console=plain --no-daemon
 
-      # Narrower than it looks. `pitest.finalizedBy(mutationRatchet)` DOES run the ratchet
-      # when PIT fails its threshold — Gradle schedules finalizers on failure, and this was
-      # verified with a marker finalizer on the real task. So this step is not here to cover
-      # the threshold-failure path; it is here for the path where PIT dies before writing any
-      # report at all (compile error, OOM kill). There the ratchet has nothing to read and would
-      # fail with a misleading "no mutation report", burying the real cause. Skipping instead
-      # leaves the PIT step's own failure as the visible reason. The job still fails.
+      # Narrower than it looks, and it does NOT suppress the ratchet's own missing-report
+      # error. `pitest.finalizedBy(mutationRatchet)` runs the ratchet even when PIT dies
+      # before writing any report (verified with a marker finalizer on the real task), so in
+      # that case the finalizer prints "no mutation report" regardless of what this step does.
+      # That error is secondary: the PIT step's own failure comes first in the log and is the
+      # cause. This step's skip avoids a redundant SECOND invocation of the ratchet, nothing
+      # more — the misleading error still appears, it just appears once.
       #
       # `-x pitest` keeps this from re-running a ~3-minute analysis; when a report does exist
       # it is the one the step above just produced.
@@ -73,7 +73,8 @@ jobs:
           if [ -f build/reports/pitest/mutations.xml ]; then
             ./gradlew mutationRatchet -x pitest --console=plain --no-daemon
           else
-            echo "::notice::No PIT report was produced, so there is nothing to ratchet. Skipping."
+            echo "::notice::No PIT report was produced. The Gradle finalizer has already"
+            echo "::notice::reported this; skipping to avoid saying it twice."
           fi
 
       - name: Upload report

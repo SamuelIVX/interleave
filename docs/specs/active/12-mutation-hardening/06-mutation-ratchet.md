@@ -311,10 +311,48 @@ Both halves earn their place:
   cannot see, and the per-class table in this set drifted twice before 12.03 caught it. With
   `finalizedBy`, `./gradlew pitest` on a laptop cannot produce a green result CI would reject.
 - **The `if: always()` CI step is narrower than it first appeared.** It is *not* there to cover the
-  threshold-failure path — the finalizer handles that. It exists for the path where PIT dies before
-  writing any report at all (a compile error, an OOM kill), where the ratchet would fail with a
-  misleading "no mutation report" and bury the real cause. The step skips in that case, leaving the
-  PIT failure as the visible reason; the job fails either way.
+  threshold-failure path — the finalizer handles that. It exists to avoid a *redundant second
+  invocation* when PIT dies before writing any report at all (a compile error, an OOM kill).
+
+  It does **not** suppress the ratchet's own missing-report error, which is what this bullet first
+  claimed and was wrong: the finalizer runs whether or not this step does, so "no mutation report"
+  appears in that scenario either way. It is simply not stated twice. The error is secondary — PIT's
+  own failure comes first in the log and is the cause — and the task's message now says so instead of
+  calling itself a build-ordering failure, which it stopped being when `dependsOn` was removed.
+
+### Removing `dependsOn(pitest)` opened a false green, and the staleness guard closes it
+
+Dropping `dependsOn(pitest)` is what made the finalizer work. It also meant the task could be run
+alone against whatever report happened to be on disk — and the report was only checked for
+*existence*. So: edit production or test source, run `./gradlew mutationRatchet`, and a report
+generated from the **previous** source still satisfies both the total-mutant count and the floor. The
+gate would report PASS for code it never looked at — the exact failure this spec set exists to
+prevent, reached through the fix for a different one.
+
+Gradle cannot supply the answer by itself: the task declares no outputs, so it is never `UP-TO-DATE`
+and always re-reads the file. The guard compares mtimes — and **against compiled classes, not source
+files**, which is the whole design.
+
+The first attempt compared against `src/` and was wrong, in a way only testing exposed. `touch`,
+`git checkout` and `git stash` all bump mtimes without changing a byte. A bare `touch` therefore made
+the guard report a stale report — and Gradle, deciding up-to-dateness by content hash, marked `pitest`
+itself `UP-TO-DATE` and agreed nothing had changed. Both were right; the heuristic was wrong. A false
+positive here is not cosmetic: it deadlocks the build, because `pitest` will not regenerate the
+report (up to date) and the ratchet will not accept it (stale), and the only way out is `--rerun`.
+
+Class files are only rewritten when content genuinely changes, so they carry exactly the signal being
+asked about. `dependsOn(classes, testClasses)` makes that signal current before it is read: editing
+source recompiles, which makes the classes newer than the report. Those dependencies still succeed
+when `pitest` fails, so the finalizer keeps running on the failure path — the original bug stays
+fixed. If compilation itself fails they fail too, the finalizer is skipped, and the misleading
+missing-report error does not appear at all.
+
+Demonstrated, both directions:
+
+| action | result |
+|---|---|
+| `touch` a source file (no content change) | **PASS** — `pitest` `UP-TO-DATE`, report still valid |
+| real edit to `CanonicalEncoder` | **FAIL** — "report predates the compiled classes", names the class file |
 
 ### A false mechanism this spec asserted, and then disproved
 
