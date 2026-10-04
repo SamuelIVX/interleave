@@ -310,12 +310,61 @@ Both halves earn their place:
 - **`finalizedBy` makes the gate local.** A gate that exists only in CI is one more thing a local run
   cannot see, and the per-class table in this set drifted twice before 12.03 caught it. With
   `finalizedBy`, `./gradlew pitest` on a laptop cannot produce a green result CI would reject.
-- **The explicit CI step is needed because `finalizedBy` does not run on failure.** Verified, not
-  assumed: with `mutationThreshold` at 96, `:pitest FAILED` and `:mutationRatchet` never appeared —
-  Gradle stops the build before the finalizer. That is the one path where the breakdown matters most,
-  because PIT's message says only "score 95 below threshold 96" and cannot distinguish a real
-  regression from a rounding artefact. `if: always()` guarantees the census and the real verdict.
-  `-x pitest` keeps it from re-running a ~3-minute analysis.
+- **The `if: always()` CI step is narrower than it first appeared.** It is *not* there to cover the
+  threshold-failure path — the finalizer handles that. It exists for the path where PIT dies before
+  writing any report at all (a compile error, an OOM kill), where the ratchet would fail with a
+  misleading "no mutation report" and bury the real cause. The step skips in that case, leaving the
+  PIT failure as the visible reason; the job fails either way.
+
+### A false mechanism this spec asserted, and then disproved
+
+An earlier version of this section claimed:
+
+> **The explicit CI step is needed because `finalizedBy` does not run on failure.** Verified, not
+> assumed: with `mutationThreshold` at 96, `:pitest FAILED` and `:mutationRatchet` never appeared —
+> Gradle stops the build before the finalizer.
+
+**The observation was real. The explanation was invented, and it is false.** "Verified, not assumed"
+was exactly the wrong thing to write above a mechanism that had not been isolated.
+
+Three probes, in increasing order of relevance:
+
+| probe | result |
+|---|---|
+| Marker finalizer, task throws from `doLast` | finalizer **ran** |
+| Marker finalizer, task fails like `Exec` (non-zero exit) | finalizer **ran** |
+| Marker finalizer on the **real** `pitest` task, `mutationThreshold` 96 | finalizer **ran** |
+
+So `finalizedBy` runs on failure, and the first two bullets' framing ("Gradle stops the build
+first") was wrong in every case.
+
+**The real cause was self-inflicted.** `mutationRatchet` declared `dependsOn(pitest)`, and **a
+finalizer whose own `dependsOn` includes the failed task is skipped, because its dependency did not
+succeed.** `dependsOn(pitest)` has been removed — `finalizedBy` already guarantees ordering, and the
+task now fails loudly if no report exists rather than depending on one being produced first.
+
+**What the fix bought, measured.** On the same threshold-96 failing run:
+
+```
+before:  > Task :pitest FAILED
+         (no census, no verdict — BUILD FAILED)
+
+after:   > Task :pitest FAILED
+         > Task :mutationRatchet
+           RESULT: PASS — 256/270 = 94.81% >= floor 94%
+```
+
+PIT's threshold failed, and the ratchet reports that assertion-backed coverage *passes* — separating
+a rounding artefact from a real regression, which PIT's own message (`score 95 below threshold 96`)
+cannot do. That is the whole justification for this gate, and it was silently unavailable on the
+failure path until the `dependsOn` came out.
+
+**How it was found.** CodeRabbit challenged the comment, not the behaviour — and was right for the
+wrong reason. Its suggested replacement ("Gradle runs a finalizer even if the task fails; document the
+actual condition") would have made the docs *less* accurate, since it stops at "we do not know why".
+Following the challenge to a probe is what turned an unexplained symptom into a fixable defect. The
+lesson is the set's recurring one in a new shape: **the symptom was real and the reasoning was
+still wrong**, so "I watched it happen" did not mean "I know why".
 
 ### Second deviation: scoped runs gate nothing, by design
 

@@ -416,7 +416,19 @@ val NON_ASSERTION_DETECTED = listOf("TIMED_OUT", "MEMORY_ERROR", "NON_VIABLE", "
 tasks.register("mutationRatchet") {
     description = "Gates assertion-backed mutation coverage against the Spec 12.06 floor."
     group = "verification"
-    dependsOn(tasks.named("pitest"))
+    // Deliberately NO `dependsOn(pitest)`, even though that reads like the obvious way to
+    // make this task usable on its own.
+    //
+    // `pitest.finalizedBy(mutationRatchet)` already guarantees ordering, and adding
+    // `dependsOn(pitest)` quietly BREAKS the gate on the one path it matters most. When
+    // `pitest` fails, Gradle still runs its finalizers -- verified, not assumed: a marker
+    // finalizer attached to the real `pitest` task ran on a failing run. But a finalizer
+    // whose own `dependsOn` includes the failed task is skipped, because its dependency
+    // did not succeed. So `mutationRatchet` was silently skipped whenever PIT failed,
+    // which is exactly when the census is wanted.
+    //
+    // Running it standalone now re-reads whatever report exists and fails loudly if none
+    // does, which is the behaviour a gate should have anyway. See the report check below.
 
     val report = layout.buildDirectory.file("reports/pitest/mutations.xml")
 
@@ -596,14 +608,21 @@ tasks.register("mutationRatchet") {
 tasks.named("pitest") {
     finalizedBy(tasks.named("mutationRatchet"))
 }
-// Two ways the finalizer does not run, both verified rather than assumed:
-//  - `pitest` fails its own threshold -> Gradle stops the build before the finalizer. Observed with
-//    mutationThreshold=96: `:pitest FAILED`, no `:mutationRatchet`. This is why the workflow also
-//    invokes the task directly with `if: always()`.
-//  - `-x mutationRatchet` or `--dry-run` -> the task's action never executes.
-// The task itself is deliberately strict about a missing report: locally it fails loudly rather
-// than passing on absent input, and the CI step guards the absent-report case in the workflow
-// instead, where the PIT failure is already the visible cause.
+// `finalizedBy` DOES run `mutationRatchet` when `pitest` fails -- Gradle schedules a
+// finalized task's finalizers even on failure, verified here with a marker finalizer
+// attached to the real `pitest` task.
+//
+// An earlier version of this comment claimed the opposite ("Gradle stops the build before
+// the finalizer") and used it to justify an explicit CI step. That explanation was invented
+// rather than measured, and it was wrong. The real cause of a skipped ratchet was the
+// `dependsOn(pitest)` that `mutationRatchet` used to declare, and it has been removed -- see
+// the task's own comment. The observable symptom was real (`:mutationRatchet` never appeared
+// on a failing run); the mechanism was not.
+//
+// The explicit `if: always()` CI step is retained for a different and narrower reason: it
+// still runs when PIT fails so early that no report exists at all (a compile error, an OOM
+// kill), where the workflow skips rather than reporting a misleading missing-report error.
+// Also note `-x mutationRatchet` and `--dry-run` prevent the action from executing.
 
 publishing {
     publications {

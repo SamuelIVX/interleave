@@ -57,17 +57,16 @@ jobs:
       - name: Run PIT (scoped)
         run: ./gradlew pitest --console=plain --no-daemon
 
-      # Explicit, and `if: always()`, because `pitest.finalizedBy(mutationRatchet)` does NOT
-      # run when PIT itself fails the threshold — Gradle stops the build first. That is the one
-      # path where the breakdown is most wanted: PIT's own message says only "score 95 below
-      # threshold 96" and cannot distinguish a real regression from a rounding artefact. The
-      # ratchet prints the status census and names the failure. `-x pitest` keeps this from
-      # re-running a 3-minute analysis; the report already exists from the step above.
+      # Narrower than it looks. `pitest.finalizedBy(mutationRatchet)` DOES run the ratchet
+      # when PIT fails its threshold — Gradle schedules finalizers on failure, and this was
+      # verified with a marker finalizer on the real task. So this step is not here to cover
+      # the threshold-failure path; it is here for the path where PIT dies before writing any
+      # report at all (compile error, OOM kill). There the ratchet has nothing to read and would
+      # fail with a misleading "no mutation report", burying the real cause. Skipping instead
+      # leaves the PIT step's own failure as the visible reason. The job still fails.
       #
-      # Skips when there is no report. If PIT died before writing one — a compile error, an OOM
-      # kill — the ratchet has nothing to read and would otherwise fail with "no mutation
-      # report", burying the real cause under a misleading error. The job still fails: this
-      # step's exit status cannot mask the PIT step's.
+      # `-x pitest` keeps this from re-running a ~3-minute analysis; when a report does exist
+      # it is the one the step above just produced.
       - name: Mutation ratchet
         if: always()
         run: |
