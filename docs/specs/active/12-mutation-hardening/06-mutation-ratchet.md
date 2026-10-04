@@ -1,9 +1,17 @@
 # Spec 12.06 — Mutation Ratchet, Threshold Accounting & Wall-Time Kills
 
+**Status: implemented and verified locally; one criterion pending CI.** `mutationThreshold` = 94 and
+`coverageThreshold` = 0; `testStrengthThreshold.set(0)` removed. The gate is the `mutationRatchet`
+Gradle task (`build.gradle.kts`), wired `pitest.finalizedBy(...)` plus an `if: always()` CI step.
+Measured floor: **256/270 = 94.8148% assertion-backed**, 14 survivors, `NO_COVERAGE` 0, all five
+non-assertion detected statuses 0. Derivation in the `final` row of the Derivation Record below;
+failure paths demonstrated in Acceptance Criteria. The outstanding item is *CI is green*, which cannot
+be asserted until this lands on `main`.
+
 ## TL;DR
 
-Every PIT threshold is currently `0`, so the `mutation` CI job reports a number and gates nothing.
-This spec turns it into a real gate — at the correct floor, with the correct metric, and with an
+Every PIT threshold used to be `0`, so the `mutation` CI job reported a number and gated nothing.
+This spec turned it into a real gate — at the correct floor, with the correct metric, and with an
 accounting rule that stops the score being inflated by mutants that no assertion caught.
 
 Two facts drive the design, both measured rather than assumed:
@@ -26,11 +34,15 @@ enforced against `KILLED`/total (R7).
 deliberate departure from PIT, whose own integer rounding is the weakness that made
 `thresholdPrecision` worth wanting; the gate does not inherit it.
 
-At a floor of 80 the gate therefore tolerates losing **two** kills from the current 222 (221 and 220
-both pass) and **fails on the third**, at 219/275 = 79.64%. That is one kill tighter than PIT's
-rounded threshold at the same floor, which passes 219 and first fails at 218. The mutant count and
-status breakdown are asserted alongside the ratio regardless, because a ratio alone cannot say *which*
-mutants were lost.
+At the time of writing the floor was provisionally 80, and the gate therefore tolerated losing **two**
+kills from the then-current 222 (221 and 220 both passed) and **failed on the third**, at 219/275 =
+79.64% — one kill tighter than PIT's rounded threshold at the same floor, which passes 219 and first
+fails at 218. The mutant count and status breakdown are asserted alongside the ratio regardless,
+because a ratio alone cannot say *which* mutants were lost.
+
+**Both figures above are historical.** The floor was ultimately derived at **94** against a measured
+256/270 after Specs 12.01–12.05 landed; see the `final` Derivation Record row. The arithmetic *shape*
+is unchanged, the numbers are not.
 
 ## Objective
 
@@ -62,6 +74,9 @@ All claims [verified] against `build.gradle.kts`, `.github/workflows/build.yml`,
 `build/reports/pitest/`.
 
 ### The thresholds gate nothing today
+
+*(Historical — this describes the tree at `c5fdcd0`, before this spec landed. It is kept as the
+record of what was fixed. As implemented, see the status banner at the top.)*
 
 ```kotlin
 mutationThreshold.set(0)
@@ -242,38 +257,199 @@ evaluation; there is no explicit assertion step.
 
 ## Acceptance Criteria
 
-- [ ] `mutationThreshold` is set to a non-zero floor, with the derivation recorded (R1, R2).
-- [ ] `./gradlew pitest` fails when the floor is deliberately raised above the measured value, and
+- [x] `mutationThreshold` is set to a non-zero floor, with the derivation recorded (R1, R2).
+      Set to **94**; derivation in the `final` Derivation Record row below.
+- [x] `./gradlew pitest` fails when the floor is deliberately raised above the measured value, and
       passes at the chosen floor — **both demonstrated** (R1).
-- [ ] `coverageThreshold` is still `0`, with the rationale in the build comment (R3).
-- [ ] `testStrengthThreshold.set(0)` is gone and the comment explains why (R4).
-- [ ] A CI step asserts the total mutant count and fails on mismatch, with a message naming both
-      values (R5). **Demonstrated** by temporarily editing the expected count to a wrong value.
-- [ ] A CI step prints each non-`KILLED` detected status count; fails on non-zero `TIMED_OUT`,
+      *Demonstrated:* `mutationThreshold` temporarily raised to 96 → PIT's own
+      `Mutation score of 95 is below threshold of 96`, build red. At 94 the run is green
+      (256/270, ratchet passes). Reverted.
+- [x] `coverageThreshold` is still `0`, with the rationale in the build comment (R3). Kept, and the
+      comment now says gating it and gating mutation coverage are different decisions.
+- [x] `testStrengthThreshold.set(0)` is gone and the comment explains why (R4). Removed, with the
+      reason recorded: it set a default to its own value (implying a gate that did not exist), and
+      test strength excludes `NO_COVERAGE`, which is the wrong denominator for a ratchet.
+- [x] A step asserts the total mutant count and fails on mismatch, with a message naming both
+      values (R5). **Demonstrated** by temporarily setting `EXPECTED_TOTAL_MUTANTS = 999`:
+      `expected 999 mutants, PIT generated 270`, followed by the three likely causes.
+- [x] A step prints each non-`KILLED` detected status count; fails on non-zero `TIMED_OUT`,
       `MEMORY_ERROR`, `NON_VIABLE` and `RUN_ERROR`; and on `EQUIVALENT` fails only when the count
       exceeds the recorded allow-list, naming the unlisted mutant (R6).
-      Currently all are zero, so demonstrate by asserting against a synthetic non-zero expectation or
-      by temporarily lowering the timeout so a mutant times out — record which method was used.
-- [ ] A CI step prints assertion-backed coverage (`KILLED`/total) next to PIT's figure **and fails
-      when it falls below the recorded floor** (R7). **Demonstrated** by lowering the assertion-backed
-      expected value below the measured one and confirming a red build, since PIT's own threshold
-      would still pass in that state — the point of the criterion is that the assertion-backed gate
-      is the binding one.
-- [ ] The PIT report upload still runs on failure (R9).
-- [ ] `./gradlew clean test javadoc` passes and CI is green.
-- [ ] No `fasterThreshold` or `thresholdPrecision` appears in `build.gradle.kts` or
+      **Method used: a synthetic `mutations.xml`, not a lowered timeout.** All five counts are 0 on
+      the real report, and provoking a genuine `TIMED_OUT` would mean a slow, load-sensitive run that
+      may not time out at all — the spec's "synthetic non-zero expectation" option, taken.
+      *Demonstrated:* a synthetic report (3 `KILLED` + 1 `TIMED_OUT`, `EXPECTED_TOTAL_MUTANTS`
+      temporarily set to 4 to match) → build red with the `TIMED_OUT` remedy message. Then the same
+      shape with 1 `EQUIVALENT` → build red naming
+      `dev.samhb.interleave.state.CanonicalEncoder:16 (org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator)`
+      as unlisted against the empty allow-list. Real report restored afterwards; both temporary edits
+      reverted.
+- [x] A step prints assertion-backed coverage (`KILLED`/total) next to PIT's figure **and fails
+      when it falls below the recorded floor** (R7). **Demonstrated** by temporarily setting the
+      ratchet floor to 95: PIT's own threshold (94 vs its rounded 95) still **passes**, while the
+      ratchet **fails** on `256*100 = 25600 < 95*270 = 25650`. That is the criterion's whole point —
+      the assertion-backed gate is the binding one — and it is why the gate is not PIT's threshold.
+- [x] The PIT report upload still runs on failure (R9). Untouched, `if: always()` and
+      `if-no-files-found: error` preserved. A second `if: always()` step was *added* (see the note
+      below).
+- [ ] `./gradlew clean test javadoc` passes and CI is green. **`clean test javadoc` verified green
+      locally; CI green pending push.**
+- [x] No `fasterThreshold` or `thresholdPrecision` appears in `build.gradle.kts` or
       `.github/workflows/build.yml` (R11) — grep-able and empty. Scoped to configuration on purpose:
       this spec *names* the two options in order to record that they do not exist, so a repo-wide
       grep would match its own documentation and prove nothing.
+
+### One deviation from the spec as written, and why
+
+The spec says to add the gate as a **CI step**. It is implemented as a Gradle task
+(`mutationRatchet`) wired with `pitest.finalizedBy(...)`, *plus* an explicit `if: always()` CI step
+that runs `./gradlew mutationRatchet -x pitest`.
+
+Both halves earn their place:
+
+- **`finalizedBy` makes the gate local.** A gate that exists only in CI is one more thing a local run
+  cannot see, and the per-class table in this set drifted twice before 12.03 caught it. With
+  `finalizedBy`, `./gradlew pitest` on a laptop cannot produce a green result CI would reject.
+- **The `if: always()` CI step is narrower than it first appeared.** It is *not* there to cover the
+  threshold-failure path — the finalizer handles that. It exists to avoid a *redundant second
+  invocation* when PIT dies before writing any report at all (a compile error, an OOM kill).
+
+  It does **not** suppress the ratchet's own missing-report error, which is what this bullet first
+  claimed and was wrong: the finalizer runs whether or not this step does, so "no mutation report"
+  appears in that scenario either way. It is simply not stated twice. The error is secondary — PIT's
+  own failure comes first in the log and is the cause — and the task's message now says so instead of
+  calling itself a build-ordering failure, which it stopped being when `dependsOn` was removed.
+
+### Removing `dependsOn(pitest)` opened a false green, and the staleness guard closes it
+
+Dropping `dependsOn(pitest)` is what made the finalizer work. It also meant the task could be run
+alone against whatever report happened to be on disk — and the report was only checked for
+*existence*. So: edit production or test source, run `./gradlew mutationRatchet`, and a report
+generated from the **previous** source still satisfies both the total-mutant count and the floor. The
+gate would report PASS for code it never looked at — the exact failure this spec set exists to
+prevent, reached through the fix for a different one.
+
+Gradle cannot supply the answer by itself: the task declares no outputs, so it is never `UP-TO-DATE`
+and always re-reads the file. The guard compares mtimes — and **against compiled classes, not source
+files**, which is the whole design.
+
+The first attempt compared against `src/` and was wrong, in a way only testing exposed. `touch`,
+`git checkout` and `git stash` all bump mtimes without changing a byte. A bare `touch` therefore made
+the guard report a stale report — and Gradle, deciding up-to-dateness by content hash, marked `pitest`
+itself `UP-TO-DATE` and agreed nothing had changed. Both were right; the heuristic was wrong. A false
+positive here is not cosmetic: it deadlocks the build, because `pitest` will not regenerate the
+report (up to date) and the ratchet will not accept it (stale), and the only way out is `--rerun`.
+
+Class files are only rewritten when content genuinely changes, so they carry exactly the signal being
+asked about. `dependsOn(classes, testClasses)` makes that signal current before it is read: editing
+source recompiles, which makes the classes newer than the report. Those dependencies still succeed
+when `pitest` fails, so the finalizer keeps running on the failure path — the original bug stays
+fixed. If compilation itself fails they fail too, the finalizer is skipped, and the misleading
+missing-report error does not appear at all.
+
+Demonstrated, both directions:
+
+| action | result |
+|---|---|
+| `touch` a source file (no content change) | **PASS** — `pitest` `UP-TO-DATE`, report still valid |
+| real edit to `CanonicalEncoder` | **FAIL** — "report predates the compiled classes", names the class file |
+
+### A false mechanism this spec asserted, and then disproved
+
+An earlier version of this section claimed:
+
+> **The explicit CI step is needed because `finalizedBy` does not run on failure.** Verified, not
+> assumed: with `mutationThreshold` at 96, `:pitest FAILED` and `:mutationRatchet` never appeared —
+> Gradle stops the build before the finalizer.
+
+**The observation was real. The explanation was invented, and it is false.** "Verified, not assumed"
+was exactly the wrong thing to write above a mechanism that had not been isolated.
+
+Three probes, in increasing order of relevance:
+
+| probe | result |
+|---|---|
+| Marker finalizer, task throws from `doLast` | finalizer **ran** |
+| Marker finalizer, task fails like `Exec` (non-zero exit) | finalizer **ran** |
+| Marker finalizer on the **real** `pitest` task, `mutationThreshold` 96 | finalizer **ran** |
+
+So `finalizedBy` runs on failure, and the first two bullets' framing ("Gradle stops the build
+first") was wrong in every case.
+
+**The real cause was self-inflicted.** `mutationRatchet` declared `dependsOn(pitest)`, and **a
+finalizer whose own `dependsOn` includes the failed task is skipped, because its dependency did not
+succeed.** `dependsOn(pitest)` has been removed — `finalizedBy` already guarantees ordering, and the
+task now fails loudly if no report exists rather than depending on one being produced first.
+
+**What the fix bought, measured.** On the same threshold-96 failing run:
+
+```
+before:  > Task :pitest FAILED
+         (no census, no verdict — BUILD FAILED)
+
+after:   > Task :pitest FAILED
+         > Task :mutationRatchet
+           RESULT: PASS — 256/270 = 94.81% >= floor 94%
+```
+
+PIT's threshold failed, and the ratchet reports that assertion-backed coverage *passes* — separating
+a rounding artefact from a real regression, which PIT's own message (`score 95 below threshold 96`)
+cannot do. That is the whole justification for this gate, and it was silently unavailable on the
+failure path until the `dependsOn` came out.
+
+**How it was found.** CodeRabbit challenged the comment, not the behaviour — and was right for the
+wrong reason. Its suggested replacement ("Gradle runs a finalizer even if the task fails; document the
+actual condition") would have made the docs *less* accurate, since it stops at "we do not know why".
+Following the challenge to a probe is what turned an unexplained symptom into a fixable defect. The
+lesson is the set's recurring one in a new shape: **the symptom was real and the reasoning was
+still wrong**, so "I watched it happen" did not mean "I know why".
+
+### Second deviation: scoped runs gate nothing, by design
+
+The gate is defined against the **full** scope. `-PpitestTargetOverride` narrows the run to one class,
+and both aggregate gates become meaningless there — R5's baseline is one class rather than 270, and
+R7's floor was derived from a whole-target measurement whose denominator a scoped run does not share.
+AGENTS.md already records that a scoped percentage is not comparable to a full-scope one; enforcing one
+against the other would be exactly that conflation.
+
+**Verified, not assumed.** Before the guard existed, a scoped run failed on the ratchet:
+
+```
+KILLED (assertion)     : 94
+> Ratchet: expected 270 mutants, PIT generated 97.
+BUILD FAILED
+```
+
+That broke the scoped-iteration workflow AGENTS.md documents as
+`./gradlew ... pitest -PpitestTargetOverride=<fqcn>`, which this spec set used throughout. Found by
+CodeRabbit on review, confirmed by reproduction.
+
+Current behaviour:
+
+| | full scope (CI) | scoped run |
+|---|---|---|
+| census, per-class, non-kill decomposition | printed | printed |
+| R5 total mutants | **enforced** | skipped, announced |
+| R6 non-assertion detections | **enforced** | **enforced** |
+| R7 floor | **enforced** | skipped, announced |
+| `mutationThreshold` | 94 | 0 |
+
+R6 stays enforced on a scoped run because whether an individual mutant was killed by wall time is a
+fact about that mutant, not about the scope. The skip is **announced in the output**, never silent — a
+green scoped run must not read as "the gate passed".
+
+Cost of the redundancy on the success path: the ratchet runs twice, at ~700 ms. That is cheaper than
+the alternative and it is the only arrangement that reports on both the success and failure paths.
 
 ## Derivation Record
 
 Filled in as each spec lands. 12.01 is the **single writer** of the rows it measures, per R3; later
 specs amend rather than rewrite, so the progression stays auditable.
 
-**Row status:** the `post-12.01` row below is measured. The `final` row remains deliberately empty —
-the floor must come from a measurement taken *after* all remediation lands, and writing a number now
-would invite someone to treat it as the floor.
+**Row status:** both rows are now measured. `post-12.01` is kept as the historical record; `final` is
+the row the gate is pinned to. The `final` row was left deliberately empty while 12.02–12.05 were
+outstanding, because a number written early invites someone to treat it as the floor. It is filled in
+now, from a measurement taken after all remediation landed.
 
 | field | value |
 |---|---|
@@ -305,11 +481,59 @@ would invite someone to treat it as the floor.
 filter changes the denominator and how exclusions are counted, and this table is where that accounting
 belongs. Until it lands, the suppression is prose-only and therefore not enforced by the build.
 
-**The last row is not allowed to equal the row above it.** At the current baseline PIT would render
-81 and the floor must be at most 80, because 81 is satisfiable only by the single mutant PR #29
-added. If the post-remediation figure rounds to *n*, the floor is at most *n−1*. This is not
-conservatism for its own sake: a floor set equal to the rounded measurement gates nothing the
-rounding has not already granted.
+### The `final` row — the one the gate is pinned to
+
+Measured on full scope (`state.*` + `cb.*`), PIT 1.30.0, plugin 1.19.0, after Specs 12.07 and
+12.01–12.05 landed.
+
+| field | value |
+|---|---|
+| measured on | **post-12.05** (12.07, 12.01, 12.02, 12.03, 12.04, 12.05 all landed) |
+| commit | `c7009a1` on `main` |
+| total mutants | **270** — unchanged since 12.01, because no spec since then added or removed production code |
+| `KILLED` (PIT) | **256** |
+| assertion-backed kills (R6/R7) | **256** — identical, because all five non-assertion detected statuses are **0**. Nothing is currently inflating PIT's figure |
+| `KILLED` / total | **256/270 = 94.8148%** |
+| non-`KILLED` detected statuses | `TIMED_OUT` **0**, `MEMORY_ERROR` **0**, `NON_VIABLE` **0**, `RUN_ERROR` **0**, `EQUIVALENT` **0** |
+| `SURVIVED` / `NO_COVERAGE` | **14 / 0** — was 39 / 9 at `post-12.01`. `NO_COVERAGE` reached **0** when 12.04's witness program killed L176's four |
+| PIT's rounded figure | **95** |
+| **`mutationThreshold` set to** | **94** |
+| **`mutationRatchet` floor** | **94** |
+
+**Why 94 and not 95.** PIT renders 94.8148% as 95, so a floor of 95 gates nothing the rounding has not
+already granted — verified rather than assumed: raising `mutationThreshold` to 96 produces PIT's own
+`Mutation score of 95 is below threshold of 96`, confirming its internal figure is the rounded 95.
+The spec's own rule (*if the post-remediation figure rounds to *n*, the floor is at most *n−1*) gives
+the same answer independently.
+
+**What 94 buys.** At 270 mutants the gate tolerates losing **two** kills and fails on the third:
+
+| killed | exact | `25600 >= 25380`? | verdict |
+|---|---|---|---|
+| 256 (measured) | 94.81% | yes | pass |
+| 255 | 94.44% | yes | pass |
+| 254 | 94.07% | yes | pass |
+| 253 | 93.70% | **no** (25300 < 25380) | **fail** |
+
+That is one kill tighter than PIT's own threshold at the same floor, which would pass 253 and first
+fail at 252 — because PIT compares the rounded 95 and 95 >= 94.
+
+**`mutationThreshold` is corroboration; `mutationRatchet` is the gate.** Both are set from this one
+derivation and must move together. Demonstrated: at `mutationRatchet` floor 95 with
+`mutationThreshold` left at 94, PIT's threshold **passes** (its rounded 95 clears 94) while the
+ratchet **fails** on `25600 < 25650`. That is the case R7 exists for, and it is the reason the gate is
+not PIT's threshold.
+
+**The 14 survivors are not all unexplained.** One — `CanonicalEncoder:16`, the `out.flush()` call —
+carries a recorded 12.01 §R5 verdict and is named by `KNOWN_EQUIVALENT_SURVIVORS`; the ratchet prints
+the decomposition (`1 explained / 13 unexplained`) on every run, over every non-`KILLED` status rather
+than `SURVIVED` alone. It stays in the denominator: see
+[DEFERRED.md E3](DEFERRED.md#e3) for why removing it was rejected.
+
+**The last row is not allowed to equal the row above it.** At the current baseline PIT renders 95 and
+the floor is 94, because 95 is satisfiable by rounding alone. If a future spec moves the figure so it
+rounds to *n*, the floor is at most *n−1*. This is not conservatism for its own sake: a floor set
+equal to the rounded measurement gates nothing the rounding has not already granted.
 
 ## Design
 
@@ -403,11 +627,19 @@ Record each demonstration in the PR body. Each is a one-line temporary edit plus
 ## Commands
 
 ```bash
-./gradlew pitest
-./gradlew pitest --rerun
+# Both flags are mandatory on a local run — see AGENTS.md. Ten cores plus a parallel
+# PIT is unusable, and a full-scope run is several minutes at one thread by design.
+./gradlew --max-workers=1 -PpitestThreads=1 pitest   # runs the ratchet too, via finalizedBy
+./gradlew mutationRatchet -x pitest                 # re-run the gate on the existing report only
+./gradlew --max-workers=1 -PpitestThreads=1 pitest --rerun
 grep -c '<mutation ' build/reports/pitest/mutations.xml
-./gradlew clean test javadoc
+./gradlew --max-workers=1 -PpitestThreads=1 clean test javadoc
 ```
+
+`mutationRatchet -x pitest` is the fast path for iterating on the gate itself — it re-reads the last
+report in well under a second, which is what made the R5/R6/R7 failure demonstrations cheap enough to
+actually run rather than describe. It is not a substitute for a real `pitest`: without `-x` the report
+may not exist, and the task fails loudly rather than passing on a missing input.
 
 ## Map
 

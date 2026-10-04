@@ -46,8 +46,8 @@ Test result XML lands in `build/test-results/test/`, and the mutation report in
 
 ## Working on the mutation specs
 
-`docs/specs/active/12-mutation-hardening/` is an active spec set. Two rules there are load-bearing and
-have been got wrong before:
+`docs/specs/active/12-mutation-hardening/` is an active spec set. Three rules there are load-bearing
+and have been got wrong before:
 
 - **Measure the baseline on `main`, never carry a number forward from an older spec's notes.** Spec
   numbers go stale as sibling specs land — `README.md` carried a `ContextBoundedExplorer` figure
@@ -60,7 +60,18 @@ have been got wrong before:
   denominator is one class, so its percentage is not comparable to a full-scope percentage. Iterate
   scoped, quote full-scope totals, and do not attribute a per-class difference to scoping — check
   whether the figure is simply older (see the rule above, which is the one that actually bites).
+- **Add up inherited mutant lists before writing prose about them.** A count carried from another
+  spec is not automatically a subset of anything you have just measured. Concretely: 12.05 left "9
+  unassigned" *after* assigning `L41`'s two `NO_COVERAGE` to 12.04, so the nine were L176 ×4, L187,
+  L203 ×2, L204 and L214 — and the eight 12.04 closed from that pool were all but `L187`. An
+  earlier draft of `DEFERRED.md` E4 listed the closed mutants as "eight of those nine — L41 ×2,
+  L176 ×4, L203 ×2, L204, L214", which sums to ten. 12.04 really did close ten in the class; only
+  eight came from the unassigned pool, and writing the ten against "eight of nine" contradicts
+  itself one clause later. When a total and a subset both appear, state which is which, and re-add
+  the list once. The subset reading is the one that is easy to get wrong, because the larger total
+  is the number that was measured last and sits freshest in mind.
 
 The second was also nearly written up as a rule — the 12.04 commit claimed scoping changed kill
-counts — before measurement showed scoped and full-scope agree per class. Both mistakes were made and
-corrected during 12.03 R6 and 12.04, and both are written up in the specs so they are not repeated.
+counts — before measurement showed scoped and full-scope agree per class. All three mistakes were
+made and corrected during 12.03 R6, 12.04 and the 12.05 accounting close, and each is written up in
+the specs so they are not repeated.

@@ -57,6 +57,26 @@ jobs:
       - name: Run PIT (scoped)
         run: ./gradlew pitest --console=plain --no-daemon
 
+      # Narrower than it looks, and it does NOT suppress the ratchet's own missing-report
+      # error. `pitest.finalizedBy(mutationRatchet)` runs the ratchet even when PIT dies
+      # before writing any report (verified with a marker finalizer on the real task), so in
+      # that case the finalizer prints "no mutation report" regardless of what this step does.
+      # That error is secondary: the PIT step's own failure comes first in the log and is the
+      # cause. This step's skip avoids a redundant SECOND invocation of the ratchet, nothing
+      # more — the misleading error still appears, it just appears once.
+      #
+      # `-x pitest` keeps this from re-running a ~3-minute analysis; when a report does exist
+      # it is the one the step above just produced.
+      - name: Mutation ratchet
+        if: always()
+        run: |
+          if [ -f build/reports/pitest/mutations.xml ]; then
+            ./gradlew mutationRatchet -x pitest --console=plain --no-daemon
+          else
+            echo "::notice::No PIT report was produced. The Gradle finalizer has already"
+            echo "::notice::reported this; skipping to avoid saying it twice."
+          fi
+
       - name: Upload report
         # if: always() so a ratchet failure still publishes the HTML that explains it.
         if: always()
