@@ -383,9 +383,11 @@ class ContextBoundedTraceEmissionTest {
      * R10 — the {@code ASSERTION_FAILED} branch in {@code dfs} (the second {@code VIOLATION} call
      * site) does not execute for any corpus program, at any bound.
      *
-     * <p><b>Verdict: not dead code — a coverage gap contingent on the corpus.</b> Established by
-     * instrumentation and then by path analysis, in that order, because the two directions are not
-     * symmetric:
+     * <p><b>Verdict: not dead code, and now covered.</b> The branch turned out to be reachable
+     * after all — {@link #dfsAssertionFailedBranch_executesWhenDeclarativeStepDividesByZero()} is the
+     * witness. What follows is the *corpus-scoped* finding, kept because it is what this test
+     * measures. Established by instrumentation and then by path analysis, in that order, because the
+     * two directions are not symmetric:
      *
      * <ol>
      *   <li><b>Instrumentation.</b> A write placed inside the branch, run across the full suite,
@@ -399,24 +401,31 @@ class ContextBoundedTraceEmissionTest {
      *       {@code declarative}.
      * </ol>
      *
-     * <p>So the branch is unreachable for every program that is well-formed — it guards against a
-     * declarative step hitting a <em>runtime evaluation error</em> (a non-dynamic state, a non-boolean
-     * guard, an out-of-range index), not against a guard evaluating false, which is {@code BLOCKED}.
-     * The producer is live code on a supported feature, so the branch must not be deleted: doing so
-     * would assert that no declarative program can ever reach it, which is a claim about the DSL's
-     * future, not about today's corpus.
+     * <p>What the path analysis does <em>not</em> establish is that the branch is unreachable. It
+     * establishes a single producer, {@code DynamicStep}, on a live feature — not that the producer
+     * cannot fire. A well-formed declarative program reaches the branch whenever a step hits a
+     * <em>runtime evaluation error</em>: a non-dynamic state, a non-boolean guard, an out-of-range
+     * index, or {@code %} by zero. A guard evaluating false is {@code BLOCKED}, the normal path, and
+     * not this one.
+     *
+     * <p>The first draft of this finding asserted the stronger and false version — that no
+     * well-formed program can return {@code ASSERTION_FAILED} at all. {@code Parser} admits
+     * {@code '%'}, {@code TypeChecker} checks only that both operands are {@code INT}, and
+     * {@code Evaluator} throws {@code EvalException("% by zero")} at run time, so
+     * {@code local.r = 10 % divisor} over a field pinned to zero type-checks, loads, and trips the
+     * branch. That premise was never checked and it was load-bearing: it was the stated reason the
+     * region was written down as contingent on the corpus.
      *
      * <p>This test asserts the verdict mechanically rather than by assertion of fact. The
      * {@code VIOLATION} traces the explorer does emit come from the separate invariant check, whose
      * snapshot excludes the step that would have failed — so the absence of
      * {@code ASSERTION_FAILED} in any emitted trace's outcomes is precisely "this branch did not
-     * run". If a declarative program that trips a runtime evaluation error ever enters the corpus,
-     * this fails and the four {@code NO_COVERAGE} mutants become a real gap to close.
+     * run". If a program that trips a runtime evaluation error ever enters the corpus, this fails
+     * and the corpus-scoped verdict must be revisited.
      *
-     * <p>Scope this carefully, because it is the one claim in the file that a reader is likely to
+     * <p>Scope this carefully, because it is the claim in this file a reader is most likely to
      * over-generalise. It says the corpus does not reach the branch. It does not say the branch is
-     * unreachable, which was the error in the original finding — see
-     * {@link #dfsAssertionFailedBranch_executesWhenDeclarativeStepDividesByZero()}.
+     * unreachable — the sibling test above is the counterexample.
      */
     @Test
     void dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram() {
@@ -468,10 +477,11 @@ class ContextBoundedTraceEmissionTest {
      * construction — destroying a real signal to make this one pass. Keeping the witness here also
      * keeps it next to the finding it corrects.
      *
-     * <p>This closes the four {@code NO_COVERAGE} mutants at L176. It also revises the finding's
-     * reasoning without changing its verdict: the branch is live for the same reason before and
-     * after, but now reachability is demonstrated rather than argued from a premise that turned out
-     * to be wrong.
+     * <p>This closes the four {@code NO_COVERAGE} mutants at `L176` — measured rather than assumed:
+     * the class reports 104/105 with {@code NO_COVERAGE} 0 at this commit. It moves the finding's
+     * verdict, not just its reasoning: "not dead code, contingent on the corpus" becomes "reachable,
+     * and covered", and the reason changes too, since the original one was a premise that turned out
+     * to be false.
      */
     @Test
     void dfsAssertionFailedBranch_executesWhenDeclarativeStepDividesByZero() {

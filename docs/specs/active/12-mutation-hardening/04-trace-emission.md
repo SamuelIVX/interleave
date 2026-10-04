@@ -53,13 +53,14 @@ emitted trace is already `VIOLATION` or `DEADLOCK` via `Stream::anyMatch` and tw
 also report `INCOMPLETE`*, because the pruned region is irrelevant once there is something to
 reproduce.
 
-**Two dark paths:**
+**Two dark paths — the survey as it stood at `c5fdcd0`, before this spec.** Read the results below
+before acting on either: both were closed, and neither reads as a live finding any more.
 - `L41` — `explore(Program)` delegating to `explore(program, null)`. Two `NO_COVERAGE` mutants, so
-  the no-invariant entry point is **never called by any test**.
+  the no-invariant entry point was **never called by any test**. **Now `KILLED` ×2** (R9).
 - `L176` — inside `dfs`, four `NO_COVERAGE` mutants. The survey reports this region as a list copy
   plus a `Trace.of` construction. It is the `ASSERTION_FAILED` branch, **not** the invariant check at
   `:120–123`, so it is reached only by a step that *returns* `ASSERTION_FAILED` — which only
-  `DynamicStep` does. **R10 settled this, and all four are now killed; see below.**
+  `DynamicStep` does. **R10 settled it: reachable, and now `KILLED` ×4.**
 
 **Result of this spec's implementation — 105 mutants, 104 killed (99.0%), 1 not killed.**
 Three different baselines are in play in this document and conflating them is how the wrong number
@@ -367,19 +368,22 @@ visitor assertion fails and the `getTraces()` assertion in the same test passes;
 
 ### As implemented
 
-Twelve tests, all named in the file: `addTrace_notifiesVisitor_withIdenticalTraceInstance` (R1, R3),
+Thirteen tests, all named in the file: `addTrace_notifiesVisitor_withIdenticalTraceInstance` (R1, R3),
 `explore_reportsEveryTraceToVisitor` (R3), `addTrace_nullVisitor_stillRecordsTrace` (R2),
 `incompleteTrace_suppressedWhenViolationFound` (R4), `incompleteTrace_suppressedWhenDeadlockFound` (R5),
 `corpusSuppliesNoDeadlockWhileBoundedWitness` (R5, the corpus-gap pin),
 `incompleteTrace_emittedWhenOnlyCompletedTracesExist` (R6),
 `incompleteTrace_absentWhenBudgetNeverExceeded` (R7),
 `exhaustiveAtBound_reportsPass_notIncomplete` (R8), `explore_withoutInvariant_delegatesCorrectly` (R9),
-`dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram` (R10),
+`dfsAssertionFailedBranch_neverExecutesForAnyCorpusProgram` (R10, corpus-scoped),
+`dfsAssertionFailedBranch_executesWhenDeclarativeStepDividesByZero` (R10, the witness),
 `traces_areDeterministicAcrossRuns` (R11).
 
-Two names differ from the plan above, both to say what they assert: the R10 test is named for the
-branch it watches rather than `dfsHelperRegion_reachability`, and R5 needed a second test because the
-corpus cannot supply its witness. No test is skipped or disabled.
+Three names differ from the plan above, each to say what it asserts: the corpus-scoped R10 test is
+named for the branch it watches rather than `dfsHelperRegion_reachability`; R5 needed a second test
+because the corpus cannot supply its witness; and R10 ended up needing a *third*, because the witness
+proving the branch reachable could not live in the corpus without failing the corpus-scoped test.
+No test is skipped or disabled.
 
 **Falsification result (performed, production restored byte-identical).** Disabling the
 `onTraceCreated` call:
