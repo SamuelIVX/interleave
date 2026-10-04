@@ -37,7 +37,13 @@ jobs:
         run: ./gradlew build --no-daemon
 
   mutation:
-    name: Mutation (scoped)
+    # Was named "Mutation (scoped)", which was never true: this job passes no
+    # -PpitestTargetOverride, so `./gradlew pitest` runs the full default scope. Verified from
+    # this job's own log at d14680d — 270 mutants, 256/270, not the 97 a BitstateStore scope
+    # produces. Renamed because 12.06 turns this job into the real full-scope gate, and a
+    # reviewer reading the checks list would otherwise assume the gate covers one class.
+    # Not a required status check (main has no branch protection), so renaming breaks nothing.
+    name: Mutation
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -54,7 +60,7 @@ jobs:
           java-version: "26"
           cache: gradle
 
-      - name: Run PIT (scoped)
+      - name: Run PIT (full scope)
         run: ./gradlew pitest --console=plain --no-daemon
 
       # Narrower than it looks, and it does NOT suppress the ratchet's own missing-report
