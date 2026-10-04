@@ -208,10 +208,13 @@ are all zero, so the percentage is not inflated by wall-time or memory kills (se
 
 **Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
 **current** column reflects 12.01, 12.02, 12.03 and 12.04; the `c5fdcd0` figures are the pre-spec
-baseline. Every figure in the **current** column is a **full-scope** PIT run (`state.*` + `cb.*`), not a
-`-PpitestTargetOverride` run — scoping changes which covering tests PIT selects and reports a different
-count for the same class, so the two are not comparable. Each row carries its own measurement date,
-because a single date across rows would misattribute provenance:
+baseline. Every figure in the **current** column was re-verified against a single **full-scope** PIT run
+(`state.*` + `cb.*`, 270 mutants, 252 killed) at 2026-10-03, and all four rows match it exactly. That
+matters because a per-class figure is the same scoped or full-scope — verified on
+`ContextBoundedExplorer`, which reports 100/105 either way — so these numbers are scope-independent and
+only their dates matter. The `c5fdcd0` column does not match that run, because it predates every spec in
+this set; those figures are kept to show each class's starting point, not its present one. Each row
+carries its own measurement date, because a single date across rows would misattribute provenance:
 
 | class | at `c5fdcd0` | coverage | **current** | coverage | measured | moved by |
 |---|---|---|---|---|---|---|

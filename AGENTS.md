@@ -53,9 +53,14 @@ have been got wrong before:
   numbers go stale as sibling specs land — `README.md` carried a `ContextBoundedExplorer` figure
   measured at `c5fdcd0` long after it stopped being true. Run PIT on `main` without the change, then
   again with it, and diff the survivor lists.
-- **A target-scoped PIT run is not comparable to a full-scope one.** Scoping changes which covering
-  tests PIT selects, so `-PpitestTargetOverride` reports a different kill count for the same class.
-  Use it to iterate on one class; quote full-scope numbers in the specs.
+- **Per-class kill counts are identical scoped or full-scope — only the totals differ.** Verified on
+  `ContextBoundedExplorer` at this commit: `-PpitestTargetOverride` reports 100/105 with
+  `NO_COVERAGE` 4, and so does the full default scope. `targetTests` is unchanged by scoping, so
+  covering-test selection is unchanged. What a scoped run cannot give you is the *aggregate*: its
+  denominator is one class, so its percentage is not comparable to a full-scope percentage. Iterate
+  scoped, quote full-scope totals, and do not attribute a per-class difference to scoping — check
+  whether the figure is simply older (see the rule above, which is the one that actually bites).
 
-Both mistakes were made and corrected in the 12.03 R6 and 12.04 PRs respectively, and both are written
-up in the specs so they are not repeated.
+The second was also nearly written up as a rule — the 12.04 commit claimed scoping changed kill
+counts — before measurement showed scoped and full-scope agree per class. Both mistakes were made and
+corrected during 12.03 R6 and 12.04, and both are written up in the specs so they are not repeated.

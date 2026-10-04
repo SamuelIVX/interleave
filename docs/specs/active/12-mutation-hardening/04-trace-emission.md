@@ -62,14 +62,21 @@ reproduce.
   `DynamicStep` does. **R10 has now settled this; see below.**
 
 **Result of this spec's implementation — 105 mutants, 100 killed (95.2%), 5 not killed.**
-Measured on the full default scope (`state.*` + `cb.*`) against `main`, because a target-scoped PIT
-run reports a *different* figure for the same class: scoping changes which covering tests PIT
-selects. Baseline on `main` was 246/270 killed (91.1%) with `NO_COVERAGE` 6; this spec takes it to
-**252/270 (93.3%)**, `NO_COVERAGE` 4, test strength 95%, with **no regressions**. All five named
-targets are `KILLED`: `L41` ×2, `L203` ×2, `L204`, `L214`. What remains in this class is `L176` ×4
-(`NO_COVERAGE`, see R10) and `L187` (Spec 12.05's).
+Three different baselines are in play in this document and conflating them is how the wrong number
+gets quoted, so they are named:
 
-**Original mutation inventory — 105 mutants, 86 killed (81.9%), 19 not killed:**
+| baseline | figure | what it is |
+|---|---|---|
+| `c5fdcd0`, this class | **86/105 (81.9%)** | the pre-spec inventory below; stale for planning |
+| `main` at this spec, this class | **94/105 (89.5%)** | measured on `main` before this spec — the real starting point |
+| `main` at this spec, full scope | **246/270 (91.1%)** | whole-scope starting point, `NO_COVERAGE` 6 |
+
+This spec takes the class to **100/105 (95.2%)** and the full scope to **252/270 (93.3%)**,
+`NO_COVERAGE` 4, test strength 95%, with **no regressions**. All five named targets are `KILLED`:
+`L41` ×2, `L203` ×2, `L204`, `L214`. What remains in this class is `L176` ×4 (`NO_COVERAGE`, see R10)
+and `L187` (Spec 12.05's).
+
+**Original mutation inventory (at `c5fdcd0`) — 105 mutants, 86 killed (81.9%), 19 not killed:**
 
 | line | symbol | mutator | status |
 |---|---|---|---|
@@ -140,10 +147,21 @@ R5 is tested against a purpose-built three-thread program instead, with boundedn
 state growth (7 states at K=0 against 9 at K=1 — the bound demonstrably binds). That is what kills
 `L204`, the `DEADLOCK` comparison, which no `VIOLATION`-based test can reach.
 
-**Target-scoped PIT runs are not comparable to full-scope ones.** A `pitestTargetOverride` run scoped
-to this class reports 105 mutants and a different kill count for the *same* class, because scoping
-changes covering-test selection. The figures in this spec are all full-scope. Per-class numbers in the
-README table follow the same rule.
+**Per-class kill counts do not depend on PIT scope — verified, after being assumed wrong.** This spec
+originally recorded that a `-PpitestTargetOverride` run reports a *different* kill count for the same
+class, on the stated grounds that scoping changes covering-test selection. That was never tested and it
+is false: scoping leaves `targetTests` untouched, so coverage and kills are unchanged. Measured both ways
+on `ContextBoundedExplorer` at this commit — target-scoped **100/105** with `NO_COVERAGE` 4, full-scope
+**100/105** with `NO_COVERAGE` 4. All four classes in the README table agree the same way.
+
+What scoping *does* change is the denominator, so a scoped run's percentage is not comparable to a
+full-scope percentage. The real hazard was different and far more ordinary: the `86/105` above was
+measured at `c5fdcd0` and had gone stale as sibling specs landed, so the class was really at `94/105`
+before this spec began. That is a provenance problem, not a scope problem, which is why `AGENTS.md`
+leads with "measure the baseline on `main`" and says nothing about scope.
+
+Use a scoped run to iterate on one class — it is much faster and the per-class numbers are trustworthy.
+Quote full-scope totals when the number being reported is a total.
 
 ## Invariants
 
