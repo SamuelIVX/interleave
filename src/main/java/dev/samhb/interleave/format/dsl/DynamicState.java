@@ -20,18 +20,21 @@ import java.util.Arrays;
  * <ul>
  *   <li>Because the type ordinal is written before the value, a field declared {@code BOOL} cannot
  *       alias one declared {@code INT} with the same underlying number.
- *   <li>Because {@code decl} itself is <em>not</em> written, two structurally different declarations
- *       encode identically. That is a tracked encoding gap, not an oversight — see Spec 12.07, and
- *       {@code StateEncodingFidelityTest.trackedGaps_areStillRealGaps} for the check that fails the day
- *       it is closed.
+ *   <li>Because {@code decl} and {@code threadCount} <em>are</em> written, two structurally different
+ *       declarations no longer encode identically. They did until Spec 13.05: {@code equals} compared
+ *       both while {@code encodeTo} wrote neither, which was tracked as a gap by Spec 12.07 and
+ *       escalated here. It is closed, and
+ *       {@code StateEncodingFidelityTest} now asserts the declaration and thread count reach the
+ *       encoding rather than asserting they are absent from it.
  * </ul>
  *
- * <p>Arrays are written as a length followed by each element. The length prefix is load-bearing and
- * cannot be dropped: fixed-width elements make a <em>single</em> array's length recoverable from the
- * total byte count, but the encoding concatenates all fields, so without prefixes the boundary between
- * two adjacent arrays is invisible. Two declarations of {@code [p=[2], q=[]]} and {@code [p=[], q=[2]]}
- * are distinct states under {@link #equals} that encode identically once the prefix is removed — the
- * lone element simply migrates across the field boundary. See Spec 12.07 R2d.
+ * <p>Arrays are written as a length followed by each element, and locals follow grouped by thread id.
+ * The per-value length prefix was load-bearing under Spec 12.07, which had no declaration in the
+ * encoding: two declarations of {@code [p=[2], q=[]]} and {@code [p=[], q=[2]]} were distinct states
+ * under {@link #equals} that encoded identically without it, the lone element migrating across the
+ * field boundary. It is no longer load-bearing, because the declaration written above already carries
+ * every array's length. Verified by experiment — deleting the prefix leaves the suite green — so it is
+ * kept as defence in depth, not necessity. See Spec 13.05.
  */
 public final class DynamicState implements SharedState {
     private final StateDecl decl;
@@ -244,18 +247,52 @@ public final class DynamicState implements SharedState {
      * value — a commutative summary such as a sum would collapse {@code [1,2]} onto {@code [2,1]}, two
      * configurations {@link #equals} distinguishes.
      *
-     * <p><b>This encoding is coarser than {@link #equals} in two known, deliberate ways.</b>
-     * {@code equals} compares the declaration and the thread count, and {@code encodeTo} writes neither,
-     * so states differing only in those compare unequal yet encode identically. Both omissions are
-     * tracked gaps escalated to Specs 09/10 — see the class Javadoc and
-     * {@code StateEncodingFidelityTest.trackedGaps_areStillRealGaps}, which fails the day either is
-     * closed. Everything else {@code equals} compares is written here, which is the property the
-     * {@link dev.samhb.interleave.core.SharedState} encoding contract requires.
+     * <p><b>This encoding is now exactly as fine as {@link #equals}.</b> The thread count and the whole
+     * declaration are written ahead of the values, so every component {@code equals} compares — field
+     * name, type, initial value and array initial, local name, type and initial — reaches the byte
+     * stream. That closes the tracked gap 12.07 opened here and escalated to Specs 09/10: two states
+     * differing only in their declaration or thread count used to compare unequal yet encode
+     * identically, which matters because this encoding <em>is</em> the stores' visited identity, so a
+     * collision prunes states from the search rather than raising an error.
+     *
+     * <p>Names are written, not just structure. A declaration renaming a field is a different state to
+     * {@code equals}, so a structure-only encoding would still have collapsed it.
+     *
+     * <p>The declaration carries each array's length, which makes the per-value length prefixes below
+     * redundant for injectivity — two states whose arrays differ in length necessarily differ in their
+     * declarations, and the declaration is written first. The prefixes are kept anyway: they are cheap,
+     * they keep the value stream self-describing if the declaration is ever dropped, and removing them
+     * would trade a defence-in-depth for tidiness.
      *
      * @param out the sink to write to
      * @throws IOException if the sink fails
      */
     public void encodeTo(DataOutput out) throws IOException {
+        // Thread count and declaration first. Both are compared by equals, so an encoding that omitted
+        // either would map distinct states onto one visited key. Spec 13.05.
+        out.writeInt(threadCount);
+        out.writeInt(decl.fields().size());
+        for (FieldDecl f : decl.fields()) {
+            out.writeUTF(f.name());
+            out.writeInt(f.type().ordinal());
+            out.writeInt(f.intInit());
+            out.writeBoolean(f.boolInit());
+            int[] init = f.arrayInit();
+            if (init == null) {
+                out.writeInt(-1);
+            } else {
+                out.writeInt(init.length);
+                for (int v : init) out.writeInt(v);
+            }
+        }
+        out.writeInt(decl.locals().size());
+        for (LocalDecl l : decl.locals()) {
+            out.writeUTF(l.name());
+            out.writeInt(l.type().ordinal());
+            out.writeInt(l.intInit());
+            out.writeBoolean(l.boolInit());
+        }
+
         // fields in declaration order: type ordinal, then value
         for (int i = 0; i < decl.fields().size(); i++) {
             FieldDecl f = decl.fields().get(i);

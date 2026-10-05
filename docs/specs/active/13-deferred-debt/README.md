@@ -135,7 +135,7 @@ the score with no new test. Consistency with that precedent is worth more than t
 | [02-model-thread-dead-pc.md](02-model-thread-dead-pc.md) | `ModelThread` dead program counter | A1 | HIGH |
 | [03-canonical-configuration-key.md](03-canonical-configuration-key.md) | Canonical key + `Configuration`'s predicates | B1, B2 | **HIGH — highest risk** |
 | [04-context-bounded-l187.md](04-context-bounded-l187.md) | `ContextBoundedExplorer` L187 | E4 | MED |
-| `05-dsl-encoding-completeness.md` | DSL encoding completeness | A2 | MED |
+| [05-dsl-encoding-completeness.md](05-dsl-encoding-completeness.md) | DSL encoding completeness | A2 | MED |
 | `06-thread-count-general-flags.md` | Thread-count-general flag arrays | A3 | LOW |
 | `07-conventions-and-process.md` | Conventions and process debt | D2, E1, E2, E5 | LOW |
 | `08-godefroid-source-set.md` | Godefroid `source` set | A4 | **MED — long pole, lands last** |

@@ -79,12 +79,14 @@ class StateEncodingFidelityTest {
     private static final int[] LOCK_OWNER_SPREAD = {0, 1, 2, -255, 255, 256, 65535, 65536};
 
     /**
-     * R3/R3a — fields recorded as tracked gaps: known to be absent from the encoding, escalated to
-     * specs 09/10. {@code trackedGaps_areStillRealGaps} proves each entry is still genuinely a gap, so
-     * the record cannot outlive its reason.
+     * R3/R3a — fields recorded as tracked gaps: known to be absent from the encoding.
+     *
+     * <p>Empty since Spec 13.05. {@code DynamicState}'s {@code decl} and {@code threadCount} were the
+     * only entries, and 13.05 closed them. The map is kept rather than deleted, because R3 still reads it
+     * and a future omission needs somewhere to be recorded — an empty map makes "nothing is known to be
+     * missing" an explicit, checkable statement instead of an absence.
      */
-    private static final Map<String, List<String>> TRACKED_GAPS = Map.of(
-            "dev.samhb.interleave.format.dsl.DynamicState", List.of("decl", "threadCount"));
+    private static final Map<String, List<String>> TRACKED_GAPS = Map.of();
 
     private static byte[] encode(SharedState state) {
         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
@@ -562,19 +564,34 @@ class StateEncodingFidelityTest {
     }
 
     /**
-     * R2e — a multi-array boundary probe, which is the only probe that can catch a dropped length prefix.
+     * R2e — adjacent-array separability, retained as an observable property.
      *
-     * <p>The single-array length probe in {@link #encodeDynamicState_eachEncodedField_changesEncoding}
-     * cannot detect removal of {@code out.writeInt(arr.length)}: for one array alone, fixed-width
-     * elements already make different lengths produce different byte counts, so the mutant survives.
-     * Two or more arrays are required, because the encoding concatenates declared fields and an
-     * unprefixed array leaves the boundary between adjacent arrays invisible.
-     *
-     * <p>The two declarations below are {@code [p=[2], q=[]]} and {@code [p=[], q=[2]]}. Without the
-     * prefix they encode to identical bytes — the element migrates across the field boundary and both
-     * type ordinals match — while {@code equals} keeps them distinct. Demonstrated 2026-10-01 by
-     * removing the prefix from {@code DynamicState.encodeTo} and observing
+     * <p><b>This probe used to have teeth and no longer does.</b> Before Spec 13.05 it was the only
+     * probe that could catch a dropped value-side array length prefix, and it earned that by
+     * construction: the two declarations below differ in array length, {@code equals} keeps them
+     * distinct, and without the prefix their values migrate across the field boundary and collide.
+     * Demonstrated 2026-10-01 by removing the prefix and observing
      * {@code statesAreEqualsDifferent=true} with {@code encodingsEqual=true}.
+     *
+     * <p>Now that {@code encodeTo} writes the declaration, it no longer detects that mutation.
+     * Verified by experiment rather than assumed: with {@code out.writeInt(arr.length)} deleted from
+     * the value loop, this test still passes, because the two declarations already differ in the
+     * {@code arrayInit} the declaration encodes. The probe is satisfied by a different part of the
+     * encoding than the one it was built to interrogate.
+     *
+     * <p>That is not a gap in the encoding — it is the gap closing at a higher level. Array lengths
+     * are now carried twice, by the declaration and by the value stream, so the value prefix cannot
+     * be load-bearing for injectivity. Two states whose arrays differ in length necessarily differ in
+     * their declarations.
+     *
+     * <p>So the prefix is kept as defence in depth rather than necessity, and this test is kept as a
+     * property check on the observable behaviour (distinct lengths must not share an encoding) rather
+     * than as a guard on one particular means of achieving it. What it no longer provides is coverage
+     * of the value prefix itself: there is no probe for that any more, because with the declaration
+     * written no two states sharing a declaration can differ in array length, which is the only way a
+     * dropped value prefix could collide. A future change that stopped writing the declaration would
+     * restore the old failure mode, and this test would go quiet with it — {@link
+     * #dynamicStateDeclAndThreadCount_reachTheEncoding} is what would catch that.
      */
     @Test
     @DisplayName("R2e: DynamicState array length prefixes keep adjacent arrays separable")
@@ -604,31 +621,71 @@ class StateEncodingFidelityTest {
     }
 
     /**
-     * R3a — each tracked gap is still a genuine gap.
+     * R3a, inverted by Spec 13.05 — the gaps this used to assert are closed.
      *
-     * <p>This is deliberately a separate test from {@link #everyStateField_hasAnEncodingCase}, which
-     * never calls {@code encodeTo}. Here the omissions are asserted <em>directly</em>: two states
-     * differing only in the allowlisted field must encode identically. The day {@code encodeTo} starts
-     * writing that field, these encodings diverge and this test fails — so the allowlist cannot outlive
-     * the reason it exists.
+     * <p>The previous form of this test asserted the opposite: that two declarations differing only in
+     * a field's <em>name</em> encoded identically, and that two states differing only in thread count
+     * encoded identically. It existed so the {@code TRACKED_GAPS} allowlist could not outlive its
+     * reason — the day {@code encodeTo} started writing those fields, the encodings diverged and the
+     * test failed. That is exactly what happened, which is how this replacement came to be written.
+     *
+     * <p>The name probe is the one worth keeping in this form. An encoding that captured only a
+     * declaration's <em>shape</em> — field count and type ordinals — would still collapse {@code x}
+     * onto {@code y}, and that is a distinct bug from omitting the declaration outright.
      */
     @Test
-    @DisplayName("R3a: each tracked gap is still an encoding gap")
-    void trackedGaps_areStillRealGaps() {
-        // decl: two declarations identical in structure but differently named. Names are never
-        // written, so the encodings must be identical — a fact that stops holding once decl is encoded.
+    @DisplayName("R3a: DynamicState declaration and thread count reach the encoding")
+    void dynamicStateDeclAndThreadCount_reachTheEncoding() {
+        // decl, by name: structurally identical declarations differing only in a field's name.
         StateDecl namedX = new StateDecl(List.of(FieldDecl.ofInt("x", 1)), List.of());
         StateDecl namedY = new StateDecl(List.of(FieldDecl.ofInt("y", 1)), List.of());
-        assertArrayEquals(encode(new DynamicState(namedX, 1)),
-                encode(new DynamicState(namedY, 1)),
-                "DynamicState.decl must still be absent from the encoding");
+        assertEncodingDiffers("decl field name", new DynamicState(namedX, 1),
+                new DynamicState(namedY, 1));
 
-        // threadCount: with no locals declared, the local loop emits nothing, so threadCount leaves no
-        // trace at all. Two states differing only in threadCount must therefore encode identically.
+        // decl, by type: a field declared INT against one declared BOOL with the same name.
+        StateDecl asInt = new StateDecl(List.of(FieldDecl.ofInt("v", 1)), List.of());
+        StateDecl asBool = new StateDecl(List.of(FieldDecl.ofBool("v", true)), List.of());
+        assertEncodingDiffers("decl field type", new DynamicState(asInt, 1),
+                new DynamicState(asBool, 1));
+
+        // decl, by initial value: equals compares intInit, so the encoding must too.
+        StateDecl initOne = new StateDecl(List.of(FieldDecl.ofInt("v", 1)), List.of());
+        StateDecl initTwo = new StateDecl(List.of(FieldDecl.ofInt("v", 2)), List.of());
+        assertEncodingDiffers("decl field init", new DynamicState(initOne, 1),
+                new DynamicState(initTwo, 1));
+
+        // decl, by array initial: [2] against [2,2], which equals distinguishes.
+        StateDecl shortArray = new StateDecl(List.of(FieldDecl.ofArray("a", new int[]{2})), List.of());
+        StateDecl longArray = new StateDecl(List.of(FieldDecl.ofArray("a", new int[]{2, 2})), List.of());
+        assertEncodingDiffers("decl array init", new DynamicState(shortArray, 1),
+                new DynamicState(longArray, 1));
+
+        // decl, by local name — the local half of the declaration, which a fields-only encoding drops.
+        StateDecl localX = new StateDecl(List.of(), List.of(LocalDecl.ofInt("x", 0)));
+        StateDecl localY = new StateDecl(List.of(), List.of(LocalDecl.ofInt("y", 0)));
+        assertEncodingDiffers("decl local name", new DynamicState(localX, 1),
+                new DynamicState(localY, 1));
+
+        // decl, by local count: a declaration with a local against one without.
+        StateDecl withLocal = new StateDecl(List.of(), List.of(LocalDecl.ofInt("t", 0)));
+        StateDecl withoutLocal = new StateDecl(List.of(), List.of());
+        assertEncodingDiffers("decl local count", new DynamicState(withLocal, 1),
+                new DynamicState(withoutLocal, 1));
+
+        // threadCount, holding the declaration fixed. With no locals the value loop emits nothing, so
+        // before 13.05 threadCount left no trace at all — which is how the gap stayed invisible.
         StateDecl noLocals = new StateDecl(List.of(FieldDecl.ofInt("x", 1)), List.of());
-        assertArrayEquals(encode(new DynamicState(noLocals, 1)),
-                encode(new DynamicState(noLocals, 2)),
-                "DynamicState.threadCount must still be absent from the encoding");
+        assertEncodingDiffers("threadCount", new DynamicState(noLocals, 1),
+                new DynamicState(noLocals, 2));
+
+        // And equal states must still encode identically now that the declaration is written — the
+        // converse direction, without which the probes above would be satisfied by over-separating.
+        StateDecl same = new StateDecl(
+                List.of(FieldDecl.ofInt("x", 1), FieldDecl.ofArray("a", new int[]{2, 3})),
+                List.of(LocalDecl.ofBool("b", true)));
+        assertArrayEquals(encode(new DynamicState(same, 2)),
+                encode(new DynamicState(same, 2)),
+                "equal DynamicStates must still encode identically once decl is written");
     }
 
     /**
@@ -824,7 +881,8 @@ class StateEncodingFidelityTest {
                 List.of("high", "low", "control", "observedHigh", "observedLow", "hasObservation"));
         covered.put(DclState.class.getName(),
                 List.of("initialized", "instance", "locked", "lockOwner", "control", "observedInstance"));
-        covered.put(DynamicState.class.getName(), List.of("fieldValues", "localValues"));
+        covered.put(DynamicState.class.getName(),
+                List.of("fieldValues", "localValues", "decl", "threadCount"));
         return covered;
     }
 }
