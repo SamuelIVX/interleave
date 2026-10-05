@@ -14,8 +14,12 @@ is the only item that is an algorithm rather than debt-clearing.
 The register's debt list and `core`'s debt list are the same list, which is why these were never
 picked up by the set that found them.
 
-**E4's cause is not unknown.** The register recorded it as `NOT ESTABLISHED`; it is in fact provable,
-and the proof is short. See [13.04](#1304--contextboundedexplorer-l187-e4).
+**E4's cause is not unknown.** The register recorded it as `NOT ESTABLISHED`; it is provable in three
+lines. `ContextBoundedExplorer:126` returns when `allTerminated()` is true, so if control reaches
+L187 then `allTerminated()` was already false, which makes `!config.allTerminated()` unconditionally
+true — the guard is exactly `enabled.isEmpty()` and the call is redundant. That also explains why the
+*same* removal at L126 **is** killed. Full argument under
+[Corrections](#corrections-to-the-register) item 3.
 
 ## Status: active — planned, not implemented
 
@@ -108,16 +112,19 @@ the score with no new test. Consistency with that precedent is worth more than t
 
 | Spec | Title | Closes | Priority |
 |---|---|---|---|
-| [01-configuration-test-factory.md](01-configuration-test-factory.md) | `Configuration` test factory | D1 | **HIGH — unblocks the rest** |
-| [02-model-thread-dead-pc.md](02-model-thread-dead-pc.md) | `ModelThread` dead program counter | A1 | HIGH |
-| [03-canonical-configuration-key.md](03-canonical-configuration-key.md) | Canonical key + `Configuration`'s predicates | B1, B2 | **HIGH — highest risk** |
-| [04-context-bounded-l187.md](04-context-bounded-l187.md) | `ContextBoundedExplorer` L187 | E4 | MED |
-| [05-dsl-encoding-completeness.md](05-dsl-encoding-completeness.md) | DSL encoding completeness | A2 | MED |
-| [06-thread-count-general-flags.md](06-thread-count-general-flags.md) | Thread-count-general flag arrays | A3 | LOW |
-| [07-conventions-and-process.md](07-conventions-and-process.md) | Conventions and process debt | D2, E1, E2, E5 | LOW |
-| [08-godefroid-source-set.md](08-godefroid-source-set.md) | Godefroid `source` set | A4 | **MED — long pole, lands last** |
+| `01-configuration-test-factory.md` | `Configuration` test factory | D1 | **HIGH — unblocks the rest** |
+| `02-model-thread-dead-pc.md` | `ModelThread` dead program counter | A1 | HIGH |
+| `03-canonical-configuration-key.md` | Canonical key + `Configuration`'s predicates | B1, B2 | **HIGH — highest risk** |
+| `04-context-bounded-l187.md` | `ContextBoundedExplorer` L187 | E4 | MED |
+| `05-dsl-encoding-completeness.md` | DSL encoding completeness | A2 | MED |
+| `06-thread-count-general-flags.md` | Thread-count-general flag arrays | A3 | LOW |
+| `07-conventions-and-process.md` | Conventions and process debt | D2, E1, E2, E5 | LOW |
+| `08-godefroid-source-set.md` | Godefroid `source` set | A4 | **MED — long pole, lands last** |
 
-Individual spec files are written at implementation time, one per PR, in this order.
+Filenames are **not hyperlinks yet** — each spec file is written when its spec is implemented, and
+eight links to files that do not exist is eight broken links that a linter will not catch. MD051
+validates fragments only, which is how the one fragment link below survived review while these eight
+did not get reported. Link them as each spec lands.
 
 ## Dependency Graph
 
