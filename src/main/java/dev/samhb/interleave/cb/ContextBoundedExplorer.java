@@ -184,7 +184,7 @@ public final class ContextBoundedExplorer {
                 threadId, nextPreemptions, maxPreemptions, invariant, stateStore, stateVisitor);
         }
 
-        if (enabled.isEmpty() && !config.allTerminated()) {
+        if (config.isDeadlockCandidate()) {
             addTrace(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes),
                 TraceOutcome.DEADLOCK), stateVisitor);
         }

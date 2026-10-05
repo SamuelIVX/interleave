@@ -85,6 +85,25 @@ Two further constraints found while planning, not in the register:
    (`BitstateStoreDiagnosticsTest:406`, `HashingStateStoreLifecycleTest:485`, same 8-arg signature).
    Every reflected fixture is therefore by construction neither all-terminated nor a deadlock
    candidate. This constrains 13.01's design.
+   **Superseded by 13.01** — both helpers and the lines cited are gone, replaced by
+   `Configuration.forTest`. The constraint itself was correct and shaped 13.01's design.
+
+9. **B2 and D5 are mutually exclusive, which no single reading of this plan reveals.** *(Found while
+   implementing 13.03.)* D5 kept line 187's redundant call so 13.04 could explain the surviving mutant
+   against it. B2's assigned consolidation deletes that call, so the mutant is deleted rather than
+   explained — `ContextBoundedExplorer` went 104/105 to 103/103 and the total 270 → 268.
+
+   Correction #7 saw a piece of this: it warned that 13.03 edits line 113 *above* 187, so a line-count
+   change would move the mutant and the `Class:line` entry would silently stop matching. It
+   anticipated line **movement**. What occurred is the **deletion** of the mutant's subject, which no
+   amount of keying discipline survives. The sequencing advice was right about order and wrong about
+   the failure mode.
+
+   **Resolved** by keeping the consolidation and reframing 13.04 from *explaining a survivor* into
+   *recording why the removal was safe*. The score rose 0.34 points with no new test — the effect D5
+   forbade, reached because the assigned work deleted the redundancy. See
+   [13.03](03-canonical-configuration-key.md#the-consequence-l187s-mutant-disappeared) for why that
+   distinction is one of intent and why the revert, if you reject it, is one line.
 
 **Out of scope, settled:** `IndependenceRelation:39-40` keys on `MemoryLocation.toString()`, not
 `SharedState.toString()` — a different class. `MemoryLocation` is the **exemplar** of the discipline
@@ -114,8 +133,8 @@ the score with no new test. Consistency with that precedent is worth more than t
 |---|---|---|---|
 | [01-configuration-test-factory.md](01-configuration-test-factory.md) | `Configuration` test factory | D1 | **HIGH — unblocks the rest** |
 | `02-model-thread-dead-pc.md` | `ModelThread` dead program counter | A1 | HIGH |
-| `03-canonical-configuration-key.md` | Canonical key + `Configuration`'s predicates | B1, B2 | **HIGH — highest risk** |
-| `04-context-bounded-l187.md` | `ContextBoundedExplorer` L187 | E4 | MED |
+| [03-canonical-configuration-key.md](03-canonical-configuration-key.md) | Canonical key + `Configuration`'s predicates | B1, B2 | **HIGH — highest risk** |
+| [04-context-bounded-l187.md](04-context-bounded-l187.md) | `ContextBoundedExplorer` L187 | E4 | MED |
 | `05-dsl-encoding-completeness.md` | DSL encoding completeness | A2 | MED |
 | `06-thread-count-general-flags.md` | Thread-count-general flag arrays | A3 | LOW |
 | `07-conventions-and-process.md` | Conventions and process debt | D2, E1, E2, E5 | LOW |

@@ -357,19 +357,34 @@ pitest {
 // more thing local runs cannot see.
 // ---------------------------------------------------------------------------
 
-/** Scope and mutator set are fixed; a different population is a different baseline. */
-val EXPECTED_TOTAL_MUTANTS = 270
+/**
+ * Scope and mutator set are fixed; a different population is a different baseline.
+ *
+ * 268 as of spec set 13.03, down from 270. `ContextBoundedExplorer` fell from 105 mutants to 103
+ * when line 187's hand-rolled `enabled.isEmpty() && !config.allTerminated()` was replaced with
+ * `config.isDeadlockCandidate()` — provably the same predicate, conjunction commutated. Two mutants
+ * disappeared with the condition: one that was killed, and the `NonVoidMethodCallMutator` on
+ * `config.allTerminated()` that had survived since 12.05.
+ *
+ * That survivor disappearing is a rise in the headline percentage with no new test, which is the shape
+ * D5 of the 13 set existed to prevent. It is recorded here rather than left to be discovered, because
+ * the count went DOWN and the score went UP and only one of those is obviously good. The mutants went
+ * away because the duplicated derivation was consolidated, which was the assigned work; had the call
+ * been deleted for the purpose of killing the mutant, this would be the score-laundering D5 forbids.
+ */
+val EXPECTED_TOTAL_MUTANTS = 268
 
 /**
- * Floor as an integer percent of assertion-backed coverage. Derived from the
- * post-remediation measurement of 256/270 = 94.81%.
+ * Floor as an integer percent of assertion-backed coverage. Frozen at 94 by D2 for all of spec set 13.
  *
- * Not 95: PIT rounds 94.81 up to 95, so a floor of 95 gates nothing the rounding
- * has not already granted. The floor is at most (rounded figure - 1) for exactly
- * that reason.
+ * Not 95: PIT rounds 94.81 up to 95, so a floor of 95 gates nothing the rounding has not already
+ * granted. The floor is at most (rounded figure - 1) for exactly that reason.
  *
- * At 94 the gate tolerates losing two kills (255 and 254 both pass) and fails on
- * the third, since 253*100 = 25300 < 94*270 = 25380.
+ * Recomputed against the 268-mutant population: 94*268 = 25192, so 252 kills clear the gate and 251
+ * does not. That is one lost kill more permissive than the 270-mutant arithmetic (94*270 = 25380, so
+ * 254 cleared and 253 did not) — a fixed percentage against a smaller denominator buys a little slack.
+ * Flagged rather than papered over: if the set wants the original sensitivity, the fix is to gate on an
+ * absolute kill count, not to nudge this number.
  */
 val MUTATION_FLOOR_PERCENT = 94
 

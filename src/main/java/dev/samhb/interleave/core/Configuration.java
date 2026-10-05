@@ -2,6 +2,41 @@ package dev.samhb.interleave.core;
 
 import java.util.*;
 
+/**
+ * One point in an execution: the shared state, each thread's program counter, and what that implies
+ * about what may run next.
+ *
+ * <h2>Derived facts are derived, not supplied</h2>
+ *
+ * <p>{@link #enabledThreadIds()}, {@link #allTerminated()} and {@link #isDeadlockCandidate()} are
+ * computed from the program counters by {@link #derive} and cannot be set independently. Callers that
+ * recompute them from components risk disagreeing with the configuration they are holding — see
+ * {@code docs/specs/active/13-deferred-debt/03-canonical-configuration-key.md}, which records two
+ * derivations that had already drifted apart.
+ *
+ * <p>A finished exploration is not a deadlock: {@code isDeadlockCandidate()} is false once every thread
+ * has terminated, even with nothing enabled.
+ *
+ * <h2>On keying a configuration</h2>
+ *
+ * <p>Several search strategies build an unencoded bookkeeping key by string-concatenating
+ * {@code state.toString()} with the program counters, which is a debug aid rather than an identity —
+ * see the note on {@link dev.samhb.interleave.format.dsl.DynamicState#toString()}, which documents the
+ * same hazard for the same reason. Those renderings may change freely, so a key built from them is
+ * only as sound as the agreement between a type's {@code equals}, {@code hashCode} and
+ * {@code toString()}.
+ *
+ * <p>{@link MemoryLocation} is the exemplar of that discipline: all three delegate to the same
+ * {@code name}, so its string comparison is provably sound.
+ *
+ * <p>The concatenating sites are {@code DfsExplorer}, {@code StaticPorExplorer} and two in
+ * {@code DporExplorer}, which key on state and counters alone. {@code ContextBoundedExplorer} keys on
+ * state, counters <em>and</em> the last scheduled thread id, because under a preemption bound a
+ * configuration reached by a different last switch is genuinely a different search state. That
+ * difference is deliberate. Widening the four to match it would multiply the state space; narrowing the
+ * CB explorer to match them would merge states the search treats as distinct and change what
+ * {@code statesExplored} means.
+ */
 public final class Configuration {
     private final SharedState state;
     private final List<Integer> programCounters;
