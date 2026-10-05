@@ -1,49 +1,34 @@
 package dev.samhb.interleave.core;
 
-import java.util.Collections;
 import java.util.List;
 
+/**
+ * A thread's id and its ordered steps.
+ *
+ * <p>Position is deliberately not tracked here. Every program counter lives in {@link Configuration},
+ * which is the only thing that knows which thread just stepped, so a counter kept on this class would
+ * be a second source of truth with nothing able to keep the two in sync. Callers that need to know
+ * where a thread is read it from the configuration's counters.
+ *
+ * <p>This class previously carried a mutable {@code pc} with {@code advance()}, {@code terminated()},
+ * {@code nextStep()} and {@code enabled()}. None had a caller outside this file. See
+ * {@code docs/specs/active/13-deferred-debt/02-model-thread-dead-pc.md}.
+ */
 public final class ModelThread {
     private final int id;
     private final List<Step> steps;
-    private int pc;
 
     public ModelThread(int id, List<Step> steps) {
         if (steps == null) throw new IllegalArgumentException("steps must not be null");
         this.id = id;
         this.steps = List.copyOf(steps);
-        this.pc = 0;
     }
 
     public int id() {
         return id;
     }
 
-    public int pc() {
-        return pc;
-    }
-
     public List<Step> steps() {
         return steps;
-    }
-
-    public boolean terminated() {
-        return pc >= steps.size();
-    }
-
-    public Step nextStep() {
-        if (terminated()) return null;
-        return steps.get(pc);
-    }
-
-    public boolean enabled(SharedState state) {
-        if (terminated()) return false;
-        return nextStep().enabled(state);
-    }
-
-    ModelThread advance() {
-        ModelThread next = new ModelThread(this.id, this.steps);
-        next.pc = this.pc + 1;
-        return next;
     }
 }

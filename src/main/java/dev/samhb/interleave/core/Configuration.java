@@ -37,21 +37,49 @@ public final class Configuration {
 
     public static Configuration initial(SharedState state, List<ModelThread> threads) {
         List<Integer> pcs = new ArrayList<>(Collections.nCopies(threads.size(), 0));
-        Map<MemoryLocation, Integer> lockOwnership = new LinkedHashMap<>();
-        Map<MemoryLocation, List<Integer>> waitQueues = new LinkedHashMap<>();
+        Derived derived = derive(threads, pcs, state);
+
+        return new Configuration(state.deepCopy(), pcs, new LinkedHashMap<>(), new LinkedHashMap<>(),
+                derived.enabledThreadIds(), derived.allTerminated(),
+                isDeadlockCandidate(derived), null);
+    }
+
+    /**
+     * Derives the enabled-thread set and the terminated flag from a set of program counters.
+     *
+     * <p>{@link #initial} and {@link #successor} both need these two facts about the same three
+     * inputs, and a thread is enabled exactly when its counter is inside its step list and the step
+     * there permits it. Deriving them once is what stops the two factories from disagreeing with each
+     * other, and with the counters they are handed, about what is runnable.
+     */
+    private static Derived derive(List<ModelThread> threads, List<Integer> counters, SharedState state) {
         List<Integer> enabled = new ArrayList<>();
+        boolean allTerminated = true;
 
         for (int i = 0; i < threads.size(); i++) {
-            if (threads.get(i).enabled(state)) {
-                enabled.add(i);
+            int pc = counters.get(i);
+            ModelThread thread = threads.get(i);
+            if (pc < thread.steps().size()) {
+                allTerminated = false;
+                if (thread.steps().get(pc).enabled(state)) {
+                    enabled.add(i);
+                }
             }
         }
 
-        boolean allTerm = threads.stream().allMatch(ModelThread::terminated);
-        boolean deadlock = !allTerm && enabled.isEmpty();
-
-        return new Configuration(state.deepCopy(), pcs, lockOwnership, waitQueues, enabled, allTerm, deadlock, null);
+        return new Derived(enabled, allTerminated);
     }
+
+    /**
+     * A finished exploration is not a deadlock. With every thread terminated and nothing enabled there
+     * is nothing left to run, which is a normal end state; conflating the two makes a search stop early
+     * or report a phantom.
+     */
+    private static boolean isDeadlockCandidate(Derived derived) {
+        return !derived.allTerminated() && derived.enabledThreadIds().isEmpty();
+    }
+
+    private record Derived(List<Integer> enabledThreadIds, boolean allTerminated) {}
 
     /**
      * Test-visible factory: builds a configuration with threads at arbitrary program counters.
@@ -148,39 +176,16 @@ public final class Configuration {
             nextPcs.set(threadId, nextPcs.get(threadId) + 1);
         }
 
-        List<Integer> nextEnabled = new ArrayList<>();
-        for (int i = 0; i < threads.size(); i++) {
-            ModelThread t = threads.get(i);
-            int currentPc = (i == threadId && outcome != StepOutcome.BLOCKED) 
-                ? nextPcs.get(i) 
-                : this.programCounters.get(i);
-            
-            if (currentPc < t.steps().size()) {
-                Step nextStep = t.steps().get(currentPc);
-                if (nextStep.enabled(nextState)) {
-                    nextEnabled.add(i);
-                }
-            }
-        }
-
-        boolean allTerm = true;
-        for (int i = 0; i < threads.size(); i++) {
-            if (nextPcs.get(i) < threads.get(i).steps().size()) {
-                allTerm = false;
-                break;
-            }
-        }
-
-        boolean deadlock = !allTerm && nextEnabled.isEmpty();
+        Derived derived = derive(threads, nextPcs, nextState);
 
         return new Configuration(
                 nextState,
                 nextPcs,
                 this.lockOwnership,
                 this.waitQueues,
-                nextEnabled,
-                allTerm,
-                deadlock,
+                derived.enabledThreadIds(),
+                derived.allTerminated(),
+                isDeadlockCandidate(derived),
                 outcome
         );
     }
