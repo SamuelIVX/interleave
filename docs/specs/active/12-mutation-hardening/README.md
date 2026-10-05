@@ -220,10 +220,14 @@ The run's 53 non-killed mutants are exactly `SURVIVED` (39) + `NO_COVERAGE` (14)
 scores as *not* detected. The five statuses that score as detected without an assertion behind them
 are all zero, so the percentage is not inflated by wall-time or memory kills (see Spec 12.06).
 
-**Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — the
+**Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — now also
+**cross-checked by the build**: `EXPECTED_PER_CLASS` in `build.gradle.kts` holds these same figures and
+`./gradlew mutationRatchet` prints a non-failing NOTICE whenever a recorded figure stops matching the
+measurement, so this table can no longer drift quietly (DEFERRED E1/E2). The
+
 **current** column reflects 12.01, 12.02, 12.03 and 12.04; the `c5fdcd0` figures are the pre-spec
 baseline. Every figure in the **current** column was re-verified against a single **full-scope** PIT run
-(`state.*` + `cb.*`, 270 mutants, 256 killed) at 2026-10-03, and all four rows match it exactly. That
+(`state.*` + `cb.*`, 268 mutants, 255 killed) at 2026-10-05, and all four rows match it exactly. That
 matters because a per-class figure is the same scoped or full-scope — verified on
 `ContextBoundedExplorer`, which reports 104/105 either way — so these numbers are scope-independent and
 only their dates matter. The `c5fdcd0` column does not match that run, because it predates every spec in
@@ -234,7 +238,7 @@ carries its own measurement date, because a single date across rows would misatt
 |---|---|---|---|---|---|---|
 | `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 2026-10-01 | 12.01 (denominator shrank) |
 | `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 2026-10-02 | 12.02 |
-| `ContextBoundedExplorer` | 86/105 | 81.9% | **104/105** | **99.0%** | 2026-10-03 | 12.04 |
+| `ContextBoundedExplorer` | 86/105 | 81.9% | **103/103** | **100.0%** | 2026-10-05 | 13.03 (denominator shrank) |
 | `BitstateStore` | 84/97 | 86.6% | **94/97** | **96.9%** | 2026-10-03 | 12.03 (+R6 close) |
 
 `CanonicalEncoder` moved for a different reason than the other two: its denominator shrank, because

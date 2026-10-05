@@ -257,6 +257,10 @@ accept them. Small, and it would remove reflection from future specs' scope disc
 No shared procedure for deriving expected values of numeric formulas
 {: #d2}
 
+**Status: closed by 13.07.** The four-point derivation rule is now in `AGENTS.md`
+("Test conventions — numeric expectations") rather than buried in 12.03, where the next spec needing
+it would not have looked.
+
 **What.** 12.03 needed four expected FPR doubles and had to establish, from scratch, that literals
 must be derived independently of the implementation. It also has to be stated that
 `Math.pow(1 - Math.exp(...))` inside the test validates nothing — it reproduces the implementation
@@ -278,6 +282,10 @@ by two routes, assert against literals, and never re-derive with the same expres
 ### E1
 The per-class PIT table drifted for two classes before 12.03 caught it
 {: #e1}
+
+**Status: closed by 13.07.** `EXPECTED_PER_CLASS` in `build.gradle.kts` now holds the four
+figures beside the gate that computes them, and `mutationRatchet` prints a non-failing NOTICE on any
+disagreement. Verified firing and verified silent.
 
 **What.** The 12.x README's per-class table still showed `HashingStateStore` at its pre-12.02 figure
 (46/61) after 12.02 had landed and taken it to 52/61. 12.03 found and corrected it, adding a
@@ -315,6 +323,10 @@ judgement call for whoever picks it up, so it is recorded rather than silently t
 ### E2
 Spec-recorded numbers go stale as sibling specs land
 {: #e2}
+
+**Status: closed by 13.07.** Same mechanism as E1 — the drift of spec-recorded numbers and
+the drift of the per-class table are one problem. Spec 12's already-stale `ContextBoundedExplorer`
+`104/105` was corrected to `103/103` rather than merely guarded.
 
 **What.** Each spec records mutation counts measured against the tree as it stood. Any sibling spec
 that changes a target's denominator or its reachable set invalidates them. 12.01's `NO_COVERAGE` fell
@@ -428,6 +440,11 @@ false when checked.
 ### E5
 The ratchet can fail CI on a wall-clock timeout it cannot distinguish from a real regression
 {: #e5}
+
+**Status: still open, deliberately.** Its closure condition is accumulated evidence from
+repeated *parallel* CI runs, and every local run is single-threaded by mandate — so no local run can
+satisfy it. See 13.07 for the adjudication procedure and for why the timeout budget must not be loosened
+pre-emptively.
 
 **What.** 12.06 makes the build **fail** on any `TIMED_OUT` or `MEMORY_ERROR` mutant. That is R6's
 intent — a mutant bought with wall time is not a kill — but it converts a previously reporting-only
