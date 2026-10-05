@@ -250,6 +250,13 @@ seam rather than through the hash.
 Building a `Configuration` fixture requires reflection
 {: #d1}
 
+**Status: closed by 13.01.** It added the `Configuration.forTest` overloads — D1's stated closure
+criterion, *"a test-visible factory taking explicit counters"* — and all three fixture helpers now use
+them. No test constructs a `Configuration` through reflection. The `setAccessible` calls remaining in
+`state` set non-final instance fields on state objects, which is unrelated and has no factory to
+delegate to. Note 13.07 initially recorded D1 as still open on the grounds that it was out of *that
+item's* scope; out of scope is not undone.
+
 **What.** `Configuration` exposes only `initial` and `successor`. Neither can place a program counter
 at an arbitrary value without executing a program, so both 12.02 and 12.03 construct fixtures through
 the private constructor by reflection.
@@ -320,12 +327,16 @@ numbers are emitted by the build rather than transcribed by hand:
 A reviewer now diffs those against the README table instead of re-running PIT by hand, which is what
 made this drift invisible for two specs.
 
-**What is still open.** The README table remains hand-maintained. Nothing *fails* when it disagrees
-with the census — the mitigation improves detection, it does not enforce it. Closing this properly
-means generating the table, or gating on the comparison. Neither is done, deliberately: parsing a
-Markdown table inside `build.gradle.kts` couples the build to a documentation format, and a gate
-that breaks when someone reflows a table gets switched off rather than fixed. That trade is a
-judgement call for whoever picks it up, so it is recorded rather than silently taken.
+**Accepted closure criterion.** A *non-failing* comparison, not a gate and not a generated table.
+`EXPECTED_PER_CLASS` holds the four figures beside the gate that computes them, and every run prints
+any disagreement, so a hand-maintained figure cannot go quietly stale — which is what happened three
+times, twice before 12.03 caught it and once more at 13.03.
+
+Deliberately not a gate. Parsing a Markdown table inside `build.gradle.kts` would couple the build to
+a documentation format, and a gate that breaks when someone reflows a table gets switched off rather
+than fixed. A legitimate spec change must not turn CI red because a documentation table moved, so this
+is a notice — detection, not enforcement. That is the whole trade, and it is the reason the mitigation
+is not a failure.
 
 ### E2
 Spec-recorded numbers go stale as sibling specs land

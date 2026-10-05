@@ -70,6 +70,13 @@ public final class Configuration {
         this.lastOutcome = lastOutcome;
     }
 
+    /**
+     * Creates the configuration a program starts in, with every counter at zero.
+     *
+     * @param state the program's initial shared state, deep-copied into the configuration
+     * @param threads the program's threads, in thread-id order
+     * @return the initial configuration
+     */
     public static Configuration initial(SharedState state, List<ModelThread> threads) {
         List<Integer> pcs = new ArrayList<>(Collections.nCopies(threads.size(), 0));
         Derived derived = derive(threads, pcs, state);
@@ -144,6 +151,12 @@ public final class Configuration {
      * visibility is deliberate — tests in other packages, including {@code state} and {@code cb}, use
      * them — but nothing in {@code core} should call them. A fixture that needs an arbitrary counter is
      * a test, and a production caller reaching for one is a bug this signature cannot prevent.
+     *
+     * @param state the shared state, held by reference rather than copied
+     * @param programCounters one counter per thread
+     * @param enabledThreadIds the threads to report as enabled
+     * @return a configuration with {@code allTerminated} derived from counters of one greater than
+     *     each thread's, so no thread reads as terminated
      */
     public static Configuration forTest(SharedState state, List<Integer> programCounters,
                                         List<Integer> enabledThreadIds) {
@@ -156,6 +169,12 @@ public final class Configuration {
      * {@code allTerminated} is derived from the counters instead of assumed false. A counter at or
      * beyond its thread's step count is a terminated position.
      *
+     * @param state the shared state, held by reference rather than copied
+     * @param programCounters one counter per thread
+     * @param stepsPerThread each thread's step count, so a counter at or beyond it reads terminated
+     * @param enabledThreadIds the threads to report as enabled
+     * @return a configuration with {@code allTerminated} and {@code deadlockCandidate} derived from the
+     *     supplied counters rather than assumed
      * @throws IllegalArgumentException if there is not exactly one step count per counter
      */
     public static Configuration forTest(SharedState state, List<Integer> programCounters,
@@ -180,34 +199,80 @@ public final class Configuration {
                 allTerm, deadlock, null);
     }
 
+    /** @return the shared state this configuration holds */
     public SharedState state() {
         return state;
     }
 
+    /**
+     * Each thread's index into its own step list.
+     *
+     * @return per-thread program counters, one entry per thread
+     */
     public List<Integer> programCounters() {
         return programCounters;
     }
 
+    /**
+     * Which thread holds each lock, empty when none are held.
+     *
+     * @return location to owning thread id
+     */
     public Map<MemoryLocation, Integer> lockOwnership() {
         return lockOwnership;
     }
 
+    /**
+     * Threads blocked at each location, in arrival order.
+     *
+     * @return location to the thread ids waiting on it
+     */
     public Map<MemoryLocation, List<Integer>> waitQueues() {
         return waitQueues;
     }
 
+    /**
+     * Threads whose next step can execute right now.
+     *
+     * <p>Derived once in the private constructor rather than recomputed per call, so every caller
+     * cannot disagree with another about which threads are enabled.
+     *
+     * @return the enabled thread ids
+     */
     public List<Integer> enabledThreadIds() {
         return enabledThreadIds;
     }
 
+    /**
+     * Whether every thread has run off the end of its step list.
+     *
+     * <p>The canonical liveness predicate. Read this rather than comparing counters against step counts
+     * at a call site, which is what produced the duplicated derivations 13.03 consolidated.
+     *
+     * @return true if no thread has a step left to execute
+     */
     public boolean allTerminated() {
         return allTerminated;
     }
 
+    /**
+     * Whether this configuration is a deadlock: at least one thread live and nothing enabled.
+     *
+     * <p>Note both halves are load-bearing. All threads terminated is completion, not deadlock, and
+     * nothing enabled with every thread terminated is unreachable. Use {@link #allTerminated()} to
+     * distinguish the first.
+     *
+     * @return true if live threads remain but none can execute
+     */
     public boolean isDeadlockCandidate() {
         return deadlockCandidate;
     }
 
+    /**
+     * The outcome of the step that produced this configuration.
+     *
+     * @return that outcome, or null for the initial configuration
+     */
     public StepOutcome lastOutcome() {
         return lastOutcome;
     }

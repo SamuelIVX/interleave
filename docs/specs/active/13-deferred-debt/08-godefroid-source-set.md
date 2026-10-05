@@ -32,25 +32,32 @@ source(c) = { t ∈ enabled(c) : t is dependent on EVERY other enabled thread }
 dep(c)    = { t ∈ enabled(c) : t is dependent on AT LEAST ONE other enabled thread }
 ```
 
-**When two or more threads are enabled**, `source(c)` is by definition a subset of `dep(c)`, so
-`source(c) ∪ dep(c) = dep(c)`. And `dep(c)` is **what `PersistentSetComputer` already computes**
-(`PersistentSetComputer.java:60–74`): it adds a thread to the set when any other enabled thread is
-dependent on it by data conflict, or could disable it.
+**When two or more threads are enabled and at least one dependency exists**, `source(c)` is by
+definition a subset of `dep(c)`, so `source(c) ∪ dep(c) = dep(c)`. And in that case `dep(c)` is
+**what `PersistentSetComputer` already computes** (`PersistentSetComputer.java:60–74`): it adds a
+thread to the set when any other enabled thread is dependent on it by data conflict, or could disable
+it.
 
-**The singleton case does not follow from that subset relation**, and it is worth stating separately
-because the definitions invert on a lone thread. With exactly one enabled thread `t`, the "at least
-one" quantifier in `dep(c)` has nothing to range over, so `dep(c) = ∅` — while the "every" quantifier in
-`source(c)` is vacuously true, so `source(c) = {t}`. Here `source(c) ⊄ dep(c)` and the union is *not* a
-no-op. It is a no-op anyway for a different reason: the computer short-circuits
-`if (enabled.size() <= 1) return enabled` (`PersistentSetComputer.java:42–44`), which already returns
-exactly `{t}` — which is `source(c)` for that configuration.
+**The degenerate branches are separate cases and neither one is a subset argument.**
 
-So the union is a no-op on both branches, but for two different reasons, and only the first is the
-subset argument. Stating it as one unqualified claim would leave the singleton case resting on
-something that does not hold there.
+- *No dependencies at all* (two or more enabled, all pairwise independent): the "at least one"
+  quantifier in `dep(c)` finds nothing, so `dep(c) = ∅` — and so is `source(c)`, since no thread is
+  dependent on all the others when none are dependent on any. The union is **empty**, which does *not*
+  describe the computed set: the computer falls back to returning `enabled.get(0)`
+  (`PersistentSetComputer.java:88–90`). So `dep(c)` alone misdescribes this configuration, and any
+  argument resting on "`dep(c)` is what the computer returns" is simply false here.
+- *Exactly one enabled thread*: `dep(c) = ∅` for the same quantifier reason, while `source(c) = {t}`
+  because "every other" is vacuously true. Here `source(c) ⊄ dep(c)`. The union is not a no-op — it is
+  a no-op only because the short-circuit `if (enabled.size() <= 1) return enabled`
+  (`PersistentSetComputer.java:42–44`) already returns exactly `{t}`, which is `source(c)`.
 
-Union the `source` set into the computed set and the result is unchanged for every configuration.
-The code would compile, pass every test, reduce no state count, and
+So there are three branches, and the no-op conclusion holds in all three for three different reasons —
+one subset argument and two fallbacks. Stating it as one unqualified claim would have left two of the
+three resting on something that does not hold.
+
+The practical consequence is the same either way: union the `source` set into the computed set and the
+result is unchanged for every configuration. The code would compile, pass every test, reduce no state
+count, and
 close the item on paper. That is the shape of change this register exists to prevent, and it is
 why 12.07's note that this is *"a genuine algorithm with its own spec, not a patch"* is correct rather
 than dramatic.

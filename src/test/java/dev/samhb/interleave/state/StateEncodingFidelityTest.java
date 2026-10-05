@@ -649,16 +649,35 @@ class StateEncodingFidelityTest {
                 new DynamicState(asBool, 1));
 
         // decl, by initial value: equals compares intInit, so the encoding must too.
+        //
+        // The current values are forced equal first, and that is the whole point of the probe. A
+        // DynamicState seeds its field values FROM the declaration, so a state built from intInit=1 and
+        // one built from intInit=2 differ in their current value as well -- and the value stream would
+        // then distinguish them even if encodeTo stopped writing intInit altogether. Both are set to 7
+        // so the declaration's initializer is the ONLY difference left, which is what makes this a test
+        // of the declaration encoding rather than a restatement of the value probes above.
         StateDecl initOne = new StateDecl(List.of(FieldDecl.ofInt("v", 1)), List.of());
         StateDecl initTwo = new StateDecl(List.of(FieldDecl.ofInt("v", 2)), List.of());
-        assertEncodingDiffers("decl field init", new DynamicState(initOne, 1),
-                new DynamicState(initTwo, 1));
+        DynamicState intInitOne = new DynamicState(initOne, 1);
+        DynamicState intInitTwo = new DynamicState(initTwo, 1);
+        intInitOne.setInt("v", 7);
+        intInitTwo.setInt("v", 7);
+        assertEquals(intInitOne.getInt("v"), intInitTwo.getInt("v"),
+                "precondition: the current values must match, or the value stream would distinguish "
+                        + "these states and the probe would pass without testing the declaration");
+        assertEncodingDiffers("decl field init", intInitOne, intInitTwo);
 
-        // decl, by array initial: [2] against [2,2], which equals distinguishes.
-        StateDecl shortArray = new StateDecl(List.of(FieldDecl.ofArray("a", new int[]{2})), List.of());
-        StateDecl longArray = new StateDecl(List.of(FieldDecl.ofArray("a", new int[]{2, 2})), List.of());
-        assertEncodingDiffers("decl array init", new DynamicState(shortArray, 1),
-                new DynamicState(longArray, 1));
+        // decl, by array initial, isolated the same way: equal length, differing contents, and the
+        // current array overwritten to match so arrayInit is the only variable. The earlier version
+        // compared [2] against [2,2], which differs in length -- and a differing length also changes the
+        // current array, so it passed for the wrong reason.
+        StateDecl arrayInitTwo = new StateDecl(List.of(FieldDecl.ofArray("a", new int[]{2})), List.of());
+        StateDecl arrayInitThree = new StateDecl(List.of(FieldDecl.ofArray("a", new int[]{3})), List.of());
+        DynamicState arrayTwo = new DynamicState(arrayInitTwo, 1);
+        DynamicState arrayThree = new DynamicState(arrayInitThree, 1);
+        arrayTwo.setArrayElement("a", 0, 7);
+        arrayThree.setArrayElement("a", 0, 7);
+        assertEncodingDiffers("decl array init", arrayTwo, arrayThree);
 
         // decl, by local name — the local half of the declaration, which a fields-only encoding drops.
         StateDecl localX = new StateDecl(List.of(), List.of(LocalDecl.ofInt("x", 0)));

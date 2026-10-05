@@ -96,10 +96,17 @@ documented failure mode for an invisible one: the gate keeps passing, and nobody
 were being killed by wall time rather than by an assertion. E5's premise is that a mutant bought with
 wall time is not a kill; widening the budget to stop noticing is the same error wearing a different hat.
 
-## What was not done
+## D1 — closed by 13.01, not by this item
 
-**D1** (a `Configuration` fixture factory to remove reflection) was not in this item's scope and is
-untouched. It is still open.
+D1 is **closed**, and it was closed by **13.01**, which added the `Configuration.forTest` overloads —
+exactly D1's stated closure criterion, *"a test-visible factory taking explicit counters"*. All three
+fixture helpers now use it; no test constructs a `Configuration` through reflection any more. The
+remaining `setAccessible` calls in `state` set non-final instance fields on state objects, which is an
+unrelated need with no factory to delegate to.
+
+Recorded here because this spec previously said D1 was "untouched and still open". That was wrong: it
+was out of *this item's* scope, which is not the same as undone. The distinction matters because a
+register entry claiming D1 is open would have had it re-picked-up for work already finished.
 
 ## Verification
 

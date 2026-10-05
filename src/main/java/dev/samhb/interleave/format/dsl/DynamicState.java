@@ -103,25 +103,45 @@ public final class DynamicState implements SharedState {
      */
     public int threadCount() { return threadCount; }
 
-    /** @return int field value */
+    /**
+     * Reads a declared {@code INT} field.
+     *
+     * @param name the declared field name
+     * @return its current value
+     */
     public int getInt(String name) {
         int idx = indexOfField(name);
         return (Integer) fieldValues[idx];
     }
 
-    /** @param value int value */
+    /**
+     * Writes a declared {@code INT} field.
+     *
+     * @param name the declared field name
+     * @param value the value to store
+     */
     public void setInt(String name, int value) {
         int idx = indexOfField(name);
         fieldValues[idx] = value;
     }
 
-    /** @return bool field value */
+    /**
+     * Reads a declared {@code BOOL} field.
+     *
+     * @param name the declared field name
+     * @return its current value
+     */
     public boolean getBool(String name) {
         int idx = indexOfField(name);
         return (Boolean) fieldValues[idx];
     }
 
-    /** @param value bool value */
+    /**
+     * Writes a declared {@code BOOL} field.
+     *
+     * @param name the declared field name
+     * @param value the value to store
+     */
     public void setBool(String name, boolean value) {
         int idx = indexOfField(name);
         fieldValues[idx] = value;
@@ -162,25 +182,49 @@ public final class DynamicState implements SharedState {
         arr[index] = value;
     }
 
-    /** @return local int value */
+    /**
+     * Reads a thread's declared {@code INT} local.
+     *
+     * @param tid the thread id
+     * @param name the declared local name
+     * @return its current value
+     */
     public int getLocalInt(int tid, String name) {
         int idx = indexOfLocal(name);
         return (Integer) localValues[tid][idx];
     }
 
-    /** @param value local int */
+    /**
+     * Writes a thread's declared {@code INT} local.
+     *
+     * @param tid the thread id
+     * @param name the declared local name
+     * @param value the value to store
+     */
     public void setLocalInt(int tid, String name, int value) {
         int idx = indexOfLocal(name);
         localValues[tid][idx] = value;
     }
 
-    /** @return local bool value */
+    /**
+     * Reads a thread's declared {@code BOOL} local.
+     *
+     * @param tid the thread id
+     * @param name the declared local name
+     * @return its current value
+     */
     public boolean getLocalBool(int tid, String name) {
         int idx = indexOfLocal(name);
         return (Boolean) localValues[tid][idx];
     }
 
-    /** @param value local bool */
+    /**
+     * Writes a thread's declared {@code BOOL} local.
+     *
+     * @param tid the thread id
+     * @param name the declared local name
+     * @param value the value to store
+     */
     public void setLocalBool(int tid, String name, boolean value) {
         int idx = indexOfLocal(name);
         localValues[tid][idx] = value;

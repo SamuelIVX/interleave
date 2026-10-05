@@ -8,6 +8,7 @@ import dev.samhb.interleave.core.DeadlockState;
 import dev.samhb.interleave.core.PairState;
 import org.junit.jupiter.api.Test;
 
+import java.util.Arrays;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -224,6 +225,30 @@ class StateRegistryTest {
     }
 
     /**
+     * Two three-flag states differing only at index 2 must encode differently.
+     *
+     * <p>This is the probe the two-versus-three comparison cannot make. An encoder that wrote the count
+     * and then only the first two flags would pass that comparison — the lengths differ, so the byte
+     * counts differ — while silently dropping every flag past index 1. Only a pair at the <em>same</em>
+     * length differing in a later position can catch it.
+     */
+    @Test
+    void flagBeyondTheSecond_reachesTheEncoding() {
+        byte[] off = encode(DeadlockState.of(new boolean[]{true, false, false}));
+        byte[] on = encode(DeadlockState.of(new boolean[]{true, false, true}));
+
+        assertFalse(Arrays.equals(off, on),
+                "flag[2] must reach the encoding; a three-thread state's third flag cannot be dropped");
+
+        PetersonState pOff = PetersonState.of(new boolean[]{false, false, false}, 0);
+        PetersonState pOn = PetersonState.of(new boolean[]{false, false, false}, 0);
+        pOn.setFlag(2, true);
+        assertNotEquals(pOff, pOn, "precondition: the two states differ only at flag[2]");
+        assertFalse(Arrays.equals(encode(pOff), encode(pOn)),
+                "PetersonState.flag[2] must reach the encoding too");
+    }
+
+    /**
      * A longer flag array must encode differently from a shorter one. Without the count prefix the two
      * differ only in byte count, which keeps them apart incidentally; the prefix makes it explicit.
      */
@@ -243,16 +268,25 @@ class StateRegistryTest {
                 encode(PetersonState.of(new boolean[]{false, true, false}, 1)));
     }
 
-    /** A deep copy must not alias the original's flag array, at any length. */
+    /**
+     * A deep copy must not alias the original's flag array, at any length.
+     *
+     * <p>Indices 1 <em>and</em> 2 are both mutated. A {@code deepCopy} that copied only the first two
+     * flags would leave index 2 false in both states and still pass a test that looked at index 1 alone,
+     * so the third flag is what catches truncation.
+     */
     @Test
     void deepCopy_doesNotShareTheFlagArray() {
         PetersonState original = PetersonState.of(new boolean[]{false, false, false}, 0);
         PetersonState copy = (PetersonState) original.deepCopy();
 
         copy.setFlag(1, true);
+        copy.setFlag(2, true);
 
         assertFalse(original.flag(1), "mutating the copy must not write through to the original");
+        assertFalse(original.flag(2), "index 2 must be copied, not truncated away");
         assertTrue(copy.flag(1));
+        assertTrue(copy.flag(2));
     }
 
     private static com.google.gson.JsonObject petersonJson(int threads) {

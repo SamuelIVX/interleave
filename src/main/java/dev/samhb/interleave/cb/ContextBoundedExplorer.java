@@ -36,6 +36,9 @@ public final class ContextBoundedExplorer {
 
     /**
      * Explores with the default preemption bound.
+     *
+     * @param program the program to explore
+     * @return the visited configurations and the traces reached
      */
     public DfsResult explore(Program program) {
         return explore(program, null);

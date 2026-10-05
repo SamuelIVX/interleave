@@ -118,7 +118,7 @@ comparison is provably sound. Use it as the model; do not touch it.
 | D2 | Mutation floor **frozen at 94** for the whole set; `EXPECTED_TOTAL_MUTANTS` re-measured per-spec when it moves; floor re-derived once at set exit |
 | D3 | 13.03 = canonical key + contract note. **Do not** rewrite the six `toString()` implementations |
 | D4 | E1 = **non-failing** CI drift notice. Never a gate |
-| D5 | 13.04 = **record the equivalence proof, keep the redundant call.** Total stays 270, score stays 94.81% |
+| D5 | **SUPERSEDED by B2.** D5 chose to keep the redundant call; 13.03 removed it (270 → 268) and 13.04 recorded the proof that removal was safe. Kept visible so the reversal is not rediscovered as a surprise |
 
 **Why D2.** Every spec passes or fails against a number it did not choose, so no spec can raise the
 gate to launder its own regression. Re-derivation happens once, from a post-remediation run, exactly as
