@@ -145,6 +145,31 @@ eight links to files that do not exist is eight broken links that a linter will 
 validates fragments only, which is how the one fragment link below survived review while these eight
 did not get reported. Link them as each spec lands.
 
+## Set-Exit Measurement
+
+Taken on a full-scope run (`state.*` + `cb.*`) at set exit, not carried forward from any earlier spec:
+
+| | value |
+|---|---|
+| total mutants | **268** |
+| KILLED (assertion) | **255** |
+| SURVIVED | 13 |
+| NO_COVERAGE / TIMED_OUT / MEMORY_ERROR | 0 / 0 / 0 |
+| coverage | **95.15%** (floor 94%) |
+| RESULT | **PASS** |
+
+Per class — `ContextBoundedExplorer` 103/103, `BitstateStore` 94/97, `CanonicalEncoder` 6/7,
+`HashingStateStore` 52/61. The ratchet printed **no drift notice**, which is the machine-checked
+confirmation that 13.05 (`format.dsl`), 13.06 (`core`, `format`, `format.registry`) and 13.07
+(`build.gradle.kts`, docs) moved nothing in scope. Each spec had predicted this and declined to assert
+it; this run is what settles it.
+
+`TIMED_OUT: 0` is a single-threaded local figure and **cannot speak to CI's parallel profile** — that is
+exactly what E5 is about, and it is why E5 stays open. See 07.
+
+268 is unchanged from 13.03, which is the expected result: 13.03 was the last item to touch a class
+inside the scope, and everything after it was outside it by design.
+
 ## Dependency Graph
 
 ```
