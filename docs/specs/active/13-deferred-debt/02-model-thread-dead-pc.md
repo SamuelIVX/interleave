@@ -126,6 +126,44 @@ None. `ModelThread` and `Configuration` are in `core`, outside the `state.* + cb
 mutant in either file is generated. The floor is unmoved, and the 12 new tests are not measurable by
 the current scope.
 
-This was verified rather than assumed: a full-scope PIT run was taken at this point in the set so that
-later specs have a measured checkpoint to compare against, per the repository rule against carrying
-PIT numbers forward from an older spec's notes.
+That was **measured, not argued** — the repository rule against carrying PIT numbers forward from an
+older spec's notes applies here too, and "no mechanism by which the floor could move" is an argument.
+Full-scope runs on `main` (`9ccb4d0`) and on this branch, diffed:
+
+| | total | killed | survived | `NO_COVERAGE` |
+|---|---|---|---|---|
+| `main` baseline | 270 | 256 | 14 | 0 |
+| after 13.01 + 13.02 | 270 | 256 | 14 | 0 |
+
+**94.8% both before and after, and the survivor lists are identical** — no new survivors, none fixed.
+Per class, unchanged in both runs:
+
+| Class | killed/total | survived |
+|---|---|---|
+| `ContextBoundedExplorer` | 104/105 | 1 |
+| `BitstateStore` | 94/97 | 3 |
+| `HashingStateStore` | 52/61 | 9 |
+| `CanonicalEncoder` | 6/7 | 1 |
+
+`ContextBoundedExplorer` at 104/105 independently reproduces the figure the repository's `AGENTS.md`
+records, which is a useful check that the run covered what it claims to.
+
+### 14 survivor records are 11 distinct sites
+
+Three sites carry two surviving mutants each, so **14 records / 11 sites** — the two numbers describe
+different things and the register has been bitten by this before:
+
+| ×2 | site |
+|---|---|
+| 2 | `BitstateStore.doubleHash` L343 `MathMutator` |
+| 2 | `HashingStateStore.hashCode` L103 `MathMutator` |
+| 2 | `HashingStateStore.preemptionHash` L114 `MathMutator` |
+
+Any later spec that counts survivors must state which of the two it is counting. The single
+`ContextBoundedExplorer` survivor is `dfs` L187 `NonVoidMethodCallMutator` — the L187 mutant that 13.04
+addresses, still open here.
+
+Both reports carry `partial="true"`. Taken with the 104/105 agreement this looks like PIT's usual
+partial marking rather than missing analysis, but it is not verified, and later specs should not treat
+270 as a floor that cannot move.
+
