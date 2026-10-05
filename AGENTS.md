@@ -73,7 +73,7 @@ and have been got wrong before:
   measured at `c5fdcd0` long after it stopped being true. Run PIT on `main` without the change, then
   again with it, and diff the survivor lists.
 - **Per-class kill counts are identical scoped or full-scope — only the totals differ.** Verified on
-  `ContextBoundedExplorer` at this commit: `-PpitestTargetOverride` reports 104/105 with
+  `ContextBoundedExplorer` at this commit: `-PpitestTargetOverride` reports 103/103 with
   `NO_COVERAGE` 0, and so does the full default scope. `targetTests` is unchanged by scoping, so
   covering-test selection is unchanged. What a scoped run cannot give you is the *aggregate*: its
   denominator is one class, so its percentage is not comparable to a full-scope percentage. Iterate

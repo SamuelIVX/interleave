@@ -594,8 +594,8 @@ class StateEncodingFidelityTest {
      * #dynamicStateDeclAndThreadCount_reachTheEncoding} is what would catch that.
      */
     @Test
-    @DisplayName("R2e: DynamicState array length prefixes keep adjacent arrays separable")
-    void encodeDynamicState_arrayLengthPrefixesSeparateAdjacentArrays() {
+    @DisplayName("R2e: DynamicState states with different adjacent-array lengths encode differently")
+    void encodeDynamicState_differentAdjacentArrayLengthsDiffer() {
         StateDecl elementFirst = new StateDecl(
                 List.of(FieldDecl.ofArray("p", new int[]{2}), FieldDecl.ofArray("q", new int[]{})), List.of());
         StateDecl elementSecond = new StateDecl(

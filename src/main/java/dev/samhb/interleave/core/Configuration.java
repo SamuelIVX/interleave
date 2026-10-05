@@ -137,6 +137,13 @@ public final class Configuration {
      * {@link #forTest(SharedState, List, List, List)} to place threads at or past their end.
      *
      * <p>Lock ownership and wait queues are empty. This is a fixture seam, not a builder.
+     *
+     * <p><b>Public for tests, not for production.</b> These overloads exist because neither
+     * {@link #initial} nor {@link #successor} can place a program counter at an arbitrary value without
+     * executing a program, so specs had been reaching the private constructor by reflection. The
+     * visibility is deliberate — tests in other packages, including {@code state} and {@code cb}, use
+     * them — but nothing in {@code core} should call them. A fixture that needs an arbitrary counter is
+     * a test, and a production caller reaching for one is a bug this signature cannot prevent.
      */
     public static Configuration forTest(SharedState state, List<Integer> programCounters,
                                         List<Integer> enabledThreadIds) {

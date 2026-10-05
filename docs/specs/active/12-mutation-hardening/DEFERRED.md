@@ -311,7 +311,7 @@ numbers are emitted by the build rather than transcribed by hand:
 
 ```
   per class:
-    ContextBoundedExplorer :      104/105
+    ContextBoundedExplorer :      103/103
     BitstateStore :               94/97
     CanonicalEncoder :            6/7
     HashingStateStore :           52/61
@@ -463,6 +463,9 @@ AGENTS.md mandates `--max-workers=1 -PpitestThreads=1` on a 10-core machine. **C
 deliberately — runners are ephemeral and have no other load. So the load profile that would produce a
 spurious `TIMED_OUT` is the one profile this gate has never been run under. Every local measurement in
 this set, including the 256/270 floor itself, is single-threaded and therefore cannot speak to it.
+**Those figures are historical**: 270 total / 256 killed was the population at `d14680d`, before 13.03
+deleted two equivalent survivors. The current figures are 268 / 255, and the reasoning below is
+unaffected — the floor's value was never the point, its provenance was.
 
 **Measured.** One CI run at `d14680d`, 4m58s, full scope, default parallel PIT: **green.** 270
 mutants, 256 killed, `TIMED_OUT 0`, `MEMORY_ERROR 0`, `NON_VIABLE 0`, `RUN_ERROR 0`, and the ratchet

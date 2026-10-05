@@ -44,7 +44,7 @@ deliberately wider; and both directions of "unify these" are wrong for different
 |---|---|---|
 | `Configuration` (canonical) | `!allTerminated && enabled.isEmpty()` | — |
 | `ContextBoundedExplorer:187` | `enabled.isEmpty() && !config.allTerminated()` | **yes** — conjunction, commutated |
-| `DeltaDebugger:95-96` | `!config.allTerminated() && !config.isDeadlockCandidate()` | **no** |
+| `DeltaDebugger:105-107` | `!config.allTerminated() && !config.isDeadlockCandidate()` | **no** |
 
 ### `ContextBoundedExplorer` — consolidated
 
