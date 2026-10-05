@@ -464,7 +464,7 @@ deliberately — runners are ephemeral and have no other load. So the load profi
 spurious `TIMED_OUT` is the one profile this gate has never been run under. Every local measurement in
 this set, including the 256/270 floor itself, is single-threaded and therefore cannot speak to it.
 **Those figures are historical**: 270 total / 256 killed was the population at `d14680d`, before 13.03
-deleted two equivalent survivors. The current figures are 268 / 255, and the reasoning below is
+deleted two mutants — one killed and one survived, since 256/255 and 14/13 both moved. The current figures are 268 / 255, and the reasoning below is
 unaffected — the floor's value was never the point, its provenance was.
 
 **Measured.** One CI run at `d14680d`, 4m58s, full scope, default parallel PIT: **green.** 270

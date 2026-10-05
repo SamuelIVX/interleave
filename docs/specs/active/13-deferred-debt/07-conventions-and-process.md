@@ -61,8 +61,8 @@ Guarding a wrong number is not the same as correcting it, so spec 12's table and
 back in line: `ContextBoundedExplorer` to `103/103` / 100.0%, dated 2026-10-05, with `moved by` now
 reading **13.03 (denominator shrank)**. That phrasing matters — the existing table already distinguishes
 a class that moved by *shrinking its denominator* from one that moved by *killing mutants*, and
-conflating the two is the confusion E1 was recorded for. `13.03` deleted two equivalent survivors, so
-the killed count is unchanged and the row is dead code removed, not coverage earned.
+conflating the two is the confusion E1 was recorded for. `13.03` deleted two mutants, one killed and
+one survived — 256→255 and 14→13 both moved — so the row is dead code removed, not coverage earned.
 
 The table now carries a pointer saying the build cross-checks it, so the next reader knows the figure is
 watched rather than trusted.

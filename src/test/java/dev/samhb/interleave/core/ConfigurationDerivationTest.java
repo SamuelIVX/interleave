@@ -14,8 +14,8 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Both factories now route through one private derivation, so these tests are as much about the
  * rule that survived the refactor as about the two entry points: a thread is enabled exactly when its
- * counter sits inside its step list and the step found there permits it, and nothing is a deadlock
- * candidate while any thread is still live.
+ * counter sits inside its step list and the step found there permits it, and a configuration is a
+ * deadlock candidate when at least one thread is still live <em>and</em> nothing is enabled.
  */
 class ConfigurationDerivationTest {
 

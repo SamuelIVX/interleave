@@ -32,16 +32,26 @@ source(c) = { t ∈ enabled(c) : t is dependent on EVERY other enabled thread }
 dep(c)    = { t ∈ enabled(c) : t is dependent on AT LEAST ONE other enabled thread }
 ```
 
-`source(c)` is by definition a subset of `dep(c)`, so `source(c) ∪ dep(c) = dep(c)`.
-
-And `dep(c)` is **what `PersistentSetComputer` already computes**
+**When two or more threads are enabled**, `source(c)` is by definition a subset of `dep(c)`, so
+`source(c) ∪ dep(c) = dep(c)`. And `dep(c)` is **what `PersistentSetComputer` already computes**
 (`PersistentSetComputer.java:60–74`): it adds a thread to the set when any other enabled thread is
-dependent on it by data conflict, or could disable it. Union the `source` set into that and the result
-is unchanged, for every configuration, by construction.
+dependent on it by data conflict, or could disable it.
 
-So "add the Godefroid source set" cannot mean "union a pairwise source set into the existing acyclic
-set" — that code would compile, pass every test, reduce every reported state count by nothing, and
-close the item on paper. That is exactly the shape of change this register exists to prevent, and it is
+**The singleton case does not follow from that subset relation**, and it is worth stating separately
+because the definitions invert on a lone thread. With exactly one enabled thread `t`, the "at least
+one" quantifier in `dep(c)` has nothing to range over, so `dep(c) = ∅` — while the "every" quantifier in
+`source(c)` is vacuously true, so `source(c) = {t}`. Here `source(c) ⊄ dep(c)` and the union is *not* a
+no-op. It is a no-op anyway for a different reason: the computer short-circuits
+`if (enabled.size() <= 1) return enabled` (`PersistentSetComputer.java:42–44`), which already returns
+exactly `{t}` — which is `source(c)` for that configuration.
+
+So the union is a no-op on both branches, but for two different reasons, and only the first is the
+subset argument. Stating it as one unqualified claim would leave the singleton case resting on
+something that does not hold there.
+
+Union the `source` set into the computed set and the result is unchanged for every configuration.
+The code would compile, pass every test, reduce no state count, and
+close the item on paper. That is the shape of change this register exists to prevent, and it is
 why 12.07's note that this is *"a genuine algorithm with its own spec, not a patch"* is correct rather
 than dramatic.
 
