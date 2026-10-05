@@ -138,7 +138,7 @@ the score with no new test. Consistency with that precedent is worth more than t
 | [05-dsl-encoding-completeness.md](05-dsl-encoding-completeness.md) | DSL encoding completeness | A2 | MED |
 | [06-thread-count-general-flags.md](06-thread-count-general-flags.md) | Thread-count-general flag arrays | A3 | LOW |
 | [07-conventions-and-process.md](07-conventions-and-process.md) | Conventions and process debt | D2, E1, E2, E5 | LOW |
-| `08-godefroid-source-set.md` | Godefroid `source` set | A4 | **MED — long pole, lands last** |
+| [08-godefroid-source-set.md](08-godefroid-source-set.md) | Godefroid `source` set | A4 — **design note, not implemented** | **MED — its own session** |
 
 Filenames are **not hyperlinks yet** — each spec file is written when its spec is implemented, and
 eight links to files that do not exist is eight broken links that a linter will not catch. MD051

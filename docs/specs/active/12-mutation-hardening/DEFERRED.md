@@ -111,6 +111,12 @@ the DSL specs alongside A2.
 The sound `StaticPorExplorer` fix gives up the speedup exactly when invariants are in play
 {: #a4}
 
+**Status: still open. 13.08 is a design note, not an implementation.** The obvious fix is
+a provable no-op: Godefroid's set is `source(c) ∪ dep(c)` and `source ⊆ dep` by definition, so unioning
+a pairwise source set into the existing acyclic set changes nothing for any configuration. The `source`
+term only earns its place via reverse reachability and multi-step independent *successors*, which
+`IndependenceRelation` cannot express. See `13-deferred-debt/08-godefroid-source-set.md`.
+
 **What.** 12.07 found that static POR could return a **false pass** when given an invariant, and fixed
 it by applying `DporExplorer`'s existing guard: supplying an invariant disables the reduction. That is
 sound, and it forfeits the reduction precisely when an invariant is being checked.
@@ -122,8 +128,9 @@ a `source`-set computation is substantially larger than a guard.
 **Cost if left.** Performance only. Correctness is fine and now regression-tested by three tests that
 fail if the guard is removed.
 
-**To close.** Its own spec. Do not fold it into 12.06 — it changes `search/`, which 12.06 declares
-off-limits.
+**To close.** Its own session and spec. Do not fold it into a cleanup set — the payoff is performance,
+the risk is reintroducing a false pass. Package note: this changes **`por/`**, not `search/` as recorded
+above; `StaticPorExplorer`, `PersistentSetComputer` and `IndependenceRelation` are all in `por/`.
 
 ---
 
