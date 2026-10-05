@@ -209,7 +209,10 @@ class CanonicalEncoderContractTest {
 
         byte[] encoded = ENCODER.encode(state);
 
-        assertEquals(10, encoded.length,
+        // 4 (flag count) + 2 (two flags) + 4 (turn) + 4 (inCriticalSection) = 14. Spec 13.06 added
+        // the count prefix so a longer flag array is separated by an explicit extent rather than by an
+        // incidental difference in byte count; it was 10 before that.
+        assertEquals(14, encoded.length,
                 "a PetersonState encoding must contain all four fields; a short read means bytes were "
                         + "lost, which is the failure mode a missing flush would cause on a buffering "
                         + "stream");

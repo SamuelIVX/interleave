@@ -10,12 +10,23 @@ public final class DeadlockState implements SharedState {
 
     public DeadlockState(boolean[] flag) {
         this.flag = Objects.requireNonNull(flag, "flag must not be null");
-        if (flag.length != 2) throw new IllegalArgumentException("flag must have length 2");
+        if (flag.length < 2) throw new IllegalArgumentException("flag must have length >= 2, got " + flag.length);
         this.control = false;
     }
 
     public static DeadlockState of(boolean t0Wants, boolean t1Wants) {
-        return new DeadlockState(new boolean[]{t0Wants, t1Wants});
+        return of(new boolean[]{t0Wants, t1Wants});
+    }
+
+    /**
+     * Factory for any thread count.
+     *
+     * @param flag one flag per thread, at least two
+     * @return a state with {@code control} unset
+     * @throws IllegalArgumentException if fewer than two flags are supplied
+     */
+    public static DeadlockState of(boolean[] flag) {
+        return new DeadlockState(flag);
     }
 
     public boolean flag(int threadId) {
@@ -36,7 +47,7 @@ public final class DeadlockState implements SharedState {
 
     @Override
     public SharedState deepCopy() {
-        DeadlockState copy = new DeadlockState(new boolean[]{flag[0], flag[1]});
+        DeadlockState copy = new DeadlockState(java.util.Arrays.copyOf(flag, flag.length));
         copy.control = this.control;
         return copy;
     }
@@ -44,8 +55,12 @@ public final class DeadlockState implements SharedState {
     @Override
     public void encodeTo(DataOutput out) throws IOException {
         out.writeBoolean(control);
-        out.writeBoolean(flag[0]);
-        out.writeBoolean(flag[1]);
+        // The count precedes the flags so the array's extent is explicit rather than implied by the
+        // byte count, matching CounterState.registers.
+        out.writeInt(flag.length);
+        for (boolean f : flag) {
+            out.writeBoolean(f);
+        }
     }
 
     @Override
@@ -64,6 +79,6 @@ public final class DeadlockState implements SharedState {
 
     @Override
     public String toString() {
-        return String.format("DeadlockState{flag=[%b, %b], control=%b}", flag[0], flag[1], control);
+        return String.format("DeadlockState{flag=%s, control=%b}", java.util.Arrays.toString(flag), control);
     }
 }

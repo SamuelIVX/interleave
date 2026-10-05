@@ -175,7 +175,7 @@ class ProgramLoaderTest {
               "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
-              "threads": [{"id": 0, "steps": [{"type": "write_counter"}]}]
+              "threads": [{"id": 0, "steps": [{"type": "write_counter"}]}, {"id": 1, "steps": [{"type": "write_flag", "value": true}]}]
             }
             """;
         RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
@@ -245,7 +245,7 @@ class ProgramLoaderTest {
               "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
-              "threads": [{"id": 0, "steps": [{"type": "busy_wait", "other": 5}]}]
+              "threads": [{"id": 0, "steps": [{"type": "busy_wait", "other": 5}]}, {"id": 1, "steps": [{"type": "write_flag", "value": true}]}]
             }
             """;
         RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
@@ -267,7 +267,38 @@ class ProgramLoaderTest {
             """;
         RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
             () -> loader.load(json));
-        assertTrue(ex.getMessage().contains("mutual_exclusion_peterson") && ex.getMessage().contains("two threads"));
+        // Spec 13.06 put a floor of two threads on peterson's flag array, so the state check now rejects
+        // this before the invariant's own "two threads" requirement is reached. The invariant's lower
+        // bound is therefore shadowed for peterson; its upper bound is still covered by the
+        // three-thread case below. Asserting the rejection that actually fires keeps this test honest
+        // about which layer refused the program.
+        assertTrue(ex.getMessage().contains("at least 2 threads"), ex.getMessage());
+    }
+
+    @Test
+    /**
+     * Spec 13.06: a three-thread peterson program now loads. Before it, the state registry rejected any
+     * flags array whose length was not 2, so three threads were inexpressible in the typed format no
+     * matter what the threads array said.
+     *
+     * <p>Deliberately carries no invariant. {@code mutual_exclusion_peterson} names
+     * {@code thread0_cs_pc} and {@code thread1_cs_pc} and rejects any thread count but two, so it cannot
+     * check this program — the state ceiling fell, the invariant's did not. See the 13.06 spec.
+     */
+    void loadPeterson_threeThreads_succeeds() {
+        String json = """
+            {
+              "format": "typed",
+              "name": "peterson-3t",
+              "state": {"type": "peterson", "flags": [false, false, false], "turn": 0},
+              "threads": [
+                {"id": 0, "steps": [{"type": "write_flag", "value": true}, {"type": "write_turn", "value": 2}, {"type": "cs_enter"}, {"type": "cs_exit"}]},
+                {"id": 1, "steps": [{"type": "write_flag", "value": true}, {"type": "write_turn", "value": 0}, {"type": "cs_enter"}, {"type": "cs_exit"}]},
+                {"id": 2, "steps": [{"type": "write_flag", "value": true}, {"type": "write_turn", "value": 1}, {"type": "cs_enter"}, {"type": "cs_exit"}]}
+              ]
+            }
+            """;
+        assertDoesNotThrow(() -> loader.load(json));
     }
 
     @Test
@@ -277,7 +308,7 @@ class ProgramLoaderTest {
             {
               "format": "typed",
               "name": "test",
-              "state": {"type": "peterson", "flags": [false, false], "turn": 0},
+              "state": {"type": "peterson", "flags": [false, false, false], "turn": 0},
               "threads": [
                 {"id": 0, "steps": [{"type": "write_flag", "value": true}]},
                 {"id": 1, "steps": [{"type": "write_flag", "value": true}]},
@@ -398,7 +429,7 @@ class ProgramLoaderTest {
               "format": "typed",
               "name": "test",
               "state": {"type": "peterson", "flags": [false, false], "turn": 0},
-              "threads": [{"id": 0, "steps": [{"type": "write_flag", "value": true}]}],
+              "threads": [{"id": 0, "steps": [{"type": "write_flag", "value": true}]}, {"id": 1, "steps": [{"type": "write_flag", "value": true}]}],
               "invariant": {"type": "counter_equals", "expected": 2}
             }
             """;
