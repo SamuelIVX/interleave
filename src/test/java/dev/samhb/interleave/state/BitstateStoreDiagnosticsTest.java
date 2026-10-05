@@ -7,11 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.core.CounterState;
-import dev.samhb.interleave.core.SharedState;
-import dev.samhb.interleave.core.StepOutcome;
-import java.lang.reflect.Constructor;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -388,25 +384,15 @@ class BitstateStoreDiagnosticsTest {
     }
 
     /**
-     * Builds a configuration fixture with one thread position and two program counters.
-     *
-     * <p>Reflection is unavoidable: {@link Configuration} exposes only {@code initial} and
-     * {@code successor}, and neither can place a counter at an arbitrary value without executing a
-     * program. This arranges a precondition and asserts nothing about the store's internals.
+     * Builds a configuration fixture with two program counters, via {@link Configuration#forTest}.
+     * Neither {@code initial} nor {@code successor} can place a counter at an arbitrary value without
+     * executing a program, which is what this arranges as a precondition. It asserts nothing about the
+     * store's internals.
      */
     private static Configuration configurationWithCounter(int stateValue, int pc0, int pc1) {
         List<Integer> counters = new ArrayList<>();
         counters.add(pc0);
         counters.add(pc1);
-        try {
-            Constructor<Configuration> ctor = Configuration.class.getDeclaredConstructor(
-                SharedState.class, List.class, java.util.Map.class, java.util.Map.class, List.class,
-                boolean.class, boolean.class, StepOutcome.class);
-            ctor.setAccessible(true);
-            return ctor.newInstance(new CounterState(stateValue), counters, new HashMap<>(),
-                new HashMap<>(), List.of(0, 1), false, false, null);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("cannot build a Configuration fixture", e);
-        }
+        return Configuration.forTest(new CounterState(stateValue), counters, List.of(0, 1));
     }
 }

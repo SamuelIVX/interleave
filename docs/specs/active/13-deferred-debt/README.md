@@ -112,7 +112,7 @@ the score with no new test. Consistency with that precedent is worth more than t
 
 | Spec | Title | Closes | Priority |
 |---|---|---|---|
-| `01-configuration-test-factory.md` | `Configuration` test factory | D1 | **HIGH — unblocks the rest** |
+| [01-configuration-test-factory.md](01-configuration-test-factory.md) | `Configuration` test factory | D1 | **HIGH — unblocks the rest** |
 | `02-model-thread-dead-pc.md` | `ModelThread` dead program counter | A1 | HIGH |
 | `03-canonical-configuration-key.md` | Canonical key + `Configuration`'s predicates | B1, B2 | **HIGH — highest risk** |
 | `04-context-bounded-l187.md` | `ContextBoundedExplorer` L187 | E4 | MED |

@@ -53,6 +53,63 @@ public final class Configuration {
         return new Configuration(state.deepCopy(), pcs, lockOwnership, waitQueues, enabled, allTerm, deadlock, null);
     }
 
+    /**
+     * Test-visible factory: builds a configuration with threads at arbitrary program counters.
+     *
+     * <p>Derives {@code allTerminated} and {@code deadlockCandidate} rather than accepting them. The
+     * private constructor takes all three independently, so a caller that supplies them can assemble
+     * a configuration whose own parts disagree. Callers that wanted an arbitrary position had no
+     * other route and had no choice about the booleans — they passed {@code false, false}, which made
+     * every fixture they built structurally incapable of being all-terminated or a deadlock
+     * candidate.
+     *
+     * <p>{@code enabledThreadIds} is still supplied. Deciding whether a counter denotes an enabled
+     * position means evaluating the DSL step sitting at that counter, which needs the
+     * {@link ModelThread}, and a caller placing threads at deliberately implausible positions has no
+     * such list. Deriving {@code deadlockCandidate} from it still removes half the freedom to
+     * disagree.
+     *
+     * <p>Every counter is treated as a live, non-terminal position here, so {@code allTerminated} is
+     * false. Passing an empty {@code enabledThreadIds} therefore yields a deadlock candidate. Use
+     * {@link #forTest(SharedState, List, List, List)} to place threads at or past their end.
+     *
+     * <p>Lock ownership and wait queues are empty. This is a fixture seam, not a builder.
+     */
+    public static Configuration forTest(SharedState state, List<Integer> programCounters,
+                                        List<Integer> enabledThreadIds) {
+        List<Integer> liveSteps = programCounters.stream().map(pc -> pc + 1).toList();
+        return forTest(state, programCounters, liveSteps, enabledThreadIds);
+    }
+
+    /**
+     * As {@link #forTest(SharedState, List, List)}, but with the per-thread step counts supplied so
+     * {@code allTerminated} is derived from the counters instead of assumed false. A counter at or
+     * beyond its thread's step count is a terminated position.
+     *
+     * @throws IllegalArgumentException if there is not exactly one step count per counter
+     */
+    public static Configuration forTest(SharedState state, List<Integer> programCounters,
+                                        List<Integer> stepsPerThread, List<Integer> enabledThreadIds) {
+        if (programCounters.size() != stepsPerThread.size()) {
+            throw new IllegalArgumentException(
+                    "expected one step count per thread, got " + programCounters.size()
+                            + " counters and " + stepsPerThread.size() + " step counts");
+        }
+
+        boolean allTerm = true;
+        for (int i = 0; i < programCounters.size(); i++) {
+            if (programCounters.get(i) < stepsPerThread.get(i)) {
+                allTerm = false;
+                break;
+            }
+        }
+
+        boolean deadlock = !allTerm && enabledThreadIds.isEmpty();
+
+        return new Configuration(state, programCounters, Map.of(), Map.of(), enabledThreadIds,
+                allTerm, deadlock, null);
+    }
+
     public SharedState state() {
         return state;
     }
