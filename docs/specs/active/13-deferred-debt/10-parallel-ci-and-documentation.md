@@ -97,7 +97,7 @@ and exploration tests provide regression coverage.
 
 Fresh baseline on `main` at `b3f09bbe`: **526 tests**, build and Javadoc pass; full PIT **255/268**,
 13 survivors, no uncovered or non-assertion detections. Final local verification and review results
-are recorded below after execution. Compare mutation identities by class/method/descriptor,
+are recorded below. Compare mutation identities by class/method/descriptor,
 instruction index, mutator, and status, excluding shifted source lines. Update line-dependent
 survivor annotations only to the measured location of the same mutant.
 

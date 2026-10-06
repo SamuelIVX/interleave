@@ -27,9 +27,9 @@ PR #42 implements 13.01–13.07. Follow-up 13.09 closes B1/B2 and preserves the 
 while changing its per-class census (see [09](09-configuration-value-key.md#verification)).
 Spec 13.08 now implements opt-in state observations, automatic DSL `always` observations, and
 remaining-step component closure. Its historical pairwise shortcut remains a rejected no-op. The original planning decisions and
-dependency order below are retained as history; the deferred register records the remaining work.
+dependency order below are retained as history; the deferred register records each item’s closure.
 
-## Corrections to the register
+## Historical corrections to the register
 
 Every ref in [DEFERRED.md](../12-mutation-hardening/DEFERRED.md) is pinned to `ba3fe01`. `main` is at
 `575a7b3`. Its own E2 rule — *a spec's numbers are valid only against the tree it names* — applies, so
