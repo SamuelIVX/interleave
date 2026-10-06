@@ -3,6 +3,7 @@ package dev.samhb.interleave.por;
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.state.HashingStateStore;
+import dev.samhb.interleave.state.CanonicalEncoder;
 import java.util.*;
 
 /**
@@ -70,6 +71,7 @@ import java.util.*;
 public final class StaticPorExplorer {
 
     private final IndependenceRelation relation;
+    private final CanonicalEncoder encoder = new CanonicalEncoder();
     private final PersistentSetComputer persistentSetComputer;
 
     /**
@@ -140,7 +142,7 @@ public final class StaticPorExplorer {
                         long[] statesExplored,
                         StateStore stateStore,
                         StateVisitor stateVisitor) {
-        String key = config.state().toString() + "|" + config.programCounters();
+        String key = encoder.configurationKey(config);
 
         if (stateStore.isVisited(config)) {
             return;

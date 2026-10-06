@@ -19,23 +19,17 @@ import java.util.*;
  *
  * <h2>On keying a configuration</h2>
  *
- * <p>Several search strategies build an unencoded bookkeeping key by string-concatenating
- * {@code state.toString()} with the program counters, which is a debug aid rather than an identity —
- * see the note on {@link dev.samhb.interleave.format.dsl.DynamicState#toString()}, which documents the
- * same hazard for the same reason. Those renderings may change freely, so a key built from them is
- * only as sound as the agreement between a type's {@code equals}, {@code hashCode} and
- * {@code toString()}.
+ * <p>Use {@link dev.samhb.interleave.state.CanonicalEncoder#configurationKey(Configuration)} for
+ * value identity within one program. It snapshots the state type, canonical state encoding and
+ * ordered program counters. {@link SharedState} diagnostic text cannot define
+ * identity. This configuration itself retains object equality because it holds mutable shared state.
  *
- * <p>{@link MemoryLocation} is the exemplar of that discipline: all three delegate to the same
- * {@code name}, so its string comparison is provably sound.
- *
- * <p>The concatenating sites are {@code DfsExplorer}, {@code StaticPorExplorer} and two in
- * {@code DporExplorer}, which key on state and counters alone. {@code ContextBoundedExplorer} keys on
- * state, counters <em>and</em> the last scheduled thread id, because under a preemption bound a
- * configuration reached by a different last switch is genuinely a different search state. That
- * difference is deliberate. Widening the four to match it would multiply the state space; narrowing the
- * CB explorer to match them would merge states the search treats as distinct and change what
- * {@code statesExplored} means.
+ * <p>Context-bounded search uses
+ * {@link dev.samhb.interleave.state.CanonicalEncoder#configurationKey(Configuration, int)} to also
+ * distinguish the last scheduled thread. Preemption cost remains separate, so the store can track
+ * the minimum cost for each scheduling position. Other explorers use the base key; widening theirs
+ * would multiply the state space, while dropping the bounded explorer's scheduling context would
+ * merge positions with different future preemption costs.
  */
 public final class Configuration {
     private final SharedState state;

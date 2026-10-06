@@ -20,8 +20,8 @@ that commit rather than trusted from the previous pin; the base label was stale,
 | ~~[A2](#a2)~~ | `DynamicState.encodeTo` omits `decl` and `threadCount` | latent defect | — | closed by 13.05 |
 | ~~[A3](#a3)~~ | `StateRegistry` hardcodes exactly 2 flags for `peterson`/`deadlock` | limitation | — | closed by 13.06 |
 | [A4](#a4) | Sound `StaticPorExplorer` fix disables the reduction whenever an invariant is given | perf regression | low | unassigned |
-| [B1](#b1) | `SharedState.toString()` is not value-based — `DclState.instance` prints identity hash | latent trap | **med** | unassigned |
-| [B2](#b2) | `Configuration` has neither `equals` nor `hashCode` | design debt | low | unassigned |
+| ~~[B1](#b1)~~ | `SharedState.toString()` is diagnostic-only | **closed — explicit contract + canonical keys** | — | closed by 13.09 |
+| ~~[B2](#b2)~~ | `Configuration` needs shared value identity | **closed — public canonical key API** | — | closed by 13.09 |
 | ~~[C1](#c1)~~ | ~~R7 (no hash assertions) forbids the only way to kill 4 `BitstateStore` mutants~~ | **closed — premise was false** | — | closed 2026-10-03 |
 | ~~[D1](#d1)~~ | Building a `Configuration` fixture requires reflection | test tax | — | closed by 13.01 |
 | ~~[D2](#d2)~~ | No shared procedure for deriving expected values of numeric formulas | test tax | — | closed by 13.07 |
@@ -31,8 +31,9 @@ that commit rather than trusted from the previous pin; the base label was stale,
 | ~~[E4](#e4)~~ | 1 mutant has no owning spec — `ContextBoundedExplorer` L187 | accounting | — | closed by 13.04; subject removed in 13.03 |
 | [E5](#e5) | Ratchet can fail CI on a wall-clock timeout indistinguishable from a regression | process | **med** | first CI run of the 12.06 gate |
 
-The entry evidence below is historical unless its status says otherwise. **Still open:** A4, B1, B2
-and E5. Spec 13.03 documents the B1/B2 hazards and consolidates one predicate; it does not change
+The entry evidence below is historical unless its status says otherwise. **Still open:** A4 and E5.
+Spec 13.09 closes B1/B2 with a shared key API and diagnostic-only rendering contract. Spec 13.03
+originally documented the hazards and consolidated one predicate; it did not change
 `DclState.toString()` or add a canonical value-identity API. C1 and E3 were already closed in set 12.
 
 Closed during set 12, recorded so nobody re-investigates: [G1](#g1)–[G4](#g4).
@@ -158,13 +159,15 @@ the risk is reintroducing a false pass. Package note: this changes **`por/`**;
 `SharedState.toString()` is not a value-based rendering
 {: #b1}
 
-**Status: still open; documented by 13.03.** `Configuration` now warns that its string bookkeeping
-keys are diagnostic, but `DclState.toString()` still prints object identity and `SharedState` has no
-general diagnostic-only rendering contract. The original closure options below remain available.
+**Status: closed by [13.09](../13-deferred-debt/09-configuration-value-key.md).** `SharedState` now
+explicitly declares `toString()` diagnostic-only. All explorer result maps and the exact store use
+`CanonicalEncoder.configurationKey`, preserving CBS last-thread identity. Diagnostic renderings
+remain free to change; the historical evidence below explains the hazard.
 
 **What.** `DclState.instance` holds a bare `Object` (`DclState.java:9`), so `DclState.toString()`
-(`:119`) prints its identity hash, which changes on every `deepCopy`. Two configurations the store
-correctly treats as one state therefore render differently.
+(`:119`) prints its identity hash. `deepCopy` preserves the sentinel reference; separate allocation paths
+can create different sentinels in value-equal states, so two configurations the store correctly
+treats as one state can render differently.
 
 **Measured.** On `double-checked-locking`: **23 reachable configurations, 17 distinct encodings**, six
 pairs colliding by string while the store's encoding correctly merges them.
@@ -188,9 +191,11 @@ second is cheaper and arguably more correct — the first papers over the genera
 `Configuration` has neither `equals` nor `hashCode`
 {: #b2}
 
-**Status: still open; mitigated by 13.03.** The deadlock predicate has one derivation and the key
-shapes are documented, but configurations retain identity equality and callers still construct
-separate bookkeeping keys. The canonical value-key API proposed below was not implemented.
+**Status: closed by [13.09](../13-deferred-debt/09-configuration-value-key.md).** The public
+`CanonicalEncoder.configurationKey` API supplies base and last-thread-aware keys. Explorers, the
+exact store, and keying test helpers delegate to it. `Configuration` retains object equality because
+it holds mutable state; each returned string snapshots its current value. Independent value-based
+test oracles remain independent of the encoder.
 
 **What.** Identity semantics. Confirmed: neither method is declared on `Configuration`.
 
@@ -510,7 +515,7 @@ deliberately — runners are ephemeral and have no other load. So the load profi
 spurious `TIMED_OUT` is the one profile this gate has never been run under. Every local measurement in
 this set, including the 256/270 floor itself, is single-threaded and therefore cannot speak to it.
 **Those figures are historical**: 270 total / 256 killed was the population at `d14680d`, before 13.03
-deleted two mutants — one killed and one survived, since 256/255 and 14/13 both moved. The current figures are 268 / 255, and the reasoning below is
+deleted two mutants — one killed and one survived, since 256/255 and 14/13 both moved. The 13.03 figures were 268 / 255, and the reasoning below is
 unaffected — the floor's value was never the point, its provenance was.
 
 **Measured.** One CI run at `d14680d`, 4m58s, full scope, default parallel PIT: **green.** 270

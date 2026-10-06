@@ -7,8 +7,8 @@ Set 12 is complete — 12.07, 12.01 through 12.06 all landed, and the ratchet is
 CI's parallel PIT — but it closed the mutants it set out to close and left nine problems recorded
 rather than fixed.
 
-Decomposed into eight specs, ordered by dependency and blast radius. **13.08 lands last** because it
-is the only item that is an algorithm rather than debt-clearing.
+Originally decomposed into eight specs, ordered by dependency and blast radius. 13.09 adds the
+shared value-key follow-up; 13.08/A4 still needs its own algorithm implementation.
 
 **Most of these items exist because of one scoping rule: every 12.x spec scoped itself out of `core`.**
 The register's debt list and `core`'s debt list are the same list, which is why these were never
@@ -21,9 +21,11 @@ true — the guard is exactly `enabled.isEmpty()` and the call is redundant. Tha
 *same* removal at L126 **is** killed. Full argument under
 [Corrections](#corrections-to-the-register) item 3.
 
-## Status: active — 13.01–13.07 implemented; 13.08 deferred
+## Status: active — 13.01–13.07 and 13.09 implemented; 13.08 deferred
 
-PR #42 implements 13.01–13.07. Spec 13.08 remains a design note: its pairwise shortcut is a no-op,
+PR #42 implements 13.01–13.07. Follow-up 13.09 closes B1/B2 and preserves the 255/268 PIT aggregate
+while changing its per-class census (see [09](09-configuration-value-key.md#verification)).
+Spec 13.08 remains a design note: its pairwise shortcut is a no-op,
 and no property-preserving reduction has been implemented. The original planning decisions and
 dependency order below are retained as history; the deferred register records the remaining work.
 
@@ -135,15 +137,17 @@ the score with no new test. Consistency with that precedent is worth more than t
 |---|---|---|---|
 | [01-configuration-test-factory.md](01-configuration-test-factory.md) | `Configuration` test factory | D1 | **HIGH — unblocks the rest** |
 | [02-model-thread-dead-pc.md](02-model-thread-dead-pc.md) | `ModelThread` dead program counter | A1 | HIGH |
-| [03-canonical-configuration-key.md](03-canonical-configuration-key.md) | Key contract + `Configuration`'s predicates | B1, B2 mitigated; still open | **HIGH — highest risk** |
+| [03-canonical-configuration-key.md](03-canonical-configuration-key.md) | Key contract + `Configuration`'s predicates | B1, B2 mitigated here; closed by 13.09 | **HIGH — highest risk** |
 | [04-context-bounded-l187.md](04-context-bounded-l187.md) | `ContextBoundedExplorer` L187 | E4 | MED |
 | [05-dsl-encoding-completeness.md](05-dsl-encoding-completeness.md) | DSL encoding completeness | A2 | MED |
 | [06-thread-count-general-flags.md](06-thread-count-general-flags.md) | Thread-count-general flag arrays | A3 | LOW |
 | [07-conventions-and-process.md](07-conventions-and-process.md) | Conventions and process debt | D2, E1, E2 closed; E5 remains open | LOW |
 | [08-godefroid-source-set.md](08-godefroid-source-set.md) | Godefroid `source` set | A4 — **design note, not implemented** | **MED — its own session** |
+| [09-configuration-value-key.md](09-configuration-value-key.md) | Shared canonical configuration keys | B1, B2 | HIGH |
 
+13.09 is a follow-up to the original eight-spec plan. A4 (13.08) and E5 remain open.
 
-## Set-Exit Measurement
+## Historical Set-Exit Measurement (13.01–13.07)
 
 Taken on a full-scope run (`state.*` + `cb.*`) at set exit, not carried forward from any earlier spec:
 
@@ -165,7 +169,7 @@ it; this run is what settles it.
 `TIMED_OUT: 0` is a single-threaded local figure and **cannot speak to CI's parallel profile** — that is
 exactly what E5 is about, and it is why E5 stays open. See 07.
 
-268 is unchanged from 13.03, which is the expected result: 13.03 was the last item to touch a class
+At that exit, 268 was unchanged from 13.03: 13.03 was the last item to touch a class
 inside the scope, and everything after it was outside it by design.
 
 ## Dependency Graph
@@ -203,6 +207,7 @@ PIT's scope is `state.*` + `cb.*`. Everything else is ratchet-neutral *pending v
 | 13.06 | format/registry | — | verify |
 | 13.07 | docs + CI | — | neutral |
 | **13.08** | por | — | **may move — re-measure** |
+| **13.09** | core, search, por, dpor, format/dsl, **state, cb** | — | **per-class census moves; aggregate verified unchanged** |
 
 ## Set exit — floor re-derivation
 

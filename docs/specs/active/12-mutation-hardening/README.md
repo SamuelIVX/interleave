@@ -227,27 +227,22 @@ on disagreement (DEFERRED E1/E2). It does not parse or validate this Markdown ta
 compare the table with the emitted census and update it alongside the constants. Scoped runs compare
 only measured classes; a missing-class notice is meaningful only on a full run.
 
-The **current** column reflects set 12 and 13.03; the `c5fdcd0` figures are the pre-spec
-baseline. Every figure in the **current** column was re-verified against a single **full-scope** PIT run
-(`state.*` + `cb.*`, 268 mutants, 255 killed) at 2026-10-05, and all four rows match it exactly. That
-matters because a per-class figure is the same scoped or full-scope — verified on
-`ContextBoundedExplorer`, which reports 103/103 either way — so these numbers are scope-independent and
-only their dates matter. The `c5fdcd0` column does not match that run, because it predates every spec in
-this set; those figures are kept to show each class's starting point, not its present one. Each row
-carries its own measurement date, because a single date across rows would misattribute provenance:
+The **current** column reflects the full-scope 13.09 run on 2026-10-06:
+**268 mutants, 255 killed**, with the same 13 survivors as merged PR #42. The `c5fdcd0` column is
+historical. Scoped and full runs agree for each measured class; only full runs establish the aggregate.
 
-| class | at `c5fdcd0` | coverage | **current** | coverage | measured | moved by |
+| class | historical `c5fdcd0` | coverage | **current** | coverage | re-verified | moved by |
 |---|---|---|---|---|---|---|
-| `CanonicalEncoder` | 6/12 | 50.0% | **6/7** | **85.7%** | 2026-10-01 | 12.01 (denominator shrank) |
-| `HashingStateStore` | 46/61 | 75.4% | **52/61** | **85.2%** | 2026-10-02 | 12.02 |
-| `ContextBoundedExplorer` | 86/105 | 81.9% | **103/103** | **100.0%** | 2026-10-05 | 13.03 (denominator shrank) |
-| `BitstateStore` | 84/97 | 86.6% | **94/97** | **96.9%** | 2026-10-03 | 12.03 (+R6 close) |
+| `CanonicalEncoder` | 6/12 | 50.0% | **18/19** | **94.7%** | 2026-10-06 | 12.01 deletion; 13.09 shared keys |
+| `HashingStateStore` | 46/61 | 75.4% | **43/52** | **82.7%** | 2026-10-06 | 12.02 tests; 13.09 consolidation |
+| `ContextBoundedExplorer` | 86/105 | 81.9% | **100/100** | **100.0%** | 2026-10-06 | 13.03 predicate; 13.09 shared key |
+| `BitstateStore` | 84/97 | 86.6% | **94/97** | **96.9%** | 2026-10-06 | 12.03 (+R6 close) |
 
-`CanonicalEncoder` moved for a different reason than the other two: its denominator shrank, because
-12.01 deleted `equals` and its five unkillable mutants with it. The killed count did not change. Read
-that row as *dead code removed*, not *coverage earned*; the class total (7) is not comparable to the
-old one (12) without reading both. `HashingStateStore` and `BitstateStore` moved by genuinely killing
-mutants, and in both cases the survivors that remain are adjudicated rather than unexamined.
+12.01 removed dead encoder equality and five mutants without earning new kills. 12.02/12.03 killed
+real store mutants. In 13.09, moving private key derivations to `CanonicalEncoder` adds 12 killed
+encoder mutants and removes a net 9 killed store plus 3 killed CBS mutants. The overall kill count,
+population, and survivors stay unchanged; per-class percentage changes reflect the moved code.
+See [13.09's accounting](../13-deferred-debt/09-configuration-value-key.md#verification).
 
 ## Spec Set Structure
 

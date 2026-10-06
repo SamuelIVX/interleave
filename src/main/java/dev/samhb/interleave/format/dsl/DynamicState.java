@@ -422,9 +422,9 @@ public final class DynamicState implements SharedState {
      * Renders every declared field and local by name, for failure messages and oracle traces.
      *
      * <p>Not part of any contract — unlike {@link #hashCode()}, this may change freely. It must not be
-     * used to key a store: {@link dev.samhb.interleave.search.DfsExplorer} builds an unencoded
-     * bookkeeping key by string-concatenating {@code toString()} with the program counters, which is a
-     * debug aid rather than an identity.
+     * used to key a store or explorer result map: configuration value identity comes from
+     * {@link dev.samhb.interleave.state.CanonicalEncoder#configurationKey(Configuration)}, which
+     * snapshots the canonical state payload rather than this diagnostic rendering.
      *
      * @return a human-readable rendering of the configuration
      */

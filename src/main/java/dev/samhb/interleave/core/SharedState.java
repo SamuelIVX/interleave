@@ -12,6 +12,12 @@ import java.io.IOException;
  * distinct configurations compare equal. {@link #encodeTo} exists because hashing state for the
  * bitstate store needs a stable byte representation, and that representation must agree with
  * {@link Object#equals} or the store will prune states that are genuinely different.
+ *
+ * <p>{@link Object#toString()} is diagnostic-only. Its text may omit fields or include object
+ * identity and must never define visited-state identity or a collection key. Use
+ * {@link dev.samhb.interleave.state.CanonicalEncoder#configurationKey(Configuration)} for a
+ * configuration's value key; equal states must satisfy the encoding contract below regardless of
+ * how they render themselves.
  */
 public interface SharedState {
 

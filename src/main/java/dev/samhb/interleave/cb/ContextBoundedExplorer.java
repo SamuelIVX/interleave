@@ -4,6 +4,7 @@ import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.state.BitstateStore;
 import dev.samhb.interleave.state.HashingStateStore;
+import dev.samhb.interleave.state.CanonicalEncoder;
 
 import java.util.*;
 
@@ -26,6 +27,7 @@ public final class ContextBoundedExplorer {
     public static final int DEFAULT_MAX_PREEMPTIONS = 2;
 
     private final Map<String, Configuration> visitedStates = new LinkedHashMap<>();
+    private final CanonicalEncoder encoder = new CanonicalEncoder();
     private final List<Trace> traces = new ArrayList<>();
     private long statesExplored;
 
@@ -113,7 +115,7 @@ public final class ContextBoundedExplorer {
             return;
         }
         stateStore.markVisited(config, lastThreadId, currentPreemptions);
-        visitedStates.put(config.state() + "|" + config.programCounters() + "|" + lastThreadId, config);
+        visitedStates.put(encoder.configurationKey(config, lastThreadId), config);
         statesExplored++;
 
         if (stateVisitor != null) {

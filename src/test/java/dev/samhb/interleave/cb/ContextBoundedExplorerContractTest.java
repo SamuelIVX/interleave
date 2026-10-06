@@ -31,14 +31,15 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code equals} or {@code hashCode}, so it compares by identity. Any set of configurations built from
  * those objects measures object identity, not configurations, and silently reports nonsense — including
  * "every visited configuration is missing from the result". Everything below therefore compares
- * configurations by {@link #configKey(Configuration)}, the same value the explorer's own result map and
- * {@link HashingStateStore} use.
+ * configurations by {@link #configKey(Configuration)}, the canonical base identity. Tests comparing
+ * reachable configurations deliberately project away the last-thread component used by the explorer
+ * and store's scheduling keys; preemption-specific tests cover that component separately.
  */
 class ContextBoundedExplorerContractTest {
 
-    /** Canonical value identity of a configuration, matching the explorer's own result-map key. */
+    /** Canonical base identity, deliberately excluding scheduling context for membership comparisons. */
     private static String configKey(Configuration c) {
-        return c.state().toString() + "|" + c.programCounters();
+        return new dev.samhb.interleave.state.CanonicalEncoder().configurationKey(c);
     }
 
     private static BenchmarkProgram lostUpdate3t() {
