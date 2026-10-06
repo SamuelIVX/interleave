@@ -8,30 +8,34 @@ forgotten, and so the next person does not have to re-derive a finding from scra
 records what was found, the evidence, why it was deferred, what it costs if left, and what closing
 it would take.
 
-**Status as of 2026-10-03**, after 12.07, 12.01, 12.02, 12.05, 12.03, and 12.04 landed.
+**Original evidence as of 2026-10-03**, after 12.07, 12.01, 12.02, 12.05, 12.03, and 12.04 landed.
 Refs are `file:line` against `main` at `ba3fe01`. Every ref below was re-opened and re-verified at
 that commit rather than trusted from the previous pin; the base label was stale, the refs were not.
 
 ## Summary
 
-| ID | Issue | Kind | Severity | Owner |
+| ID | Issue | Kind | Severity | Status / owner |
 |---|---|---|---|---|
-| [A1](#a1) | `ModelThread.pc` is dead; `enabled()`/`terminated()` are correct only at pc 0 | dead code + trap | **med** | unassigned |
-| [A2](#a2) | `DynamicState.encodeTo` omits `decl` and `threadCount` | latent defect | **med** | specs 09/10 |
-| [A3](#a3) | `StateRegistry` hardcodes exactly 2 flags for `peterson`/`deadlock` | limitation | low | unassigned |
+| ~~[A1](#a1)~~ | `ModelThread.pc` is dead; `enabled()`/`terminated()` are correct only at pc 0 | dead code + trap | — | closed by 13.02 |
+| ~~[A2](#a2)~~ | `DynamicState.encodeTo` omits `decl` and `threadCount` | latent defect | — | closed by 13.05 |
+| ~~[A3](#a3)~~ | `StateRegistry` hardcodes exactly 2 flags for `peterson`/`deadlock` | limitation | — | closed by 13.06 |
 | [A4](#a4) | Sound `StaticPorExplorer` fix disables the reduction whenever an invariant is given | perf regression | low | unassigned |
 | [B1](#b1) | `SharedState.toString()` is not value-based — `DclState.instance` prints identity hash | latent trap | **med** | unassigned |
 | [B2](#b2) | `Configuration` has neither `equals` nor `hashCode` | design debt | low | unassigned |
 | ~~[C1](#c1)~~ | ~~R7 (no hash assertions) forbids the only way to kill 4 `BitstateStore` mutants~~ | **closed — premise was false** | — | closed 2026-10-03 |
-| [D1](#d1) | Building a `Configuration` fixture requires reflection | test tax | low | unassigned |
-| [D2](#d2) | No shared procedure for deriving expected values of numeric formulas | test tax | low | unassigned |
-| [E1](#e1) | Per-class PIT table drifted for two classes before 12.03 caught it | process | **med** | 12.06 — mitigated, not closed; see entry |
-| [E2](#e2) | Spec-recorded numbers go stale as sibling specs land | process | **med** | all future specs |
+| ~~[D1](#d1)~~ | Building a `Configuration` fixture requires reflection | test tax | — | closed by 13.01 |
+| ~~[D2](#d2)~~ | No shared procedure for deriving expected values of numeric formulas | test tax | — | closed by 13.07 |
+| ~~[E1](#e1)~~ | Per-class PIT table drifted for two classes before 12.03 caught it | process | — | closed by 13.07 |
+| ~~[E2](#e2)~~ | Spec-recorded numbers go stale as sibling specs land | process | — | closed by 13.07 |
 | ~~[E3](#e3)~~ | ~~`CanonicalEncoder`'s equivalent `flush()` mutant has no recorded PIT suppression~~ | **closed — reason now machine-readable** | — | closed 2026-10-03 |
-| [E4](#e4) | 1 mutant has no owning spec — `ContextBoundedExplorer` L187 | accounting | low | unassigned |
+| ~~[E4](#e4)~~ | 1 mutant has no owning spec — `ContextBoundedExplorer` L187 | accounting | — | closed by 13.04; subject removed in 13.03 |
 | [E5](#e5) | Ratchet can fail CI on a wall-clock timeout indistinguishable from a regression | process | **med** | first CI run of the 12.06 gate |
 
-Closed during this set, recorded so nobody re-investigates: [G1](#g1)–[G4](#g4).
+The entry evidence below is historical unless its status says otherwise. **Still open:** A4, B1, B2
+and E5. Spec 13.03 documents the B1/B2 hazards and consolidates one predicate; it does not change
+`DclState.toString()` or add a canonical value-identity API. C1 and E3 were already closed in set 12.
+
+Closed during set 12, recorded so nobody re-investigates: [G1](#g1)–[G4](#g4).
 
 ---
 
@@ -40,6 +44,9 @@ Closed during this set, recorded so nobody re-investigates: [G1](#g1)–[G4](#g4
 ### A1
 `ModelThread.pc` is dead, and `enabled()`/`terminated()` are correct only when every counter is 0
 {: #a1}
+
+**Status: closed by 13.02.** The dead counter and its accessors were removed. `Configuration`
+derives enabled and terminated facts from its own counters through one shared implementation.
 
 **What.** `ModelThread` carries a `private int pc` (`ModelThread.java:9`) that nothing ever advances.
 `advance()` (`ModelThread.java:44`) and `pc()` (`ModelThread.java:22`) have **zero callers** in
@@ -73,6 +80,10 @@ touches `core`, and every 12.x spec scoped itself out of `core`.
 `DynamicState.encodeTo` omits `decl` and `threadCount`
 {: #a2}
 
+**Status: closed by 13.05.** `DynamicState.encodeTo` now writes `threadCount` and the complete
+declaration, including names and initializers. `StateEncodingFidelityTest` covers their encoding
+parity with equality and records no remaining tracked gaps.
+
 **What.** Two fields are absent from the encoding, so two states differing only in them encode
 identically.
 
@@ -94,6 +105,11 @@ a search missing states rather than as an encoding bug. 12.07 landed the identic
 `StateRegistry` hardcodes exactly 2 flags for `peterson` and `deadlock`
 {: #a3}
 
+**Status: closed by 13.06.** `StateFactory.create` requires the declared thread count;
+`peterson`, `deadlock` and `counter` size their per-thread arrays from it. Three-thread tests cover
+construction, copying and encoding. The built-in Peterson mutual-exclusion invariant remains
+two-thread-only; widening that invariant is outside this closure.
+
 **What.** `StateRegistry.java:34` and `:58` both reject any `flags` array whose length is not 2, with
 the message *"must have exactly 2 elements"*.
 
@@ -111,17 +127,19 @@ the DSL specs alongside A2.
 The sound `StaticPorExplorer` fix gives up the speedup exactly when invariants are in play
 {: #a4}
 
-**Status: still open. 13.08 is a design note, not an implementation.** The obvious fix is
-a provable no-op: Godefroid's set is `source(c) ∪ dep(c)` and `source ⊆ dep` by definition, so unioning
-a pairwise source set into the existing acyclic set changes nothing for any configuration. The `source`
-term only earns its place via reverse reachability and multi-step independent *successors*, which
-`IndependenceRelation` cannot express. See `13-deferred-debt/08-godefroid-source-set.md`.
+**Status: still open. 13.08 is a design note, not an implementation.** Adding the note's
+`source_pair` (dependent on every other enabled thread) to the current computed set is a no-op,
+including its singleton and nonempty fallbacks. That restricted proof says nothing about a future
+path-level analysis. A4 needs both a persistence argument and preservation of the supplied invariant;
+independent writes alone can skip a state an arbitrary predicate rejects. The earlier claim that
+reverse reachability plus a source term necessarily restores all state reachability is withdrawn.
+See [13.08](../13-deferred-debt/08-godefroid-source-set.md).
 
 **What.** 12.07 found that static POR could return a **false pass** when given an invariant, and fixed
 it by applying `DporExplorer`'s existing guard: supplying an invariant disables the reduction. That is
 sound, and it forfeits the reduction precisely when an invariant is being checked.
 
-**Why deferred.** The real fix is a computed Godefroid `source` set, which keeps the reduction sound.
+**Why deferred.** The fix needs a specified, property-preserving reduction, not a pairwise set union.
 The 12.x set records this as *"a genuine algorithm with its own spec, not a patch"* — correctly, since
 a `source`-set computation is substantially larger than a guard.
 
@@ -129,8 +147,8 @@ a `source`-set computation is substantially larger than a guard.
 fail if the guard is removed.
 
 **To close.** Its own session and spec. Do not fold it into a cleanup set — the payoff is performance,
-the risk is reintroducing a false pass. Package note: this changes **`por/`**, not `search/` as recorded
-above; `StaticPorExplorer`, `PersistentSetComputer` and `IndependenceRelation` are all in `por/`.
+the risk is reintroducing a false pass. Package note: this changes **`por/`**;
+`StaticPorExplorer`, `PersistentSetComputer` and `IndependenceRelation` are all in `por/`.
 
 ---
 
@@ -139,6 +157,10 @@ above; `StaticPorExplorer`, `PersistentSetComputer` and `IndependenceRelation` a
 ### B1
 `SharedState.toString()` is not a value-based rendering
 {: #b1}
+
+**Status: still open; documented by 13.03.** `Configuration` now warns that its string bookkeeping
+keys are diagnostic, but `DclState.toString()` still prints object identity and `SharedState` has no
+general diagnostic-only rendering contract. The original closure options below remain available.
 
 **What.** `DclState.instance` holds a bare `Object` (`DclState.java:9`), so `DclState.toString()`
 (`:119`) prints its identity hash, which changes on every `deepCopy`. Two configurations the store
@@ -165,6 +187,10 @@ second is cheaper and arguably more correct — the first papers over the genera
 ### B2
 `Configuration` has neither `equals` nor `hashCode`
 {: #b2}
+
+**Status: still open; mitigated by 13.03.** The deadlock predicate has one derivation and the key
+shapes are documented, but configurations retain identity equality and callers still construct
+separate bookkeeping keys. The canonical value-key API proposed below was not implemented.
 
 **What.** Identity semantics. Confirmed: neither method is declared on `Configuration`.
 
@@ -301,6 +327,9 @@ The per-class PIT table drifted for two classes before 12.03 caught it
 figures beside the gate that computes them, and `mutationRatchet` prints a non-failing NOTICE on any
 disagreement. Verified firing and verified silent.
 
+The automatic comparison is XML versus `EXPECTED_PER_CLASS`, not XML versus Markdown. Reviewers
+still compare the spec table with the emitted census; the task does not validate table text.
+
 **What.** The 12.x README's per-class table still showed `HashingStateStore` at its pre-12.02 figure
 (46/61) after 12.02 had landed and taken it to 52/61. 12.03 found and corrected it, adding a
 `moved by` column.
@@ -407,6 +436,12 @@ both exist and why this mutant belongs to neither allow-list alone.
 ### E4
 One mutant has no owning spec — `ContextBoundedExplorer` L187
 {: #e4}
+
+**Status: closed by 13.04.** It records the equivalence proof: `ContextBoundedExplorer.dfs`
+already returned on `allTerminated()` before reaching this guard. The historical suggestion below
+that the removed call could emit deadlock on a completed configuration ignores that earlier return.
+Spec 13.03 consolidated the guard into `isDeadlockCandidate()` and removed the mutant's subject;
+13.04 therefore records the safe removal rather than adding a survivor-list entry.
 
 **What.** 12.05 assigned `L41`'s two `NO_COVERAGE` to 12.04 and recorded that *"the remaining 9 are
 unassigned and are a candidate for a future spec."* Those nine were L176 ×4, L187, L203 ×2, L204 and

@@ -193,10 +193,10 @@ not left implicit (per `AGENTS.md` §10: a stale doc is worse than none).
 ## Measured baseline
 
 Same config, same scope (`state.*` + `cb.*`), same 12 mutators, on both commits. All figures below
-are **[verified]** against `build/reports/pitest/mutations.xml` at each named commit; the current-run
-column was re-derived from the report rather than carried forward from an earlier draft.
+are **[verified]** against `build/reports/pitest/mutations.xml` at each named commit. This table is
+historical: it records the start of set 12 and the denominator change in 12.01, not the current gate.
 
-| | `313df44` (pre-Part-B) | `c5fdcd0` (post-Part-B) | delta | **post-12.01 (current)** |
+| | `313df44` (pre-Part-B) | `c5fdcd0` (post-Part-B) | delta | **post-12.01 (historical)** |
 |---|---|---|---|---|
 | total mutants | 275 | 275 | 0 | **270** |
 | `KILLED` | 221 | 222 | +1 | **222** |
@@ -211,21 +211,23 @@ unkillable mutants were deleted with the dead method. Deleting dead code raises 
 testing anything new, which is exactly why 12.06 must derive its floor from a post-remediation
 measurement rather than accept the highest number that has ever printed.
 
-`c5fdcd0` is the **current** baseline and the one every later number descends from; `313df44` is the
+`c5fdcd0` is the **historical pre-spec** baseline; `313df44` is the
 pre-Part-B run, retained because Spec 12.06 §R2's threshold argument turns on the difference between
 them. Neither figure is interchangeable with the other, and each numerator below moves with its own
 run's denominator — see Spec 12.06 §Three metrics, three denominators.
 
-The run's 53 non-killed mutants are exactly `SURVIVED` (39) + `NO_COVERAGE` (14) — both of which PIT
+The `c5fdcd0` run's 53 non-killed mutants are exactly `SURVIVED` (39) + `NO_COVERAGE` (14) — both of which PIT
 scores as *not* detected. The five statuses that score as detected without an assertion behind them
 are all zero, so the percentage is not inflated by wall-time or memory kills (see Spec 12.06).
 
-**Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`] — now also
-**cross-checked by the build**: `EXPECTED_PER_CLASS` in `build.gradle.kts` holds these same figures and
-`./gradlew mutationRatchet` prints a non-failing NOTICE whenever a recorded figure stops matching the
-measurement, so this table can no longer drift quietly (DEFERRED E1/E2). The
+**Per-class mutation coverage** [verified, `build/reports/pitest/mutations.xml`].
+`EXPECTED_PER_CLASS` in `build.gradle.kts` holds these same recorded figures, and
+`./gradlew mutationRatchet` compares the PIT report with those constants, printing a non-failing NOTICE
+on disagreement (DEFERRED E1/E2). It does not parse or validate this Markdown table: reviewers must
+compare the table with the emitted census and update it alongside the constants. Scoped runs compare
+only measured classes; a missing-class notice is meaningful only on a full run.
 
-**current** column reflects 12.01, 12.02, 12.03 and 12.04; the `c5fdcd0` figures are the pre-spec
+The **current** column reflects set 12 and 13.03; the `c5fdcd0` figures are the pre-spec
 baseline. Every figure in the **current** column was re-verified against a single **full-scope** PIT run
 (`state.*` + `cb.*`, 268 mutants, 255 killed) at 2026-10-05, and all four rows match it exactly. That
 matters because a per-class figure is the same scoped or full-scope — verified on

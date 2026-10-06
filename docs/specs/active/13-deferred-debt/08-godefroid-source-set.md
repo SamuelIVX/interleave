@@ -9,99 +9,100 @@ explorers' behaviour would change, so a full-scope measurement is still required
 
 12.07 found that static POR could return a **false pass** when given an invariant. `StaticPorExplorer`
 fixed it by branching over every enabled thread whenever an invariant is supplied
-(`StaticPorExplorer.java:185–187`), making the traversal identical to `DfsExplorer`'s. That is sound and
+(`StaticPorExplorer.porDfs`), making the traversal identical to `DfsExplorer`'s. That is sound and
 it forfeits the reduction exactly when an invariant is being checked.
 
-Correctness is fine and is now pinned by three tests that fail if the guard is removed. **A4's cost is
+Correctness is fine and is pinned by regression tests that fail if the guard is removed. **A4's cost is
 performance only.**
 
-Note the register says this changes `search/`; it does not. `StaticPorExplorer`,
-`PersistentSetComputer` and `IndependenceRelation` all live in **`por/`**. Small inaccuracy, worth
-correcting in the register since a reader scoping future work would look in the wrong package.
+The register identifies `por/` as the affected package. `StaticPorExplorer`,
+`PersistentSetComputer` and `IndependenceRelation` all live in **`por/`**.
 
 ## Why this is not done
 
-The implementation that 13.08's description invites is **a provable no-op.**
+**Only the pairwise shortcut below is proven to be a no-op.** It is not a definition of a sound
+Godefroid construction. An earlier version used `source(c)` for both this shortcut and an undefined
+relation between successor states; the subset proof for the first cannot establish anything about
+the second. The claims that reverse reachability is necessary and that adding a source term alone
+restores every reachable configuration are withdrawn.
 
-Godefroid's sound persistent set is
+Let `E = enabled(c)`. For valid configurations, each enabled thread has a non-null next step.
+Define `D_c(t,u)` using exactly the checks in `PersistentSetComputer.computePersistentSet`:
 
+```text
+D_c(t,u) = !areIndependent(nextStep(t), nextStep(u))
+           OR hasEnableDisableInterference(c, u, t, threads)
+
+source_pair(c) = { t ∈ E : ∀ u ∈ E\{t}, D_c(t,u) }
+dep_pair(c)    = { t ∈ E : ∃ u ∈ E\{t}, D_c(t,u) }
+
+P_current(c) = E                       if |E| <= 1
+               dep_pair(c)             if |E| >= 2 and dep_pair(c) ≠ ∅
+               { E[0] }                otherwise
 ```
-persistent(c) = source(c) ∪ dep(c)
 
-source(c) = { t ∈ enabled(c) : t is dependent on EVERY other enabled thread }
-dep(c)    = { t ∈ enabled(c) : t is dependent on AT LEAST ONE other enabled thread }
-```
+Enable-disable interference is directional; the argument order above matches the implementation.
+No successor-state membership rule is assigned to `source_pair` elsewhere in this note.
 
-**When two or more threads are enabled and at least one dependency exists**, `source(c)` is by
-definition a subset of `dep(c)`, so `source(c) ∪ dep(c) = dep(c)`. And in that case `dep(c)` is
-**what `PersistentSetComputer` already computes** (`PersistentSetComputer.java:60–74`): it adds a
-thread to the set when any other enabled thread is dependent on it by data conflict, or could disable
-it.
+The precise claim is **`P_current(c) ∪ source_pair(c) = P_current(c)`**:
 
-**The degenerate branches are separate cases and neither one is a subset argument.**
+- *No enabled threads*: both sets are empty.
+- *Exactly one enabled thread*: `dep_pair` is empty, `source_pair = E` by vacuous truth, and the
+  existing short-circuit returns `E`.
+- *At least two enabled threads and a dependency*: each thread has at least one other thread, so
+  the universal condition implies the existential one. Thus `source_pair ⊆ dep_pair = P_current`.
+- *At least two enabled threads and no dependencies*: both pairwise sets are empty. The existing
+  nonempty fallback returns `{E[0]}`, and unioning the empty `source_pair` leaves it unchanged.
 
-- *No dependencies at all* (two or more enabled, all pairwise independent): the "at least one"
-  quantifier in `dep(c)` finds nothing, so `dep(c) = ∅` — and so is `source(c)`, since no thread is
-  dependent on all the others when none are dependent on any. The union is **empty**, which does *not*
-  describe the computed set: the computer falls back to returning `enabled.get(0)`
-  (`PersistentSetComputer.java:88–90`). So `dep(c)` alone misdescribes this configuration, and any
-  argument resting on "`dep(c)` is what the computer returns" is simply false here.
-- *Exactly one enabled thread*: `dep(c) = ∅` for the same quantifier reason, while `source(c) = {t}`
-  because "every other" is vacuously true. Here `source(c) ⊄ dep(c)`. The union is not a no-op — it is
-  a no-op only because the short-circuit `if (enabled.size() <= 1) return enabled`
-  (`PersistentSetComputer.java:42–44`) already returns exactly `{t}`, which is `source(c)`.
-
-So there are three branches, and the no-op conclusion holds in all three for three different reasons —
-one subset argument and two fallbacks. Stating it as one unqualified claim would have left two of the
-three resting on something that does not hold.
-
-The practical consequence is the same either way: union the `source` set into the computed set and the
-result is unchanged for every configuration. The code would compile, pass every test, reduce no state
-count, and
-close the item on paper. That is the shape of change this register exists to prevent, and it is
-why 12.07's note that this is *"a genuine algorithm with its own spec, not a patch"* is correct rather
-than dramatic.
+Notice that `source_pair ∪ dep_pair` alone is empty in the last case and does **not** describe the
+computed set. The proof retains both implementation fallbacks. It rejects this particular local
+patch; it neither proves nor disproves a future reduction based on different information.
 
 ## What the real fix requires
 
-The `source` term earns its place only because it is computed by **reverse reachability**, not by a
-one-step pairwise test. Two things have to change together:
+**A path-level persistence condition.** Godefroid's Definition 4.1 considers sequences outside the
+chosen set, including later enabled transitions; Algorithm 1 grows a seed set until dependency closure
+or a conservative fallback. Current enabled-step comparisons do not establish that condition.
+See [Godefroid's thesis, §§4.1–4.3](https://patricegodefroid.github.io/public_psfiles/thesis.pdf#page=42).
 
-**1. Multi-step independence.** `source(c)` is defined against *independent successors*, not
-independent transitions:
+**A property-preservation argument.** Persistence alone does not imply visiting every intermediate
+state. State-predicate verification additionally needs dependencies that respect what the property
+can observe; see [the same thesis, §7.3](https://patricegodefroid.github.io/public_psfiles/thesis.pdf#page=104).
+Those are separate obligations, not a specified reverse-reachability implementation.
 
-```
-t ∈ source(c)  iff  there is no t' ∈ enabled(c)\{t} such that
-                     c -t'-> d'   and   c -t-> d   and   d and d' are independent successors
-```
+For this API the distinction is concrete. Start with flags `[false, false]` and two one-step threads:
+thread 0 writes flag 0, thread 1 writes flag 1. The writes are independent and both orders end at
+`[true, true]`. `P_current` chooses thread 0 first, visiting three of DFS's four configurations and
+omitting `[false, true]`. The invariant `flag(0) || !flag(1)` rejects precisely that omitted state.
+Even a persistent singleton can therefore miss this violation without property-aware handling.
 
-Checking whether `d` and `d'` are independent requires exploring *forward* from both successors and
-deciding whether their reachable futures can interfere. `IndependenceRelation` is a one-step
-read/write/enable-disable test over single steps, so it cannot answer that question. A genuine
-`source` set needs a notion of independent *successor states* — a different, larger relation.
-
-**2. `dep` is recursive, not one-shot.** Godefroid's `dep(c)` is defined with respect to the persistent
-set being constructed, refined as the set is built. `PersistentSetComputer` computes a single
-pairwise pass over all enabled threads and returns. Those are different functions with the same name.
-
-Either change alone is insufficient. Together they are the algorithm, and their interaction is the part
-that needs a proof rather than a pattern.
+`StaticPorExplorerTest.independentWritesStillNeedTheInvariantGuard` pins the missing membership and
+the violation found by both guarded POR and DFS. `Invariant` supplies an arbitrary callback with no
+read-set or visibility contract, so the current exhaustive fallback remains justified. A future spec
+must define how properties are preserved before it chooses a reduction algorithm or removes the guard.
 
 ## Before this can land
 
 - **An oracle.** `DfsExplorer` with an invariant, over the whole corpus, is the reference. The known
   figures to hit: `broken-peterson-v2` visits **55** reachable configurations (static POR currently 12),
-  `broken-peterson` visits **55** (currently 17). `double-checked-locking` and `torn-counter` likewise.
-- **A state-coverability property test**, not just counts. The count matching is necessary and not
-  sufficient — spec 12 already recorded a case where `double-checked-locking` had *equal* totals at 17
-  with different membership, which a count comparison cannot see. Any 13.08 test has to assert
-  membership, not size.
-- **The invariant guard must stay as a fallback** until the reduction is proven, and its three regression
+  `broken-peterson` visits **55** (currently 17), measured without an invariant in 12.07.
+  Runs with an invariant stop at violations, so their state membership must be compared against DFS
+  with the same invariant rather than against the untruncated totals.
+- **Property-preservation tests**, not just counts. Spec 12 recorded a case where
+  `double-checked-locking` had *equal* totals at 17 with different membership. Compare invariant
+  verdicts against DFS and pin the relevant violating-state membership with targeted examples.
+  Require complete membership equality only if the future spec promises full configuration coverage.
+- **The invariant guard must stay as a fallback** until the reduction is proven, and its regression
   tests must remain green. The guard is what makes shipping a partially-correct reduction survivable.
-- **A decision on the residual.** Even a sound `source` set gives state reachability, not trace
-  completeness — the existing Javadoc's point at lines 50–63 stands and should not be quietly dropped.
+- **A decision on the residual.** Property-preserving reduction does not promise complete state or
+  trace enumeration. If the intended contract is full configuration coverage instead, state that
+  stronger requirement explicitly and prove it; do not infer it from persistence.
 
 ## Recommendation
+
+**Counterexample verification:** the new test passes with the guard, fails when `porDfs` is temporarily
+forced to use the reduced branch set under an invariant (three visited configurations instead of the
+oracle's four), and passes again after restoring the guard. No reduction algorithm changed here.
 
 Take this as its own session with its own spec, as the register originally said. Do not fold it into
 set 13.06 or a later cleanup — the payoff is performance, the risk is reintroducing a false pass, and

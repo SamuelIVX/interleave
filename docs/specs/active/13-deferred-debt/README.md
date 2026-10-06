@@ -21,9 +21,11 @@ true — the guard is exactly `enabled.isEmpty()` and the call is redundant. Tha
 *same* removal at L126 **is** killed. Full argument under
 [Corrections](#corrections-to-the-register) item 3.
 
-## Status: active — planned, not implemented
+## Status: active — 13.01–13.07 implemented; 13.08 deferred
 
-No spec in this set has been implemented. Each lands as its own PR, in the order below.
+PR #42 implements 13.01–13.07. Spec 13.08 remains a design note: its pairwise shortcut is a no-op,
+and no property-preserving reduction has been implemented. The original planning decisions and
+dependency order below are retained as history; the deferred register records the remaining work.
 
 ## Corrections to the register
 
@@ -133,7 +135,7 @@ the score with no new test. Consistency with that precedent is worth more than t
 |---|---|---|---|
 | [01-configuration-test-factory.md](01-configuration-test-factory.md) | `Configuration` test factory | D1 | **HIGH — unblocks the rest** |
 | [02-model-thread-dead-pc.md](02-model-thread-dead-pc.md) | `ModelThread` dead program counter | A1 | HIGH |
-| [03-canonical-configuration-key.md](03-canonical-configuration-key.md) | Canonical key + `Configuration`'s predicates | B1, B2 | **HIGH — highest risk** |
+| [03-canonical-configuration-key.md](03-canonical-configuration-key.md) | Key contract + `Configuration`'s predicates | B1, B2 mitigated; still open | **HIGH — highest risk** |
 | [04-context-bounded-l187.md](04-context-bounded-l187.md) | `ContextBoundedExplorer` L187 | E4 | MED |
 | [05-dsl-encoding-completeness.md](05-dsl-encoding-completeness.md) | DSL encoding completeness | A2 | MED |
 | [06-thread-count-general-flags.md](06-thread-count-general-flags.md) | Thread-count-general flag arrays | A3 | LOW |

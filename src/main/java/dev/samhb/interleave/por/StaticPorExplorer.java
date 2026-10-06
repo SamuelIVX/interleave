@@ -10,7 +10,7 @@ import java.util.*;
  *
  * <p>Instead of stepping every enabled thread at every configuration, this computes the
  * {@link PersistentSetComputer persistent set} for each configuration — a subset of the enabled threads
- * that can reach the same reachable states — and branches only over that. Soundness rests on
+ * selected by current-step dependencies — and branches only over that. The reduction relies on
  * {@link IndependenceRelation}: two steps that neither read nor write each other's locations commute,
  * so an interleaving that runs them in one order has an equivalent with the other order removed.
  *
@@ -26,8 +26,9 @@ import java.util.*;
  * with no invariant against with, the shortfall is 9 configurations on each of {@code broken-peterson}
  * and {@code broken-peterson-v2}, 9 on {@code double-checked-locking} — where the totals happen to be
  * equal at 17 and only the membership differs, so a count comparison would not reveal it — and 1 on
- * {@code torn-counter}. A caller needing every reachable configuration visited must run with a null
- * invariant and inspect the traces, not supply one.
+ * {@code torn-counter}. A caller needing every reachable configuration visited must use
+ * {@link dev.samhb.interleave.search.DfsExplorer} with a null invariant; this explorer's unguarded
+ * reduction does not provide that coverage either.
  *
  * <p>Note the asymmetry that makes exhaustive detection the property worth having: a missed configuration
  * reachable only past a violation costs nothing, because the violation itself has already been reported.
@@ -36,11 +37,11 @@ import java.util.*;
  *
  * <p><b>Why the reduction cannot be kept under an invariant.</b> The persistent set computed by
  * {@link PersistentSetComputer} is the <em>acyclic</em> set: a thread is retained only when it is
- * dependent on another enabled thread, otherwise one arbitrary enabled thread is returned. Godefroid's
- * sound construction is {@code source(c)} union the dependent set, where {@code source(c)} comes from a
- * reverse-reachability analysis. Without that {@code source} term the construction preserves the
- * <em>existence</em> of a deadlock but not state reachability, so a violation reachable only through
- * pruned interleavings is never reported. Measured before this guard: {@code broken-peterson-v2} yielded
+ * dependent on another enabled thread, otherwise one arbitrary enabled thread is returned. This
+ * pairwise rule does not establish preservation of arbitrary state predicates: commuting steps can
+ * have different intermediate states, and a predicate can reject one of them. A violation reachable
+ * only through pruned interleavings is then never reported. Measured before this guard:
+ * {@code broken-peterson-v2} yielded
  * 5 violating configurations under {@link dev.samhb.interleave.search.DfsExplorer} and
  * {@link TraceOutcome#COMPLETED} here — a false pass on a program whose expected verdict is
  * {@link TraceOutcome#VIOLATION} — while {@code broken-peterson} missed 4 of 5 and
@@ -54,13 +55,14 @@ import java.util.*;
  * method, restores them. A caller needing a specific schedule in the output must use
  * {@link dev.samhb.interleave.search.DfsExplorer}, with or without an invariant.
  *
- * <p>What a real Godefroid {@code source} set <em>would</em> repair is the different and more useful
- * property, <b>state reachability</b>. Measured with no invariant, the acyclic set is not
+ * <p>A future reduction needs a <b>property-preservation proof</b>, not merely a larger pairwise set.
+ * Measured with no invariant, the current set is not
  * reachability-complete: {@code broken-peterson-v2} visits 12 of 55 reachable configurations and
  * {@code broken-peterson} 17 of 55, so a configuration can be pruned away entirely. Adding the
- * {@code source} term would make every reachable configuration visited, which is precisely what would
- * let the reduction be kept while an invariant is checked — the trade-off made above would not be
- * needed. Complete configuration coverage is still not complete interleaving coverage.
+ * pairwise "dependent on every other enabled thread" set leaves the existing set unchanged, and
+ * persistence alone does not guarantee complete configuration coverage. Spec 13.08 records the
+ * restricted no-op proof and an independent-write counterexample. The guard remains until a future
+ * design establishes preservation of the supplied invariant.
  *
  * <p>Like the other explorers, this keys visited states through a {@link dev.samhb.interleave.state.HashingStateStore}
  * by default, so its visited set inherits that store's encoding fidelity.
@@ -173,15 +175,15 @@ public final class StaticPorExplorer {
         // Soundness guard: an invariant is a user-supplied predicate over states, so the reduction
         // cannot be sound for it. The persistent set computed here is the *acyclic* set, which keeps a
         // thread only when it is dependent on another enabled thread and otherwise returns one
-        // arbitrary enabled thread. That preserves the existence of a deadlock but NOT state
-        // reachability, so configurations reachable only through pruned interleavings are never
+        // arbitrary enabled thread. That does not establish arbitrary invariant preservation,
+        // so configurations reachable only through pruned interleavings are never
         // visited and a violation there is never reported. Measured before this guard:
         // broken-peterson-v2 reported COMPLETED where DfsExplorer reported VIOLATION.
         //
         // So branch over every enabled thread whenever an invariant is present, which makes this
         // traversal identical to DfsExplorer's and the invariant check exhaustive over the
         // reachable configurations. DporExplorer takes the same trade-off for the same reason.
-        // See computePersistentSet for the proper fix, which is a real Godefroid source set.
+        // See spec 13.08 for why a pairwise source-set union does not justify removing the guard.
         List<Integer> branchSet = invariant == null
             ? persistentSetComputer.computePersistentSet(config, program.threads())
             : config.enabledThreadIds();

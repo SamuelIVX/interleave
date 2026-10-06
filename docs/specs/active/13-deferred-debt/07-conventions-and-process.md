@@ -36,6 +36,10 @@ again immediately when 13.03 changed `ContextBoundedExplorer`'s denominator: the
 So the expectation moved next to the thing that computes it. `EXPECTED_PER_CLASS` in `build.gradle.kts`
 holds the four figures, and every run prints any disagreement.
 
+On a scoped run, classes omitted by `-PpitestTargetOverride` are intentionally absent and do not
+produce missing-class notices. Mismatches for classes that did run still produce notices. Full runs
+retain both mismatch and missing-class notices.
+
 **Deliberately not a gate.** A legitimate spec change should not turn CI red because a documentation
 table moved; this notice says a human-maintained figure has drifted, which is a prompt to update two
 files in one commit. It is a notice, not a claim about correctness — D4's rule.
@@ -64,8 +68,9 @@ a class that moved by *shrinking its denominator* from one that moved by *killin
 conflating the two is the confusion E1 was recorded for. `13.03` deleted two mutants, one killed and
 one survived — 256→255 and 14→13 both moved — so the row is dead code removed, not coverage earned.
 
-The table now carries a pointer saying the build cross-checks it, so the next reader knows the figure is
-watched rather than trusted.
+The table now points to the build's comparison between the XML census and `EXPECTED_PER_CLASS`.
+The task does not parse Markdown; reviewers must compare the table with the emitted census and keep
+it aligned with those constants. Only drift in the recorded build constants is detected automatically.
 
 ## E5 — not closed, and cannot be from here
 
@@ -77,8 +82,9 @@ E5 is recorded as open, on purpose. Its closure condition is empirical and this 
 
 Every local measurement in this project is single-threaded, because `AGENTS.md` mandates
 `--max-workers=1 -PpitestThreads=1`. CI deliberately runs in parallel. So the load profile that would
-produce a spurious `TIMED_OUT` is precisely the profile no local run can speak to — including the 256/270
-floor that the whole ratchet rests on.
+produce a spurious `TIMED_OUT` is precisely the profile no local run can speak to — including the current
+255/268 measurement against the frozen 94% floor. The earlier 256/270 measurement is historical;
+13.03 removed one killed mutant and one survivor.
 
 Closing E5 needs accumulated evidence from repeated parallel CI runs, which is not a thing a spec can
 assert about itself. Marking it closed here would be exactly the kind of unearned claim this register
@@ -113,4 +119,15 @@ register entry claiming D1 is open would have had it re-picked-up for work alrea
 **Suite: 480 tests, 0 failures** — unchanged, as expected for a build-script and documentation item.
 `mutationRatchet` verified in both drift states as shown above.
 
-No test covers a Gradle task, so nothing was added; the proof is the two runs above.
+The review fix was validated against the real `mutationRatchet` task with isolated XML reports:
+
+| Population | Expected diagnostic | Result |
+|---|---|---|
+| Scoped, `CanonicalEncoder` 6/7 | no drift notice for omitted classes | PASS |
+| Scoped, `CanonicalEncoder` 5/7 | mismatch notice; no omitted-class notice | PASS |
+| Full, all recorded counts | no drift notice | PASS |
+| Full, expected class replaced at identical totals | missing-class notice; gate still passes | PASS |
+
+Before the fix, both scoped cases failed the diagnostic assertions because they reported intentional
+omissions as drift. These are build-configuration checks using temporary reports, not application
+unit tests; the actual scoped and full PIT runs are verified separately.

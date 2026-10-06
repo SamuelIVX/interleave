@@ -1,7 +1,8 @@
 # 03 — Canonical configuration key and predicates
 
 **Status:** implemented
-**Closes:** B1, B2 (`12-mutation-hardening/DEFERRED.md`)
+**Addresses:** B1, B2 (`12-mutation-hardening/DEFERRED.md`) — documentation and predicate mitigation;
+the register's value-rendering/value-key closure criteria remain open.
 **Mutation scope:** yes — `ContextBoundedExplorer` is `cb.*`. This spec **moves the total and the
 score**. See [Mutation impact](#mutation-impact), and read that section before quoting any number.
 

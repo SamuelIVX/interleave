@@ -591,7 +591,9 @@ tasks.register("mutationRatchet") {
             val measured = perClass[cls]?.let { "${it[1]}/${it[0]}" }
             if (measured != null && measured != recorded) (cls to (recorded to measured)) else null
         }
-        val missing = EXPECTED_PER_CLASS.keys.filterNot { perClass.containsKey(it) }
+        // A scoped population intentionally omits other classes; only a full run can lose one.
+        val missing = if (isScopedRun) emptyList()
+            else EXPECTED_PER_CLASS.keys.filterNot { perClass.containsKey(it) }
         if (drifted.isNotEmpty() || missing.isNotEmpty()) {
             println()
             println("  NOTICE — recorded per-class figures have drifted (not a gate; see D4):")
