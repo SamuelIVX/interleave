@@ -10,7 +10,15 @@ import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/** Checks built-in modeled footprints against state effects and enabling dependencies. */
 class StepFootprintTest {
+    /**
+     * Verifies that footprints cover changed values and execution dependencies.
+     * @param step modeled transition to inspect
+     * @param state shared state to inspect or mutate according to this operation
+     * @param reads expected modeled read footprint
+     * @param writes expected modeled write footprint
+     */
     @ParameterizedTest
     @MethodSource("modeledEffects")
     void footprintsCoverChangedValuesAndExecutionDependencies(
@@ -22,6 +30,10 @@ class StepFootprintTest {
         assertTrue(step.writes().containsAll(writes), "missing modeled write: " + writes);
     }
 
+    /**
+     * Supplies modeled transitions and their independently expected dependency footprints.
+     * @return fixture arguments with independently expected read and write sets
+     */
     private static Stream<Arguments> modeledEffects() {
         DclState locked = DclState.of(false);
         locked.lock(0);
@@ -37,6 +49,11 @@ class StepFootprintTest {
         );
     }
 
+    /**
+     * Builds the expected modeled-location set from stable names.
+     * @param names modeled memory-location names
+     * @return set of named modeled memory locations
+     */
     private static Set<MemoryLocation> locations(String... names) {
         return Stream.of(names).map(MemoryLocation::of).collect(java.util.stream.Collectors.toSet());
     }

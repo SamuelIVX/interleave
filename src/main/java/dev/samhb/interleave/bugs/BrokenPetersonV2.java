@@ -1,10 +1,19 @@
+/** Builds the second intentionally broken Peterson mutual-exclusion benchmark. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.Invariant;
 import java.util.List;
 
+/** Builds the second intentionally broken Peterson mutual-exclusion benchmark. */
 public final class BrokenPetersonV2 {
+    /** Creates broken peterson v2 with its default configuration. */
+    public BrokenPetersonV2() {}
+
+    /**
+     * Returns this benchmark’s modeled threads and initial shared state.
+     * @return new benchmark program and initial state
+     */
     public static BenchmarkProgram program() {
         PetersonState initial = PetersonState.of(false, false, 0);
 
@@ -33,6 +42,10 @@ public final class BrokenPetersonV2 {
         return new BenchmarkProgram("broken-peterson-v2", program, "VIOLATION", invariant);
     }
 
+    /**
+     * Returns the property that forbids overlapping critical sections.
+     * @return property rejecting overlapping critical-section ownership
+     */
     private static Invariant mutualExclusion() {
         return (state, config) -> {
             PetersonState ps = (PetersonState) state;

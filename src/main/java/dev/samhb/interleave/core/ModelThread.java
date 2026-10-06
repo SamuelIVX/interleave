@@ -1,3 +1,4 @@
+/** A thread's id and its ordered steps. */
 package dev.samhb.interleave.core;
 
 import java.util.List;
@@ -15,19 +16,34 @@ import java.util.List;
  * {@code docs/specs/active/13-deferred-debt/02-model-thread-dead-pc.md}.
  */
 public final class ModelThread {
+    /** Id. */
     private final int id;
+    /** Steps. */
     private final List<Step> steps;
 
+    /**
+     * Creates model thread from the supplied values.
+     * @param id zero-based modeled thread ID
+     * @param steps ordered atomic steps for this thread
+     */
     public ModelThread(int id, List<Step> steps) {
         if (steps == null) throw new IllegalArgumentException("steps must not be null");
         this.id = id;
         this.steps = List.copyOf(steps);
     }
 
+    /**
+     * Returns id for this model thread.
+     * @return zero-based thread identifier
+     */
     public int id() {
         return id;
     }
 
+    /**
+     * Returns steps for this model thread.
+     * @return immutable ordered atomic steps
+     */
     public List<Step> steps() {
         return steps;
     }

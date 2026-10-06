@@ -1,3 +1,4 @@
+/** Runs the full benchmark suite across all programs and strategies. Each program is executed with all four strategies (DFS, STATIC_POR, DPOR, CONTEXT_BOUNDED) using both exact ({@link HashingStateStore}) and bitstate ({@link BitstateStore}) state stores, producing 8 results per program. */
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
@@ -23,16 +24,26 @@ import java.util.*;
  * ({@link BitstateStore}) state stores, producing 8 results per program.
  */
 public final class BenchmarkHarness {
+    /** Default bitstate size. */
     private static final int DEFAULT_BITSTATE_SIZE = 1_000_003;
+    /** Default bitstate k. */
     private static final int DEFAULT_BITSTATE_K = 4;
+    /** Default max preemptions. */
     private static final int DEFAULT_MAX_PREEMPTIONS = ContextBoundedExplorer.DEFAULT_MAX_PREEMPTIONS;
+    /** Context bounded. */
     private static final String CONTEXT_BOUNDED = "CONTEXT_BOUNDED";
 
+    /** Bitstate size. */
     private final int bitstateSize;
+    /** Bitstate k. */
     private final int bitstateK;
+    /** Max preemptions. */
     private final int maxPreemptions;
+    /** Iterative deepening. */
     private final boolean iterativeDeepening;
+    /** Store filter. */
     private final Set<StoreType> storeFilter;
+    /** Strategy filter. */
     private final Set<String> strategyFilter;
 
     /**
@@ -211,8 +222,21 @@ public final class BenchmarkHarness {
         return results;
     }
 
+    /**
+     * Context-bounded exploration result paired with the bound used for the run.
+     * @param result completed exploration result
+     * @param store visited-position store for this run
+     * @param preemptionsUsed preemption bound used, or null for an unbounded strategy
+     */
     private record CbRun(DfsResultWithTiming result, StateStore store, Integer preemptionsUsed) {}
 
+    /**
+     * Runs the selected context-bounded policy with an isolated visited-position store.
+     * @param program modeled program whose threads are explored
+     * @param invariant property to check, or null when no property is supplied
+     * @param store visited-position store for this run
+     * @return context-bounded exploration result for the configured policy
+     */
     private CbRun runCbsSingle(Program program, Invariant invariant, StateStore store) {
         ContextBoundedExplorer explorer = new ContextBoundedExplorer();
         DfsResultWithTiming result = runExplorer(
@@ -226,6 +250,10 @@ public final class BenchmarkHarness {
      * would make deepening narrow instead of widen, since states recorded at bound 0 satisfy
      * {@code min <= p} and would be pruned at bound 1. That is caught here, and here, because the
      * harness builds its own factory per store type.
+     * @param program modeled program whose threads are explored
+     * @param invariant property to check, or null when no property is supplied
+     * @param storeFactory supplier returning a fresh store for each preemption bound
+     * @return first failing or exhaustive exploration with its bound, or the final bounded result
      */
     private CbRun runCbsIterative(Program program, Invariant invariant,
                                   java.util.function.Supplier<StateStore> storeFactory) {
@@ -265,11 +293,28 @@ public final class BenchmarkHarness {
         return last;
     }
 
+    /**
+     * Reports whether exploration found a violation or deadlock.
+     * @param result completed exploration result
+     * @return true if a violation or deadlock was recorded
+     */
     private static boolean isFailure(DfsResult result) {
         return result.traces().stream().anyMatch(t ->
             t.outcome() == TraceOutcome.VIOLATION || t.outcome() == TraceOutcome.DEADLOCK);
     }
 
+    /**
+     * Combines exploration outcomes and measured store diagnostics into a benchmark row.
+     * @param strategy exploration strategy used for these results
+     * @param bugName benchmark program name
+     * @param result completed exploration result
+     * @param verdict reported exploration verdict
+     * @param failingTrace representative failure trace, or null when absent
+     * @param storeType visited-store strategy represented by this row
+     * @param store visited-position store for this run
+     * @param preemptionsUsed preemption bound used, or null for an unbounded strategy
+     * @return benchmark row preserving verdict, trace, measurements, and store diagnostics
+     */
     private BenchmarkResult createResult(String strategy, String bugName,
                                           DfsResultWithTiming result, String verdict,
                                           Trace failingTrace, StoreType storeType,
@@ -372,6 +417,9 @@ public final class BenchmarkHarness {
 
     /**
      * Carries a DfsResult along with timing and memory measurements.
+     * @param result completed exploration result
+     * @param wallTimeMs elapsed exploration time in milliseconds
+     * @param heapDeltaBytes observed heap delta in bytes
      */
     private record DfsResultWithTiming(DfsResult result, long wallTimeMs, long heapDeltaBytes) {}
 }

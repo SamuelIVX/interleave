@@ -1,3 +1,4 @@
+/** Pure function {@code (rng, config) -> Program}. */
 package dev.samhb.interleave.corpus;
 
 import dev.samhb.interleave.core.Program;
@@ -11,18 +12,19 @@ import java.util.Random;
  */
 public interface CorpusTemplate {
     /**
+     * *
      * @return template id (e.g., "lost-update")
      */
     String id();
 
     /**
+     * *
      * @return human-readable description
      */
     String description();
 
     /**
      * Generates a program.
-     *
      * @param rng random source, seeded by caller
      * @param config generation config
      * @return program

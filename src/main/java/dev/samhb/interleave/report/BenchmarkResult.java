@@ -1,3 +1,4 @@
+/** Immutable result of a single benchmark run (one strategy + one store type). */
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.search.Trace;
@@ -7,17 +8,29 @@ import java.util.Optional;
  * Immutable result of a single benchmark run (one strategy + one store type).
  */
 public final class BenchmarkResult {
+    /** Strategy. */
     private final String strategy;
+    /** Bug name. */
     private final String bugName;
+    /** States explored. */
     private final long statesExplored;
+    /** Wall time ms. */
     private final long wallTimeMs;
+    /** Heap delta bytes. */
     private final long heapDeltaBytes;
+    /** Verdict. */
     private final String verdict;
+    /** Failing trace. */
     private final Trace failingTrace;
+    /** Store type. */
     private final StoreType storeType;
+    /** Estimated false positive rate. */
     private final double estimatedFalsePositiveRate;
+    /** Bitstate bit count. */
     private final int bitstateBitCount;
+    /** Bitstate bit density. */
     private final double bitstateBitDensity;
+    /** Preemptions used. */
     private final Integer preemptionsUsed;
 
     /**
@@ -117,6 +130,17 @@ public final class BenchmarkResult {
      * @param preemptionsUsed the preemption bound the search actually ran at, or null for
      *        strategies that have no bound. Boxed because {@code null} is meaningful and must stay
      *        distinct from {@code 0}, which is a legal bound.
+     * @param strategy exploration strategy used for these results
+     * @param bugName benchmark program name
+     * @param statesExplored number of explored configurations
+     * @param wallTimeMs elapsed exploration time in milliseconds
+     * @param heapDeltaBytes observed heap delta in bytes
+     * @param verdict reported exploration verdict
+     * @param failingTrace representative failure trace, or null when absent
+     * @param storeType visited-store strategy represented by this row
+     * @param estimatedFalsePositiveRate estimated Bloom-filter false-positive rate; zero for an exact store
+     * @param bitstateBitCount number of set bits in the Bloom filter
+     * @param bitstateBitDensity fraction of Bloom-filter bits that are set
      */
     public BenchmarkResult(String strategy, String bugName, long statesExplored,
                            long wallTimeMs, long heapDeltaBytes, String verdict,
@@ -140,7 +164,7 @@ public final class BenchmarkResult {
     /**
      * Returns the strategy name.
      *
-     * @return the strategy (e.g., "DFS", "STATIC_POR", "DPOR")
+     * @return strategy used to produce this result
      */
     public String strategy() {
         return strategy;
@@ -158,7 +182,7 @@ public final class BenchmarkResult {
     /**
      * Returns the number of states explored.
      *
-     * @return states explored count
+     * @return number of visited search positions
      */
     public long statesExplored() {
         return statesExplored;
@@ -167,7 +191,7 @@ public final class BenchmarkResult {
     /**
      * Returns the wall-clock time in milliseconds.
      *
-     * @return wall time in ms
+     * @return elapsed wall-clock time in milliseconds
      */
     public long wallTimeMs() {
         return wallTimeMs;
@@ -176,7 +200,7 @@ public final class BenchmarkResult {
     /**
      * Returns the heap memory delta in bytes.
      *
-     * @return heap delta in bytes
+     * @return observed heap-usage difference in bytes; may be negative after garbage collection
      */
     public long heapDeltaBytes() {
         return heapDeltaBytes;

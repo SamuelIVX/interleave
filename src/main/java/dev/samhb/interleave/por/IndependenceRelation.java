@@ -6,6 +6,9 @@ import java.util.*;
 
 /** Alias-aware access comparison; soundness requires complete stable modeled footprints. */
 public final class IndependenceRelation {
+    /** Creates independence relation with its default configuration. */
+    public IndependenceRelation() {}
+
     /**
      * Checks whether complete step accesses have no cross-thread write conflict.
      * @param a first action, including guard and outcome dependencies
@@ -63,7 +66,12 @@ public final class IndependenceRelation {
         return false;
     }
 
-    /** Tests one location against an over-approximated access set, including array-base aliases. */
+    /**
+     * Tests one location against an over-approximated access set, including array-base aliases.
+     * @param loc modeled location to check for aliases
+     * @param set conservative access locations to compare against
+     * @return true if the location aliases any member of the access set
+     */
     private static boolean conflictsWithAny(dev.samhb.interleave.core.MemoryLocation loc, Set<dev.samhb.interleave.core.MemoryLocation> set) {
         for (dev.samhb.interleave.core.MemoryLocation other : set) {
             if (conflicts(loc, other)) return true;
@@ -71,7 +79,12 @@ public final class IndependenceRelation {
         return false;
     }
 
-    /** An array base may alias any element, while distinct literal elements remain disjoint. */
+    /**
+     * An array base may alias any element, while distinct literal elements remain disjoint.
+     * @param a first modeled location
+     * @param b second modeled location
+     * @return true for equal names or an array-base/element alias
+     */
     private static boolean conflicts(dev.samhb.interleave.core.MemoryLocation a, dev.samhb.interleave.core.MemoryLocation b) {
         String an = a.toString();
         String bn = b.toString();
@@ -90,31 +103,31 @@ public final class IndependenceRelation {
      */
     public boolean hasEnableDisableInterference(Configuration config, int threadA, int threadB, List<ModelThread> threads) {
         if (threadA == threadB) return false;
-        
+
         ModelThread threadAType = threads.get(threadA);
         ModelThread threadBType = threads.get(threadB);
-        
+
         int pcA = config.programCounters().get(threadA);
         int pcB = config.programCounters().get(threadB);
-        
+
         if (pcA >= threadAType.steps().size() || pcB >= threadBType.steps().size()) {
             return false;
         }
-        
+
         Step stepA = threadAType.steps().get(pcA);
         Step stepB = threadBType.steps().get(pcB);
-        
+
         if (!stepA.enabled(config.state())) {
             return false;
         }
-        
+
         boolean bEnabledBefore = stepB.enabled(config.state());
-        
+
         SharedState nextState = config.state().deepCopy();
         stepA.execute(nextState);
-        
+
         boolean bEnabledAfter = stepB.enabled(nextState);
-        
+
         return bEnabledBefore != bEnabledAfter;
     }
 }

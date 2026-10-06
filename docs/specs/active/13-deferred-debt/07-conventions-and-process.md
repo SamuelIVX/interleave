@@ -131,3 +131,10 @@ The review fix was validated against the real `mutationRatchet` task with isolat
 Before the fix, both scoped cases failed the diagnostic assertions because they reported intentional
 omissions as drift. These are build-configuration checks using temporary reports, not application
 unit tests; the actual scoped and full PIT runs are verified separately.
+
+## Follow-up evidence in 13.10
+
+Six full-scope parallel CI runs across PRs #42–44 passed with three PIT workers and zero timeout or
+execution-error statuses. [13.10](10-parallel-ci-and-documentation.md) records each run and the
+agreed closure criterion: those runs plus passing parallel CI on the final change. E5 remains open
+until that final check; the strict gate and adjudication procedure above remain in force.

@@ -1,10 +1,19 @@
+/** Builds the benchmark whose pair reads can observe a torn counter value. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.Invariant;
 import java.util.List;
 
+/** Builds the benchmark whose pair reads can observe a torn counter value. */
 public final class TornCounter {
+    /** Creates torn counter with its default configuration. */
+    public TornCounter() {}
+
+    /**
+     * Returns this benchmark’s modeled threads and initial shared state.
+     * @return new benchmark program and initial state
+     */
     public static BenchmarkProgram program() {
         PairState initial = PairState.of(0, 0);
 

@@ -12,13 +12,16 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+/** Checks unknown observations and immutable opt-in state-property metadata. */
 class InvariantObservationTest {
+    /** Verifies that ordinary callbacks have unknown observations. */
     @Test
     void ordinaryCallbacksHaveUnknownObservations() {
         Invariant callback = (state, config) -> config.allTerminated();
         assertTrue(callback.observedLocations().isEmpty());
     }
 
+    /** Verifies that observing snapshots locations and evaluates the state predicate. */
     @Test
     void observingSnapshotsLocationsAndEvaluatesTheStatePredicate() {
         Set<MemoryLocation> locations = new HashSet<>(Set.of(MemoryLocation.of("flag[0]")));
@@ -33,6 +36,7 @@ class InvariantObservationTest {
         assertFalse(property.holds(after.state(), after));
     }
 
+    /** Verifies that constant state properties have known empty observations. */
     @Test
     void constantStatePropertiesHaveKnownEmptyObservations() {
         Invariant property = Invariant.observing(Set.of(), state -> true);

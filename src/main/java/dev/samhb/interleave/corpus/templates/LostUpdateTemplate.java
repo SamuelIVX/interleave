@@ -1,3 +1,4 @@
+/** Curated lost-update pattern: each thread does read then write. Varies steps per thread up to maxStepsPerThread (pairs of read/write). */
 package dev.samhb.interleave.corpus.templates;
 
 import dev.samhb.interleave.bugs.ReadCounterStep;
@@ -12,7 +13,10 @@ import java.util.*;
  * Varies steps per thread up to maxStepsPerThread (pairs of read/write).
  */
 public final class LostUpdateTemplate implements CorpusTemplate {
-    /** @return template id */
+    /** Creates lost update template with its default configuration. */
+    public LostUpdateTemplate() {}
+
+    /** @return stable registered corpus-template identifier */
     @Override public String id() { return "lost-update"; }
     /** @return description */
     @Override public String description() { return "Each thread reads counter then writes counter+1 (lost update)"; }

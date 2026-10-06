@@ -1,3 +1,4 @@
+/** Double-checked locking (DCL) broken singleton. The bug: thread T0 initializes the instance, but another thread can see a partially constructed object because the write to `instance` can be reordered before the constructor completes.  In this model: T0 writes to `instance`, T1 reads it. Without proper synchronization (happens-before), T1 may see a non-null but partially initialized instance. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
@@ -9,12 +10,19 @@ import java.util.List;
  * The bug: thread T0 initializes the instance, but another thread can see
  * a partially constructed object because the write to `instance` can be
  * reordered before the constructor completes.
- * 
+ *
  * In this model: T0 writes to `instance`, T1 reads it. Without proper
  * synchronization (happens-before), T1 may see a non-null but partially
  * initialized instance.
  */
 public final class DoubleCheckedLocking {
+    /** Creates double checked locking with its default configuration. */
+    public DoubleCheckedLocking() {}
+
+    /**
+     * Returns this benchmark’s modeled threads and initial shared state.
+     * @return new benchmark program and initial state
+     */
     public static BenchmarkProgram program() {
         // State: instance = null initially, initialized = false
         DclState initial = DclState.of(false);
@@ -45,7 +53,7 @@ public final class DoubleCheckedLocking {
         ModelThread t1 = new ModelThread(1, thread1Steps);
 
         Program program = new Program(initial, List.of(t0, t1));
-        
+
         // Invariant: if instance is non-null, it must be fully initialized
         // The bug: T1 can see instance != null while initialized == false
         // Gate on T1 actually observing the half-constructed state
@@ -56,7 +64,7 @@ public final class DoubleCheckedLocking {
             }
             return true;
         };
-        
+
         return new BenchmarkProgram("double-checked-locking", program, "VIOLATION", invariant);
     }
 }

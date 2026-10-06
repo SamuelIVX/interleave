@@ -1,3 +1,4 @@
+/** Runs configured model-checking searches; concurrent isolation depends on the store factory and callbacks. */
 package dev.samhb.interleave;
 
 import dev.samhb.interleave.cb.ContextBoundedExplorer;
@@ -17,19 +18,31 @@ import java.util.Set;
 import java.util.function.Supplier;
 
 /**
- * Reusable, thread-safe runner for model-checking programs.
+ * Reusable runner for model-checking programs with configurable per-run isolation.
  * Configure once via {@link #builder()}, then call {@link #run(Program)} multiple times.
- * Each run creates a fresh {@link StateStore} via the configured factory to ensure isolation.
+ * Concurrent runs require a factory that returns a fresh store and callbacks safe for concurrent use.
+ * The concrete-store builder option may reuse a supplied store when freshCopy is unsupported.
  */
 public final class InterleaveRunner implements Serializable {
+    /** Strategy. */
     private final Strategy strategy;
+    /** Invariant. */
     private final Invariant invariant;
+    /** State store factory. */
     private final Supplier<StateStore> stateStoreFactory;
+    /** Max states. */
     private final long maxStates;
+    /** Max time. */
     private final Duration maxTime;
+    /** Max preemptions. */
     private final int maxPreemptions;
+    /** Iterative deepening. */
     private final boolean iterativeDeepening;
 
+    /**
+     * Creates an isolated snapshot of interleave runner from the supplied values.
+     * @param builder builder whose settings are captured
+     */
     private InterleaveRunner(Builder builder) {
         this.strategy = builder.strategy;
         this.invariant = builder.invariant;
@@ -106,11 +119,17 @@ public final class InterleaveRunner implements Serializable {
         return convertToTestResult(result, wallTime, heapDelta, false);
     }
 
+    /**
+     * Creates a run-local visitor that counts positions and captures traces before enforcing limits.
+     * @param limitState run-local counters and interruption state
+     * @return visitor sharing the supplied run-local limit counters and captured traces
+     */
     private StateVisitor createLimitEnforcingVisitor(LimitState limitState) {
         long[] stateCount = {0};
         long startTime = System.currentTimeMillis();
 
         return new StateVisitor() {
+            /** {@inheritDoc} */
             @Override
             public void onStateVisited(Configuration config) {
                 stateCount[0]++;
@@ -134,6 +153,7 @@ public final class InterleaveRunner implements Serializable {
                 }
             }
 
+            /** {@inheritDoc} */
             @Override
             public void onTraceCreated(Trace trace) {
                 TraceRecord record = trace.toRecord();
@@ -143,17 +163,36 @@ public final class InterleaveRunner implements Serializable {
     }
 
     // Helper class to capture partial results during limit enforcement
+    /** Run-local exploration counters and partial traces captured before limit interruption. */
     private static class LimitState {
+        /** Creates limit state with its default configuration. */
+        private LimitState() {}
+
+        /** Partial result. */
         PartialResult partialResult = new PartialResult(0, List.of(), List.of(), List.of(), List.of());
     }
 
+    /** Immutable snapshot of visited-count and categorized traces during a limited run. */
     private static class PartialResult {
+        /** States explored. */
         private final long statesExplored;
+        /** Failing traces. */
         private final List<TraceRecord> failingTraces;
+        /** Deadlocked traces. */
         private final List<TraceRecord> deadlockedTraces;
+        /** Completed traces. */
         private final List<TraceRecord> completedTraces;
+        /** Incomplete traces. */
         private final List<TraceRecord> incompleteTraces;
 
+        /**
+         * Creates partial result from the supplied values.
+         * @param statesExplored number of explored configurations
+         * @param failingTraces traces ending in a property violation
+         * @param deadlockedTraces traces ending in deadlock
+         * @param completedTraces traces whose threads all terminate
+         * @param incompleteTraces traces stopped before a terminal verdict
+         */
         PartialResult(long statesExplored, List<TraceRecord> failingTraces,
                       List<TraceRecord> deadlockedTraces, List<TraceRecord> completedTraces,
                       List<TraceRecord> incompleteTraces) {
@@ -164,6 +203,11 @@ public final class InterleaveRunner implements Serializable {
             this.incompleteTraces = List.copyOf(incompleteTraces);
         }
 
+        /**
+         * Returns partial results with the trace appended to its outcome category.
+         * @param record trace record to append
+         * @return new partial result with this trace appended to its outcome category
+         */
         PartialResult withTrace(TraceRecord record) {
             List<TraceRecord> failing = new ArrayList<>(failingTraces);
             List<TraceRecord> deadlocked = new ArrayList<>(deadlockedTraces);
@@ -188,15 +232,36 @@ public final class InterleaveRunner implements Serializable {
          * bound found; without clearing, the shared visitor would append each one again and the
          * partial result would carry duplicates. The state count is deliberately preserved, since
          * {@code maxStates} is a total budget across all bounds rather than a per-bound one.
+         * @return snapshot retaining the state count with all trace categories empty
          */
         PartialResult withTracesCleared() {
             return new PartialResult(statesExplored, List.of(), List.of(), List.of(), List.of());
         }
 
+        /**
+         * Returns states explored for this partial result.
+         * @return number of visited search positions
+         */
         long statesExplored() { return statesExplored; }
+        /**
+         * Returns failing traces for this partial result.
+         * @return immutable recorded violation traces
+         */
         List<TraceRecord> failingTraces() { return failingTraces; }
+        /**
+         * Returns deadlocked traces for this partial result.
+         * @return immutable recorded deadlock traces
+         */
         List<TraceRecord> deadlockedTraces() { return deadlockedTraces; }
+        /**
+         * Returns completed traces for this partial result.
+         * @return immutable recorded completed traces
+         */
         List<TraceRecord> completedTraces() { return completedTraces; }
+        /**
+         * Returns incomplete traces for this partial result.
+         * @return immutable recorded incomplete traces
+         */
         List<TraceRecord> incompleteTraces() { return incompleteTraces; }
     }
 
@@ -212,6 +277,11 @@ public final class InterleaveRunner implements Serializable {
      * <p>Each bound gets a genuinely fresh store. Reusing one would make deepening <em>narrow</em>
      * rather than widen: states reached at bound 0 are recorded with a count of 0, so every one of
      * them satisfies {@code min <= p} and would be pruned at bound 1.
+     * @param program modeled program whose threads are explored
+     * @param invariant property to check, or null when no property is supplied
+     * @param visitor observer sharing the run’s limits and partial-result capture
+     * @param limitState run-local counters and interruption state
+     * @return first failing or exhaustive result, or the result at the largest allowed bound
      */
     private DfsResult runIterativeDeepening(Program program, Invariant invariant,
                                           StateVisitor visitor, LimitState limitState) {
@@ -255,11 +325,24 @@ public final class InterleaveRunner implements Serializable {
         return lastResult;
     }
 
+    /**
+     * Reports whether exploration found a violation or deadlock.
+     * @param result completed exploration result
+     * @return true if a violation or deadlock was recorded
+     */
     private static boolean isFailure(DfsResult result) {
         return result.traces().stream().anyMatch(t ->
             t.outcome() == TraceOutcome.VIOLATION || t.outcome() == TraceOutcome.DEADLOCK);
     }
 
+    /**
+     * Converts exploration counts and trace categories into the public result format.
+     * @param result completed exploration result
+     * @param wallTime elapsed exploration time in milliseconds
+     * @param heapDelta observed heap delta in bytes
+     * @param limitExceeded whether a configured exploration limit stopped the run
+     * @return public result preserving counts, categorized traces, and the interruption flag
+     */
     private TestResult convertToTestResult(DfsResult result, long wallTime, long heapDelta, boolean limitExceeded) {
         List<TraceRecord> failingTraces = new ArrayList<>();
         List<TraceRecord> deadlockedTraces = new ArrayList<>();
@@ -280,6 +363,14 @@ public final class InterleaveRunner implements Serializable {
                               failingTraces, deadlockedTraces, completedTraces, incompleteTraces, limitExceeded);
     }
 
+    /**
+     * Converts exploration counts and trace categories into the public result format.
+     * @param partial partial results captured before a limit interrupted exploration
+     * @param wallTime elapsed exploration time in milliseconds
+     * @param heapDelta observed heap delta in bytes
+     * @param limitExceeded whether a configured exploration limit stopped the run
+     * @return public result preserving counts, categorized traces, and the interruption flag
+     */
     private TestResult convertToTestResult(PartialResult partial, long wallTime, long heapDelta, boolean limitExceeded) {
         return new TestResult(strategy, partial.statesExplored(), wallTime, heapDelta,
                               partial.failingTraces(), partial.deadlockedTraces(),
@@ -300,23 +391,35 @@ public final class InterleaveRunner implements Serializable {
      * Fluent builder for {@link InterleaveRunner}.
      */
     public static class Builder implements Serializable {
+        /** Creates builder with its default configuration. */
+        public Builder() {}
+
+        /** Strategy. */
         private Strategy strategy = Strategy.DFS;
+        /** Invariant. */
         private Invariant invariant = null;
+        /** State store factory. */
         private Supplier<StateStore> stateStoreFactory = HashingStateStore::new;
+        /** Max states. */
         private long maxStates = 0;
+        /** Max time. */
         private Duration maxTime = null;
+        /** Max preemptions. */
         private int maxPreemptions = ContextBoundedExplorer.DEFAULT_MAX_PREEMPTIONS;
+        /** Iterative deepening. */
         private boolean iterativeDeepening = false;
         // Whether the caller named these explicitly, which is what lets build() reject a
         // context-bounded option on a strategy that would silently ignore it.
+        /** Max preemptions explicit. */
         private boolean maxPreemptionsExplicit = false;
+        /** Iterative deepening explicit. */
         private boolean iterativeDeepeningExplicit = false;
 
         /**
          * Sets the exploration strategy.
          *
          * @param strategy the strategy to use
-         * @return this builder
+         * @return this builder for chained configuration
          */
         public Builder strategy(Strategy strategy) {
             this.strategy = strategy;
@@ -327,7 +430,7 @@ public final class InterleaveRunner implements Serializable {
          * Sets the invariant to check during exploration.
          *
          * @param invariant the invariant, or null for no invariant checking
-         * @return this builder
+         * @return this builder for chained configuration
          */
         public Builder invariant(Invariant invariant) {
             this.invariant = invariant;

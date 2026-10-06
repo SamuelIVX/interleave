@@ -1,3 +1,4 @@
+/** Per-thread local declaration for declarative state. */
 package dev.samhb.interleave.format.dsl;
 
 /**

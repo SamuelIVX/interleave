@@ -1,3 +1,4 @@
+/** Registry of built-in step types. */
 package dev.samhb.interleave.format.registry;
 
 import com.google.gson.JsonObject;
@@ -36,13 +37,17 @@ import java.util.HashSet;
  * which state types it is compatible with.
  */
 public final class StepRegistry {
+    /** Factories. */
     private final Map<String, StepFactory> factories = new HashMap<>();
+    /** Compat map. */
     private final Map<String, Set<String>> compatMap = new HashMap<>();
 
+    /** Creates step registry from the supplied values. */
     public StepRegistry() {
         registerBuiltins();
     }
 
+    /** Registers the supported built-in factories by their declarative names. */
     private void registerBuiltins() {
         // Peterson steps (compatible with peterson state)
         register("write_flag", Set.of("peterson"), (json, tid) -> new WriteFlagStep(
@@ -145,6 +150,7 @@ public final class StepRegistry {
 
     /**
      * Returns the set of registered step type names.
+     * @return live mutable view of registered names; removals also remove their factories
      */
     public Set<String> typeNames() {
         return factories.keySet();
@@ -175,6 +181,8 @@ public final class StepRegistry {
 
     /**
      * Validates that the step type is compatible with the given state type.
+     * @param stepType registered factory name
+     * @param stateType expected shared-state implementation
      */
     public void validateCompatibility(String stepType, String stateType) {
         Set<String> compat = compatMap.get(stepType);

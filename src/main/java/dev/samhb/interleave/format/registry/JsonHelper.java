@@ -1,3 +1,4 @@
+/** Helper methods for extracting typed values from JSON objects with clear error messages. */
 package dev.samhb.interleave.format.registry;
 
 import com.google.gson.JsonElement;
@@ -10,6 +11,7 @@ import com.google.gson.JsonObject;
  * and parameter key for actionable error messages.
  */
 public final class JsonHelper {
+    /** Prevents instantiation of this utility class. */
     private JsonHelper() {
         // Utility class
     }

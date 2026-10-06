@@ -1,3 +1,4 @@
+/** Exact state store using canonical encoding and hash-based deduplication. Guarantees no false positives: if {@code isVisited} returns true, the configuration was definitively visited before. Uses a two-level scheme (hash + full encoding) to avoid hash collisions. */
 package dev.samhb.interleave.state;
 
 import dev.samhb.interleave.core.Configuration;
@@ -12,10 +13,15 @@ import java.util.*;
  * to avoid hash collisions.
  */
 public final class HashingStateStore implements StateStore, Serializable {
+    /** Encoder. */
     private final CanonicalEncoder encoder;
+    /** Visited hashes. */
     private final Set<Integer> visitedHashes;
+    /** Visited states. */
     private final Set<String> visitedStates;
+    /** Preemption hashes. */
     private final Set<Integer> preemptionHashes;
+    /** Min preemptions. */
     private final Map<String, Integer> minPreemptions;
 
     /**
@@ -29,6 +35,7 @@ public final class HashingStateStore implements StateStore, Serializable {
         this.minPreemptions = new HashMap<>();
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean isVisited(Configuration config) {
         int hash = hashCode(config);
@@ -39,6 +46,7 @@ public final class HashingStateStore implements StateStore, Serializable {
         return visitedStates.contains(encoded);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void markVisited(Configuration config) {
         int hash = hashCode(config);
@@ -47,6 +55,7 @@ public final class HashingStateStore implements StateStore, Serializable {
         visitedStates.add(encoded);
     }
 
+    /** {@inheritDoc} */
     @Override
     public void clear() {
         visitedHashes.clear();
@@ -55,6 +64,7 @@ public final class HashingStateStore implements StateStore, Serializable {
         minPreemptions.clear();
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean isVisited(Configuration config, int lastThreadId, int preemptions) {
         // Two-level scheme, same shape as the single-argument path: the cheap hash prefilter runs
@@ -70,6 +80,7 @@ public final class HashingStateStore implements StateStore, Serializable {
         return min != null && min <= preemptions;
     }
 
+    /** {@inheritDoc} */
     @Override
     public void markVisited(Configuration config, int lastThreadId, int preemptions) {
         preemptionHashes.add(preemptionHash(config, lastThreadId));
@@ -81,7 +92,7 @@ public final class HashingStateStore implements StateStore, Serializable {
     /**
      * Returns the number of unique configurations stored.
      *
-     * @return count of visited states
+     * @return number of unique unbounded configurations recorded
      */
     public int size() {
         return visitedStates.size();
@@ -98,16 +109,28 @@ public final class HashingStateStore implements StateStore, Serializable {
         return minPreemptions.size();
     }
 
+    /**
+     * Hashes the canonical configuration value for bucket selection.
+     * @param config current search configuration
+     * @return hash consistent with this type’s equality contract
+     */
     private int hashCode(Configuration config) {
         int result = encoder.hashCode(config.state());
         result = 31 * result + config.programCounters().hashCode();
         return result;
     }
 
+    /**
+     * Hashes the canonical position together with the previous thread for bounded-search buckets.
+     * @param config current search configuration
+     * @param lastThreadId previously scheduled thread, or the initial sentinel
+     * @return bucket hash incorporating the previous scheduled thread
+     */
     private int preemptionHash(Configuration config, int lastThreadId) {
         return 31 * hashCode(config) + lastThreadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public StateStore freshCopy() {
         return new HashingStateStore();

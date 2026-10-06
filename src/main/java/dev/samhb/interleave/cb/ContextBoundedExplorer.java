@@ -1,3 +1,4 @@
+/** Context-bounded search (CHESS-style) for concurrent programs. */
 package dev.samhb.interleave.cb;
 
 import dev.samhb.interleave.core.*;
@@ -22,25 +23,35 @@ import java.util.*;
  * pruned region.
  */
 public final class ContextBoundedExplorer {
+    /** Creates context bounded explorer with its default configuration. */
+    public ContextBoundedExplorer() {}
+
 
     /** The preemption bound used when a caller does not choose one. */
     public static final int DEFAULT_MAX_PREEMPTIONS = 2;
 
+    /** Visited states. */
     private final Map<String, Configuration> visitedStates = new LinkedHashMap<>();
+    /** Encoder. */
     private final CanonicalEncoder encoder = new CanonicalEncoder();
+    /** Traces. */
     private final List<Trace> traces = new ArrayList<>();
+    /** States explored. */
     private long statesExplored;
 
     // Budget-exceeded state, reset at the start of every top-level search.
+    /** Budget exceeded. */
     private boolean budgetExceeded;
+    /** Incomplete thread ids. */
     private List<Integer> incompleteThreadIds;
+    /** Incomplete outcomes. */
     private List<StepOutcome> incompleteOutcomes;
 
     /**
      * Explores with the default preemption bound.
      *
      * @param program the program to explore
-     * @return the visited configurations and the traces reached
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program) {
         return explore(program, null);
@@ -48,6 +59,9 @@ public final class ContextBoundedExplorer {
 
     /**
      * Explores with the default preemption bound.
+     * @param program modeled program whose threads are explored
+     * @param invariant property to check, or null when no property is supplied
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant) {
         return explore(program, invariant, null, null, DEFAULT_MAX_PREEMPTIONS);
@@ -55,6 +69,11 @@ public final class ContextBoundedExplorer {
 
     /**
      * Explores with the default preemption bound and an explicit store.
+     * @param program modeled program whose threads are explored
+     * @param invariant property to check, or null when no property is supplied
+     * @param stateStore visited-position store used for pruning
+     * @param stateVisitor optional observer of visited states and emitted traces
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         return explore(program, invariant, stateStore, stateVisitor, DEFAULT_MAX_PREEMPTIONS);
@@ -68,7 +87,7 @@ public final class ContextBoundedExplorer {
      * @param stateStore the visited store, or null for a fresh exact store
      * @param stateVisitor the visitor, or null
      * @param maxPreemptions the preemption bound; must not be negative
-     * @return the exploration result
+     * @return visited configurations, recorded traces, and exploration count
      * @throws IllegalArgumentException if {@code maxPreemptions} is negative, or the supplied
      *         store cannot represent it
      */
@@ -105,6 +124,19 @@ public final class ContextBoundedExplorer {
         return new DfsResult(visitedStates, traces, statesExplored);
     }
 
+    /**
+     * Explores successors recursively, restoring the mutable execution prefix on return.
+     * @param program modeled program whose threads are explored
+     * @param config current search configuration
+     * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
+     * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
+     * @param lastThreadId previously scheduled thread, or the initial sentinel
+     * @param currentPreemptions preemption cost accumulated along this path
+     * @param maxPreemptions nonnegative preemption bound
+     * @param invariant property to check, or null when no property is supplied
+     * @param stateStore visited-position store used for pruning
+     * @param stateVisitor optional observer of visited states and emitted traces
+     */
     private void dfs(Program program, Configuration config,
                      List<Integer> currentThreadIds,
                      List<StepOutcome> currentOutcomes,
@@ -199,6 +231,7 @@ public final class ContextBoundedExplorer {
      * Emits at most one INCOMPLETE trace per search, and only when the budget was actually the
      * reason the search stopped. A run that found a violation reports the violation: the pruned
      * region is irrelevant once there is something to reproduce.
+     * @param stateVisitor optional observer of visited states and emitted traces
      */
     private void emitIncompleteTraceIfNeeded(StateVisitor stateVisitor) {
         if (!budgetExceeded || incompleteThreadIds == null) {
@@ -213,6 +246,11 @@ public final class ContextBoundedExplorer {
         addTrace(Trace.incomplete(incompleteThreadIds, incompleteOutcomes), stateVisitor);
     }
 
+    /**
+     * Records a terminal trace and notifies the optional visitor.
+     * @param trace recorded execution to inspect or replay
+     * @param stateVisitor optional observer of visited states and emitted traces
+     */
     private void addTrace(Trace trace, StateVisitor stateVisitor) {
         traces.add(trace);
         if (stateVisitor != null) {

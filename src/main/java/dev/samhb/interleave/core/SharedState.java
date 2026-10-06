@@ -1,3 +1,4 @@
+/** The shared memory a program's threads read and write. */
 package dev.samhb.interleave.core;
 
 import java.io.DataOutput;

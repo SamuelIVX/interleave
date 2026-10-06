@@ -29,7 +29,7 @@ public interface Invariant {
      * inputs to evaluation errors. Counters, termination, history and object identity are excluded.
      * Locations must use the same names and array aliases as the steps' footprints.
      *
-     * @return the stable complete observation set, or empty when reduction is unsupported
+     * @return known state-observation locations, or an empty Optional when unknown
      */
     default Optional<Set<MemoryLocation>> observedLocations() {
         return Optional.empty();
@@ -56,11 +56,21 @@ public interface Invariant {
         Set<MemoryLocation> snapshot = Set.copyOf(locations);
         Objects.requireNonNull(predicate, "predicate");
         return new Invariant() {
+            /**
+             * Evaluates the state property using the inherited observation contract.
+             * @param state shared state to inspect or mutate according to this operation
+             * @param config current search configuration
+             * @return whether holds
+             */
             @Override
             public boolean holds(SharedState state, Configuration config) {
                 return predicate.test(state);
             }
 
+            /**
+             * Returns the stable locations used by this state-only property.
+             * @return known state-observation locations, or an empty Optional when unknown
+             */
             @Override
             public Optional<Set<MemoryLocation>> observedLocations() {
                 return Optional.of(snapshot);

@@ -27,8 +27,11 @@ import java.util.*;
  */
 public final class StaticPorExplorer {
 
+    /** Relation. */
     private final IndependenceRelation relation;
+    /** Encoder. */
     private final CanonicalEncoder encoder = new CanonicalEncoder();
+    /** Persistent set computer. */
     private final PersistentSetComputer persistentSetComputer;
 
     /**
@@ -46,7 +49,7 @@ public final class StaticPorExplorer {
      * Explores without an invariant.
      *
      * @param program the program to explore
-     * @return the visited configurations and the traces reached
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program) {
         return explore(program, null);
@@ -57,7 +60,7 @@ public final class StaticPorExplorer {
      *
      * @param program the program to explore
      * @param invariant the invariant to check, or null; declared state observations permit reduction
-     * @return the visited configurations and the traces reached
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant) {
         return explore(program, invariant, null, null);
@@ -74,7 +77,7 @@ public final class StaticPorExplorer {
      * @param invariant the invariant to check, or null
      * @param stateStore the visited store, or null for a fresh {@link HashingStateStore}
      * @param stateVisitor notified of each explored configuration, or null; must not mutate it
-     * @return the visited configurations and the traces reached
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
@@ -230,6 +233,11 @@ public final class StaticPorExplorer {
         return new PreparedTransition(step.execute(next), next);
     }
 
+    /**
+     * Executed candidate snapshot reused if reduction falls back to exhaustive branching.
+     * @param outcome execution outcome being recorded
+     * @param state shared state to inspect or mutate according to this operation
+     */
     private record PreparedTransition(StepOutcome outcome, SharedState state) {}
 
 }

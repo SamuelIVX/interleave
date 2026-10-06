@@ -1,3 +1,4 @@
+/** Generates Markdown and JSON reports from benchmark results. */
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.bugs.BugCorpus;
@@ -9,6 +10,7 @@ import java.util.*;
  * Generates Markdown and JSON reports from benchmark results.
  */
 public final class ReportWriter {
+    /** Results. */
     private final List<BenchmarkResult> results;
 
     /**
@@ -111,12 +113,22 @@ public final class ReportWriter {
         return sb.toString();
     }
 
+    /**
+     * Formats the optional preemption bound for a report row.
+     * @param result completed exploration result
+     * @return preemption bound formatted for the report, or the unbounded placeholder
+     */
     private static String formatPreemptions(BenchmarkResult result) {
         // null renders as JSON null rather than being omitted, so a consumer can distinguish
         // "this strategy has no bound" from a missing field.
         return result.preemptionsUsed() == null ? "null" : result.preemptionsUsed().toString();
     }
 
+    /**
+     * Formats recorded thread choices and outcomes for a failure row.
+     * @param trace recorded execution to inspect or replay
+     * @return formatted thread choices and outcomes, or the absent-trace placeholder
+     */
     private static String formatFailingTrace(Trace trace) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
@@ -136,6 +148,11 @@ public final class ReportWriter {
         return sb.toString();
     }
 
+    /**
+     * Formats approximation diagnostics only for a bitstate result.
+     * @param result completed exploration result
+     * @return formatted approximation diagnostics, or an empty string for exact storage
+     */
     private static String formatBitstateMetrics(BenchmarkResult result) {
         return String.format(java.util.Locale.ROOT, """
             {
@@ -148,6 +165,11 @@ public final class ReportWriter {
             formatSmallDouble(result.bitstateBitDensity()));
     }
 
+    /**
+     * Formats small diagnostic values with a locale-independent representation.
+     * @param value value to assign
+     * @return locale-independent numeric text
+     */
     private static String formatSmallDouble(double value) {
         if (value == 0.0) return "0.0";
         if (Math.abs(value) < 0.001) {

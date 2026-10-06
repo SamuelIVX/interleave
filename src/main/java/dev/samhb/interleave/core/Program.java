@@ -1,3 +1,4 @@
+/** A program under verification: an initial shared state plus the model threads that run against it. */
 package dev.samhb.interleave.core;
 
 import java.util.*;
@@ -11,7 +12,9 @@ import java.util.*;
  */
 public final class Program {
 
+    /** Initial state. */
     private final SharedState initialState;
+    /** Threads. */
     private final List<ModelThread> threads;
 
     /**
@@ -52,7 +55,7 @@ public final class Program {
     /**
      * Returns the number of threads in this program.
      *
-     * @return the thread count
+     * @return requested number of modeled threads
      */
     public int threadCount() {
         return threads.size();

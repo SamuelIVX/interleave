@@ -1,3 +1,4 @@
+/** Thrown when a search is stopped by a caller-supplied resource limit rather than by exhausting the state space. */
 package dev.samhb.interleave;
 
 /**

@@ -1,3 +1,4 @@
+/** Registry of curated corpus templates. Only curated patterns are registered to preserve realism. */
 package dev.samhb.interleave.corpus;
 
 import dev.samhb.interleave.corpus.templates.CounterRaceTemplate;
@@ -9,6 +10,7 @@ import java.util.*;
  * Only curated patterns are registered to preserve realism.
  */
 public final class TemplateRegistry {
+    /** Registry. */
     private static final Map<String, CorpusTemplate> REGISTRY = new LinkedHashMap<>();
 
     static {
@@ -16,11 +18,11 @@ public final class TemplateRegistry {
         register(new CounterRaceTemplate());
     }
 
+    /** Prevents instantiation of this utility class. */
     private TemplateRegistry() {}
 
     /**
      * Registers a template.
-     *
      * @param t template
      */
     public static void register(CorpusTemplate t) {
@@ -29,7 +31,6 @@ public final class TemplateRegistry {
 
     /**
      * Retrieves a template by id.
-     *
      * @param id template id
      * @return template
      * @throws IllegalArgumentException if unknown
@@ -41,6 +42,7 @@ public final class TemplateRegistry {
     }
 
     /**
+     * *
      * @return unmodifiable set of ids
      */
     public static Set<String> ids() {

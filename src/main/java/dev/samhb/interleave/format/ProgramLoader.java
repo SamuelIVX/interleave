@@ -1,3 +1,4 @@
+/** Loads a {@link BenchmarkProgram} from a JSON program definition. */
 package dev.samhb.interleave.format;
 
 import com.google.gson.Gson;
@@ -38,9 +39,13 @@ import java.util.Objects;
  * registries to construct the Java objects.
  */
 public final class ProgramLoader {
+    /** Gson. */
     private final Gson gson;
+    /** Step registry. */
     private final StepRegistry stepRegistry;
+    /** State registry. */
     private final StateRegistry stateRegistry;
+    /** Invariant registry. */
     private final InvariantRegistry invariantRegistry;
 
     /**
@@ -233,7 +238,7 @@ public final class ProgramLoader {
                     int other = stepJson.get("other").getAsInt();
                     if (other < 0 || other >= threadCount) {
                         throw new RegistryException(
-                            "Parameter 'other' for step type '" + stepJson.get("type").getAsString() + 
+                            "Parameter 'other' for step type '" + stepJson.get("type").getAsString() +
                             "' is " + other + " but must be in range [0, " + (threadCount - 1) + "] " +
                             "(thread " + threadDef.id() + ")"
                         );

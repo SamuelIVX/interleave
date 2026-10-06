@@ -1,3 +1,4 @@
+/** Curated counter-race: random mix of reads/writes per thread, bounded. */
 package dev.samhb.interleave.corpus.templates;
 
 import dev.samhb.interleave.bugs.ReadCounterStep;
@@ -11,7 +12,10 @@ import java.util.*;
  * Curated counter-race: random mix of reads/writes per thread, bounded.
  */
 public final class CounterRaceTemplate implements CorpusTemplate {
-    /** @return template id */
+    /** Creates counter race template with its default configuration. */
+    public CounterRaceTemplate() {}
+
+    /** @return stable registered corpus-template identifier */
     @Override public String id() { return "counter-race"; }
     /** @return description */
     @Override public String description() { return "Random read/write mix per thread over a single counter"; }
@@ -21,7 +25,7 @@ public final class CounterRaceTemplate implements CorpusTemplate {
      *
      * @param rng random source
      * @param cfg generation config
-     * @return program
+     * @return generated program with its initial counter and modeled threads
      */
     @Override
     public Program generate(Random rng, GeneratorConfig cfg) {

@@ -1,3 +1,4 @@
+/** Registry of built-in invariant types. */
 package dev.samhb.interleave.format.registry;
 
 import com.google.gson.JsonObject;
@@ -22,13 +23,17 @@ import java.util.List;
  * {@link Invariant} lambdas. Each invariant type is tied to a specific state type.
  */
 public final class InvariantRegistry {
+    /** Factories. */
     private final Map<String, InvariantFactory> factories = new HashMap<>();
+    /** Compat map. */
     private final Map<String, Set<String>> compatMap = new HashMap<>();
 
+    /** Creates invariant registry from the supplied values. */
     public InvariantRegistry() {
         registerBuiltins();
     }
 
+    /** Registers the supported built-in factories by their declarative names. */
     private void registerBuiltins() {
         // mutual_exclusion_peterson: thread0_cs_pc, thread1_cs_pc
         register("mutual_exclusion_peterson", Set.of("peterson"), json -> {
@@ -98,6 +103,7 @@ public final class InvariantRegistry {
 
     /**
      * Returns the set of registered invariant type names.
+     * @return live mutable view of registered names; removals also remove their factories
      */
     public Set<String> typeNames() {
         return factories.keySet();
@@ -127,6 +133,8 @@ public final class InvariantRegistry {
 
     /**
      * Validates that the invariant type is compatible with the given state type.
+     * @param invariantType registered invariant name
+     * @param stateType expected shared-state implementation
      */
     public void validateCompatibility(String invariantType, String stateType) {
         Set<String> compat = compatMap.get(invariantType);

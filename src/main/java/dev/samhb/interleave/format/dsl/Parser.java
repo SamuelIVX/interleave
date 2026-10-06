@@ -1,3 +1,4 @@
+/** Recursive-descent parser for the declarative expression language. */
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.format.registry.RegistryException;
@@ -47,10 +48,14 @@ import dev.samhb.interleave.format.registry.RegistryException;
  * being left to the runtime.
  */
 public final class Parser {
+    /** Max nesting. */
     private static final int MAX_NESTING = 64;
 
+    /** Input. */
     private final String input;
+    /** Pos. */
     private int pos;
+    /** Nesting depth. */
     private int nestingDepth;
 
     /**
@@ -481,8 +486,20 @@ public final class Parser {
         while (!eof() && Character.isWhitespace(peek())) pos++;
     }
 
+    /**
+     * Reports whether the parser has consumed every token.
+     * @return whether eof
+     */
     private boolean eof() { return pos >= input.length(); }
+    /**
+     * Returns the next token without consuming it.
+     * @return next token without advancing the cursor
+     */
     private char peek() { return eof() ? '\0' : input.charAt(pos); }
+    /**
+     * Returns the next token and advances the parser cursor.
+     * @return next token after advancing the cursor
+     */
     private char consume() { char c = input.charAt(pos); pos++; return c; }
     /**
      * Consumes the given literal if it is next at the current position.

@@ -1,3 +1,4 @@
+/** Exhaustive depth-first search oracle for concurrent programs. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.*;
@@ -41,13 +42,21 @@ import java.util.*;
  * <p>Instance state is reused across calls, so an explorer is not safe for concurrent use.
  */
 public final class DfsExplorer {
+    /** Default state store. */
     private final HashingStateStore defaultStateStore;
+    /** Encoder. */
     private final CanonicalEncoder encoder = new CanonicalEncoder();
+    /** Visited states. */
     private final Map<String, Configuration> visitedStates;
+    /** Traces. */
     private final List<Trace> traces;
+    /** States explored. */
     private long statesExplored;
+    /** State store. */
     private StateStore stateStore;
+    /** State visitor. */
     private StateVisitor stateVisitor;
+    /** Max states budget. */
     private long maxStatesBudget;
 
     /** Creates an explorer with an empty visited set and no budget limit. */
@@ -63,7 +72,7 @@ public final class DfsExplorer {
      * Explores all reachable configurations without invariant.
      *
      * @param program program to explore
-     * @return result containing visited states and traces
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program) {
         return explore(program, null);
@@ -74,7 +83,7 @@ public final class DfsExplorer {
      *
      * @param program program to explore
      * @param invariant invariant to check, or null
-     * @return result
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant) {
         return explore(program, invariant, null, null);
@@ -85,7 +94,7 @@ public final class DfsExplorer {
      *
      * @param program program to explore
      * @param maxStates state budget (truncation threshold)
-     * @return result (statesExplored capped at budget)
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, long maxStates) {
         return explore(program, null, null, null, maxStates);
@@ -98,7 +107,7 @@ public final class DfsExplorer {
      * @param invariant invariant or null
      * @param stateStore visited store or null
      * @param stateVisitor visitor or null
-     * @return result
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         return explore(program, invariant, stateStore, stateVisitor, Long.MAX_VALUE);
@@ -112,7 +121,7 @@ public final class DfsExplorer {
      * @param stateStore visited store or null
      * @param stateVisitor visitor or null
      * @param maxStates budget; Long.MAX_VALUE for no limit
-     * @return result
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor, long maxStates) {
         this.stateStore = stateStore != null ? stateStore : defaultStateStore;
@@ -129,6 +138,14 @@ public final class DfsExplorer {
         return new DfsResult(visitedStates, traces, statesExplored);
     }
 
+    /**
+     * Explores successors recursively, restoring the mutable execution prefix on return.
+     * @param program modeled program whose threads are explored
+     * @param config current search configuration
+     * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
+     * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
+     * @param invariant property to check, or null when no property is supplied
+     */
     private void dfs(Program program, Configuration config,
                      List<Integer> currentThreadIds,
                      List<StepOutcome> currentOutcomes,

@@ -1,3 +1,4 @@
+/** Validates the soundness of benchmark results. */
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
@@ -30,9 +31,13 @@ import java.util.*;
  * </ol>
  */
 public final class SoundnessAttestation {
+    /** Results. */
     private final List<BenchmarkResult> results;
+    /** Programs. */
     private final Map<String, BenchmarkProgram> programs;
+    /** Sound. */
     private final boolean sound;
+    /** Failure reason. */
     private final String failureReason;
 
     /**
@@ -53,6 +58,10 @@ public final class SoundnessAttestation {
         this.failureReason = check.reason();
     }
 
+    /**
+     * Checks cross-strategy verdict agreement and replays reported violation traces.
+     * @return attestation result describing any verdict or replay disagreement
+     */
     private SoundnessCheck checkSoundness() {
         Map<String, String> dfsVerdicts = new LinkedHashMap<>();
         Map<String, String> correctVerdicts = new LinkedHashMap<>();
@@ -134,6 +143,8 @@ if (program != null) {
      *
      * <p>They are <em>not</em> excluded from replay validation below. A bounded search that
      * reports a violation has found a real schedule, and that schedule must be genuine.
+     * @param verdict reported exploration verdict
+     * @return true for INCOMPLETE or APPROXIMATE_PASS
      */
     private static boolean isInconclusive(String verdict) {
         return "INCOMPLETE".equals(verdict) || "APPROXIMATE_PASS".equals(verdict);
@@ -183,24 +194,49 @@ if (program != null) {
         return sb.toString();
     }
 
+    /** Successful attestation or diagnostic explaining a soundness disagreement. */
     private static final class SoundnessCheck {
+        /** Sound. */
         private final boolean sound;
+        /** Reason. */
         private final String reason;
 
+        /**
+         * Creates an isolated snapshot of soundness check from the supplied values.
+         * @param sound whether every checked agreement and replay obligation passed
+         * @param reason explanation of the soundness failure
+         */
         private SoundnessCheck(boolean sound, String reason) {
             this.sound = sound;
             this.reason = reason;
         }
 
+        /**
+         * Creates an attestation result with no detected soundness disagreement.
+         * @return successful attestation result
+         */
         static SoundnessCheck passed() {
             return new SoundnessCheck(true, null);
         }
 
+        /**
+         * Creates an attestation result describing a detected disagreement.
+         * @param reason explanation of the soundness failure
+         * @return failed attestation result carrying the supplied reason
+         */
         static SoundnessCheck failed(String reason) {
             return new SoundnessCheck(false, reason);
         }
 
+        /**
+         * Returns sound for this soundness check.
+         * @return whether sound
+         */
         boolean sound() { return sound; }
+        /**
+         * Returns reason for this soundness check.
+         * @return diagnostic reason, or null for a successful attestation
+         */
         String reason() { return reason; }
     }
 }

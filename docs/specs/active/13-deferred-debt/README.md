@@ -21,7 +21,7 @@ true — the guard is exactly `enabled.isEmpty()` and the call is redundant. Tha
 *same* removal at L126 **is** killed. Full argument under
 [Corrections](#corrections-to-the-register) item 3.
 
-## Status: active — 13.01–13.09 implemented; E5 remains open
+## Status: active — 13.01–13.09 merged; 13.10 verified locally; E5 awaits final CI
 
 PR #42 implements 13.01–13.07. Follow-up 13.09 closes B1/B2 and preserves the 255/268 PIT aggregate
 while changing its per-class census (see [09](09-configuration-value-key.md#verification)).
@@ -145,7 +145,10 @@ the score with no new test. Consistency with that precedent is worth more than t
 | [08-godefroid-source-set.md](08-godefroid-source-set.md) | Property-aware static persistent sets | A4 closed | **MED — its own session** |
 | [09-configuration-value-key.md](09-configuration-value-key.md) | Shared canonical configuration keys | B1, B2 | HIGH |
 
-13.09 is a follow-up to the original eight-spec plan. 13.08 closes A4; E5 remains open.
+| [10-parallel-ci-and-documentation.md](10-parallel-ci-and-documentation.md) | Parallel CI evidence and Java documentation | E5 awaits final parallel CI | LOW |
+
+13.09 and 13.10 follow the original eight-spec plan. 13.08 closes A4; 13.10 records six verified
+parallel runs and the documentation audit. E5 remains open until final parallel CI passes.
 
 ## Historical Set-Exit Measurement (13.01–13.07)
 
@@ -167,7 +170,8 @@ confirmation that 13.05 (`format.dsl`), 13.06 (`core`, `format`, `format.registr
 it; this run is what settles it.
 
 `TIMED_OUT: 0` is a single-threaded local figure and **cannot speak to CI's parallel profile** — that is
-exactly what E5 is about, and it is why E5 stays open. See 07.
+the load profile E5 tracks. Spec 13.10 now records six independent CI jobs using three PIT workers;
+E5 remains open pending the final change’s parallel CI run. See 07 and 10.
 
 At that exit, 268 was unchanged from 13.03: 13.03 was the last item to touch a class
 inside the scope, and everything after it was outside it by design.
@@ -253,3 +257,12 @@ slips, re-derive against whatever landed rather than deferring the question agai
 | Rewrite all six `toString()` methods to be value-based | More thorough, and gives deterministic diagnostics — but `toString()` is production code inside PIT's scope, so the total moves. The contract note is what the register itself calls "cheaper and arguably more correct." |
 | Delete the redundant `allTerminated()` call at L187 | Raises the score to 95.17% with no new test. See D5. |
 | `Configuration.equals`/`hashCode` + identity sets | Deepest fix, but adds a collision-handling surface and churns three explorers more than the duplication warrants. |
+
+## Local follow-up verification (13.10)
+
+The production documentation audit and PR #44’s four test files cover **824 explicit methods and
+constructors**, all with attached Javadoc. Full public and private-member doclint pass. A fresh
+`clean build javadoc pitest` passes **526 tests** and **255/268** mutation kills with unchanged
+semantic mutation/status identities. The 94% floor, parallel CI configuration, and timeout budgets
+remain unchanged. See [13.10](10-parallel-ci-and-documentation.md) and its documentation inventory.
+E5 is still open pending the final change’s parallel CI; remote docstring coverage is pending.

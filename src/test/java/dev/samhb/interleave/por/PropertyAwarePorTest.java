@@ -14,7 +14,9 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import static org.junit.jupiter.api.Assertions.*;
 
+/** Compares property-aware static POR with exhaustive exploration and replay. */
 class PropertyAwarePorTest {
+    /** Verifies that observed property reduces independent invisible work. */
     @Test
     void observedPropertyReducesIndependentInvisibleWork() {
         Program program = new Program(PetersonState.of(false, false, 0), List.of(
@@ -35,6 +37,7 @@ class PropertyAwarePorTest {
         assertEquals(0, fresh.turn(), "preparation must not mutate the program's starting state");
     }
 
+    /** Verifies that visible independent writes cannot hide intermediate violations. */
     @Test
     void visibleIndependentWritesCannotHideIntermediateViolations() {
         Program program = flags(new WriteFlagStep(0, true), new WriteFlagStep(1, true));
@@ -47,6 +50,7 @@ class PropertyAwarePorTest {
             outcomes(new StaticPorExplorer().explore(program, property)));
     }
 
+    /** Verifies that future and transitive dependencies retain every initial branch. */
     @Test
     void futureAndTransitiveDependenciesRetainEveryInitialBranch() {
         Program future = new Program(PetersonState.of(false, false, 0), List.of(
@@ -62,12 +66,31 @@ class PropertyAwarePorTest {
         assertEquals(Set.of(0, 1, 2), initialBranches(transitive, Invariant.observing(Set.of(), state -> true)));
     }
 
+    /** Verifies that a component containing adisabled thread cannot be selected. */
     @Test
     void aComponentContainingADisabledThreadCannotBeSelected() {
         Step disabled = new Step() {
+            /**
+             * Returns reads for this .
+             * @return stable over-approximated modeled reads
+             */
             public Set<MemoryLocation> reads() { return locations("flag[0]"); }
+            /**
+             * Returns writes for this .
+             * @return stable over-approximated modeled writes
+             */
             public Set<MemoryLocation> writes() { return Set.of(); }
+            /**
+             * Reports whether this fixture transition is enabled in the supplied state.
+             * @param state shared state to inspect or mutate according to this operation
+             * @return whether this transition can execute against the supplied state
+             */
             public boolean enabled(SharedState state) { return false; }
+            /**
+             * Applies this fixture transition and returns its modeled outcome.
+             * @param state shared state to inspect or mutate according to this operation
+             * @return modeled execution outcome after applying the transition
+             */
             public StepOutcome execute(SharedState state) { throw new AssertionError("disabled step executed"); }
         };
         Program program = new Program(PetersonState.of(false, false, 0), List.of(
@@ -80,14 +103,36 @@ class PropertyAwarePorTest {
             Invariant.observing(locations("turn"), state -> ((PetersonState) state).turn() >= 0)));
     }
 
+    /**
+     * Verifies that non progress or assertion expands branches without executing prepared steps twice.
+     * @param outcome execution outcome being recorded
+     */
     @ParameterizedTest
     @EnumSource(value = StepOutcome.class, names = {"BLOCKED", "ASSERTION_FAILED"})
     void nonProgressOrAssertionExpandsBranchesWithoutExecutingPreparedStepsTwice(StepOutcome outcome) {
         Map<PetersonState, Integer> calls = new HashMap<>();
         Step candidate = new Step() {
+            /**
+             * Returns reads for this .
+             * @return stable over-approximated modeled reads
+             */
             public Set<MemoryLocation> reads() { return Set.of(); }
+            /**
+             * Returns writes for this .
+             * @return stable over-approximated modeled writes
+             */
             public Set<MemoryLocation> writes() { return Set.of(); }
+            /**
+             * Reports whether this fixture transition is enabled in the supplied state.
+             * @param state shared state to inspect or mutate according to this operation
+             * @return whether this transition can execute against the supplied state
+             */
             public boolean enabled(SharedState state) { return true; }
+            /**
+             * Applies this fixture transition and returns its modeled outcome.
+             * @param state shared state to inspect or mutate according to this operation
+             * @return modeled execution outcome after applying the transition
+             */
             public StepOutcome execute(SharedState state) {
                 calls.merge((PetersonState) state.deepCopy(), 1, Integer::sum);
                 return outcome;
@@ -103,12 +148,31 @@ class PropertyAwarePorTest {
         if (outcome == StepOutcome.ASSERTION_FAILED) assertTrue(outcomes(result).contains(TraceOutcome.VIOLATION));
     }
 
+    /** Verifies that terminated outcome advances and allows reduction. */
     @Test
     void terminatedOutcomeAdvancesAndAllowsReduction() {
         Step terminating = new Step() {
+            /**
+             * Returns reads for this .
+             * @return stable over-approximated modeled reads
+             */
             public Set<MemoryLocation> reads() { return Set.of(); }
+            /**
+             * Returns writes for this .
+             * @return stable over-approximated modeled writes
+             */
             public Set<MemoryLocation> writes() { return Set.of(); }
+            /**
+             * Reports whether this fixture transition is enabled in the supplied state.
+             * @param state shared state to inspect or mutate according to this operation
+             * @return whether this transition can execute against the supplied state
+             */
             public boolean enabled(SharedState state) { return true; }
+            /**
+             * Applies this fixture transition and returns its modeled outcome.
+             * @param state shared state to inspect or mutate according to this operation
+             * @return modeled execution outcome after applying the transition
+             */
             public StepOutcome execute(SharedState state) { return StepOutcome.TERMINATED; }
         };
         Program program = flags(terminating, new WriteFlagStep(1, true));
@@ -118,6 +182,7 @@ class PropertyAwarePorTest {
         assertEquals(StepOutcome.TERMINATED, result.traces().getFirst().outcomes().getFirst());
     }
 
+    /** Verifies that smallest invisible component wins before lower thread ids. */
     @Test
     void smallestInvisibleComponentWinsBeforeLowerThreadIds() {
         Program program = new Program(PetersonState.of(false, false, 0), List.of(
@@ -128,19 +193,48 @@ class PropertyAwarePorTest {
         assertEquals(Set.of(2), initialBranches(program, Invariant.observing(Set.of(), state -> true)));
     }
 
+    /** Verifies that captured observations and footprints are read once per exploration. */
     @Test
     void capturedObservationsAndFootprintsAreReadOncePerExploration() {
         int[] observations = {0};
         int[] reads = {0};
         int[] writes = {0};
         Step step = new Step() {
+            /**
+             * Returns reads for this .
+             * @return stable over-approximated modeled reads
+             */
             public Set<MemoryLocation> reads() { reads[0]++; return Set.of(); }
+            /**
+             * Returns writes for this .
+             * @return stable over-approximated modeled writes
+             */
             public Set<MemoryLocation> writes() { writes[0]++; return Set.of(); }
+            /**
+             * Reports whether this fixture transition is enabled in the supplied state.
+             * @param state shared state to inspect or mutate according to this operation
+             * @return whether this transition can execute against the supplied state
+             */
             public boolean enabled(SharedState state) { return true; }
+            /**
+             * Applies this fixture transition and returns its modeled outcome.
+             * @param state shared state to inspect or mutate according to this operation
+             * @return modeled execution outcome after applying the transition
+             */
             public StepOutcome execute(SharedState state) { return StepOutcome.ADVANCED; }
         };
         Invariant property = new Invariant() {
+            /**
+             * Evaluates the state property using the inherited observation contract.
+             * @param state shared state to inspect or mutate according to this operation
+             * @param config current search configuration
+             * @return whether holds
+             */
             public boolean holds(SharedState state, Configuration config) { return true; }
+            /**
+             * Returns the stable locations used by this state-only property.
+             * @return known state-observation locations, or an empty Optional when unknown
+             */
             public Optional<Set<MemoryLocation>> observedLocations() { observations[0]++; return Optional.of(Set.of()); }
         };
         new StaticPorExplorer().explore(flags(step, new WriteFlagStep(1, true)), property);
@@ -149,6 +243,7 @@ class PropertyAwarePorTest {
         assertEquals(1, writes[0]);
     }
 
+    /** Verifies that generated programs preserve violations and terminal outcomes and replay their traces. */
     @Test
     void generatedProgramsPreserveViolationsAndTerminalOutcomesAndReplayTheirTraces() {
         List<CellStep> choices = List.of(
@@ -186,6 +281,7 @@ class PropertyAwarePorTest {
         assertTrue(reduced, "the differential comparison must exercise real reduction");
     }
 
+    /** Verifies that annotated state only corpus properties preserve real violations with independent work. */
     @Test
     void annotatedStateOnlyCorpusPropertiesPreserveRealViolationsWithIndependentWork() {
         for (BenchmarkProgram model : List.of(BugCorpus.doubleCheckedLocking(), BugCorpus.tornCounter())) {
@@ -201,9 +297,27 @@ class PropertyAwarePorTest {
             for (boolean extra : List.of(false, true)) {
                 List<ModelThread> threads = new ArrayList<>(model.program().threads());
                 if (extra) threads.add(new ModelThread(threads.size(), List.of(new Step() {
+                    /**
+                     * Returns reads for this .
+                     * @return stable over-approximated modeled reads
+                     */
                     public Set<MemoryLocation> reads() { return Set.of(); }
+                    /**
+                     * Returns writes for this .
+                     * @return stable over-approximated modeled writes
+                     */
                     public Set<MemoryLocation> writes() { return Set.of(); }
+                    /**
+                     * Reports whether this fixture transition is enabled in the supplied state.
+                     * @param state shared state to inspect or mutate according to this operation
+                     * @return whether this transition can execute against the supplied state
+                     */
                     public boolean enabled(SharedState state) { return true; }
+                    /**
+                     * Applies this fixture transition and returns its modeled outcome.
+                     * @param state shared state to inspect or mutate according to this operation
+                     * @return modeled execution outcome after applying the transition
+                     */
                     public StepOutcome execute(SharedState state) { return StepOutcome.ADVANCED; }
                 })));
                 Program program = new Program(model.program().initialConfiguration().state(), threads);
@@ -240,6 +354,12 @@ class PropertyAwarePorTest {
         }
     }
 
+    /**
+     * Builds the two-thread flag fixture with the requested initial values.
+     * @param a first modeled flag value
+     * @param b second modeled flag value
+     * @return two-thread flag fixture
+     */
     private static Program flags(Step a, Step b) {
         return new Program(PetersonState.of(false, false, 0), List.of(
             new ModelThread(0, List.of(a)), new ModelThread(1, List.of(b))));
@@ -258,10 +378,20 @@ class PropertyAwarePorTest {
         return branches;
     }
 
+    /**
+     * Builds the expected modeled-location set from stable names.
+     * @param names modeled memory-location names
+     * @return set of named modeled memory locations
+     */
     private static Set<MemoryLocation> locations(String... names) {
         return Arrays.stream(names).map(MemoryLocation::of).collect(java.util.stream.Collectors.toSet());
     }
 
+    /**
+     * Collects the distinct terminal outcomes reached by an exploration.
+     * @param result completed exploration result
+     * @return distinct terminal outcomes reached by this exploration
+     */
     private static Set<TraceOutcome> outcomes(DfsResult result) {
         Set<TraceOutcome> outcomes = EnumSet.noneOf(TraceOutcome.class);
         result.traces().forEach(trace -> outcomes.add(trace.outcome()));
@@ -270,24 +400,65 @@ class PropertyAwarePorTest {
 
     /** Three independent cells with value equality, used as an encoder-independent test domain. */
     private static final class Cells implements SharedState {
+        /** Values. */
         private final int[] values;
+        /**
+         * Creates an isolated snapshot of cells from the supplied values.
+         * @param values modeled array values to copy
+         */
         private Cells(int... values) { this.values = values.clone(); }
+        /**
+         * Returns deep copy for this cells.
+         * @return an isolated copy preserving the modeled values
+         */
         public SharedState deepCopy() { return new Cells(values); }
+        /**
+         * Writes this fixture’s values in a deterministic canonical order.
+         * @param out destination for canonical bytes
+         * @throws IOException if canonical bytes cannot be written
+         */
         public void encodeTo(DataOutput out) throws IOException { for (int value : values) out.writeInt(value); }
+        /**
+         * Compares modeled fixture values for equality.
+         * @param other object to compare with this value
+         * @return whether the other object satisfies this type’s equality contract
+         */
         public boolean equals(Object other) { return other instanceof Cells cells && Arrays.equals(values, cells.values); }
+        /**
+         * Hashes the canonical configuration value for bucket selection.
+         * @return hash consistent with this type’s equality contract
+         */
         public int hashCode() { return Arrays.hashCode(values); }
     }
 
     /** Deterministic writes, copies, guards and assertions with complete literal footprints. */
     private record CellStep(int read, int write, int value, int guard, boolean assertion) implements Step {
+        /**
+         * Returns reads for this cell step.
+         * @return stable over-approximated modeled reads
+         */
         public Set<MemoryLocation> reads() {
             Set<MemoryLocation> reads = new HashSet<>();
             if (read >= 0) reads.add(MemoryLocation.of("cell[" + read + "]"));
             if (guard >= 0) reads.add(MemoryLocation.of("cell[" + guard + "]"));
             return reads;
         }
+        /**
+         * Returns writes for this cell step.
+         * @return stable over-approximated modeled writes
+         */
         public Set<MemoryLocation> writes() { return write < 0 ? Set.of() : locations("cell[" + write + "]"); }
+        /**
+         * Reports whether this fixture transition is enabled in the supplied state.
+         * @param state shared state to inspect or mutate according to this operation
+         * @return whether this transition can execute against the supplied state
+         */
         public boolean enabled(SharedState state) { return guard < 0 || ((Cells) state).values[guard] == 1; }
+        /**
+         * Applies this fixture transition and returns its modeled outcome.
+         * @param state shared state to inspect or mutate according to this operation
+         * @return modeled execution outcome after applying the transition
+         */
         public StepOutcome execute(SharedState state) {
             Cells cells = (Cells) state;
             if (assertion) return cells.values[read] == 0 ? StepOutcome.ADVANCED : StepOutcome.ASSERTION_FAILED;

@@ -1,3 +1,4 @@
+/** Approximate state store using a Bloom filter (bit-vector with k hash functions). Trades completeness for memory: may return false positives (claims a state was visited when it wasn't) but never false negatives. When a false positive occurs, the explorer skips a reachable state, potentially missing violations. Use {@link HashingStateStore} when exact results are required. */
 package dev.samhb.interleave.state;
 
 import dev.samhb.interleave.core.Configuration;
@@ -19,13 +20,21 @@ import java.util.BitSet;
  * @see <a href="https://en.wikipedia.org/wiki/Bloom_filter">Bloom filter</a>
  */
 public final class BitstateStore implements StateStore {
+    /** Encoder. */
     private final CanonicalEncoder encoder;
+    /** Bitset. */
     private final BitSet bitset;
+    /** Size. */
     private final int size;
+    /** Num hash functions. */
     private final int numHashFunctions;
+    /** States marked. */
     private int statesMarked;
+    /** Preemption bitsets. */
     private final BitSet[] preemptionBitsets;
+    /** Max preemptions. */
     private final int maxPreemptions;
+    /** Preemption states marked. */
     private int preemptionStatesMarked;
 
     /**
@@ -87,6 +96,11 @@ public final class BitstateStore implements StateStore {
         this.preemptionStatesMarked = 0;
     }
 
+    /**
+     * Tests whether every Bloom probe bit for this canonical position is set.
+     * @param config position whose canonical value is hashed
+     * @return false for a definitely unseen position; true may be a false positive
+     */
     @Override
     public boolean isVisited(Configuration config) {
         int[] indices = hashIndices(config);
@@ -98,6 +112,7 @@ public final class BitstateStore implements StateStore {
         return true;
     }
 
+    /** {@inheritDoc} */
     @Override
     public void markVisited(Configuration config) {
         int[] indices = hashIndices(config);
@@ -107,6 +122,7 @@ public final class BitstateStore implements StateStore {
         statesMarked++;
     }
 
+    /** {@inheritDoc} */
     @Override
     public void clear() {
         bitset.clear();
@@ -115,6 +131,14 @@ public final class BitstateStore implements StateStore {
         preemptionStatesMarked = 0;
     }
 
+    /**
+     * Tests Bloom vectors at costs no greater than the current preemption cost.
+     * @param config position whose canonical value is hashed
+     * @param lastThreadId previous scheduled thread, included in the search identity
+     * @param preemptions current cost within this store’s configured capacity
+     * @return false if definitely unseen; true may be a Bloom false positive
+     * @throws IllegalArgumentException if the cost lies outside the configured capacity
+     */
     @Override
     public boolean isVisited(Configuration config, int lastThreadId, int preemptions) {
         requirePreemptionInRange(preemptions);
@@ -146,6 +170,7 @@ public final class BitstateStore implements StateStore {
         return false;
     }
 
+    /** {@inheritDoc} */
     @Override
     public void markVisited(Configuration config, int lastThreadId, int preemptions) {
         BitSet target = preemptionBitset(preemptions);
@@ -156,6 +181,10 @@ public final class BitstateStore implements StateStore {
         preemptionStatesMarked++;
     }
 
+    /**
+     * Rejects preemption costs outside this store’s supported range.
+     * @param preemptions preemption cost at this position
+     */
     private void requirePreemptionInRange(int preemptions) {
         if (preemptions < 0 || preemptions > maxPreemptions) {
             throw new IllegalArgumentException(
@@ -164,6 +193,11 @@ public final class BitstateStore implements StateStore {
         }
     }
 
+    /**
+     * Obtains the lazily allocated Bloom vector for this preemption cost.
+     * @param preemptions preemption cost at this position
+     * @return allocated Bloom vector for this cost; allocating it mutates store bookkeeping
+     */
     private BitSet preemptionBitset(int preemptions) {
         requirePreemptionInRange(preemptions);
         BitSet existing = preemptionBitsets[preemptions];
@@ -195,7 +229,7 @@ public final class BitstateStore implements StateStore {
     /**
      * Returns the bit-array size.
      *
-     * @return the number of bits in the backing bit vector
+     * @return configured Bloom-filter bit-array capacity in bits
      */
     public int size() {
         return size;
@@ -268,6 +302,10 @@ public final class BitstateStore implements StateStore {
         return (statesMarked > 0 ? 1 : 0) + allocatedPreemptionVectors();
     }
 
+    /**
+     * Returns the number of preemption-specific Bloom vectors allocated so far.
+     * @return number of non-null preemption-specific Bloom vectors
+     */
     private int allocatedPreemptionVectors() {
         int count = 0;
         for (BitSet preemptionBitset : preemptionBitsets) {
@@ -301,6 +339,7 @@ public final class BitstateStore implements StateStore {
         return Math.pow(prob, k);
     }
 
+    /** {@inheritDoc} */
     @Override
     public StateStore freshCopy() {
         // Capacity must carry over. A copy that silently reset maxPreemptions to the 2-argument
@@ -328,11 +367,19 @@ public final class BitstateStore implements StateStore {
      * Computes the k bit indices for a preemption-aware lookup. The primary hash folds in
      * {@code lastThreadId} so that the same configuration reached by different threads does not
      * collide, and a separate bit-vector per preemption count keeps the budgets independent.
+     * @param config current search configuration
+     * @param lastThreadId previously scheduled thread, or the initial sentinel
+     * @return Bloom probe indices for canonical position and previous-thread identity
      */
     private int[] preemptionHashIndices(Configuration config, int lastThreadId) {
         return doubleHash(31 * hashCode(config) + lastThreadId);
     }
 
+    /**
+     * Mixes the canonical hash into the second Bloom-filter hash.
+     * @param h1 first hash from which a second hash is mixed
+     * @return mixed second hash for Bloom probing
+     */
     private int[] doubleHash(int h1) {
         int h2 = Integer.rotateLeft(h1, 17);
         if (h2 == 0) {

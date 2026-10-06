@@ -1,8 +1,13 @@
+/** Terminal verdict distinguishing completion, violation, deadlock, and bounded incompletion. */
 package dev.samhb.interleave.search;
 
+/** Terminal verdict distinguishing completion, violation, deadlock, and bounded incompletion. */
 public enum TraceOutcome {
+    /** Violation. */
     VIOLATION,
+    /** Completed. */
     COMPLETED,
+    /** Deadlock. */
     DEADLOCK,
     /**
      * A context-bounded search exhausted its preemption budget without finding a violation.

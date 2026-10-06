@@ -6,13 +6,20 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
+/** Records both shared pair halves for a torn-read property. */
 public final class ReadSnapshotStep implements Step {
+    /** Thread id. */
     private final int threadId;
 
+    /**
+     * Creates read snapshot step from the supplied values.
+     * @param threadId zero-based modeled thread ID
+     */
     public ReadSnapshotStep(int threadId) {
         this.threadId = threadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public Set<MemoryLocation> reads() {
         return Set.of(
@@ -32,11 +39,13 @@ public final class ReadSnapshotStep implements Step {
             MemoryLocation.of("observedLow"), MemoryLocation.of("hasObservation"));
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean enabled(SharedState state) {
         return state instanceof PairState;
     }
 
+    /** {@inheritDoc} */
     @Override
     public StepOutcome execute(SharedState state) {
         PairState ps = (PairState) state;
@@ -44,6 +53,7 @@ public final class ReadSnapshotStep implements Step {
         return StepOutcome.ADVANCED;
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -51,6 +61,7 @@ public final class ReadSnapshotStep implements Step {
         return threadId == that.threadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public int hashCode() {
         return Objects.hash(threadId);

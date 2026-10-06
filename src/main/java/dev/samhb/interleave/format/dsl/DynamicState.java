@@ -1,3 +1,4 @@
+/** A {@link SharedState} whose shape comes from a {@link StateDecl} rather than from Java fields. */
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.core.SharedState;
@@ -37,9 +38,13 @@ import java.util.Arrays;
  * kept as defence in depth, not necessity. See Spec 13.05.
  */
 public final class DynamicState implements SharedState {
+    /** Decl. */
     private final StateDecl decl;
+    /** Thread count. */
     private final int threadCount;
+    /** Field values. */
     private final Object[] fieldValues; // per field index: Integer, Boolean, or int[]
+    /** Local values. */
     private final Object[][] localValues; // [tid][localIdx]: Integer or Boolean
 
     /**
@@ -99,7 +104,7 @@ public final class DynamicState implements SharedState {
     /**
      * Returns thread count.
      *
-     * @return thread count
+     * @return requested number of modeled threads
      */
     public int threadCount() { return threadCount; }
 
@@ -256,7 +261,6 @@ public final class DynamicState implements SharedState {
         throw new IllegalArgumentException("Unknown local: " + name);
     }
 
-    @Override
     /**
      * Returns a copy sharing no mutable structure with this one.
      *
@@ -266,6 +270,7 @@ public final class DynamicState implements SharedState {
      *
      * @return an independent deep copy
      */
+    @Override
     public SharedState deepCopy() {
         Object[] fieldCopy = new Object[fieldValues.length];
         for (int i = 0; i < fieldValues.length; i++) {
@@ -280,7 +285,6 @@ public final class DynamicState implements SharedState {
         return new DynamicState(decl, threadCount, fieldCopy, localCopy);
     }
 
-    @Override
     /**
      * Writes the canonical encoding: declared fields in order, then locals grouped by thread.
      *
@@ -311,6 +315,7 @@ public final class DynamicState implements SharedState {
      * @param out the sink to write to
      * @throws IOException if the sink fails
      */
+    @Override
     public void encodeTo(DataOutput out) throws IOException {
         // Thread count and declaration first. Both are compared by equals, so an encoding that omitted
         // either would map distinct states onto one visited key. Spec 13.05.
@@ -361,7 +366,6 @@ public final class DynamicState implements SharedState {
         }
     }
 
-    @Override
     /**
      * Compares by declared layout, thread count, field values, and locals.
      *
@@ -374,6 +378,7 @@ public final class DynamicState implements SharedState {
      * @param o the object to compare against
      * @return true if both describe the same configuration
      */
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof DynamicState that)) return false;
@@ -398,7 +403,6 @@ public final class DynamicState implements SharedState {
         return true;
     }
 
-    @Override
     /**
      * Hashes consistently with {@link #equals}.
      *
@@ -407,6 +411,7 @@ public final class DynamicState implements SharedState {
      *
      * @return a hash consistent with {@link #equals}
      */
+    @Override
     public int hashCode() {
         int h = decl.hashCode() * 31 + threadCount;
         for (Object v : fieldValues) {
@@ -417,7 +422,6 @@ public final class DynamicState implements SharedState {
         return h;
     }
 
-    @Override
     /**
      * Renders every declared field and local by name, for failure messages and oracle traces.
      *
@@ -428,6 +432,7 @@ public final class DynamicState implements SharedState {
      *
      * @return a human-readable rendering of the configuration
      */
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder("DynamicState{");
         for (int i = 0; i < decl.fields().size(); i++) {

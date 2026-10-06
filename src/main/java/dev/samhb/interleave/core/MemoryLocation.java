@@ -1,3 +1,4 @@
+/** A named cell in shared memory. */
 package dev.samhb.interleave.core;
 
 /**
@@ -9,8 +10,13 @@ package dev.samhb.interleave.core;
  */
 public final class MemoryLocation {
 
+    /** Name. */
     private final String name;
 
+    /**
+     * Creates an isolated snapshot of memory location from the supplied values.
+     * @param name stable diagnostic or modeled-location name
+     */
     private MemoryLocation(String name) {
         this.name = name;
     }
@@ -29,6 +35,7 @@ public final class MemoryLocation {
         return new MemoryLocation(name);
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -36,11 +43,13 @@ public final class MemoryLocation {
         return name.equals(that.name);
     }
 
+    /** {@inheritDoc} */
     @Override
     public int hashCode() {
         return name.hashCode();
     }
 
+    /** {@inheritDoc} */
     @Override
     public String toString() {
         return name;
