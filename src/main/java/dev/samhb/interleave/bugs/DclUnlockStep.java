@@ -1,3 +1,4 @@
+/** Models DCL unlock with complete ownership and control footprints. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
@@ -12,15 +13,23 @@ public final class DclUnlockStep implements Step {
         this.threadId = threadId;
     }
 
+    /**
+     * Includes lockedness and ownership needed by the guard.
+     * @return stable over-approximated reads footprint
+     */
     @Override
     public Set<MemoryLocation> reads() {
-        return Collections.singleton(MemoryLocation.of("lock"));
+        return Set.of(MemoryLocation.of("lock"), MemoryLocation.of("locked"), MemoryLocation.of("lockOwner"));
     }
 
+    /**
+     * Includes changed lock fields, control, and the conservative lock alias.
+     * @return stable over-approximated writes footprint
+     */
     @Override
     public Set<MemoryLocation> writes() {
         return Set.of(
-            MemoryLocation.of("lock"),
+            MemoryLocation.of("lock"), MemoryLocation.of("locked"), MemoryLocation.of("lockOwner"),
             MemoryLocation.of("control")
         );
     }

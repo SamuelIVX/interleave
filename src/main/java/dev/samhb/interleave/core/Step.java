@@ -1,3 +1,4 @@
+/** Declares atomic modeled actions with complete, stable footprints for reduction and replay. */
 package dev.samhb.interleave.core;
 
 import java.util.Set;
@@ -8,7 +9,8 @@ import java.util.Set;
  * <p>A step is the unit an interleaving scheduler chooses between. It declares which memory
  * locations it touches so the partial-order reduction strategies can decide whether two steps
  * commute, and it must be deterministic given a state: the same step on the same state always
- * yields the same outcome, or the search is exploring a nondeterministic program it cannot replay.
+ * yields the same outcome and written values. Internal or external mutable state must not influence
+ * execution; all behavior belongs in the supplied modeled state.
  */
 public interface Step {
 
@@ -18,7 +20,10 @@ public interface Step {
      * <p>Part of the independence relation's input. Underestimating this makes two steps look
      * independent when they are not, which silently prunes real interleavings.
      *
-     * @return the read set, empty if the step reads nothing
+     * <p>The stable over-approximation includes enabledness, guards, assertions, evaluation errors
+     * and values used by execution. Names must agree with property observations.
+     *
+     * @return the complete read set, empty if the step reads nothing
      */
     Set<MemoryLocation> reads();
 
@@ -26,9 +31,12 @@ public interface Step {
      * Returns the memory locations this step writes.
      *
      * <p>Part of the independence relation's input, and the same hazard as {@link #reads()}: an
-     * incomplete write set causes under-reduction.
+     * incomplete write set causes unsound pruning.
      *
-     * @return the write set, empty if the step writes nothing
+     * <p>Include every changed modeled field, including per-thread registers and observation fields.
+     * Conservative extra locations are permitted; omission can produce false passes.
+     *
+     * @return the complete stable write set, empty if the step writes nothing
      */
     Set<MemoryLocation> writes();
 

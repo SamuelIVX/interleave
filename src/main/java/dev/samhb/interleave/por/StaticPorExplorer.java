@@ -1,3 +1,4 @@
+/** Explores finite model threads with exhaustive fallback or property-aware static reduction. */
 package dev.samhb.interleave.por;
 
 import dev.samhb.interleave.core.*;
@@ -7,66 +8,22 @@ import dev.samhb.interleave.state.CanonicalEncoder;
 import java.util.*;
 
 /**
- * Partial-order reduction explorer: schedules only dependency-preserving interleavings.
+ * Static partial-order search with conservative support for observed state-only properties.
  *
- * <p>Instead of stepping every enabled thread at every configuration, this computes the
- * {@link PersistentSetComputer persistent set} for each configuration — a subset of the enabled threads
- * selected by current-step dependencies — and branches only over that. The reduction relies on
- * {@link IndependenceRelation}: two steps that neither read nor write each other's locations commute,
- * so an interleaving that runs them in one order has an equivalent with the other order removed.
+ * <p>Ordinary invariant callbacks branch exhaustively. Properties declaring complete
+ * {@link Invariant#observedLocations()} may use an invisible component closed over all remaining
+ * thread dependencies, provided its executed actions advance their counters. Unknown observations,
+ * visible/dependent components and non-progressing actions retain exhaustive branching.
  *
- * <p><b>An invariant disables the reduction entirely.</b> {@link #porDfs} branches over the
- * {@link PersistentSetComputer persistent set} only when no invariant is supplied. With an invariant it
- * branches over every enabled thread, making the traversal identical to
- * {@link dev.samhb.interleave.search.DfsExplorer} and violation detection <b>exhaustive</b>: every
- * configuration that can be reached without first passing through a violating one is visited and checked.
+ * <p>With complete stable step footprints, pure value-based predicates, non-mutating visitors,
+ * faithful state copying/encoding and an exact store, the observed path preserves violation
+ * detection and terminal outcomes. It does not enumerate every configuration or schedule, nor
+ * promise the shortest counterexample. Bitstate stores retain their independent false-positive risk.
+ * The finite linear-thread proof and its assumptions are recorded in spec 13.08.
  *
- * <p><b>That is weaker than complete configuration coverage, and the two must not be conflated.</b>
- * {@link #porDfs} returns as soon as a configuration violates, so its successors are never explored and
- * no configuration reachable only <em>through</em> a violating one is ever visited or checked. Measured
- * with no invariant against with, the shortfall is 9 configurations on each of {@code broken-peterson}
- * and {@code broken-peterson-v2}, 9 on {@code double-checked-locking} — where the totals happen to be
- * equal at 17 and only the membership differs, so a count comparison would not reveal it — and 1 on
- * {@code torn-counter}. A caller needing every reachable configuration visited must use
- * {@link dev.samhb.interleave.search.DfsExplorer} with a null invariant; this explorer's unguarded
- * reduction does not provide that coverage either.
- *
- * <p>Note the asymmetry that makes exhaustive detection the property worth having: a missed configuration
- * reachable only past a violation costs nothing, because the violation itself has already been reported.
- * What would be unsound is missing a violation that exists on a path never truncated — and disabling the
- * reduction is what guarantees no such path exists.
- *
- * <p><b>Why the reduction cannot be kept under an invariant.</b> The persistent set computed by
- * {@link PersistentSetComputer} is the <em>acyclic</em> set: a thread is retained only when it is
- * dependent on another enabled thread, otherwise one arbitrary enabled thread is returned. This
- * pairwise rule does not establish preservation of arbitrary state predicates: commuting steps can
- * have different intermediate states, and a predicate can reject one of them. A violation reachable
- * only through pruned interleavings is then never reported. Measured before this guard:
- * {@code broken-peterson-v2} yielded
- * 5 violating configurations under {@link dev.samhb.interleave.search.DfsExplorer} and
- * {@link TraceOutcome#COMPLETED} here — a false pass on a program whose expected verdict is
- * {@link TraceOutcome#VIOLATION} — while {@code broken-peterson} missed 4 of 5 and
- * {@code double-checked-locking} missed its only violating configuration.
- * {@link dev.samhb.interleave.dpor.DporExplorer} takes the same trade-off for the same reason.
- *
- * <p><b>Residual limitation, not a bug and not repairable by a better persistent set.</b> The reduction
- * is unsound for <em>trace completeness</em>: every execution the trace list reports is real, but not
- * every real execution appears. That is what reduction is for — two orderings of independent actions reach
- * the same configuration and POR keeps one — so no sound persistent set, and no sleep-set or DPOR
- * method, restores them. A caller needing a specific schedule in the output must use
- * {@link dev.samhb.interleave.search.DfsExplorer}, with or without an invariant.
- *
- * <p>A future reduction needs a <b>property-preservation proof</b>, not merely a larger pairwise set.
- * Measured with no invariant, the current set is not
- * reachability-complete: {@code broken-peterson-v2} visits 12 of 55 reachable configurations and
- * {@code broken-peterson} 17 of 55, so a configuration can be pruned away entirely. Adding the
- * pairwise "dependent on every other enabled thread" set leaves the existing set unchanged, and
- * persistence alone does not guarantee complete configuration coverage. Spec 13.08 records the
- * restricted no-op proof and an independent-write counterexample. The guard remains until a future
- * design establishes preservation of the supplied invariant.
- *
- * <p>Like the other explorers, this keys visited states through a {@link dev.samhb.interleave.state.HashingStateStore}
- * by default, so its visited set inherits that store's encoding fidelity.
+ * <p>No invariant uses the existing current-step selector. DPOR's invariant fallback is separate.
+ * A caller requiring full configuration enumeration must use DFS without an invariant; DFS with
+ * an invariant still stops each path at its first violation.
  */
 public final class StaticPorExplorer {
 
@@ -99,7 +56,7 @@ public final class StaticPorExplorer {
      * Explores, checking an invariant at every configuration.
      *
      * @param program the program to explore
-     * @param invariant the invariant to check, or null
+     * @param invariant the invariant to check, or null; declared state observations permit reduction
      * @return the visited configurations and the traces reached
      */
     public DfsResult explore(Program program, Invariant invariant) {
@@ -116,7 +73,7 @@ public final class StaticPorExplorer {
      * @param program the program to explore
      * @param invariant the invariant to check, or null
      * @param stateStore the visited store, or null for a fresh {@link HashingStateStore}
-     * @param stateVisitor notified of each visited configuration, or null
+     * @param stateVisitor notified of each explored configuration, or null; must not mutate it
      * @return the visited configurations and the traces reached
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
@@ -126,13 +83,31 @@ public final class StaticPorExplorer {
         List<Trace> traces = new ArrayList<>();
         long[] statesExplored = new long[1];
 
+        PropertyPersistentSetComputer propertySets = invariant == null ? null
+            : invariant.observedLocations()
+                .map(locations -> new PropertyPersistentSetComputer(program.threads(), locations, relation))
+                .orElse(null);
         Configuration initial = program.initialConfiguration();
         porDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
-               visitedStates, traces, invariant, statesExplored, effectiveStateStore, stateVisitor);
+               visitedStates, traces, invariant, statesExplored, effectiveStateStore, stateVisitor, propertySets);
 
         return new DfsResult(visitedStates, traces, statesExplored[0]);
     }
 
+    /**
+     * Visits a position and recursively explores the selected real transitions.
+     * @param program immutable model
+     * @param config current position
+     * @param currentThreadIds schedule prefix
+     * @param currentOutcomes executed-outcome prefix
+     * @param visitedStates value-keyed explored positions
+     * @param traces emitted evidence
+     * @param invariant safety predicate, or null
+     * @param statesExplored mutable visit-event counter
+     * @param stateStore duplicate suppression for this run
+     * @param stateVisitor non-mutating observer, or null
+     * @param propertySets run-local observed-property analysis, or null for the existing paths
+     */
     private void porDfs(Program program, Configuration config,
                         List<Integer> currentThreadIds,
                         List<StepOutcome> currentOutcomes,
@@ -141,7 +116,8 @@ public final class StaticPorExplorer {
                         Invariant invariant,
                         long[] statesExplored,
                         StateStore stateStore,
-                        StateVisitor stateVisitor) {
+                        StateVisitor stateVisitor,
+                        PropertyPersistentSetComputer propertySets) {
         if (stateStore.isVisited(config)) {
             return;
         }
@@ -172,21 +148,24 @@ public final class StaticPorExplorer {
             return;
         }
 
-        // Soundness guard: an invariant is a user-supplied predicate over states, so the reduction
-        // cannot be sound for it. The persistent set computed here is the *acyclic* set, which keeps a
-        // thread only when it is dependent on another enabled thread and otherwise returns one
-        // arbitrary enabled thread. That does not establish arbitrary invariant preservation,
-        // so configurations reachable only through pruned interleavings are never
-        // visited and a violation there is never reported. Measured before this guard:
-        // broken-peterson-v2 reported COMPLETED where DfsExplorer reported VIOLATION.
-        //
-        // So branch over every enabled thread whenever an invariant is present, which makes this
-        // traversal identical to DfsExplorer's and the invariant check exhaustive over the
-        // reachable configurations. DporExplorer takes the same trade-off for the same reason.
-        // See spec 13.08 for why a pairwise source-set union does not justify removing the guard.
+        List<Integer> enabled = config.enabledThreadIds();
         List<Integer> branchSet = invariant == null
             ? persistentSetComputer.computePersistentSet(config, program.threads())
-            : config.enabledThreadIds();
+            : propertySets == null ? enabled : propertySets.compute(config);
+
+        // Footprints prove invisibility and persistence, not progress. Execute candidates once on
+        // isolated copies and reuse them, even if a blocked/assertion result requires full fallback.
+        Map<Integer, PreparedTransition> prepared = new HashMap<>();
+        if (propertySets != null && branchSet.size() < enabled.size()) {
+            boolean progresses = true;
+            for (int id : branchSet) {
+                PreparedTransition transition = prepare(program, config, id);
+                prepared.put(id, transition);
+                if (transition.outcome() != StepOutcome.ADVANCED
+                        && transition.outcome() != StepOutcome.TERMINATED) progresses = false;
+            }
+            if (!progresses) branchSet = enabled;
+        }
 
         for (int threadId : branchSet) {
             ModelThread thread = program.threads().get(threadId);
@@ -194,8 +173,10 @@ public final class StaticPorExplorer {
             Step step = thread.steps().get(pc);
             if (step == null) continue;
 
-            SharedState nextState = config.state().deepCopy();
-            StepOutcome outcome = step.execute(nextState);
+            PreparedTransition transition = prepared.get(threadId);
+            if (transition == null) transition = prepare(program, config, threadId);
+            SharedState nextState = transition.state();
+            StepOutcome outcome = transition.outcome();
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -215,7 +196,7 @@ public final class StaticPorExplorer {
             Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
 
             porDfs(program, nextConfig, nextThreadIds, nextOutcomes,
-                   visitedStates, traces, invariant, statesExplored, stateStore, stateVisitor);
+                   visitedStates, traces, invariant, statesExplored, stateStore, stateVisitor, propertySets);
         }
 
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
@@ -235,4 +216,20 @@ public final class StaticPorExplorer {
             }
         }
     }
+
+    /**
+     * Executes one transition on a copy, without mutating the visited configuration.
+     * @param program model containing the selected step
+     * @param config position before execution
+     * @param threadId selected thread
+     * @return the outcome and isolated successor state, reused by traversal
+     */
+    private PreparedTransition prepare(Program program, Configuration config, int threadId) {
+        Step step = program.threads().get(threadId).steps().get(config.programCounters().get(threadId));
+        SharedState next = config.state().deepCopy();
+        return new PreparedTransition(step.execute(next), next);
+    }
+
+    private record PreparedTransition(StepOutcome outcome, SharedState state) {}
+
 }

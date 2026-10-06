@@ -1,3 +1,4 @@
+/** Models leaving a critical section and declares its shared-state write. */
 package dev.samhb.interleave.core;
 
 import java.util.Collections;
@@ -10,9 +11,13 @@ public final class CSExitStep implements Step {
         return Collections.emptySet();
     }
 
+    /**
+     * Reports the critical-section owner as a modeled write.
+     * @return stable over-approximated writes footprint
+     */
     @Override
     public Set<MemoryLocation> writes() {
-        return Collections.emptySet();
+        return Set.of(MemoryLocation.of("inCriticalSection"));
     }
 
     @Override

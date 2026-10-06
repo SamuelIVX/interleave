@@ -8,7 +8,7 @@ CI's parallel PIT — but it closed the mutants it set out to close and left nin
 rather than fixed.
 
 Originally decomposed into eight specs, ordered by dependency and blast radius. 13.09 adds the
-shared value-key follow-up; 13.08/A4 still needs its own algorithm implementation.
+shared value-key follow-up; 13.08 implements conservative property-aware static reduction.
 
 **Most of these items exist because of one scoping rule: every 12.x spec scoped itself out of `core`.**
 The register's debt list and `core`'s debt list are the same list, which is why these were never
@@ -21,12 +21,12 @@ true — the guard is exactly `enabled.isEmpty()` and the call is redundant. Tha
 *same* removal at L126 **is** killed. Full argument under
 [Corrections](#corrections-to-the-register) item 3.
 
-## Status: active — 13.01–13.07 and 13.09 implemented; 13.08 deferred
+## Status: active — 13.01–13.09 implemented; E5 remains open
 
 PR #42 implements 13.01–13.07. Follow-up 13.09 closes B1/B2 and preserves the 255/268 PIT aggregate
 while changing its per-class census (see [09](09-configuration-value-key.md#verification)).
-Spec 13.08 remains a design note: its pairwise shortcut is a no-op,
-and no property-preserving reduction has been implemented. The original planning decisions and
+Spec 13.08 now implements opt-in state observations, automatic DSL `always` observations, and
+remaining-step component closure. Its historical pairwise shortcut remains a rejected no-op. The original planning decisions and
 dependency order below are retained as history; the deferred register records the remaining work.
 
 ## Corrections to the register
@@ -142,10 +142,10 @@ the score with no new test. Consistency with that precedent is worth more than t
 | [05-dsl-encoding-completeness.md](05-dsl-encoding-completeness.md) | DSL encoding completeness | A2 | MED |
 | [06-thread-count-general-flags.md](06-thread-count-general-flags.md) | Thread-count-general flag arrays | A3 | LOW |
 | [07-conventions-and-process.md](07-conventions-and-process.md) | Conventions and process debt | D2, E1, E2 closed; E5 remains open | LOW |
-| [08-godefroid-source-set.md](08-godefroid-source-set.md) | Godefroid `source` set | A4 — **design note, not implemented** | **MED — its own session** |
+| [08-godefroid-source-set.md](08-godefroid-source-set.md) | Property-aware static persistent sets | A4 closed | **MED — its own session** |
 | [09-configuration-value-key.md](09-configuration-value-key.md) | Shared canonical configuration keys | B1, B2 | HIGH |
 
-13.09 is a follow-up to the original eight-spec plan. A4 (13.08) and E5 remain open.
+13.09 is a follow-up to the original eight-spec plan. 13.08 closes A4; E5 remains open.
 
 ## Historical Set-Exit Measurement (13.01–13.07)
 

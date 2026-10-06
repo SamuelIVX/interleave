@@ -19,7 +19,7 @@ that commit rather than trusted from the previous pin; the base label was stale,
 | ~~[A1](#a1)~~ | `ModelThread.pc` is dead; `enabled()`/`terminated()` are correct only at pc 0 | dead code + trap | — | closed by 13.02 |
 | ~~[A2](#a2)~~ | `DynamicState.encodeTo` omits `decl` and `threadCount` | latent defect | — | closed by 13.05 |
 | ~~[A3](#a3)~~ | `StateRegistry` hardcodes exactly 2 flags for `peterson`/`deadlock` | limitation | — | closed by 13.06 |
-| [A4](#a4) | Sound `StaticPorExplorer` fix disables the reduction whenever an invariant is given | perf regression | low | unassigned |
+| ~~[A4](#a4)~~ | `StaticPorExplorer` needs property-preserving reduction | **closed — opt-in observations + conservative closure** | — | closed by 13.08 |
 | ~~[B1](#b1)~~ | `SharedState.toString()` is diagnostic-only | **closed — explicit contract + canonical keys** | — | closed by 13.09 |
 | ~~[B2](#b2)~~ | `Configuration` needs shared value identity | **closed — public canonical key API** | — | closed by 13.09 |
 | ~~[C1](#c1)~~ | ~~R7 (no hash assertions) forbids the only way to kill 4 `BitstateStore` mutants~~ | **closed — premise was false** | — | closed 2026-10-03 |
@@ -31,7 +31,7 @@ that commit rather than trusted from the previous pin; the base label was stale,
 | ~~[E4](#e4)~~ | 1 mutant has no owning spec — `ContextBoundedExplorer` L187 | accounting | — | closed by 13.04; subject removed in 13.03 |
 | [E5](#e5) | Ratchet can fail CI on a wall-clock timeout indistinguishable from a regression | process | **med** | first CI run of the 12.06 gate |
 
-The entry evidence below is historical unless its status says otherwise. **Still open:** A4 and E5.
+The entry evidence below is historical unless its status says otherwise. **Still open:** E5. A4 is closed by 13.08's property-aware path; arbitrary callbacks retain exhaustive fallback.
 Spec 13.09 closes B1/B2 with a shared key API and diagnostic-only rendering contract. Spec 13.03
 originally documented the hazards and consolidated one predicate; it did not change
 `DclState.toString()` or add a canonical value-identity API. C1 and E3 were already closed in set 12.
@@ -128,13 +128,13 @@ the DSL specs alongside A2.
 The sound `StaticPorExplorer` fix gives up the speedup exactly when invariants are in play
 {: #a4}
 
-**Status: still open. 13.08 is a design note, not an implementation.** Adding the note's
-`source_pair` (dependent on every other enabled thread) to the current computed set is a no-op,
-including its singleton and nonempty fallbacks. That restricted proof says nothing about a future
-path-level analysis. A4 needs both a persistence argument and preservation of the supplied invariant;
-independent writes alone can skip a state an arbitrary predicate rejects. The earlier claim that
-reverse reachability plus a source term necessarily restores all state reachability is withdrawn.
-See [13.08](../13-deferred-debt/08-godefroid-source-set.md).
+**Status: closed by [13.08](../13-deferred-debt/08-godefroid-source-set.md).** Static POR supports
+explicit state-only observations and automatically derived DSL `always` observations. Remaining-step
+component closure, invisibility and executed progress establish the conservative reduction's proof.
+Ordinary callbacks and DSL `final` keep exhaustive branching; DPOR's invariant fallback stays intact.
+Reduction preserves violation detection, not full state/trace enumeration. The historical pairwise
+source union remains a no-op and was not implemented. The original evidence below records why the
+fallback was necessary before the property-aware path.
 
 **What.** 12.07 found that static POR could return a **false pass** when given an invariant, and fixed
 it by applying `DporExplorer`'s existing guard: supplying an invariant disables the reduction. That is

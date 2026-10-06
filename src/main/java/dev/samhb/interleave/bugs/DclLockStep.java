@@ -1,3 +1,4 @@
+/** Models DCL lock acquisition with complete ownership footprints. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
@@ -12,14 +13,22 @@ public final class DclLockStep implements Step {
         this.threadId = threadId;
     }
 
+    /**
+     * Includes lock-enabledness dependencies and the conservative lock alias.
+     * @return stable over-approximated reads footprint
+     */
     @Override
     public Set<MemoryLocation> reads() {
-        return Collections.singleton(MemoryLocation.of("lock"));
+        return Set.of(MemoryLocation.of("lock"), MemoryLocation.of("locked"), MemoryLocation.of("lockOwner"));
     }
 
+    /**
+     * Includes both changed lock fields and the conservative lock alias.
+     * @return stable over-approximated writes footprint
+     */
     @Override
     public Set<MemoryLocation> writes() {
-        return Collections.singleton(MemoryLocation.of("lock"));
+        return Set.of(MemoryLocation.of("lock"), MemoryLocation.of("locked"), MemoryLocation.of("lockOwner"));
     }
 
     @Override

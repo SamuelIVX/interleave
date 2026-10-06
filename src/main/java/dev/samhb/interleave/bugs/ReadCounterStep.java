@@ -1,3 +1,4 @@
+/** Copies the shared counter into a modeled per-thread register. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
@@ -17,9 +18,13 @@ public final class ReadCounterStep implements Step {
         return Set.of(MemoryLocation.of("counter"));
     }
 
+    /**
+     * Reports the destination register as a modeled write.
+     * @return stable over-approximated writes footprint
+     */
     @Override
     public Set<MemoryLocation> writes() {
-        return Collections.emptySet();
+        return Set.of(MemoryLocation.of("registers[" + threadId + "]"));
     }
 
     @Override

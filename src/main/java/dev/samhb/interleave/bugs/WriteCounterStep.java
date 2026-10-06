@@ -1,3 +1,4 @@
+/** Writes the counter from a modeled register with complete dependencies. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
@@ -12,9 +13,13 @@ public final class WriteCounterStep implements Step {
         this.threadId = threadId;
     }
 
+    /**
+     * Includes the source register and the existing conservative control dependency.
+     * @return stable over-approximated reads footprint
+     */
     @Override
     public Set<MemoryLocation> reads() {
-        return Set.of(MemoryLocation.of("control"));
+        return Set.of(MemoryLocation.of("control"), MemoryLocation.of("registers[" + threadId + "]"));
     }
 
     @Override

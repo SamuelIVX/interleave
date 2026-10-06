@@ -1,3 +1,4 @@
+/** Models DCL initialization with explicit property-visible state writes. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
@@ -17,9 +18,14 @@ public final class DclInitSetInitializedStep implements Step {
         return Collections.singleton(MemoryLocation.of("instance"));
     }
 
+    /**
+     * Includes initialization and the existing conservative DCL dependencies.
+     * @return stable over-approximated writes footprint
+     */
     @Override
     public Set<MemoryLocation> writes() {
         return Set.of(
+            MemoryLocation.of("initialized"),
             MemoryLocation.of("instance"),
             MemoryLocation.of("control")
         );
