@@ -499,12 +499,12 @@ false when checked.
 The ratchet can fail CI on a wall-clock timeout it cannot distinguish from a real regression
 {: #e5}
 
-**Status: open — final parallel CI pending.** Six verified full-scope CI runs across PRs #42–44
-used three PIT workers, passed the assertion-backed ratchet at 255/268, and reported zero timeout
-or execution-error statuses. Spec [13.10](../13-deferred-debt/10-parallel-ci-and-documentation.md)
-records the evidence and fixes the closure criterion: those six runs plus a successful normal
-parallel mutation job on the final change. Local single-worker runs do not satisfy that condition.
-The gate and the 13.07 adjudication procedure remain unchanged.
+**Status: closed by 13.10 / PR #45.** The six recorded parallel CI runs were supplemented by
+[final PR CI run 37544489174](https://github.com/SamuelIVX/interleave/actions/runs/37544489174).
+Its full-scope Mutation job used three PIT workers, passed at 255/268, and reported zero
+`TIMED_OUT`, `MEMORY_ERROR`, `NON_VIABLE`, or `RUN_ERROR`. PR #45 merged at `cc6d65b`.
+The agreed operational closure criterion is satisfied; the strict gate and timeout investigation
+procedure remain unchanged. See [13.10](../13-deferred-debt/10-parallel-ci-and-documentation.md).
 
 **What.** 12.06 makes the build **fail** on any `TIMED_OUT` or `MEMORY_ERROR` mutant. That is R6's
 intent — a mutant bought with wall time is not a kill — but it converts a previously reporting-only

@@ -1,6 +1,6 @@
 # 10 — Parallel CI evidence and Java documentation
 
-**Status:** implemented locally; final parallel PR CI and remote docstring check pending.
+**Status:** merged in PR #45; E5 closed by verified final parallel CI. Remote CodeRabbit review skipped.
 **Addresses:** E5 from `12-mutation-hardening/DEFERRED.md` and PR #44’s documentation warning.
 
 ## Purpose and closure criterion
@@ -101,8 +101,9 @@ are recorded below after execution. Compare mutation identities by class/method/
 instruction index, mutator, and status, excluding shifted source lines. Update line-dependent
 survivor annotations only to the measured location of the same mutant.
 
-**E5 remains open pending final parallel CI.** Remote docstring coverage remains unmeasured until
-publication is authorized; the six historical runs cannot stand in for the final change’s checks.
+**E5 is closed.** The final PR Mutation job independently satisfies the remaining parallel-CI
+condition, as recorded below. Remote docstring coverage is unmeasured because CodeRabbit skipped
+the review; its successful status does not establish either a review or an 80% coverage result.
 
 ## Final local verification
 
@@ -121,3 +122,17 @@ by correcting their new documentation to state that the views are live and mutab
 existing API behavior is outside this documentation change. The second pass completed with one minor finding: the exact-store description incorrectly
 implied exhaustive results. It now distinguishes exact deduplication from bounded-search
 completeness. No actionable local findings remain after verification; no third review was run.
+
+## Final remote evidence and closure
+
+[PR #45](https://github.com/SamuelIVX/interleave/pull/45) merged at `cc6d65b`. Its
+[Mutation job](https://github.com/SamuelIVX/interleave/actions/runs/37544489174/job/112545079086)
+on head `a7abde9` completed successfully in **5m 54s**, using **three PIT workers** and the full
+default mutation scope. The report and ratchet both show **255/268**, 13 survivors, and zero timeout
+or execution-error statuses. Build, CodeQL, and security checks also passed. This seventh verified
+parallel job satisfies E5’s agreed closure criterion. The floor, budgets, and strict gate remain.
+
+CodeRabbit’s remote review was **skipped**: 122 changed files exceeded its 100-file capacity, and
+sufficient usage capacity was unavailable. No remote docstring percentage was produced. The two
+completed local reviews, attached-doc inventory, and clean public/private doclint are the verified
+documentation evidence. No credits were purchased or review limits bypassed.

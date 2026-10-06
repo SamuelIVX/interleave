@@ -21,7 +21,7 @@ true — the guard is exactly `enabled.isEmpty()` and the call is redundant. Tha
 *same* removal at L126 **is** killed. Full argument under
 [Corrections](#corrections-to-the-register) item 3.
 
-## Status: active — 13.01–13.09 merged; 13.10 verified locally; E5 awaits final CI
+## Status: complete — 13.01–13.10 merged; E5 closed by final parallel CI
 
 PR #42 implements 13.01–13.07. Follow-up 13.09 closes B1/B2 and preserves the 255/268 PIT aggregate
 while changing its per-class census (see [09](09-configuration-value-key.md#verification)).
@@ -141,14 +141,14 @@ the score with no new test. Consistency with that precedent is worth more than t
 | [04-context-bounded-l187.md](04-context-bounded-l187.md) | `ContextBoundedExplorer` L187 | E4 | MED |
 | [05-dsl-encoding-completeness.md](05-dsl-encoding-completeness.md) | DSL encoding completeness | A2 | MED |
 | [06-thread-count-general-flags.md](06-thread-count-general-flags.md) | Thread-count-general flag arrays | A3 | LOW |
-| [07-conventions-and-process.md](07-conventions-and-process.md) | Conventions and process debt | D2, E1, E2 closed; E5 remains open | LOW |
+| [07-conventions-and-process.md](07-conventions-and-process.md) | Conventions and process debt | D2, E1, E2 closed; E5 closed by 13.10 | LOW |
 | [08-godefroid-source-set.md](08-godefroid-source-set.md) | Property-aware static persistent sets | A4 closed | **MED — its own session** |
 | [09-configuration-value-key.md](09-configuration-value-key.md) | Shared canonical configuration keys | B1, B2 | HIGH |
 
-| [10-parallel-ci-and-documentation.md](10-parallel-ci-and-documentation.md) | Parallel CI evidence and Java documentation | E5 awaits final parallel CI | LOW |
+| [10-parallel-ci-and-documentation.md](10-parallel-ci-and-documentation.md) | Parallel CI evidence and Java documentation | E5 closed | LOW |
 
 13.09 and 13.10 follow the original eight-spec plan. 13.08 closes A4; 13.10 records six verified
-parallel runs and the documentation audit. E5 remains open until final parallel CI passes.
+parallel runs and the documentation audit. PR #45’s final parallel CI passed, closing E5.
 
 ## Historical Set-Exit Measurement (13.01–13.07)
 
@@ -171,7 +171,7 @@ it; this run is what settles it.
 
 `TIMED_OUT: 0` is a single-threaded local figure and **cannot speak to CI's parallel profile** — that is
 the load profile E5 tracks. Spec 13.10 now records six independent CI jobs using three PIT workers;
-E5 remains open pending the final change’s parallel CI run. See 07 and 10.
+PR #45’s final parallel CI supplied the required seventh run. See 07 and 10.
 
 At that exit, 268 was unchanged from 13.03: 13.03 was the last item to touch a class
 inside the scope, and everything after it was outside it by design.
@@ -265,4 +265,5 @@ constructors**, all with attached Javadoc. Full public and private-member doclin
 `clean build javadoc pitest` passes **526 tests** and **255/268** mutation kills with unchanged
 semantic mutation/status identities. The 94% floor, parallel CI configuration, and timeout budgets
 remain unchanged. See [13.10](10-parallel-ci-and-documentation.md) and its documentation inventory.
-E5 is still open pending the final change’s parallel CI; remote docstring coverage is pending.
+E5 is closed by PR #45’s verified three-worker mutation run. Remote CodeRabbit review was skipped
+because the 122-file change exceeded its capacity; no remote docstring percentage was produced.

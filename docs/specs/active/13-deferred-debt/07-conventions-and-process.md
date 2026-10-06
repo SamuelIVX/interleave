@@ -1,6 +1,6 @@
 # 07 — Conventions and process debt
 
-**Status:** implemented — **E5 deliberately not closed** (see below)
+**Status:** implemented; E5 was left open in 13.07 and subsequently closed by 13.10 / PR #45.
 **Closes:** D2, E1, E2 from `12-mutation-hardening/DEFERRED.md`
 **Mutation scope:** none — `build.gradle.kts`, `AGENTS.md` and one spec's prose.
 
@@ -74,7 +74,8 @@ it aligned with those constants. Only drift in the recorded build constants is d
 
 ## E5 — not closed, and cannot be from here
 
-E5 is recorded as open, on purpose. Its closure condition is empirical and this spec cannot satisfy it:
+At the 13.07 exit, E5 was recorded as open on purpose. Its closure condition was empirical and
+13.07 alone could not satisfy it:
 
 > E5 closes when the full-scope parallel gate has been green across enough runs that a single timeout is
 > more plausibly a regression than a flake — or, more honestly, when it is judged not worth further
@@ -136,5 +137,6 @@ unit tests; the actual scoped and full PIT runs are verified separately.
 
 Six full-scope parallel CI runs across PRs #42–44 passed with three PIT workers and zero timeout or
 execution-error statuses. [13.10](10-parallel-ci-and-documentation.md) records each run and the
-agreed closure criterion: those runs plus passing parallel CI on the final change. E5 remains open
-until that final check; the strict gate and adjudication procedure above remain in force.
+agreed closure criterion: those runs plus passing parallel CI on the final change. PR #45’s final
+three-worker Mutation job passed at 255/268 with zero timeout/error statuses, closing E5. The strict
+gate and adjudication procedure above remain in force.
