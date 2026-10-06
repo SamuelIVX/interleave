@@ -3,7 +3,7 @@
 ## TL;DR
 
 Give `CanonicalEncoder` one shared configuration-key interface and migrate explorer result maps,
-the exact store, and keying test helpers to it. Close B1 with an explicit diagnostic-only
+the exact store, and key-under-test helpers to it; retain independent visitor/value oracles. Close B1 with an explicit diagnostic-only
 `SharedState.toString()` contract. Preserve CBS's scheduling identity and the existing store's
 preemption dominance rule. This follows 13.03's partial mitigation; it does not implement 13.08/A4.
 
@@ -47,7 +47,7 @@ are implementation details; consumers must not parse or persist the key as a ver
 | Diagnostic text never defines identity | constant-rendering state with several distinct reachable values |
 | All result-map sites use the same definition | DFS, static POR, both DPOR branches, CBS, exact store |
 | Corpus behavior stays stable | before/after events, distinct result states, traces, and canonical visited membership for every corpus program × explorer × exact/bitstate × invariant mode |
-| Encoder injectivity test remains independent | retain its value-equality store and visitor sampling; only its key-under-test helper moves to the public interface |
+| Identity oracles remain independent | retain encoder value-equality sampling and CBS value/counter records; only the encoder key-under-test helper uses the public interface |
 
 Write failing tests before each behavior change. Do not replace independent expected identities with
 the new key inside an oracle: that would let a lossy key erase its own evidence.
@@ -77,6 +77,10 @@ Verified locally against fresh `main` at `7cdc1ef`:
   events, canonical visitor membership, and full outcome/thread/outcome traces. Four CBS DCL result
   maps correctly shrink: **30 → 25** without an invariant and **29 → 24** with one, for both stores.
   Events stay **32** and **31** respectively; only duplicate bookkeeping entries disappear.
+- Local CodeRabbit review found two valid issues: key allocation before duplicate pruning, and a
+  CBS membership oracle sharing the key under test. Both are fixed. Deliberately omitting counters
+  makes the independent oracle fail on Peterson at K=1 (25 reached positions missing); the key was
+  restored before final verification.
 - The encoder's scoped census is **18/19**, matching the full run. Its only survivor remains
   `CanonicalEncoder.encode`'s `flush()` removal. The unchanged encode implementation and measured
   mutant identify the same 12.01 R5 equivalence; its source location moves from 16 to 26, so the
@@ -92,9 +96,11 @@ Verified locally against fresh `main` at `7cdc1ef`:
 The removed store mutants belong to private `encode` (7), `preemptionKey` (2), and their four
 call sites (4). The shared derivation replaces those four calls. CBS replaces state/counter/string
 conversion calls with one shared-key call. Comparing class, method signature, mutator, description,
-and multiplicity (ignoring shifted source locations) yields **19 killed removals and 19 killed
+and multiplicity (ignoring shifted source locations) yields **17 killed removals and 17 killed
 additions** overall, with no changed survivor identities. Net population and kill count remain fixed;
 this is consolidation accounting, not 12 new net kills. The 94% gate and total expectation stay intact;
 per-class expectations and the current spec-12 table follow the measured census.
 
-Local CodeRabbit review and remote CI are recorded in the PR. A4 and E5 remain open.
+The second local CodeRabbit review found a documentation arithmetic error (the removals/additions
+sum to 17 each); corrected above. No further local CLI review is run after the two-pass limit.
+Remote CI/review results are recorded in the PR. A4 and E5 remain open.

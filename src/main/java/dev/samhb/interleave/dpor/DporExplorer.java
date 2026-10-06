@@ -108,14 +108,12 @@ public final class DporExplorer {
                          HappensBefore happensBefore,
                          StateStore stateStore,
                          StateVisitor stateVisitor) {
-        String key = encoder.configurationKey(config);
-
         if (stateStore.isVisited(config)) {
             return;
         }
 
         stateStore.markVisited(config);
-        visitedStates.put(key, config);
+        visitedStates.put(encoder.configurationKey(config), config);
         statesExplored[0]++;
 
         if (stateVisitor != null) {
@@ -271,14 +269,12 @@ public final class DporExplorer {
                         long[] statesExplored,
                         StateStore stateStore,
                         StateVisitor stateVisitor) {
-        String key = encoder.configurationKey(config);
-
         if (stateStore.isVisited(config)) {
             return;
         }
 
         stateStore.markVisited(config);
-        visitedStates.put(key, config);
+        visitedStates.put(encoder.configurationKey(config), config);
         statesExplored[0]++;
 
         if (stateVisitor != null) {
