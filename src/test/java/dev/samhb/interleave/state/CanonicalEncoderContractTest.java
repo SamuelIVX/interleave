@@ -9,7 +9,6 @@ import dev.samhb.interleave.search.DfsExplorer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.util.Base64;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -32,8 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the stores depend on.
  *
  * <p><b>Scope note.</b> R1 asserts injectivity of the <em>full store key</em> —
- * {@code encode(state) + "|" + programCounters} — the shape
- * {@link HashingStateStore} actually builds, because that is what the store needs to be injective.
+ * {@link CanonicalEncoder#configurationKey(Configuration)} — the shared value key
+ * {@link HashingStateStore} uses, because that is what the store needs to be injective.
  * Injectivity of the state encoding <em>alone</em> is strictly stronger than either store requires and
  * is owned by Spec 12.07, which found {@code DeadlockState} silently omitting a field. Asserting only
  * the weaker property here is deliberate: it is the property the stores actually depend on.
@@ -42,10 +41,9 @@ class CanonicalEncoderContractTest {
 
     private static final CanonicalEncoder ENCODER = new CanonicalEncoder();
 
-    /** The exact key shape {@link HashingStateStore} builds, so R1 tests what the store really uses. */
+    /** The public key under test; the position oracle and sampling store below remain independent. */
     private static String storeKey(Configuration config) {
-        return Base64.getEncoder().encodeToString(ENCODER.encode(config.state()))
-                + "|" + config.programCounters().toString();
+        return ENCODER.configurationKey(config);
     }
 
     /**

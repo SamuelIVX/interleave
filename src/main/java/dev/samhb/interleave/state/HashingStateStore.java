@@ -35,7 +35,7 @@ public final class HashingStateStore implements StateStore, Serializable {
         if (!visitedHashes.contains(hash)) {
             return false;
         }
-        String encoded = encode(config);
+        String encoded = encoder.configurationKey(config);
         return visitedStates.contains(encoded);
     }
 
@@ -43,7 +43,7 @@ public final class HashingStateStore implements StateStore, Serializable {
     public void markVisited(Configuration config) {
         int hash = hashCode(config);
         visitedHashes.add(hash);
-        String encoded = encode(config);
+        String encoded = encoder.configurationKey(config);
         visitedStates.add(encoded);
     }
 
@@ -65,7 +65,7 @@ public final class HashingStateStore implements StateStore, Serializable {
         if (!preemptionHashes.contains(preemptionHash(config, lastThreadId))) {
             return false;
         }
-        Integer min = minPreemptions.get(preemptionKey(config, lastThreadId));
+        Integer min = minPreemptions.get(encoder.configurationKey(config, lastThreadId));
         // Visited at budget p iff some recorded q satisfies q <= p, which holds iff min(q) <= p.
         return min != null && min <= preemptions;
     }
@@ -75,7 +75,7 @@ public final class HashingStateStore implements StateStore, Serializable {
         preemptionHashes.add(preemptionHash(config, lastThreadId));
         // Only the minimum budget matters: any higher count is subsumed by it, and keeping the
         // minimum is what makes isVisited O(1) instead of a scan over every recorded count.
-        minPreemptions.merge(preemptionKey(config, lastThreadId), preemptions, Math::min);
+        minPreemptions.merge(encoder.configurationKey(config, lastThreadId), preemptions, Math::min);
     }
 
     /**
@@ -104,18 +104,8 @@ public final class HashingStateStore implements StateStore, Serializable {
         return result;
     }
 
-    private String encode(Configuration config) {
-        String stateEncoded = Base64.getEncoder().encodeToString(encoder.encode(config.state()));
-        String pcEncoded = config.programCounters().toString();
-        return stateEncoded + "|" + pcEncoded;
-    }
-
     private int preemptionHash(Configuration config, int lastThreadId) {
         return 31 * hashCode(config) + lastThreadId;
-    }
-
-    private String preemptionKey(Configuration config, int lastThreadId) {
-        return encode(config) + "|" + lastThreadId;
     }
 
     @Override

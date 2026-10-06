@@ -2,7 +2,8 @@
 
 **Status:** implemented
 **Addresses:** B1, B2 (`12-mutation-hardening/DEFERRED.md`) — documentation and predicate mitigation;
-the register's value-rendering/value-key closure criteria remain open.
+the value-rendering/value-key criteria were later closed by [13.09](09-configuration-value-key.md).
+The site inventory and implementation discussion below record 13.03's historical decision.
 **Mutation scope:** yes — `ContextBoundedExplorer` is `cb.*`. This spec **moves the total and the
 score**. See [Mutation impact](#mutation-impact), and read that section before quoting any number.
 

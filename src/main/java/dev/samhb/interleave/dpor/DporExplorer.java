@@ -4,6 +4,7 @@ import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.por.IndependenceRelation;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.state.HashingStateStore;
+import dev.samhb.interleave.state.CanonicalEncoder;
 import java.util.*;
 
 /**
@@ -32,6 +33,7 @@ import java.util.*;
 public final class DporExplorer {
 
     private final IndependenceRelation relation;
+    private final CanonicalEncoder encoder = new CanonicalEncoder();
 
     /** Creates an explorer with the default independence relation. */
     public DporExplorer() {
@@ -106,14 +108,12 @@ public final class DporExplorer {
                          HappensBefore happensBefore,
                          StateStore stateStore,
                          StateVisitor stateVisitor) {
-        String key = config.state().toString() + "|" + config.programCounters();
-
         if (stateStore.isVisited(config)) {
             return;
         }
 
         stateStore.markVisited(config);
-        visitedStates.put(key, config);
+        visitedStates.put(encoder.configurationKey(config), config);
         statesExplored[0]++;
 
         if (stateVisitor != null) {
@@ -269,14 +269,12 @@ public final class DporExplorer {
                         long[] statesExplored,
                         StateStore stateStore,
                         StateVisitor stateVisitor) {
-        String key = config.state().toString() + "|" + config.programCounters();
-
         if (stateStore.isVisited(config)) {
             return;
         }
 
         stateStore.markVisited(config);
-        visitedStates.put(key, config);
+        visitedStates.put(encoder.configurationKey(config), config);
         statesExplored[0]++;
 
         if (stateVisitor != null) {

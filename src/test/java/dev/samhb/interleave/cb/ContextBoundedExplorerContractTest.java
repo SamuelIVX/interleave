@@ -3,6 +3,7 @@ package dev.samhb.interleave.cb;
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.bugs.BugCorpus;
 import dev.samhb.interleave.core.Configuration;
+import dev.samhb.interleave.core.SharedState;
 import dev.samhb.interleave.search.StateVisitor;
 import dev.samhb.interleave.state.BitstateStore;
 import dev.samhb.interleave.state.HashingStateStore;
@@ -31,15 +32,18 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code equals} or {@code hashCode}, so it compares by identity. Any set of configurations built from
  * those objects measures object identity, not configurations, and silently reports nonsense — including
  * "every visited configuration is missing from the result". Everything below therefore compares
- * configurations by {@link #configKey(Configuration)}, the same value the explorer's own result map and
- * {@link HashingStateStore} use.
+ * configurations by {@link #position(Configuration)}, an independent state-value/counter record. Tests comparing
+ * reachable configurations deliberately project away the last-thread component used by the explorer
+ * and store's scheduling keys; preemption-specific tests cover that component separately.
  */
 class ContextBoundedExplorerContractTest {
 
-    /** Canonical value identity of a configuration, matching the explorer's own result-map key. */
-    private static String configKey(Configuration c) {
-        return c.state().toString() + "|" + c.programCounters();
+    /** Independent base identity; snapshots values and deliberately projects away scheduling context. */
+    private static Position position(Configuration c) {
+        return new Position(c.state().deepCopy(), c.programCounters());
     }
+
+    private record Position(SharedState state, List<Integer> counters) {}
 
     private static BenchmarkProgram lostUpdate3t() {
         return BugCorpus.all().stream()
@@ -137,23 +141,23 @@ class ContextBoundedExplorerContractTest {
             .filter(p -> "torn-counter".equals(p.name()))
             .findFirst()
             .orElseThrow();
-        Set<String> otherConfigurations = new HashSet<>();
+        Set<Position> otherConfigurations = new HashSet<>();
         var otherResult = explorer.explore(other.program(), null, null,
             new StateVisitor() {
                 @Override
                 public void onStateVisited(Configuration c) {
-                    otherConfigurations.add(configKey(c));
+                    otherConfigurations.add(position(c));
                 }
 
                 @Override
                 public void onStateVisited(Configuration c, int t, int p) {
-                    otherConfigurations.add(configKey(c));
+                    otherConfigurations.add(position(c));
                 }
             }, 2);
 
-        Set<String> reported = new HashSet<>();
-        otherResult.states().values().forEach(c -> reported.add(configKey(c)));
-        Set<String> stale = new HashSet<>(reported);
+        Set<Position> reported = new HashSet<>();
+        otherResult.states().values().forEach(c -> reported.add(position(c)));
+        Set<Position> stale = new HashSet<>(reported);
         stale.removeAll(otherConfigurations);
 
         assertTrue(stale.isEmpty(),
@@ -176,12 +180,13 @@ class ContextBoundedExplorerContractTest {
      *
      * <p>The result map is keyed {@code state|counters|lastThreadId}. Dropping any component of that key
      * makes distinct configurations collide, so entries are silently lost and {@code states()}
-     * under-reports what was actually explored. Those are five mutants, and no verdict-level test can see
-     * them because the verdict is unaffected.
+     * under-reports what was actually explored. The original concatenation produced five mutants; the
+     * shared-key delegation now has one. No verdict-level test can see lost map entries because the
+     * verdict is unaffected.
      *
      * <p>The ground truth is the {@link StateVisitor} hook, which reports each exploration
      * independently of the map the explorer writes. Configurations are compared by
-     * {@link #configKey(Configuration)} rather than by object identity, because
+     * {@link #position(Configuration)} rather than by object identity, because
      * {@link Configuration} has no {@code equals}.
      *
      * <p><b>Deliberately not asserted:</b> {@code states().size() == statesExplored()}. That is false on
@@ -194,31 +199,31 @@ class ContextBoundedExplorerContractTest {
     void everyDistinctConfigurationReached_isReportedInStates() {
         for (int bound = 1; bound <= 3; bound++) {
             for (BenchmarkProgram program : BugCorpus.all()) {
-                Set<String> reached = new HashSet<>();
+                Set<Position> reached = new HashSet<>();
                 var result = new ContextBoundedExplorer().explore(
                     program.program(), program.invariant().orElse(null), null,
                     new StateVisitor() {
                         @Override
                         public void onStateVisited(Configuration c) {
-                            reached.add(configKey(c));
+                            reached.add(position(c));
                         }
 
                         @Override
                         public void onStateVisited(Configuration c, int lastThreadId, int preemptions) {
-                            reached.add(configKey(c));
+                            reached.add(position(c));
                         }
                     },
                     bound);
 
-                Set<String> reported = new HashSet<>();
-                result.states().values().forEach(c -> reported.add(configKey(c)));
+                Set<Position> reported = new HashSet<>();
+                result.states().values().forEach(c -> reported.add(position(c)));
 
                 // Both directions. Reached-minus-reported catches a key that collides distinct
-                // configurations and drops them, which is what all five mutants do. Reported-minus-reached
+                // configurations and drops them. Reported-minus-reached
                 // catches the reverse: a map claiming a configuration the search never reached. Compared
                 // as sets of values, so one configuration reached under several lastThreadId values
                 // collapses correctly and is not reported as spurious.
-                Set<String> lost = new HashSet<>(reached);
+                Set<Position> lost = new HashSet<>(reached);
                 lost.removeAll(reported);
                 // Build the example lazily: JUnit evaluates a message argument eagerly, so calling
                 // lost.iterator().next() inline would throw before assertTrue ever ran.
@@ -228,7 +233,7 @@ class ContextBoundedExplorerContractTest {
                         + " configurations were reached but never reported in states(); "
                         + "the result map key has lost a component." + example);
 
-                Set<String> invented = new HashSet<>(reported);
+                Set<Position> invented = new HashSet<>(reported);
                 invented.removeAll(reached);
                 String inventedExample = invented.isEmpty() ? "" : " Example: " + invented.iterator().next();
                 assertTrue(invented.isEmpty(),
@@ -248,20 +253,20 @@ class ContextBoundedExplorerContractTest {
 
         for (int bound = 1; bound <= 3; bound++) {
             BenchmarkProgram program = lostUpdate3t();
-            Set<String> perConfigVisits = new HashSet<>();
+            Set<Position> perConfigVisits = new HashSet<>();
             List<Configuration> events = new ArrayList<>();
             var result = new ContextBoundedExplorer().explore(program.program(), null, null,
                 new StateVisitor() {
                     @Override
                     public void onStateVisited(Configuration c) {
                         events.add(c);
-                        perConfigVisits.add(configKey(c));
+                        perConfigVisits.add(position(c));
                     }
 
                     @Override
                     public void onStateVisited(Configuration c, int t, int p) {
                         events.add(c);
-                        perConfigVisits.add(configKey(c));
+                        perConfigVisits.add(position(c));
                     }
                 }, bound);
 

@@ -360,7 +360,12 @@ pitest {
 /**
  * Scope and mutator set are fixed; a different population is a different baseline.
  *
- * 268 as of spec set 13.03, down from 270. `ContextBoundedExplorer` fell from 105 mutants to 103
+ * 268 remains the measured population in 13.09: CanonicalEncoder gains 12 killed mutants,
+ * HashingStateStore loses a net 9 killed mutants, and ContextBoundedExplorer loses a net 3.
+ * All 13 survivors are unchanged; the shared key moves derivation rather than suppressing mutants.
+ * See 13.09 for the method-level census.
+ *
+ * Historically, 13.03 moved 270 to 268. `ContextBoundedExplorer` fell from 105 mutants to 103
  * when line 187's hand-rolled `enabled.isEmpty() && !config.allTerminated()` was replaced with
  * `config.isDeadlockCandidate()` — provably the same predicate, conjunction commutated. Two mutants
  * disappeared with the condition: one that was killed, and the `NonVoidMethodCallMutator` on
@@ -389,10 +394,10 @@ val EXPECTED_TOTAL_MUTANTS = 268
  * red for a documentation reason.
  */
 val EXPECTED_PER_CLASS = mapOf(
-    "dev.samhb.interleave.state.CanonicalEncoder" to "6/7",
-    "dev.samhb.interleave.state.HashingStateStore" to "52/61",
+    "dev.samhb.interleave.state.CanonicalEncoder" to "18/19",
+    "dev.samhb.interleave.state.HashingStateStore" to "43/52",
     "dev.samhb.interleave.state.BitstateStore" to "94/97",
-    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "103/103",
+    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "100/100",
 )
 
 /**
@@ -441,7 +446,7 @@ val EQUIVALENT_ALLOW_LIST = emptyList<String>()
  * established by experiment in 12.01 §R5 — deleting the call leaves the whole suite green.
  */
 val KNOWN_EQUIVALENT_SURVIVORS = mapOf(
-    "dev.samhb.interleave.state.CanonicalEncoder:16" to
+    "dev.samhb.interleave.state.CanonicalEncoder:26" to
         "12.01 R5 — out.flush() removed leaves the full suite green; verified equivalent by" +
         " experiment, not inferred from PIT's status.",
 )
