@@ -14,7 +14,6 @@ import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -454,16 +453,16 @@ class HashingStateStoreLifecycleTest {
     }
 
     /**
-     * Builds a configuration from a counter value and a per-thread position, reflecting the private
-     * constructor. {@code Configuration} exposes only {@code initial} and {@code successor}, neither of
-     * which can place a thread at an arbitrary position, and a fixture pinned to one program's traversal
-     * order would break the moment that order changes.
+     * Builds a configuration from a counter value and a per-thread position, via
+     * {@link Configuration#forTest}. A fixture pinned to one program's traversal order would break the
+     * moment that order changes, so the position is a parameter rather than something reached by
+     * stepping.
      */
     private static Configuration configurationAt(CounterState state, int counter, int threadPosition) {
         List<Integer> counters = new ArrayList<>();
         counters.add(threadPosition);
         counters.add(0);
-        return newConfiguration(state, counters, List.of(0, 1), false, false);
+        return Configuration.forTest(state, counters, List.of(0, 1));
     }
 
     /**
@@ -471,21 +470,6 @@ class HashingStateStoreLifecycleTest {
      * deliberately not plausible thread positions — see that test's comment.
      */
     private static Configuration configurationWithCounters(CounterState state, List<Integer> counters) {
-        return newConfiguration(state, counters, List.of(0, 1), false, false);
-    }
-
-    private static Configuration newConfiguration(SharedState state, List<Integer> counters,
-                                                  List<Integer> enabled, boolean allTerminated,
-                                                  boolean deadlock) {
-        try {
-            var ctor = Configuration.class.getDeclaredConstructor(
-                SharedState.class, List.class, Map.class, Map.class, List.class,
-                boolean.class, boolean.class, StepOutcome.class);
-            ctor.setAccessible(true);
-            return ctor.newInstance(state, counters, new HashMap<>(), new HashMap<>(), enabled,
-                allTerminated, deadlock, null);
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("cannot build a Configuration fixture", e);
-        }
+        return Configuration.forTest(state, counters, List.of(0, 1));
     }
 }

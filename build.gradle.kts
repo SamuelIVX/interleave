@@ -357,19 +357,55 @@ pitest {
 // more thing local runs cannot see.
 // ---------------------------------------------------------------------------
 
-/** Scope and mutator set are fixed; a different population is a different baseline. */
-val EXPECTED_TOTAL_MUTANTS = 270
+/**
+ * Scope and mutator set are fixed; a different population is a different baseline.
+ *
+ * 268 as of spec set 13.03, down from 270. `ContextBoundedExplorer` fell from 105 mutants to 103
+ * when line 187's hand-rolled `enabled.isEmpty() && !config.allTerminated()` was replaced with
+ * `config.isDeadlockCandidate()` — provably the same predicate, conjunction commutated. Two mutants
+ * disappeared with the condition: one that was killed, and the `NonVoidMethodCallMutator` on
+ * `config.allTerminated()` that had survived since 12.05.
+ *
+ * That survivor disappearing is a rise in the headline percentage with no new test, which is the shape
+ * D5 of the 13 set existed to prevent. It is recorded here rather than left to be discovered, because
+ * the count went DOWN and the score went UP and only one of those is obviously good. The mutants went
+ * away because the duplicated derivation was consolidated, which was the assigned work; had the call
+ * been deleted for the purpose of killing the mutant, this would be the score-laundering D5 forbids.
+ */
+val EXPECTED_TOTAL_MUTANTS = 268
 
 /**
- * Floor as an integer percent of assertion-backed coverage. Derived from the
- * post-remediation measurement of 256/270 = 94.81%.
+ * Per-class kills/total, checked against the measurement on every run and reported as a WARNING only.
  *
- * Not 95: PIT rounds 94.81 up to 95, so a floor of 95 gates nothing the rounding
- * has not already granted. The floor is at most (rounded figure - 1) for exactly
- * that reason.
+ * Closes DEFERRED E1's remaining half and E2 with one mechanism. E1 was half-closed when the ratchet
+ * started printing the measured census; what kept recurring is that the *spec* tables were
+ * hand-maintained alongside it, so they drifted — twice before 12.03 caught it, and again the moment
+ * 13.03 changed ContextBoundedExplorer's denominator. A number written in two places and compared in
+ * neither is a number that will be wrong.
  *
- * At 94 the gate tolerates losing two kills (255 and 254 both pass) and fails on
- * the third, since 253*100 = 25300 < 94*270 = 25380.
+ * So the expectation lives here, next to the gate that computes the measurement, and every run prints
+ * any disagreement. Deliberately not a gate (D4): this is a notice that a human-maintained table has
+ * moved, not a claim about correctness. Making it fail would mean a legitimate spec change turns CI
+ * red for a documentation reason.
+ */
+val EXPECTED_PER_CLASS = mapOf(
+    "dev.samhb.interleave.state.CanonicalEncoder" to "6/7",
+    "dev.samhb.interleave.state.HashingStateStore" to "52/61",
+    "dev.samhb.interleave.state.BitstateStore" to "94/97",
+    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "103/103",
+)
+
+/**
+ * Floor as an integer percent of assertion-backed coverage. Frozen at 94 by D2 for all of spec set 13.
+ *
+ * Not 95: PIT rounds 94.81 up to 95, so a floor of 95 gates nothing the rounding has not already
+ * granted. The floor is at most (rounded figure - 1) for exactly that reason.
+ *
+ * Recomputed against the 268-mutant population: 94*268 = 25192, so 252 kills clear the gate and 251
+ * does not. That is one lost kill more permissive than the 270-mutant arithmetic (94*270 = 25380, so
+ * 254 cleared and 253 did not) — a fixed percentage against a smaller denominator buys a little slack.
+ * Flagged rather than papered over: if the set wants the original sensitivity, the fix is to gate on an
+ * absolute kill count, not to nudge this number.
  */
 val MUTATION_FLOOR_PERCENT = 94
 
@@ -546,6 +582,28 @@ tasks.register("mutationRatchet") {
         for ((cls, b) in perClass.toSortedMap()) {
             val short = cls.substringAfterLast('.')
             println("    $short :".padEnd(34) + "${b[1]}/${b[0]}")
+        }
+
+        // E1/E2 drift notice — non-failing by design (D4). Prints whenever a spec's recorded per-class
+        // figure no longer matches the measurement, so a hand-maintained table cannot go quietly stale
+        // the way it did twice before 12.03 and once more at 13.03.
+        val drifted = EXPECTED_PER_CLASS.mapNotNull { (cls, recorded) ->
+            val measured = perClass[cls]?.let { "${it[1]}/${it[0]}" }
+            if (measured != null && measured != recorded) (cls to (recorded to measured)) else null
+        }
+        // A scoped population intentionally omits other classes; only a full run can lose one.
+        val missing = if (isScopedRun) emptyList()
+            else EXPECTED_PER_CLASS.keys.filterNot { perClass.containsKey(it) }
+        if (drifted.isNotEmpty() || missing.isNotEmpty()) {
+            println()
+            println("  NOTICE — recorded per-class figures have drifted (not a gate; see D4):")
+            for ((cls, pair) in drifted) {
+                println("    $cls — recorded ${pair.first}, measured ${pair.second}")
+            }
+            for (cls in missing) {
+                println("    $cls — recorded but absent from this run's population")
+            }
+            println("    Update the spec table AND EXPECTED_PER_CLASS in the same commit.")
         }
 
         // Decompose the non-kills into explained and unexplained. E3's cost was that a known

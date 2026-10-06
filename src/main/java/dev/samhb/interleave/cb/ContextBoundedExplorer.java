@@ -36,6 +36,9 @@ public final class ContextBoundedExplorer {
 
     /**
      * Explores with the default preemption bound.
+     *
+     * @param program the program to explore
+     * @return the visited configurations and the traces reached
      */
     public DfsResult explore(Program program) {
         return explore(program, null);
@@ -184,7 +187,7 @@ public final class ContextBoundedExplorer {
                 threadId, nextPreemptions, maxPreemptions, invariant, stateStore, stateVisitor);
         }
 
-        if (enabled.isEmpty() && !config.allTerminated()) {
+        if (config.isDeadlockCandidate()) {
             addTrace(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes),
                 TraceOutcome.DEADLOCK), stateVisitor);
         }

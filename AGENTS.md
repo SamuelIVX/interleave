@@ -44,6 +44,25 @@ shell profile you prefer.
 Test result XML lands in `build/test-results/test/`, and the mutation report in
 `build/reports/pitest/mutations.xml`. Both are easier to query programmatically than to read as HTML.
 
+## Test conventions — numeric expectations
+
+When a test asserts a number produced by a formula (an estimated false-positive rate, a hash density, a
+projected count), the expected value is **derived outside the language under test and asserted as a
+literal**:
+
+- **Derive outside the language.** Compute the expectation by hand from the definition, or with a
+  different tool. Not with the expression being tested.
+- **Cross-check by two independent routes.** If a closed form exists, confirm it against a direct
+  computation over the actual inputs.
+- **Assert against literals.** Write the number out. A literal is checkable by a reader; a recomputed
+  expression is not.
+- **Never re-derive with the expression under test.** `assertEquals(expected, 1 - Math.exp(-x))`
+  beside an implementation containing `1 - Math.exp(-x)` validates nothing — it reproduces the
+  implementation line for line and stays green if both are wrong the same way.
+
+This rule exists because 12.03 had to establish it from scratch while writing four expected FPR
+doubles, and nothing made it discoverable from the next spec needing the same derivation.
+
 ## Working on the mutation specs
 
 `docs/specs/active/12-mutation-hardening/` is an active spec set. Three rules there are load-bearing
@@ -54,7 +73,7 @@ and have been got wrong before:
   measured at `c5fdcd0` long after it stopped being true. Run PIT on `main` without the change, then
   again with it, and diff the survivor lists.
 - **Per-class kill counts are identical scoped or full-scope — only the totals differ.** Verified on
-  `ContextBoundedExplorer` at this commit: `-PpitestTargetOverride` reports 104/105 with
+  `ContextBoundedExplorer` at this commit: `-PpitestTargetOverride` reports 103/103 with
   `NO_COVERAGE` 0, and so does the full default scope. `targetTests` is unchanged by scoping, so
   covering-test selection is unchanged. What a scoped run cannot give you is the *aggregate*: its
   denominator is one class, so its percentage is not comparable to a full-scope percentage. Iterate

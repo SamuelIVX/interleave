@@ -144,14 +144,47 @@ class StaticPorExplorerTest {
     }
 
     /**
+     * Independent flag writes commute but their intermediate states need not satisfy the same
+     * invariant. Pins spec 13.08's counterexample: a reduced run misses flags [false, true], while
+     * the invariant guard must visit it and report the violation just as the DFS oracle does.
+     */
+    @Test
+    void independentWritesStillNeedTheInvariantGuard() {
+        Program program = new Program(PetersonState.of(false, false, 0), List.of(
+            new ModelThread(0, List.of(new WriteFlagStep(0, true))),
+            new ModelThread(1, List.of(new WriteFlagStep(1, true)))
+        ));
+        Invariant invariant = (state, config) -> {
+            PetersonState flags = (PetersonState) state;
+            return flags.flag(0) || !flags.flag(1);
+        };
+
+        DfsResult exhaustive = new DfsExplorer().explore(program);
+        DfsResult reduced = new StaticPorExplorer().explore(program);
+        assertEquals(4, exhaustive.statesExplored(), "both orders reach four distinct configurations");
+        assertEquals(3, reduced.statesExplored(), "the independent-thread fallback keeps one order");
+        assertTrue(exhaustive.states().values().stream()
+            .anyMatch(config -> !invariant.holds(config.state(), config)),
+            "DFS reaches flags [false, true]");
+        assertTrue(reduced.states().values().stream()
+            .allMatch(config -> invariant.holds(config.state(), config)),
+            "the reduced run omits exactly the state the invariant rejects");
+
+        DfsResult checked = new StaticPorExplorer().explore(program, invariant);
+        DfsResult oracle = new DfsExplorer().explore(program, invariant);
+        assertEquals(oracle.statesExplored(), checked.statesExplored());
+        assertEquals("VIOLATION", verdictOf(oracle));
+        assertEquals("VIOLATION", verdictOf(checked), "the guard must preserve the DFS violation");
+    }
+
+    /**
      * Regression test for a soundness defect this explorer used to have.
      *
-     * <p>Static POR's persistent set is the acyclic set: a thread is kept only when it is dependent on
-     * another enabled thread, otherwise one arbitrary enabled thread is returned. Godefroid's sound
-     * construction is {@code source(c)} union the dependent set, and the missing {@code source} term is
-     * what makes the reduction preserve deadlock existence rather than state reachability. Invariants
+     * <p>Static POR retains threads with a current dependency, otherwise one arbitrary enabled thread.
+     * That pairwise rule does not establish preservation of arbitrary state predicates. Invariants
      * were previously checked on the reduced visited set, so a violation reachable only through pruned
-     * interleavings was never reported.
+     * interleavings was never reported. See spec 13.08 for the distinction between a pairwise no-op
+     * and a future property-preserving reduction.
      *
      * <p>{@code broken-peterson-v2} was the sharpest case: {@link DfsExplorer} found 5 violating
      * configurations and reported {@code VIOLATION}, while this explorer reported {@code COMPLETED} -- a

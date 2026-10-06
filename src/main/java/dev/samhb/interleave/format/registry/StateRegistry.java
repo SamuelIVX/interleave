@@ -28,47 +28,63 @@ public final class StateRegistry {
     }
 
     private void registerBuiltins() {
-        // peterson: flags [bool, bool], turn int
-        register("peterson", json -> {
+        // peterson: one flag per thread, turn int
+        register("peterson", (json, threadCount) -> {
             com.google.gson.JsonArray flagsArray = JsonHelper.getArray(json, "flags", "peterson");
-            if (flagsArray.size() != 2) {
-                throw new RegistryException("peterson state 'flags' must have exactly 2 elements");
+            requireFlagLength(flagsArray.size(), threadCount, "peterson");
+            boolean[] flags = new boolean[threadCount];
+            for (int i = 0; i < threadCount; i++) {
+                flags[i] = JsonHelper.getBoolFromArray(flagsArray, i, "peterson");
             }
-            boolean flag0 = JsonHelper.getBoolFromArray(flagsArray, 0, "peterson");
-            boolean flag1 = JsonHelper.getBoolFromArray(flagsArray, 1, "peterson");
             int turn = JsonHelper.getInt(json, "turn", "peterson");
-            return PetersonState.of(flag0, flag1, turn);
+            return PetersonState.of(flags, turn);
         });
 
-        // counter: counter int
-        register("counter", json -> {
+        // counter: counter int, one register per thread
+        register("counter", (json, threadCount) -> {
             int counter = JsonHelper.getInt(json, "counter", "counter");
-            return CounterState.of(counter);
+            return CounterState.of(counter, threadCount);
         });
 
         // dcl: initialized bool
-        register("dcl", json -> {
+        register("dcl", (json, threadCount) -> {
             boolean initialized = JsonHelper.getBool(json, "initialized", "dcl");
             return DclState.of(initialized);
         });
 
-        // deadlock: flags [bool, bool]
-        register("deadlock", json -> {
+        // deadlock: one flag per thread
+        register("deadlock", (json, threadCount) -> {
             com.google.gson.JsonArray flagsArray = JsonHelper.getArray(json, "flags", "deadlock");
-            if (flagsArray.size() != 2) {
-                throw new RegistryException("deadlock state 'flags' must have exactly 2 elements");
+            requireFlagLength(flagsArray.size(), threadCount, "deadlock");
+            boolean[] flags = new boolean[threadCount];
+            for (int i = 0; i < threadCount; i++) {
+                flags[i] = JsonHelper.getBoolFromArray(flagsArray, i, "deadlock");
             }
-            boolean flag0 = JsonHelper.getBoolFromArray(flagsArray, 0, "deadlock");
-            boolean flag1 = JsonHelper.getBoolFromArray(flagsArray, 1, "deadlock");
-            return DeadlockState.of(flag0, flag1);
+            return DeadlockState.of(flags);
         });
 
         // pair: high int, low int
-        register("pair", json -> {
+        register("pair", (json, threadCount) -> {
             int high = JsonHelper.getInt(json, "high", "pair");
             int low = JsonHelper.getInt(json, "low", "pair");
             return PairState.of(high, low);
         });
+    }
+
+    /**
+     * A state's per-thread array must have one entry per program thread.
+     *
+     * <p>Peterson and the deadlock demo are defined for two or more threads, so fewer than two is
+     * rejected rather than quietly padded. More is the case this spec opened up.
+     */
+    private static void requireFlagLength(int flags, int threadCount, String type) {
+        if (threadCount < 2) {
+            throw new RegistryException(type + " requires at least 2 threads, got " + threadCount);
+        }
+        if (flags != threadCount) {
+            throw new RegistryException(type + " state 'flags' must have one element per thread: got "
+                    + flags + " for " + threadCount + " threads");
+        }
     }
 
     /**
@@ -89,19 +105,26 @@ public final class StateRegistry {
     }
 
     /**
-     * Creates a shared state from the JSON object.
+     * Creates a shared state from the JSON object, sized to the program's thread count.
+     *
+     * <p>The thread count is a required argument rather than something read from the state JSON. A
+     * state's per-thread arrays have to match the threads that will index them, and making the caller
+     * state the count means a mismatch is reported instead of defaulted away — this replaced a
+     * one-argument form whose absence of the count silently capped peterson, deadlock and counter at
+     * two threads.
      *
      * @param stateJson the JSON object containing {@code type} and type-specific fields
+     * @param threadCount the number of threads the program declares
      * @return the constructed {@link SharedState}
      * @throws RegistryException if the type is unknown or parameters are invalid
      */
-    public SharedState create(JsonObject stateJson) {
+    public SharedState create(JsonObject stateJson, int threadCount) {
         String type = stateJson.get("type").getAsString();
         StateFactory factory = factories.get(type);
         if (factory == null) {
             throw new RegistryException("Unknown state type '" + type + "'. Registered types: " + factories.keySet());
         }
-        return factory.create(stateJson);
+        return factory.create(stateJson, threadCount);
     }
 
     /**

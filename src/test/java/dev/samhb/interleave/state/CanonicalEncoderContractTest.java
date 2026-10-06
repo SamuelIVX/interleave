@@ -199,8 +199,10 @@ class CanonicalEncoderContractTest {
      * {@code flush()} mattered, this assertion would be the thing that notices.
      *
      * <p>The expected length is derived from the field list, not from a count:
-     * {@code PetersonState} encodes {@code flag[0]}, {@code flag[1]} (1 byte each) and {@code turn},
-     * {@code inCriticalSection} (4 bytes each) = 10 bytes.
+     * {@code PetersonState} writes the flag-array length (4 bytes) then {@code flag[0]},
+     * {@code flag[1]} (1 byte each), then {@code turn} and {@code inCriticalSection} (4 bytes each)
+     * = 14 bytes. The count prefix was added in Spec 13.06 so a longer flag array is separated by an
+     * explicit extent rather than by an incidental difference in byte count; the figure was 10 before it.
      */
     @Test
     @DisplayName("R5: the encoding is complete without relying on the flush")
@@ -209,7 +211,10 @@ class CanonicalEncoderContractTest {
 
         byte[] encoded = ENCODER.encode(state);
 
-        assertEquals(10, encoded.length,
+        // 4 (flag count) + 2 (two flags) + 4 (turn) + 4 (inCriticalSection) = 14. Spec 13.06 added
+        // the count prefix so a longer flag array is separated by an explicit extent rather than by an
+        // incidental difference in byte count; it was 10 before that.
+        assertEquals(14, encoded.length,
                 "a PetersonState encoding must contain all four fields; a short read means bytes were "
                         + "lost, which is the failure mode a missing flush would cause on a buffering "
                         + "stream");

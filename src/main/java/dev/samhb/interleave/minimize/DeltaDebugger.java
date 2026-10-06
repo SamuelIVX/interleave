@@ -71,10 +71,21 @@ public final class DeltaDebugger {
     /**
      * Checks whether replaying the given trace still produces the expected outcome.
      *
-     * Replays the trace from the initial state using {@link ExecutionDriver} and
+     * <p>Replays the trace from the initial state using {@link ExecutionDriver} and
      * verifies the final configuration matches the expected outcome. For VIOLATION
      * outcomes, the invariant is re-checked to ensure the trace genuinely reproduces
      * the bug.
+     *
+     * <p><b>The VIOLATION guard is not {@code isDeadlockCandidate()}, and must not be "simplified" into
+     * it.</b> The guard below expands to {@code !allTerminated() && !enabled.isEmpty()} — live threads
+     * <em>and</em> something still enabled — which is a different predicate from "not a deadlock". Using
+     * the canonical predicate here would accept deadlocked configurations that violate the invariant,
+     * and would let the minimiser shrink a trace into one that ends in a state the search would have
+     * classified differently. The cost of the current form is that a violation occurring in a deadlocked
+     * state is not recognised as still failing, so such a trace cannot be minimised. That is a real
+     * limitation, but fixing it changes which traces the minimiser accepts and needs its own
+     * specification and tests rather than a quiet edit here. Recorded in
+     * {@code docs/specs/active/13-deferred-debt/03-canonical-configuration-key.md}.
      *
      * @param program the program to replay
      * @param trace the trace to replay

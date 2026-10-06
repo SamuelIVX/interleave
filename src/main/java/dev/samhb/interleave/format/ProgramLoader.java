@@ -209,7 +209,7 @@ public final class ProgramLoader {
 
         // Load state
         String stateType = def.state().get("type").getAsString();
-        SharedState initialState = stateRegistry.create(def.state());
+        SharedState initialState = stateRegistry.create(def.state(), threadDefs.size());
 
         // Validate step compatibility with state type + validate step.type
         for (ThreadDefinition threadDef : threadDefs) {
