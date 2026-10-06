@@ -1,24 +1,138 @@
-# 08 — Godefroid `source` set
+# 08 — Property-aware static persistent sets (A4)
 
-**Status:** **NOT implemented — design note.** See [Why this is not done](#why-this-is-not-done).
-**Closes:** nothing. A4 remains open.
-**Mutation scope if landed:** `por/` is outside `state.* + cb.*`, so no new mutants — but the
-explorers' behaviour would change, so a full-scope measurement is still required at set exit.
+## TL;DR
 
-## What the guard does today
+**Status:** implemented; PR/CI pending.
+**Closes:** A4 through opt-in state-only properties, with exhaustive fallback for unknown observations.
+**Baseline:** `main` at `9276cd4`; freshly measured 496 tests, full PIT **255/268**, 13 survivors.
 
-12.07 found that static POR could return a **false pass** when given an invariant. `StaticPorExplorer`
-fixed it by branching over every enabled thread whenever an invariant is supplied
-(`StaticPorExplorer.porDfs`), making the traversal identical to `DfsExplorer`'s. That is sound and
-it forfeits the reduction exactly when an invariant is being checked.
+Static POR now uses remaining-thread dependency closure and property visibility. Ordinary Java
+callbacks and DSL `final` invariants stay exhaustive; DPOR's invariant fallback is unchanged.
+This is a conservative specialization for finite linear threads, not the historical pairwise
+`source_pair` shortcut or a general stubborn-set implementation.
 
-Correctness is fine and is pinned by regression tests that fail if the guard is removed. **A4's cost is
-performance only.**
+## Public contract
 
-The register identifies `por/` as the affected package. `StaticPorExplorer`,
-`PersistentSetComputer` and `IndependenceRelation` all live in **`por/`**.
+`Invariant` remains functional. `observedLocations()` defaults to `Optional.empty()`, meaning unknown
+or configuration-sensitive observations. A present empty set means a constant state-only property.
+`Invariant.observing(Set<MemoryLocation>, Predicate<SharedState>)` copies observations and exposes
+only shared state to its predicate. Observations must be complete, stable, and named consistently with
+step footprints. Predicates must be pure, deterministic and value-based; counters, termination,
+scheduling history, object identity and external mutable state are not supported by this opt-in.
 
-## Why this is not done
+DSL `always` properties automatically derive reads from all conjuncts and operands. Constant array
+indices identify elements; dynamic indices include the array base and index-expression reads.
+`ExpressionReads` shares these rules with `DynamicStep`. DSL `final` observes termination metadata,
+so it supplies unknown observations and retains exhaustive traversal.
+
+With accurate footprints, faithful copies/keys, non-mutating observers and an exact store, reduced
+search preserves existence of invariant/assertion violations and terminal outcomes on paths not
+already truncated by a violation. It does not enumerate every configuration or schedule, preserve
+trace counts, or guarantee shortest counterexamples. Bitstate's independent false-positive risk
+remains; early-aborted or exceptional runs provide no exhaustive verdict guarantee.
+
+## Selection and execution
+
+`PropertyPersistentSetComputer` captures every step footprint once per run and precomputes suffix
+read/write unions. At each configuration it builds a graph of live threads: an edge means some pair
+of remaining actions may conflict. Disabled current actions and future actions participate.
+
+Choose the smallest connected component whose members are all enabled and whose current writes do
+not overlap property observations. It must be a proper subset of enabled threads; ties use sorted
+thread IDs. Otherwise select all enabled threads. This is conservative: a future conflict can
+prevent reduction even when a more sophisticated analysis could prove it unnecessary.
+
+Execute selected candidates once on separate state copies. Accept reduction only when every result
+is `ADVANCED` or `TERMINATED`, both of which increment the counter. A `BLOCKED` or `ASSERTION_FAILED`
+result expands to all enabled threads; prepared results are reused rather than executed again.
+Traverse selected IDs in ascending order with existing visitor, canonical-key and trace handling.
+Unhandled execution exceptions continue to propagate.
+
+See [the research and correctness argument](08-property-aware-por-research.md) for primary sources
+and the original remaining-step-rank proof. The key facts are cross-component independence,
+invisibility of selected actions, and strict counter advancement on reduced edges. A general cycle
+proviso is unnecessary for this finite linear model; loops/jumps would require a new proof.
+
+## Footprint prerequisite
+
+`Step` now explicitly requires complete guard, outcome, error and value dependencies, all modeled
+writes, and no hidden mutable execution state. Stable over-approximation is permitted.
+The audit fixes these concrete omissions while retaining existing conservative dependencies:
+
+| Steps | Added modeled locations |
+|---|---|
+| `CSEnterStep`, `CSExitStep` | write `inCriticalSection` |
+| `DclInitSetInitializedStep` | write `initialized` |
+| `DclLockStep`, `DclUnlockStep` | read/write `locked`, `lockOwner` |
+| `ReadCounterStep` | write `registers[threadId]` |
+| `WriteCounterStep` | read `registers[threadId]` |
+| `ReadSnapshotStep` | write `observedHigh`, `observedLow`, `hasObservation` |
+
+Existing lock/control aliases are preserved. Footprint changes can alter the existing unguarded
+POR/DPOR exploration counts; that is recorded by corpus comparison, not hidden as an unchanged run.
+
+## Tests and verification
+
+Public seams: invariant observations/evaluation, loaded DSL programs, step footprints/execution,
+and explorer results/visitors. Private graph helpers are not the test interface.
+
+- Observation API tests first failed because the methods were absent, then passed after implementation.
+- Eight built-in footprint cases first failed on missing dependencies, then passed after corrections.
+- Java and DSL reduction fixtures first failed under exhaustive fallback, then passed with reduction.
+- Tests cover visible intermediate violations, future/transitive dependencies, disabled component
+  members, smallest-component/tie ordering, immutable input state, once-per-run metadata capture,
+  progress/termination and assertion fallback, and single execution of prepared candidates.
+- DSL tests cover final fallback, constant properties, conjunctions, all expression reads, dynamic
+  array aliases and evaluation errors.
+- **1,875** differential cases: all 5⁴ two-thread/two-step combinations of writes, copies, guards and
+  assertions, each with an independent third thread and three state properties. DFS and static POR
+  agree on violation/completion/deadlock outcome existence; every reduced trace independently replays
+  actual outcomes and endpoints. The suite explicitly requires actual reduction.
+- Deliberate falsifications of future closure, visibility, disabled-member filtering, progress
+  fallback and prepared-result reuse are all rejected by their behavioral regressions. Source is
+  restored after each experiment.
+
+The initial full build/Javadoc run passes **523 tests**. The 128-case before/after corpus comparison
+preserves every complete trace list. Ten case rows change counts/membership because the corrected
+critical-section write footprint prevents formerly permitted unguarded reorderings:
+
+| Program / unguarded strategy | Exact visits before → after | Bitstate visits before → after |
+|---|---|---|
+| Peterson / DPOR | 38 → 42 | 38 → 42 |
+| Broken Peterson / static POR | 17 → 26 | 17 → 25 |
+| Broken Peterson / DPOR | 42 → 55 | 42 → 54 |
+| Broken Peterson v2 / DPOR | 49 → 55 | 49 → 54 |
+
+Peterson has no corpus invariant, so its nominal with/without-invariant rows both use the unguarded
+path (four rows). The other changes are the six unguarded exact/bitstate rows. Every run with an
+actual supplied corpus invariant is unchanged. The new bitstate count differences reflect its
+existing approximate suppression; they do not carry the exact-store guarantee.
+
+Both freshly measured baseline and implementation full-scope PIT reports contain **268 mutants,
+255 killed, 13 survived**, with every mutation identity and survivor identity unchanged. There are
+zero uncovered, timeout, memory, non-viable, run-error or equivalent statuses. Per-class census:
+encoder **18/19**, exact store **43/52**, CBS **100/100**, bitstate **94/97**. No per-class drift notice.
+This is measured equality, not a carried-forward assumption: baseline was run on clean `main` before
+source changes and its XML saved separately for comparison.
+
+Additional supported-property checks preserve real DCL/torn-counter violations, with and without
+independent work, and replay all resulting traces. An eight-thread DSL grid demonstrates **6,561 DFS
+positions → 17 reduced positions**, one completed schedule (eight threads with two independent writes).
+The count is independently derived from eight three-position counters and enumerated outside Java.
+
+First local CodeRabbit review: the metadata-reporting request is addressed by the measured census
+above. The local-array index-read finding is rejected: `TypeChecker.check` forbids local arrays and
+`Evaluator.eval` throws before evaluating their index, so that index is not an execution dependency.
+A loader regression pins the rejection; shared-array dynamic indices are covered separately.
+The second local CodeRabbit review completed with **zero findings**. The expanded full suite
+passes **526 tests**; the final expanded-suite PIT rerun also passes **255/268**, with identical
+mutation/status identities to the fresh baseline. Remote CI remains pending.
+The PIT source scope remains `state.* + cb.*`; the 94% floor is unchanged. **E5 remains open.**
+
+## Historical rejected pairwise patch
+
+The following proof records why unioning the former pairwise source term was not a fix. It does not
+specify the implemented property-aware algorithm.
 
 **Only the pairwise shortcut below is proven to be a no-op.** It is not a definition of a sound
 Godefroid construction. An earlier version used `source(c)` for both this shortcut and an undefined
@@ -57,56 +171,3 @@ The precise claim is **`P_current(c) ∪ source_pair(c) = P_current(c)`**:
 Notice that `source_pair ∪ dep_pair` alone is empty in the last case and does **not** describe the
 computed set. The proof retains both implementation fallbacks. It rejects this particular local
 patch; it neither proves nor disproves a future reduction based on different information.
-
-## What the real fix requires
-
-**A path-level persistence condition.** Godefroid's Definition 4.1 considers sequences outside the
-chosen set, including later enabled transitions; Algorithm 1 grows a seed set until dependency closure
-or a conservative fallback. Current enabled-step comparisons do not establish that condition.
-See [Godefroid's thesis, §§4.1–4.3](https://patricegodefroid.github.io/public_psfiles/thesis.pdf#page=42).
-
-**A property-preservation argument.** Persistence alone does not imply visiting every intermediate
-state. State-predicate verification additionally needs dependencies that respect what the property
-can observe; see [the same thesis, §7.3](https://patricegodefroid.github.io/public_psfiles/thesis.pdf#page=104).
-Those are separate obligations, not a specified reverse-reachability implementation.
-
-For this API the distinction is concrete. Start with flags `[false, false]` and two one-step threads:
-thread 0 writes flag 0, thread 1 writes flag 1. The writes are independent and both orders end at
-`[true, true]`. `P_current` chooses thread 0 first, visiting three of DFS's four configurations and
-omitting `[false, true]`. The invariant `flag(0) || !flag(1)` rejects precisely that omitted state.
-Even a persistent singleton can therefore miss this violation without property-aware handling.
-
-`StaticPorExplorerTest.independentWritesStillNeedTheInvariantGuard` pins the missing membership and
-the violation found by both guarded POR and DFS. `Invariant` supplies an arbitrary callback with no
-read-set or visibility contract, so the current exhaustive fallback remains justified. A future spec
-must define how properties are preserved before it chooses a reduction algorithm or removes the guard.
-
-## Before this can land
-
-- **An oracle.** `DfsExplorer` with an invariant, over the whole corpus, is the reference. The known
-  figures to hit: `broken-peterson-v2` visits **55** reachable configurations (static POR currently 12),
-  `broken-peterson` visits **55** (currently 17), measured without an invariant in 12.07.
-  Runs with an invariant stop at violations, so their state membership must be compared against DFS
-  with the same invariant rather than against the untruncated totals.
-- **Property-preservation tests**, not just counts. Spec 12 recorded a case where
-  `double-checked-locking` had *equal* totals at 17 with different membership. Compare invariant
-  verdicts against DFS and pin the relevant violating-state membership with targeted examples.
-  Require complete membership equality only if the future spec promises full configuration coverage.
-- **The invariant guard must stay as a fallback** until the reduction is proven, and its regression
-  tests must remain green. The guard is what makes shipping a partially-correct reduction survivable.
-- **A decision on the residual.** Property-preserving reduction does not promise complete state or
-  trace enumeration. If the intended contract is full configuration coverage instead, state that
-  stronger requirement explicitly and prove it; do not infer it from persistence.
-
-## Recommendation
-
-**Counterexample verification:** the new test passes with the guard, fails when `porDfs` is temporarily
-forced to use the reduced branch set under an invariant (three visited configurations instead of the
-oracle's four), and passes again after restoring the guard. No reduction algorithm changed here.
-
-Take this as its own session with its own spec, as the register originally said. Do not fold it into
-set 13.06 or a later cleanup — the payoff is performance, the risk is reintroducing a false pass, and
-the guard that prevents that should not be removed in the same commit as something this subtle.
-
-**Meanwhile: no action needed.** The current state is sound. Nothing is miscomputed, no test is
-failing, and the cost is wall-clock on runs that pass an invariant — which is the cheaper failure.

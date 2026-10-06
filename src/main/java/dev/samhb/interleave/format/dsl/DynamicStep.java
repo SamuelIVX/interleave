@@ -1,3 +1,4 @@
+/** Executes declarative steps with shared expression-derived footprints. */
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.core.MemoryLocation;
@@ -39,16 +40,16 @@ public final class DynamicStep implements Step {
         // derive reads/writes
         Set<MemoryLocation> r = new HashSet<>();
         Set<MemoryLocation> w = new HashSet<>();
-        if (guard != null) collectReads(guard, r);
+        if (guard != null) ExpressionReads.collect(guard, owner, r);
         for (Effect e : effects) {
             // lhs writes
             addWrite(e.lhs(), w);
             // rhs reads
-            collectReads(e.rhs(), r);
+            ExpressionReads.collect(e.rhs(), owner, r);
             // lhs index reads for array
-            if (e.lhs() instanceof Lhs.ArrayLhs al) collectReads(al.index(), r);
+            if (e.lhs() instanceof Lhs.ArrayLhs al) ExpressionReads.collect(al.index(), owner, r);
         }
-        // invariant reads not included here; handled via explorer fallback
+        // Property observations are separate; step footprints describe execution and enabledness.
         this.reads = Set.copyOf(r);
         this.writes = Set.copyOf(w);
     }
@@ -71,39 +72,11 @@ public final class DynamicStep implements Step {
         }
     }
 
-    /**
-     * Walks an expression tree and records every location it reads.
-     *
-     * <p>Local reads are namespaced exactly as in {@link #addWrite}, which is what lets a read of a
-     * thread-local match the write performed by the step that owns it.
-     *
-     * @param expr the expression to walk
-     * @param out the set to add read locations to
-     */
-    private void collectReads(Expr expr, Set<MemoryLocation> out) {
-        if (expr instanceof Expr.VarRef v) out.add(MemoryLocation.of(v.name()));
-        else if (expr instanceof Expr.LocalRef l) out.add(MemoryLocation.of("t" + owner + "." + l.name()));
-        else if (expr instanceof Expr.ArrayAccess a) {
-            if (a.arrayName().startsWith("local.")) out.add(MemoryLocation.of("t" + owner + "." + a.arrayName().substring(6)));
-            else {
-                if (a.index() instanceof Expr.IntLit lit) out.add(MemoryLocation.of(a.arrayName() + "[" + lit.value() + "]"));
-                else {
-                    out.add(MemoryLocation.of(a.arrayName()));
-                    collectReads(a.index(), out);
-                }
-            }
-        } else if (expr instanceof Expr.TidRef) { /* no location */ }
-        else if (expr instanceof Expr.IntLit || expr instanceof Expr.BoolLit) { /* none */ }
-        else if (expr instanceof Expr.UnaryOp u) collectReads(u.operand(), out);
-        else if (expr instanceof Expr.BinaryOp b) {
-            collectReads(b.left(), out);
-            collectReads(b.right(), out);
-        }
-    }
-
+    /** @return the immutable complete expression/guard read footprint */
     @Override
     public Set<MemoryLocation> reads() { return reads; }
 
+    /** @return the immutable over-approximated assignment destinations */
     @Override
     public Set<MemoryLocation> writes() { return writes; }
 

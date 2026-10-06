@@ -1,3 +1,4 @@
+/** Evaluates declarative safety predicates and exposes observations for always-timed checks. */
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.core.Configuration;
@@ -5,6 +6,10 @@ import dev.samhb.interleave.core.SharedState;
 import dev.samhb.interleave.search.Invariant;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.HashSet;
+import dev.samhb.interleave.core.MemoryLocation;
 
 /**
  * Declarative invariant for {@code format: "declarative"} programs.
@@ -34,6 +39,7 @@ public final class DslInvariant implements Invariant {
     private final List<Expr> predicates;
     private final StateDecl decl;
     private final When when;
+    private final Optional<Set<MemoryLocation>> observations;
 
     /**
      * Creates invariant.
@@ -70,6 +76,14 @@ public final class DslInvariant implements Invariant {
         this.predicates = List.copyOf(predicates);
         this.decl = decl;
         this.when = when == null ? When.FINAL : when;
+        if (this.when == When.ALWAYS) {
+            Set<MemoryLocation> reads = new HashSet<>();
+            for (Expr predicate : this.predicates) ExpressionReads.collect(predicate, 0, reads);
+            this.observations = Optional.of(Set.copyOf(reads));
+        } else {
+            // Final-only checks observe termination metadata, not just the predicate's fields.
+            this.observations = Optional.empty();
+        }
     }
 
     /**
@@ -104,6 +118,15 @@ public final class DslInvariant implements Invariant {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    /**
+     * Returns complete expression observations for always-timed checks.
+     * @return immutable reads, or unknown for termination-sensitive final checks
+     */
+    @Override
+    public Optional<Set<MemoryLocation>> observedLocations() {
+        return observations;
     }
 
     /**

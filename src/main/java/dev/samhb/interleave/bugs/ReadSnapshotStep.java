@@ -1,3 +1,4 @@
+/** Records a pair observation with explicit property-visible writes. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
@@ -21,9 +22,14 @@ public final class ReadSnapshotStep implements Step {
         );
     }
 
+    /**
+     * Includes all observation fields and the existing conservative control dependency.
+     * @return stable over-approximated writes footprint
+     */
     @Override
     public Set<MemoryLocation> writes() {
-        return Set.of(MemoryLocation.of("control"));
+        return Set.of(MemoryLocation.of("control"), MemoryLocation.of("observedHigh"),
+            MemoryLocation.of("observedLow"), MemoryLocation.of("hasObservation"));
     }
 
     @Override

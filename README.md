@@ -18,6 +18,26 @@ The project is built as a clean, spec-driven proof-of-concept. It is not a produ
 - **Dynamic POR (DPOR)** — discovers necessary reorderings from actual execution using happens-before/race detection and sleep sets.
 - **Reproducible evidence** — every found bug comes with a minimized, replayable trace; the final report includes wall-clock, peak memory, and a soundness attestation across all strategies.
 
+## Property-aware invariant checking
+
+Static POR keeps exhaustive traversal for ordinary invariant callbacks. State-only properties can
+opt in by declaring every observed memory location:
+
+```java
+Invariant safe = Invariant.observing(Set.of(MemoryLocation.of("flag[0]")),
+    state -> !((PetersonState) state).flag(0));
+DfsResult result = new StaticPorExplorer().explore(program, safe);
+```
+
+DSL `when: "always"` invariants derive their observations automatically. Default/`final` checks
+and properties inspecting counters or termination retain exhaustive branching. DPOR's invariant
+fallback is unchanged.
+
+Complete step footprints and pure value-based properties are required; incomplete declarations can
+cause false passes. With an exact store, reduced runs preserve violation detection but report only
+the explored configurations and schedules. Bitstate remains approximate. See
+[the 13.08 contract and proof](docs/specs/active/13-deferred-debt/08-godefroid-source-set.md).
+
 ## Getting started
 
 ### Prerequisites
@@ -73,7 +93,11 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 ./gradlew test
 ```
 
-## Current benchmark results (2026-09-29)
+## Historical benchmark results (2026-09-29)
+
+These figures predate the exhaustive invariant guard and property-aware 13.08 path; they are
+historical, not current reduction measurements. See [13.08](docs/specs/active/13-deferred-debt/08-godefroid-source-set.md)
+for current contracts and verification.
 
 State counts with the exact store. CBS runs at K=2, where the search explores a superset of the
 configurations at that bound rather than a reduction — see the tradeoff note below.
@@ -88,8 +112,8 @@ configurations at that bound rather than a reduction — see the tradeoff note b
 | lost-update | 13 | 9 (31%↓) | 13 | 17 | VIOLATION | VIOLATION |
 | torn-counter | 8 | 8 | 8 | 8 | VIOLATION | VIOLATION |
 
-Bitstate runs match their exact counterparts on this corpus — the state space is small enough that
-no collisions occur. Soundness attestation: all failing traces replay to genuine violations, and
+At that historical measurement, bitstate runs matched their exact counterparts on the corpus.
+Bitstate remains approximate; later exploration changes can expose suppression differences. Soundness attestation: all failing traces replay to genuine violations, and
 every buggy program is caught by CBS at K=2.
 
 `peterson` is the interesting row: correct, and therefore a `PASS` under exhaustive search, but
@@ -121,7 +145,7 @@ This project is built from a frozen 7-spec plan. Each spec defines requirements,
 
 Specs: [`docs/specs/active`](docs/specs/active)
 
-Specs 1–7 are the original frozen 7-spec plan. Specs 8–10 (corpus mining, the JSON DSL core, and its invariants) were added later as the declarative-programming surface. Spec 11 ([`11-context-bounded`](docs/specs/active/11-context-bounded/README.md)) added CBS and is shipped. Spec 12 ([`12-mutation-hardening`](docs/specs/active/12-mutation-hardening/README.md)) closes the mutation-testing gaps left by PIT and is **active — not started**; its six specs are ordered by dependency, and the ratchet (12.06) must land last.
+Specs 1–7 are the original frozen 7-spec plan. Specs 8–10 (corpus mining, the JSON DSL core, and its invariants) were added later as the declarative-programming surface. Spec 11 ([`11-context-bounded`](docs/specs/active/11-context-bounded/README.md)) added CBS and is shipped. Spec 12 ([`12-mutation-hardening`](docs/specs/active/12-mutation-hardening/README.md)) closes the mutation-testing gaps left by PIT and is implemented, including the assertion-backed ratchet. Spec 13 closes deferred implementation debt; E5 remains open pending parallel-CI evidence.
 
 ## Tech stack
 
@@ -198,7 +222,7 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 - `SleepSet.copyFiltering()` re-evaluates sleep set entries when current step changes
 - Test fixture updated to isolate recorded-PC dependency
 
-### PR #9: Static POR with invariant support
+### Historical PR #9: Static POR with invariant support
 - Static POR now always uses `porDfs()` regardless of invariant presence
 - `IndependenceRelation` treats read-read as independent (standard POR semantics)
 - Static POR reduces states with invariants: `broken-peterson` 46→15 (67%), `lost-update` 13→9 (31%)
