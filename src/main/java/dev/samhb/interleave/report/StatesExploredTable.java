@@ -1,3 +1,4 @@
+/** Formats benchmark results into Markdown tables. Produces two views: <ul>   <li>{@link #formatMarkdown()} — detailed table with every result row</li>   <li>{@link #formatReductionTable()} — reduction table grouped by bug, then strategy,       showing both exact and bitstate state counts with reduction percentages</li> </ul> */
 package dev.samhb.interleave.report;
 
 import java.util.*;
@@ -12,6 +13,7 @@ import java.util.*;
  * </ul>
  */
 public final class StatesExploredTable {
+    /** Results. */
     private final List<BenchmarkResult> results;
 
     /**
@@ -146,6 +148,8 @@ public final class StatesExploredTable {
      * attached to a number that went up.
      *
      * @return a suffix to append to the state count, or the empty string
+     * @param states visited configurations keyed by value
+     * @param baseline exhaustive DFS position count used as the reduction denominator
      */
     private static String reductionPct(long states, long baseline) {
         if (baseline == 0 || states >= baseline) {
@@ -158,6 +162,11 @@ public final class StatesExploredTable {
         return String.format(" (%.0f%%↓)", pct);
     }
 
+    /**
+     * Formats small diagnostic values with a locale-independent representation.
+     * @param value value to assign
+     * @return locale-independent numeric text
+     */
     private static String formatSmallDouble(double value) {
         if (value == 0.0) return "0.0";
         if (Math.abs(value) < 0.001) {

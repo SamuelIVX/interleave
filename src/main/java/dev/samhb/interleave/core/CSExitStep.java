@@ -5,7 +5,12 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
+/** Models clearing critical-section ownership. */
 public final class CSExitStep implements Step {
+    /** Creates csexit step with its default configuration. */
+    public CSExitStep() {}
+
+    /** {@inheritDoc} */
     @Override
     public Set<MemoryLocation> reads() {
         return Collections.emptySet();
@@ -20,11 +25,13 @@ public final class CSExitStep implements Step {
         return Set.of(MemoryLocation.of("inCriticalSection"));
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean enabled(SharedState state) {
         return state instanceof PetersonState;
     }
 
+    /** {@inheritDoc} */
     @Override
     public StepOutcome execute(SharedState state) {
         PetersonState ps = (PetersonState) state;
@@ -32,11 +39,13 @@ public final class CSExitStep implements Step {
         return StepOutcome.ADVANCED;
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean equals(Object o) {
         return this == o;
     }
 
+    /** {@inheritDoc} */
     @Override
     public int hashCode() {
         return 1;

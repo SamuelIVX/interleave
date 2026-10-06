@@ -1,3 +1,4 @@
+/** Static facade for the interleave model checker. Provides ergonomic entry points for program construction, verification, and replay. */
 package dev.samhb.interleave;
 
 import dev.samhb.interleave.core.*;
@@ -15,6 +16,7 @@ import java.util.function.Supplier;
  * Provides ergonomic entry points for program construction, verification, and replay.
  */
 public final class Interleave {
+    /** Prevents instantiation of this utility class. */
     private Interleave() {}
 
     /**
@@ -22,7 +24,7 @@ public final class Interleave {
      *
      * @param state the initial shared state
      * @param threads the model threads (must not be empty)
-     * @return a new {@link Program}
+     * @return program containing the supplied initial state and ordered threads
      * @throws IllegalArgumentException if state is null or threads is null/empty
      */
     public static Program program(SharedState state, ModelThread... threads) {
@@ -37,7 +39,7 @@ public final class Interleave {
      *
      * @param program the program to verify
      * @param strategy the exploration strategy
-     * @return the verification result
+     * @return verification result with traces and runtime measurements
      */
     public static VerificationResult verify(Program program, Strategy strategy) {
         return verify(program, strategy, null);
@@ -50,7 +52,7 @@ public final class Interleave {
      * @param program the program to verify
      * @param strategy the exploration strategy
      * @param invariant the invariant to check, or null
-     * @return the verification result
+     * @return verification result with traces and runtime measurements
      */
     public static VerificationResult verify(Program program, Strategy strategy, Invariant invariant) {
         long start = System.currentTimeMillis();
@@ -80,7 +82,7 @@ public final class Interleave {
      * @param strategy the exploration strategy
      * @param invariant the invariant to check, or null
      * @param stateStoreFactory a factory for creating a fresh state store per verification
-     * @return the verification result
+     * @return verification result with traces and runtime measurements
      */
     public static VerificationResult verify(Program program, Strategy strategy, Invariant invariant, Supplier<StateStore> stateStoreFactory) {
         long start = System.currentTimeMillis();
@@ -119,7 +121,7 @@ public final class Interleave {
      * @param strategy the exploration strategy
      * @param invariant the invariant to check, or null
      * @param maxPreemptions the preemption bound; must not be negative
-     * @return the verification result
+     * @return verification result with traces and runtime measurements
      * @throws IllegalArgumentException if {@code maxPreemptions} is negative
      */
     public static VerificationResult verify(Program program, Strategy strategy,
@@ -153,7 +155,7 @@ public final class Interleave {
      * @param invariant the invariant to check, or null
      * @param stateStoreFactory a factory for creating a fresh state store per verification
      * @param maxPreemptions the preemption bound; must not be negative
-     * @return the verification result
+     * @return verification result with traces and runtime measurements
      * @throws IllegalArgumentException if {@code maxPreemptions} is negative
      */
     public static VerificationResult verify(Program program, Strategy strategy, Invariant invariant,
@@ -178,12 +180,25 @@ public final class Interleave {
         return timed(result, strategy, start, runtime, memBefore);
     }
 
+    /**
+     * Rejects a negative preemption bound before search begins.
+     * @param maxPreemptions nonnegative preemption bound
+     */
     private static void requireNonNegativeBound(int maxPreemptions) {
         if (maxPreemptions < 0) {
             throw new IllegalArgumentException("maxPreemptions must not be negative: " + maxPreemptions);
         }
     }
 
+    /**
+     * Adds elapsed time and heap measurements to the completed exploration result.
+     * @param result completed exploration result
+     * @param strategy exploration strategy used for these results
+     * @param start exploration start time in milliseconds from System.currentTimeMillis()
+     * @param runtime runtime used to sample heap usage
+     * @param memBefore heap usage before exploration in bytes
+     * @return verification result annotated with elapsed milliseconds and heap delta
+     */
     private static VerificationResult timed(DfsResult result, Strategy strategy, long start,
                                             Runtime runtime, long memBefore) {
         long memAfter = runtime.totalMemory() - runtime.freeMemory();

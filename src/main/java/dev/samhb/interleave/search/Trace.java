@@ -1,3 +1,4 @@
+/** Immutable ordered execution prefix with its terminal verdict. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.TraceRecord;
@@ -5,11 +6,21 @@ import dev.samhb.interleave.core.StepOutcome;
 import java.io.Serializable;
 import java.util.*;
 
+/** Immutable ordered execution prefix with its terminal verdict. */
 public final class Trace implements Serializable {
+    /** Thread ids. */
     private final List<Integer> threadIds;
+    /** Outcomes. */
     private final List<StepOutcome> outcomes;
+    /** Outcome. */
     private final TraceOutcome outcome;
 
+    /**
+     * Creates trace from the supplied values.
+     * @param threadIds ordered thread choices in the trace
+     * @param outcomes outcome of each recorded step
+     * @param outcome execution outcome being recorded
+     */
     public Trace(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome) {
         if (threadIds == null) throw new IllegalArgumentException("threadIds must not be null");
         if (outcomes == null) throw new IllegalArgumentException("outcomes must not be null");
@@ -22,6 +33,13 @@ public final class Trace implements Serializable {
         this.outcome = outcome;
     }
 
+    /**
+     * Creates trace with the supplied initial values.
+     * @param threadIds ordered thread choices in the trace
+     * @param outcomes outcome of each recorded step
+     * @param outcome execution outcome being recorded
+     * @return new modeled value with the supplied initial values
+     */
     public static Trace of(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome) {
         return new Trace(threadIds, outcomes, outcome);
     }
@@ -42,27 +60,48 @@ public final class Trace implements Serializable {
         return new Trace(threadIds, outcomes, TraceOutcome.INCOMPLETE);
     }
 
+    /**
+     * Returns thread ids for this trace.
+     * @return immutable ordered thread choices
+     */
     public List<Integer> threadIds() {
         return threadIds;
     }
 
+    /**
+     * Returns ordered step outcomes aligned with the recorded thread choices.
+     * @return immutable step outcomes aligned with the thread choices
+     */
     public List<StepOutcome> outcomes() {
         return outcomes;
     }
 
+    /**
+     * Returns outcome for this trace.
+     * @return terminal verdict of this trace
+     */
     public TraceOutcome outcome() {
         return outcome;
     }
 
+    /**
+     * Returns length for this trace.
+     * @return number of recorded thread choices
+     */
     public int length() {
         return threadIds.size();
     }
 
+    /**
+     * Converts this execution into an immutable public trace record.
+     * @return immutable public record of this execution
+     */
     public TraceRecord toRecord() {
         // programHash is empty for backward compat - could be computed from program if needed
         return new TraceRecord(threadIds, outcomes, outcome, "");
     }
 
+    /** {@inheritDoc} */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

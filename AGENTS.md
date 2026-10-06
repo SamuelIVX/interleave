@@ -94,3 +94,15 @@ The second was also nearly written up as a rule — the 12.04 commit claimed sco
 counts — before measurement showed scoped and full-scope agree per class. All three mistakes were
 made and corrected during 12.03 R6, 12.04 and the 12.05 accounting close, and each is written up in
 the specs so they are not repeated.
+
+## Java documentation
+
+CodeRabbit’s 80% docstring threshold is a minimum acceptance check, not a documentation target.
+Document every new function with meaningful Javadoc, including private helpers; use inherited
+contracts only when they accurately describe the override. Explain parameters, results, meaningful
+failures, preconditions, and side effects, with valid examples for nontrivial public operations.
+Place Javadoc before annotations so the compiler attaches it to the declaration.
+
+The Javadoc task enables every doclint group and treats warnings as errors. Keep that gate enabled.
+A passing percentage does not justify leaving an understood function undocumented. See spec 13.10
+for the completed production audit and the separate private-member validation.

@@ -11,7 +11,9 @@ import java.util.Set;
 import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
+/** Checks DSL-derived observation metadata and property-preserving reduction. */
 class DslPropertyObservationTest {
+    /** Verifies that always properties expose reads and reduce invisible work. */
     @Test
     void alwaysPropertiesExposeReadsAndReduceInvisibleWork() {
         var model = new ProgramLoader().load(twoWrites("always", "x >= 0"));
@@ -21,6 +23,7 @@ class DslPropertyObservationTest {
         assertEquals(3, new StaticPorExplorer().explore(model.program(), property).statesExplored());
     }
 
+    /** Verifies that final properties remain unknown and exhaustive. */
     @Test
     void finalPropertiesRemainUnknownAndExhaustive() {
         var model = new ProgramLoader().load(twoWrites("final", "x >= 0"));
@@ -29,6 +32,7 @@ class DslPropertyObservationTest {
         assertEquals(4, new StaticPorExplorer().explore(model.program(), property).statesExplored());
     }
 
+    /** Verifies that constant always property has known empty reads. */
     @Test
     void constantAlwaysPropertyHasKnownEmptyReads() {
         var model = new ProgramLoader().load(twoWrites("always", "true"));
@@ -37,6 +41,7 @@ class DslPropertyObservationTest {
         assertEquals(3, new StaticPorExplorer().explore(model.program(), property).statesExplored());
     }
 
+    /** Verifies that conjunctions and dynamic indices include all expression inputs. */
     @Test
     void conjunctionsAndDynamicIndicesIncludeAllExpressionInputs() {
         var model = new ProgramLoader().load(arrays(
@@ -48,6 +53,7 @@ class DslPropertyObservationTest {
             property.observedLocations().orElseThrow());
     }
 
+    /** Verifies that dynamic array writes remain visible to an element property. */
     @Test
     void dynamicArrayWritesRemainVisibleToAnElementProperty() {
         var model = new ProgramLoader().load(arrays(
@@ -59,6 +65,7 @@ class DslPropertyObservationTest {
             "the invisible scalar write goes first; the aliased array write must remain visible");
     }
 
+    /** Verifies that runtime predicate errors remain violations. */
     @Test
     void runtimePredicateErrorsRemainViolations() {
         var model = new ProgramLoader().load(twoWrites("always", "x % 0 == 0"));
@@ -69,6 +76,7 @@ class DslPropertyObservationTest {
         assertEquals(TraceOutcome.VIOLATION, result.traces().getFirst().outcome());
     }
 
+    /** Verifies that local arrays are rejected before observation analysis. */
     @Test
     void localArraysAreRejectedBeforeObservationAnalysis() {
         RegistryException error = assertThrows(RegistryException.class, () -> new ProgramLoader().load(
@@ -76,6 +84,7 @@ class DslPropertyObservationTest {
         assertTrue(error.getMessage().contains("Local array access not supported"));
     }
 
+    /** Verifies that independent work reduces an eight thread grid to one schedule. */
     @Test
     void independentWorkReducesAnEightThreadGridToOneSchedule() {
         String threads = java.util.stream.IntStream.range(0, 8)
@@ -97,6 +106,13 @@ class DslPropertyObservationTest {
         assertEquals(TraceOutcome.COMPLETED, por.traces().getFirst().outcome());
     }
 
+    /**
+     * Loads a two-thread array program with the supplied assignments and always property.
+     * @param invariant property to check, or null when no property is supplied
+     * @param firstEffect first thread assignment
+     * @param secondEffect second thread assignment
+     * @return loaded two-thread array benchmark with the supplied property
+     */
     private static String arrays(String invariant, String firstEffect, String secondEffect) {
         return """
             {"format":"declarative", "name":"arrays",
@@ -109,6 +125,12 @@ class DslPropertyObservationTest {
             """.formatted(firstEffect, secondEffect, invariant);
     }
 
+    /**
+     * Loads a two-thread scalar-write program with a property evaluated in the requested phase.
+     * @param when property evaluation phase
+     * @param expression property expression
+     * @return loaded scalar-write benchmark with the supplied property phase
+     */
     private static String twoWrites(String when, String expression) {
         return """
             {"format":"declarative", "name":"observed",

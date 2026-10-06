@@ -1,3 +1,4 @@
+/** Persisted corpus entry combining generation metadata, a losslessly serializable program representation, and the oracle verdict. */
 package dev.samhb.interleave.corpus;
 
 import dev.samhb.interleave.bugs.ReadCounterStep;

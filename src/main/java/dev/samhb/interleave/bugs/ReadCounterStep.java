@@ -6,13 +6,20 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
+/** Copies the shared counter into one thread’s local register. */
 public final class ReadCounterStep implements Step {
+    /** Thread id. */
     private final int threadId;
 
+    /**
+     * Creates read counter step from the supplied values.
+     * @param threadId zero-based modeled thread ID
+     */
     public ReadCounterStep(int threadId) {
         this.threadId = threadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public Set<MemoryLocation> reads() {
         return Set.of(MemoryLocation.of("counter"));
@@ -27,11 +34,13 @@ public final class ReadCounterStep implements Step {
         return Set.of(MemoryLocation.of("registers[" + threadId + "]"));
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean enabled(SharedState state) {
         return state instanceof CounterState;
     }
 
+    /** {@inheritDoc} */
     @Override
     public StepOutcome execute(SharedState state) {
         CounterState cs = (CounterState) state;
@@ -39,6 +48,7 @@ public final class ReadCounterStep implements Step {
         return StepOutcome.ADVANCED;
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -46,6 +56,7 @@ public final class ReadCounterStep implements Step {
         return threadId == that.threadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public int hashCode() {
         return Objects.hash(threadId);

@@ -6,6 +6,7 @@ import java.util.Set;
 
 /** Shared alias and local-name rules; both operands are included even for short-circuit expressions. */
 final class ExpressionReads {
+    /** Prevents instantiation of this utility class. */
     private ExpressionReads() {}
 
     /**

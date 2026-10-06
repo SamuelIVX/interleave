@@ -1,3 +1,4 @@
+/** Type-checks declarative expressions at load time. */
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.format.registry.RegistryException;
@@ -6,6 +7,7 @@ import dev.samhb.interleave.format.registry.RegistryException;
  * Type-checks declarative expressions at load time.
  */
 public final class TypeChecker {
+    /** Prevents instantiation of this utility class. */
     private TypeChecker() {}
 
     /**

@@ -2,7 +2,7 @@
 
 ## TL;DR
 
-**Status:** implemented; PR/CI pending.
+**Status:** merged in PR #44; local and parallel CI verification passed.
 **Closes:** A4 through opt-in state-only properties, with exhaustive fallback for unknown observations.
 **Baseline:** `main` at `9276cd4`; freshly measured 496 tests, full PIT **255/268**, 13 survivors.
 
@@ -126,7 +126,8 @@ above. The local-array index-read finding is rejected: `TypeChecker.check` forbi
 A loader regression pins the rejection; shared-array dynamic indices are covered separately.
 The second local CodeRabbit review completed with **zero findings**. The expanded full suite
 passes **526 tests**; the final expanded-suite PIT rerun also passes **255/268**, with identical
-mutation/status identities to the fresh baseline. Remote CI remains pending.
+mutation/status identities to the fresh baseline. PR #44 and the merged main commit both passed
+full-scope parallel CI; spec 13.10 records their mutation-job evidence.
 The PIT source scope remains `state.* + cb.*`; the 94% floor is unchanged. **E5 remains open.**
 
 ## Historical rejected pairwise patch

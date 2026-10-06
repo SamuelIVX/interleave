@@ -1,3 +1,4 @@
+/** Interface for tracking visited configurations during state-space exploration. Implementations provide different trade-offs between memory usage and precision: exact stores (e.g., {@link HashingStateStore}) guarantee no false positives, while approximate stores (e.g., {@link BitstateStore}) trade completeness for memory. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.Configuration;

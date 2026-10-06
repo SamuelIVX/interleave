@@ -1,3 +1,4 @@
+/** Registry of built-in state types. */
 package dev.samhb.interleave.format.registry;
 
 import com.google.gson.JsonObject;
@@ -21,12 +22,15 @@ import java.util.Set;
  * from the JSON parameters.
  */
 public final class StateRegistry {
+    /** Factories. */
     private final Map<String, StateFactory> factories = new HashMap<>();
 
+    /** Creates state registry from the supplied values. */
     public StateRegistry() {
         registerBuiltins();
     }
 
+    /** Registers the supported built-in factories by their declarative names. */
     private void registerBuiltins() {
         // peterson: one flag per thread, turn int
         register("peterson", (json, threadCount) -> {
@@ -76,6 +80,9 @@ public final class StateRegistry {
      *
      * <p>Peterson and the deadlock demo are defined for two or more threads, so fewer than two is
      * rejected rather than quietly padded. More is the case this spec opened up.
+     * @param flags supplied per-thread intent flags
+     * @param threadCount number of modeled threads the flag array must represent
+     * @param type state type used in validation diagnostics
      */
     private static void requireFlagLength(int flags, int threadCount, String type) {
         if (threadCount < 2) {
@@ -99,6 +106,7 @@ public final class StateRegistry {
 
     /**
      * Returns the set of registered state type names.
+     * @return live mutable view of registered names; removals also remove their factories
      */
     public Set<String> typeNames() {
         return factories.keySet();
@@ -130,6 +138,9 @@ public final class StateRegistry {
     /**
      * Returns the set of state types compatible with the given state type.
      * (For compatibility checking with step types.)
+     * @param stepType registered factory name
+     * @param stateType expected shared-state implementation
+     * @return true if the step’s expected state type accepts the registered state type
      */
     public boolean isCompatibleWith(String stepType, String stateType) {
         // This is used by StepRegistry for cross-validation

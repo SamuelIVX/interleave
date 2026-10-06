@@ -1,3 +1,4 @@
+/** The result of attempting to take one step. */
 package dev.samhb.interleave.core;
 
 /**

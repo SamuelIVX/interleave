@@ -14,12 +14,19 @@ import java.util.Set;
  * Declarative step with derived reads/writes and sandboxed execution.
  */
 public final class DynamicStep implements Step {
+    /** Owner. */
     private final int owner;
+    /** Guard. */
     private final Expr guard;
+    /** Effects. */
     private final List<Effect> effects;
+    /** Decl. */
     private final StateDecl decl;
+    /** Reads. */
     private final Set<MemoryLocation> reads;
+    /** Writes. */
     private final Set<MemoryLocation> writes;
+    /** Name. */
     private final String name;
 
     /**
@@ -118,7 +125,6 @@ public final class DynamicStep implements Step {
         }
     }
 
-    @Override
     /**
      * Applies the step's effects to the state.
      *
@@ -131,6 +137,7 @@ public final class DynamicStep implements Step {
      * @param state the state to mutate
      * @return the outcome of attempting the step
      */
+    @Override
     public StepOutcome execute(SharedState state) {
         if (!(state instanceof DynamicState ds)) return StepOutcome.ASSERTION_FAILED;
         // Re-evaluate guard: errors / type mismatch → ASSERTION_FAILED, false → BLOCKED

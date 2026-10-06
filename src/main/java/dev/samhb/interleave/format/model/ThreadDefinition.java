@@ -1,3 +1,4 @@
+/** Thread definition parsed from JSON. */
 package dev.samhb.interleave.format.model;
 
 import com.google.gson.JsonObject;
@@ -15,7 +16,9 @@ import java.util.List;
  * The loader validates that {@code id} is present and matches the array index.
  */
 public final class ThreadDefinition {
+    /** Id. */
     private Integer id;
+    /** Steps. */
     private List<JsonObject> steps;
 
     /**
@@ -28,12 +31,18 @@ public final class ThreadDefinition {
         // No-arg constructor for Gson
     }
 
-    /** @return the thread's id, or null when the JSON omitted it */
+    /**
+     * Returns id.
+     * @return the thread's id, or null when the JSON omitted it
+     */
     public Integer id() {
         return id;
     }
 
-    /** @return the raw step JSON objects, parsed into steps by the loader in declaration order */
+    /**
+     * Returns steps.
+     * @return the raw step JSON objects, parsed into steps by the loader in declaration order
+     */
     public List<JsonObject> steps() {
         return steps;
     }

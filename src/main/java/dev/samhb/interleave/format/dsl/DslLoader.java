@@ -1,3 +1,4 @@
+/** Loader for {@code format: "declarative"} programs. */
 package dev.samhb.interleave.format.dsl;
 
 import com.google.gson.JsonArray;
@@ -33,6 +34,7 @@ import java.util.Set;
  */
 public final class DslLoader {
 
+    /** Prevents instantiation of this utility class. */
     private DslLoader() {}
 
     /**

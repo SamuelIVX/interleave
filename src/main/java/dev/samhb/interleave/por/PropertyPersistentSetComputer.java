@@ -9,8 +9,11 @@ import java.util.*;
 
 /** Run-local conservative persistence analysis; execution/progress is checked by the explorer. */
 final class PropertyPersistentSetComputer {
+    /** Relation. */
     private final IndependenceRelation relation;
+    /** Observations. */
     private final Set<MemoryLocation> observations;
+    /** Accesses. */
     private final List<ThreadAccesses> accesses;
 
     /**
@@ -106,11 +109,27 @@ final class PropertyPersistentSetComputer {
         return component;
     }
 
-    /** Checks whether this counter still points into a finite step list. */
+    /**
+     * Checks whether this counter still points into a finite step list.
+     * @param config current search configuration
+     * @param id zero-based modeled thread ID
+     * @return true if this thread has not consumed its finite step list
+     */
     private boolean live(Configuration config, int id) {
         return config.programCounters().get(id) < accesses.get(id).steps().size();
     }
 
+    /**
+     * Immutable read/write locations for a transition or remaining suffix.
+     * @param reads conservative modeled read locations
+     * @param writes conservative modeled write locations
+     */
     private record Footprint(Set<MemoryLocation> reads, Set<MemoryLocation> writes) {}
+
+    /**
+     * Per-step footprints and conservative unions for each remaining thread suffix.
+     * @param steps footprint at each original program counter
+     * @param suffixes union of footprints from each counter through the end of the thread
+     */
     private record ThreadAccesses(List<Footprint> steps, List<Footprint> suffixes) {}
 }

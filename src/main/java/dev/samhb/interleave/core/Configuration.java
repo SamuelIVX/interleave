@@ -1,3 +1,4 @@
+/** One point in an execution: the shared state, each thread's program counter, and what that implies about what may run next.  <h2>Derived facts are derived, not supplied</h2> */
 package dev.samhb.interleave.core;
 
 import java.util.*;
@@ -32,15 +33,34 @@ import java.util.*;
  * merge positions with different future preemption costs.
  */
 public final class Configuration {
+    /** State. */
     private final SharedState state;
+    /** Program counters. */
     private final List<Integer> programCounters;
+    /** Lock ownership. */
     private final Map<MemoryLocation, Integer> lockOwnership;
+    /** Wait queues. */
     private final Map<MemoryLocation, List<Integer>> waitQueues;
+    /** Enabled thread ids. */
     private final List<Integer> enabledThreadIds;
+    /** All terminated. */
     private final boolean allTerminated;
+    /** Deadlock candidate. */
     private final boolean deadlockCandidate;
+    /** Last outcome. */
     private final StepOutcome lastOutcome;
 
+    /**
+     * Creates an isolated snapshot of configuration from the supplied values.
+     * @param state shared state to inspect or mutate according to this operation
+     * @param programCounters ordered per-thread indices into the program’s step lists
+     * @param lockOwnership derived modeled lock owners
+     * @param waitQueues derived wait queues
+     * @param enabledThreadIds IDs of currently executable threads
+     * @param allTerminated whether every modeled thread has finished
+     * @param deadlockCandidate whether live threads have no enabled transition
+     * @param lastOutcome outcome that produced this position
+     */
     private Configuration(
             SharedState state,
             List<Integer> programCounters,
@@ -66,7 +86,6 @@ public final class Configuration {
 
     /**
      * Creates the configuration a program starts in, with every counter at zero.
-     *
      * @param state the program's initial shared state, deep-copied into the configuration
      * @param threads the program's threads, in thread-id order
      * @return the initial configuration
@@ -87,6 +106,10 @@ public final class Configuration {
      * inputs, and a thread is enabled exactly when its counter is inside its step list and the step
      * there permits it. Deriving them once is what stops the two factories from disagreeing with each
      * other, and with the counters they are handed, about what is runnable.
+     * @param threads modeled thread definitions
+     * @param counters ordered per-thread indices into the supplied step lists
+     * @param state shared state to inspect or mutate according to this operation
+     * @return enabled-thread IDs and termination flag derived from the supplied position
      */
     private static Derived derive(List<ModelThread> threads, List<Integer> counters, SharedState state) {
         List<Integer> enabled = new ArrayList<>();
@@ -110,11 +133,18 @@ public final class Configuration {
      * A finished exploration is not a deadlock. With every thread terminated and nothing enabled there
      * is nothing left to run, which is a normal end state; conflating the two makes a search stop early
      * or report a phantom.
+     * @param derived enabled-thread and termination facts derived from the same counters
+     * @return true if a live thread remains but no transition is enabled
      */
     private static boolean isDeadlockCandidate(Derived derived) {
         return !derived.allTerminated() && derived.enabledThreadIds().isEmpty();
     }
 
+    /**
+     * Enabled-thread and termination metadata derived from a configuration’s counters.
+     * @param enabledThreadIds IDs of currently executable threads
+     * @param allTerminated whether every modeled thread has finished
+     */
     private record Derived(List<Integer> enabledThreadIds, boolean allTerminated) {}
 
     /**
@@ -145,7 +175,6 @@ public final class Configuration {
      * visibility is deliberate — tests in other packages, including {@code state} and {@code cb}, use
      * them — but nothing in {@code core} should call them. A fixture that needs an arbitrary counter is
      * a test, and a production caller reaching for one is a bug this signature cannot prevent.
-     *
      * @param state the shared state, held by reference rather than copied
      * @param programCounters one counter per thread
      * @param enabledThreadIds the threads to report as enabled
@@ -162,7 +191,6 @@ public final class Configuration {
      * As {@link #forTest(SharedState, List, List)}, but with the per-thread step counts supplied so
      * {@code allTerminated} is derived from the counters instead of assumed false. A counter at or
      * beyond its thread's step count is a terminated position.
-     *
      * @param state the shared state, held by reference rather than copied
      * @param programCounters one counter per thread
      * @param stepsPerThread each thread's step count, so a counter at or beyond it reads terminated
@@ -193,14 +221,16 @@ public final class Configuration {
                 allTerm, deadlock, null);
     }
 
-    /** @return the shared state this configuration holds */
+    /**
+     * Returns state.
+     * @return the shared state this configuration holds
+     */
     public SharedState state() {
         return state;
     }
 
     /**
      * Each thread's index into its own step list.
-     *
      * @return per-thread program counters, one entry per thread
      */
     public List<Integer> programCounters() {
@@ -209,7 +239,6 @@ public final class Configuration {
 
     /**
      * Which thread holds each lock, empty when none are held.
-     *
      * @return location to owning thread id
      */
     public Map<MemoryLocation, Integer> lockOwnership() {
@@ -218,7 +247,6 @@ public final class Configuration {
 
     /**
      * Threads blocked at each location, in arrival order.
-     *
      * @return location to the thread ids waiting on it
      */
     public Map<MemoryLocation, List<Integer>> waitQueues() {
@@ -230,7 +258,6 @@ public final class Configuration {
      *
      * <p>Derived once in the private constructor rather than recomputed per call, so every caller
      * cannot disagree with another about which threads are enabled.
-     *
      * @return the enabled thread ids
      */
     public List<Integer> enabledThreadIds() {
@@ -242,7 +269,6 @@ public final class Configuration {
      *
      * <p>The canonical liveness predicate. Read this rather than comparing counters against step counts
      * at a call site, which is what produced the duplicated derivations 13.03 consolidated.
-     *
      * @return true if no thread has a step left to execute
      */
     public boolean allTerminated() {
@@ -255,7 +281,6 @@ public final class Configuration {
      * <p>Note both halves are load-bearing. All threads terminated is completion, not deadlock, and
      * nothing enabled with every thread terminated is unreachable. Use {@link #allTerminated()} to
      * distinguish the first.
-     *
      * @return true if live threads remain but none can execute
      */
     public boolean isDeadlockCandidate() {
@@ -264,13 +289,20 @@ public final class Configuration {
 
     /**
      * The outcome of the step that produced this configuration.
-     *
      * @return that outcome, or null for the initial configuration
      */
     public StepOutcome lastOutcome() {
         return lastOutcome;
     }
 
+    /**
+     * Builds a successor with updated counters and derived metadata using the supplied next-state snapshot.
+     * @param threadId zero-based modeled thread ID
+     * @param outcome execution outcome being recorded
+     * @param threads modeled thread definitions
+     * @param nextState already executed shared-state snapshot held by the successor
+     * @return next position with counters and enabled-thread metadata derived from the outcome
+     */
     public Configuration successor(int threadId, StepOutcome outcome, List<ModelThread> threads, SharedState nextState) {
         List<Integer> nextPcs = new ArrayList<>(this.programCounters);
         if (outcome != StepOutcome.BLOCKED) {

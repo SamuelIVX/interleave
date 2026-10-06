@@ -1,10 +1,19 @@
+/** Builds the benchmark whose unsynchronized read-modify-write can lose increments. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.Invariant;
 import java.util.List;
 
+/** Builds the benchmark whose unsynchronized read-modify-write can lose increments. */
 public final class LostUpdate {
+    /** Creates lost update with its default configuration. */
+    public LostUpdate() {}
+
+    /**
+     * Returns this benchmark’s modeled threads and initial shared state.
+     * @return new benchmark program and initial state
+     */
     public static BenchmarkProgram program() {
         CounterState initial = CounterState.of(0);
 

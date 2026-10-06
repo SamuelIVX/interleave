@@ -1,3 +1,4 @@
+/** Sealed expression AST for declarative DSL. */
 package dev.samhb.interleave.format.dsl;
 
 /**
@@ -7,28 +8,53 @@ public sealed interface Expr permits
         Expr.IntLit, Expr.BoolLit, Expr.VarRef, Expr.LocalRef,
         Expr.ArrayAccess, Expr.TidRef, Expr.UnaryOp, Expr.BinaryOp {
 
-    /** Integer literal. */
+    /**
+     * Integer literal.
+     * @param value literal payload
+     */
     record IntLit(int value) implements Expr {}
 
-    /** Boolean literal. */
+    /**
+     * Boolean literal.
+     * @param value literal payload
+     */
     record BoolLit(boolean value) implements Expr {}
 
-    /** Shared field scalar reference. */
+    /**
+     * Shared field scalar reference.
+     * @param name declared field or local name
+     */
     record VarRef(String name) implements Expr {}
 
-    /** Per-thread local scalar reference. */
+    /**
+     * Per-thread local scalar reference.
+     * @param name declared field or local name
+     */
     record LocalRef(String name) implements Expr {}
 
-    /** Shared array element access. */
+    /**
+     * Shared array element access.
+     * @param arrayName declared shared-array name
+     * @param index expression selecting an array element
+     */
     record ArrayAccess(String arrayName, Expr index) implements Expr {}
 
     /** Thread id keyword. */
     record TidRef() implements Expr {}
 
-    /** Unary operation. */
+    /**
+     * Unary operation.
+     * @param op DSL operator token
+     * @param operand operand expression
+     */
     record UnaryOp(String op, Expr operand) implements Expr {}
 
-    /** Binary operation. */
+    /**
+     * Binary operation.
+     * @param left left operand expression
+     * @param op DSL operator token
+     * @param right right operand expression
+     */
     record BinaryOp(Expr left, String op, Expr right) implements Expr {}
 
     /**

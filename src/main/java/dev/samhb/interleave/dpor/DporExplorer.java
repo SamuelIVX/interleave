@@ -1,3 +1,4 @@
+/** Dynamic partial-order reduction explorer. */
 package dev.samhb.interleave.dpor;
 
 import dev.samhb.interleave.core.*;
@@ -32,7 +33,9 @@ import java.util.*;
  */
 public final class DporExplorer {
 
+    /** Relation. */
     private final IndependenceRelation relation;
+    /** Encoder. */
     private final CanonicalEncoder encoder = new CanonicalEncoder();
 
     /** Creates an explorer with the default independence relation. */
@@ -44,7 +47,7 @@ public final class DporExplorer {
      * Explores without an invariant, using dynamic partial-order reduction.
      *
      * @param program the program to explore
-     * @return the visited configurations and the traces reached
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program) {
         return explore(program, null);
@@ -58,7 +61,7 @@ public final class DporExplorer {
      *
      * @param program the program to explore
      * @param invariant the invariant to check, or null to keep the reduction
-     * @return the visited configurations and the traces reached
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant) {
         return explore(program, invariant, null, null);
@@ -75,7 +78,7 @@ public final class DporExplorer {
      * @param invariant the invariant to check, or null to keep the reduction
      * @param stateStore the visited store, or null for a fresh {@link HashingStateStore}
      * @param stateVisitor notified of each visited configuration, or null
-     * @return the visited configurations and the traces reached
+     * @return visited configurations, recorded traces, and exploration count
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
@@ -97,6 +100,21 @@ public final class DporExplorer {
         return new DfsResult(visitedStates, traces, statesExplored[0]);
     }
 
+    /**
+     * Explores dependent schedules using sleep sets and future-dependency checks.
+     * @param program modeled program whose threads are explored
+     * @param config current search configuration
+     * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
+     * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
+     * @param visitedStates configurations indexed by canonical value key
+     * @param traces recorded executions
+     * @param invariant property to check, or null when no property is supplied
+     * @param statesExplored number of explored configurations
+     * @param sleepSet run-local sleeping transitions used to suppress redundant schedules
+     * @param happensBefore ordering information for the current execution prefix
+     * @param stateStore visited-position store used for pruning
+     * @param stateVisitor optional observer of visited states and emitted traces
+     */
     private void dporDfs(Program program, Configuration config,
                          List<Integer> currentThreadIds,
                          List<StepOutcome> currentOutcomes,
@@ -260,6 +278,19 @@ public final class DporExplorer {
         }
     }
 
+    /**
+     * Explores every enabled successor when property checking requires exhaustive search.
+     * @param program modeled program whose threads are explored
+     * @param config current search configuration
+     * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
+     * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
+     * @param visitedStates configurations indexed by canonical value key
+     * @param traces recorded executions
+     * @param invariant property to check, or null when no property is supplied
+     * @param statesExplored number of explored configurations
+     * @param stateStore visited-position store used for pruning
+     * @param stateVisitor optional observer of visited states and emitted traces
+     */
     private void dfsDfs(Program program, Configuration config,
                         List<Integer> currentThreadIds,
                         List<StepOutcome> currentOutcomes,

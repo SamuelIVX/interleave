@@ -1,3 +1,4 @@
+/** Shared field declaration for declarative state. */
 package dev.samhb.interleave.format.dsl;
 
 import java.util.Arrays;
@@ -20,7 +21,6 @@ public record FieldDecl(String name, FieldType type, int intInit, boolean boolIn
         if (arrayInit != null) arrayInit = Arrays.copyOf(arrayInit, arrayInit.length);
     }
 
-    @Override
     /**
      * Returns a defensive copy of the declared initial array contents.
      *
@@ -30,17 +30,18 @@ public record FieldDecl(String name, FieldType type, int intInit, boolean boolIn
      *
      * @return a fresh copy of the initial contents, or null if not an array field
      */
+    @Override
     public int[] arrayInit() {
         return arrayInit == null ? null : Arrays.copyOf(arrayInit, arrayInit.length);
     }
 
-    @Override
     /**
      * Compares name, type, and the initial value for this type.
      *
      * @param o the object to compare against
      * @return true if both declare the same field identically
      */
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof FieldDecl that)) return false;
@@ -51,12 +52,12 @@ public record FieldDecl(String name, FieldType type, int intInit, boolean boolIn
                 && Arrays.equals(arrayInit, that.arrayInit);
     }
 
-    @Override
     /**
      * Hashes consistently with {@link #equals}, hashing array contents rather than identity.
      *
      * @return a hash consistent with {@link #equals}
      */
+    @Override
     public int hashCode() {
         int h = Objects.hash(name, type, intInit, boolInit);
         h = 31 * h + Arrays.hashCode(arrayInit);

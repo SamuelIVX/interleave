@@ -36,9 +36,13 @@ public final class DslInvariant implements Invariant {
         ALWAYS
     }
 
+    /** Predicates. */
     private final List<Expr> predicates;
+    /** Decl. */
     private final StateDecl decl;
+    /** When. */
     private final When when;
+    /** Observations. */
     private final Optional<Set<MemoryLocation>> observations;
 
     /**
@@ -122,7 +126,7 @@ public final class DslInvariant implements Invariant {
 
     /**
      * Returns complete expression observations for always-timed checks.
-     * @return immutable reads, or unknown for termination-sensitive final checks
+     * @return known state-observation locations, or an empty Optional when unknown
      */
     @Override
     public Optional<Set<MemoryLocation>> observedLocations() {

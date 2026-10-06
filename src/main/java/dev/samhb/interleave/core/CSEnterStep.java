@@ -5,13 +5,20 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
+/** Models assigning critical-section ownership to the executing thread. */
 public final class CSEnterStep implements Step {
+    /** Thread id. */
     private final int threadId;
 
+    /**
+     * Creates csenter step from the supplied values.
+     * @param threadId zero-based modeled thread ID
+     */
     public CSEnterStep(int threadId) {
         this.threadId = threadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public Set<MemoryLocation> reads() {
         return Collections.emptySet();
@@ -26,11 +33,13 @@ public final class CSEnterStep implements Step {
         return Set.of(MemoryLocation.of("inCriticalSection"));
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean enabled(SharedState state) {
         return state instanceof PetersonState;
     }
 
+    /** {@inheritDoc} */
     @Override
     public StepOutcome execute(SharedState state) {
         PetersonState ps = (PetersonState) state;
@@ -38,6 +47,7 @@ public final class CSEnterStep implements Step {
         return StepOutcome.ADVANCED;
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -45,6 +55,7 @@ public final class CSEnterStep implements Step {
         return threadId == that.threadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public int hashCode() {
         return Objects.hash(threadId);

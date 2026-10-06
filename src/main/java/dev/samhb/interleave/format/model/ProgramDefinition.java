@@ -1,3 +1,4 @@
+/** Top-level program definition parsed from JSON. */
 package dev.samhb.interleave.format.model;
 
 import com.google.gson.JsonObject;
@@ -18,12 +19,18 @@ import java.util.List;
  * </ul>
  */
 public final class ProgramDefinition {
+    /** Format. */
     private String format;
+    /** Name. */
     private String name;
+    /** State. */
     private JsonObject state;
+    /** Threads. */
     private List<ThreadDefinition> threads;
+    /** Invariant. */
     private JsonObject invariant;
-    
+
+    /** Expected verdict. */
     @SerializedName("expected_verdict")
     private String expectedVerdict;
 
@@ -40,34 +47,48 @@ public final class ProgramDefinition {
 
     /**
      * Returns the format discriminator.
-     *
      * @return {@code "typed"} or {@code "declarative"}, or {@code null} if missing
      */
     public String format() {
         return format;
     }
 
-    /** @return the program's declared name, used in reports and corpus keys */
+    /**
+     * Returns name.
+     * @return the program's declared name, used in reports and corpus keys
+     */
     public String name() {
         return name;
     }
 
-    /** @return the raw {@code state} JSON block, parsed into a declaration by the loader */
+    /**
+     * Returns state.
+     * @return the raw {@code state} JSON block, parsed into a declaration by the loader
+     */
     public JsonObject state() {
         return state;
     }
 
-    /** @return the thread definitions, in declaration order */
+    /**
+     * Returns threads.
+     * @return the thread definitions, in declaration order
+     */
     public List<ThreadDefinition> threads() {
         return threads;
     }
 
-    /** @return the raw invariant JSON, or null when the program declares none */
+    /**
+     * Returns invariant.
+     * @return the raw invariant JSON, or null when the program declares none
+     */
     public JsonObject invariant() {
         return invariant;
     }
 
-    /** @return the verdict the oracle is expected to reach, or null when unconstrained */
+    /**
+     * Returns expected verdict.
+     * @return the verdict the oracle is expected to reach, or null when unconstrained
+     */
     public String expectedVerdict() {
         return expectedVerdict;
     }

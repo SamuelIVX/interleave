@@ -1,10 +1,16 @@
+/** Callbacks for newly visited configurations and recorded traces. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.search.Trace;
 import dev.samhb.interleave.core.Configuration;
 
+/** Callbacks for newly visited configurations and recorded traces. */
 @FunctionalInterface
 public interface StateVisitor {
+    /**
+     * Observes a newly visited search configuration.
+     * @param config current search configuration
+     */
     void onStateVisited(Configuration config);
 
     /**
@@ -23,6 +29,10 @@ public interface StateVisitor {
         onStateVisited(config);
     }
 
+    /**
+     * Observes a trace when exploration records it.
+     * @param trace recorded execution to inspect or replay
+     */
     default void onTraceCreated(Trace trace) {
         // Default no-op - implementations can override to capture traces
     }

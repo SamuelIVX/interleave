@@ -1,3 +1,4 @@
+/** Loads declarative benchmark programs and retains Java fixtures for cross-checks. */
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
@@ -7,9 +8,18 @@ import dev.samhb.interleave.search.Invariant;
 import java.util.List;
 import java.util.ArrayList;
 
+/** Loads declarative benchmark programs and retains Java fixtures for cross-checks. */
 public final class BugCorpus {
+    /** Creates bug corpus with its default configuration. */
+    public BugCorpus() {}
+
+    /** Loader. */
     private static final ProgramLoader LOADER = new ProgramLoader();
 
+    /**
+     * Returns the declarative benchmark corpus in its stable iteration order.
+     * @return benchmarks in stable corpus order
+     */
     public static List<BenchmarkProgram> all() {
         List<BenchmarkProgram> programs = new ArrayList<>();
         programs.add(peterson());
@@ -24,26 +34,50 @@ public final class BugCorpus {
     }
 
     // Public API: loads from JSON resources (migrated format)
+    /**
+     * Builds the peterson benchmark from its declarative definition.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     public static BenchmarkProgram peterson() {
         return LOADER.loadFromResource("programs/peterson.json");
     }
 
+    /**
+     * Builds the broken peterson benchmark from its declarative definition.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     public static BenchmarkProgram brokenPeterson() {
         return LOADER.loadFromResource("programs/broken-peterson.json");
     }
 
+    /**
+     * Builds the broken peterson v2 benchmark from its declarative definition.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     public static BenchmarkProgram brokenPetersonV2() {
         return LOADER.loadFromResource("programs/broken-peterson-v2.json");
     }
 
+    /**
+     * Builds the deadlock benchmark from its declarative definition.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     public static BenchmarkProgram deadlock() {
         return LOADER.loadFromResource("programs/deadlock.json");
     }
 
+    /**
+     * Builds the double checked locking benchmark from its declarative definition.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     public static BenchmarkProgram doubleCheckedLocking() {
         return LOADER.loadFromResource("programs/double-checked-locking.json");
     }
 
+    /**
+     * Builds the lost update benchmark from its declarative definition.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     public static BenchmarkProgram lostUpdate() {
         return LOADER.loadFromResource("programs/lost-update.json");
     }
@@ -57,11 +91,16 @@ public final class BugCorpus {
      * which sizes its per-thread registers for exactly two threads. A three-thread typed program would
      * throw on thread 2's register write. {@code DslLoader} sizes {@code DynamicState} from the
      * declared thread count, so the declarative path is correct for any count the format allows.
+     * @return benchmark fixture with its expected verdict and optional property
      */
     public static BenchmarkProgram lostUpdate3t() {
         return LOADER.loadFromResource("programs/lost-update-3t.json");
     }
 
+    /**
+     * Builds the torn counter benchmark from its declarative definition.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     public static BenchmarkProgram tornCounter() {
         return LOADER.loadFromResource("programs/torn-counter.json");
     }
@@ -70,6 +109,10 @@ public final class BugCorpus {
     // These are used by tests to verify JSON migration correctness.
     // They must NOT be modified when JSON resources change.
 
+    /**
+     * Builds the peterson benchmark directly in Java for loader cross-checks.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     static BenchmarkProgram petersonJava() {
         PetersonState initial = PetersonState.of(false, false, 0);
 
@@ -98,6 +141,10 @@ public final class BugCorpus {
         return new BenchmarkProgram("peterson", program, "PASS");
     }
 
+    /**
+     * Builds the broken peterson benchmark directly in Java for loader cross-checks.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     static BenchmarkProgram brokenPetersonJava() {
         PetersonState initial = PetersonState.of(false, false, 0);
 
@@ -135,6 +182,10 @@ public final class BugCorpus {
         return new BenchmarkProgram("broken-peterson", program, "VIOLATION", invariant);
     }
 
+    /**
+     * Builds the broken peterson v2 benchmark directly in Java for loader cross-checks.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     static BenchmarkProgram brokenPetersonV2Java() {
         PetersonState initial = PetersonState.of(false, false, 0);
 
@@ -172,6 +223,10 @@ public final class BugCorpus {
         return new BenchmarkProgram("broken-peterson-v2", program, "VIOLATION", invariant);
     }
 
+    /**
+     * Builds the deadlock benchmark directly in Java for loader cross-checks.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     static BenchmarkProgram deadlockJava() {
         DeadlockState initial = DeadlockState.of(false, false);
 
@@ -195,6 +250,10 @@ public final class BugCorpus {
         return new BenchmarkProgram("deadlock", program, "DEADLOCK");
     }
 
+    /**
+     * Builds the double checked locking benchmark directly in Java for loader cross-checks.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     static BenchmarkProgram doubleCheckedLockingJava() {
         DclState initial = DclState.of(false);
 
@@ -228,6 +287,10 @@ public final class BugCorpus {
         return new BenchmarkProgram("double-checked-locking", program, "VIOLATION", invariant);
     }
 
+    /**
+     * Builds the lost update benchmark directly in Java for loader cross-checks.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     static BenchmarkProgram lostUpdateJava() {
         CounterState initial = CounterState.of(0);
 
@@ -257,6 +320,10 @@ public final class BugCorpus {
         return new BenchmarkProgram("lost-update", program, "VIOLATION", invariant);
     }
 
+    /**
+     * Builds the torn counter benchmark directly in Java for loader cross-checks.
+     * @return benchmark fixture with its expected verdict and optional property
+     */
     static BenchmarkProgram tornCounterJava() {
         PairState initial = PairState.of(0, 0);
 
@@ -288,6 +355,10 @@ public final class BugCorpus {
     }
 
     // Test accessors for Java fixtures
+    /**
+     * Returns Java-built benchmarks for cross-checking declarative loading.
+     * @return benchmark fixtures in stable corpus order
+     */
     public static List<BenchmarkProgram> allJavaFixtures() {
         List<BenchmarkProgram> programs = new ArrayList<>();
         programs.add(petersonJava());

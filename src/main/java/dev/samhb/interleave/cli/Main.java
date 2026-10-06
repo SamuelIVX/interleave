@@ -1,3 +1,4 @@
+/** CLI entry point for the interleave model checker. Parses command-line arguments and runs benchmarks against the concurrency bug corpus. */
 package dev.samhb.interleave.cli;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
@@ -26,8 +27,14 @@ import java.util.*;
  * Parses command-line arguments and runs benchmarks against the concurrency bug corpus.
  */
 public final class Main {
+    /** Creates main with its default configuration. */
+    public Main() {}
+
+    /** Loader. */
     private static final ProgramLoader LOADER = new ProgramLoader();
+    /** Context bounded. */
     private static final String CONTEXT_BOUNDED = "CONTEXT_BOUNDED";
+    /** Exact. */
     private static final String EXACT = "EXACT";
 
     /**
@@ -265,6 +272,10 @@ public final class Main {
         return null;
     }
 
+    /**
+     * Parses generation options and writes the requested corpus files.
+     * @param args command-line arguments
+     */
     private static void handleGenerate(String[] args) {
         String templateId = null;
         int count = 10;
@@ -306,6 +317,7 @@ public final class Main {
         System.out.println(gson.toJson(entries));
     }
 
+    /** Prints supported corpus-generation options to standard output. */
     private static void printGenerateUsage() {
         System.out.println("Usage: interleave generate --template <id> [flags]");
         System.out.println("Flags:");

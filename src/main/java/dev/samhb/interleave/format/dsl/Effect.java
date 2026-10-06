@@ -1,3 +1,4 @@
+/** Effect assignment lhs = rhs. */
 package dev.samhb.interleave.format.dsl;
 
 /**

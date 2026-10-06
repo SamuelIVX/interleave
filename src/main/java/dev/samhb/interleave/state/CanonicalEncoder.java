@@ -11,6 +11,9 @@ import java.util.*;
 
 /** Stateless canonical encoding shared by exact identity and probabilistic hash prefilters. */
 public final class CanonicalEncoder implements Serializable {
+    /** Creates canonical encoder with its default configuration. */
+    public CanonicalEncoder() {}
+
     /**
      * Encodes the state through its canonical-value contract.
      *

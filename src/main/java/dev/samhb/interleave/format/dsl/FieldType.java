@@ -1,3 +1,4 @@
+/** Field type for declarative state. */
 package dev.samhb.interleave.format.dsl;
 
 /**

@@ -499,10 +499,12 @@ false when checked.
 The ratchet can fail CI on a wall-clock timeout it cannot distinguish from a real regression
 {: #e5}
 
-**Status: still open, deliberately.** Its closure condition is accumulated evidence from
-repeated *parallel* CI runs, and every local run is single-threaded by mandate — so no local run can
-satisfy it. See 13.07 for the adjudication procedure and for why the timeout budget must not be loosened
-pre-emptively.
+**Status: open — final parallel CI pending.** Six verified full-scope CI runs across PRs #42–44
+used three PIT workers, passed the assertion-backed ratchet at 255/268, and reported zero timeout
+or execution-error statuses. Spec [13.10](../13-deferred-debt/10-parallel-ci-and-documentation.md)
+records the evidence and fixes the closure criterion: those six runs plus a successful normal
+parallel mutation job on the final change. Local single-worker runs do not satisfy that condition.
+The gate and the 13.07 adjudication procedure remain unchanged.
 
 **What.** 12.06 makes the build **fail** on any `TIMED_OUT` or `MEMORY_ERROR` mutant. That is R6's
 intent — a mutant bought with wall time is not a kill — but it converts a previously reporting-only
@@ -530,9 +532,9 @@ code shape. Note also that this run was *parallel by accident of configuration*:
 `Mutation (scoped)` but passes no `-PpitestTargetOverride`, so it was always the full scope. Renamed
 to `Mutation` in this pass; had it genuinely been scoped, this entry would still say "nothing".
 
-**To close.** E5 closes when the full-scope parallel gate has been green across enough runs that a
-single timeout is more plausibly a regression than a flake — or, more honestly, when it is judged not
-worth further tracking. Not closed on one run. If a timeout does appear, adjudicate before changing
+**To close.** Spec 13.10 adopts the six verified full-scope parallel runs plus the final change’s
+passing parallel CI job as sufficient operational evidence to stop tracking this item. This does
+not estimate the probability of future flakes and does not retire the strict timeout/error gate. If a timeout does appear, adjudicate before changing
 anything: re-run that single mutant scoped and single-threaded, and decide whether it is genuinely
 slow or load-induced. Do **not** pre-emptively loosen the budget to avoid a hypothetical red build —
 that trades a known, documented failure mode for an invisible one.

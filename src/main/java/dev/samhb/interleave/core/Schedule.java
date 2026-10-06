@@ -1,3 +1,4 @@
+/** An ordered list of thread IDs describing one interleaving. */
 package dev.samhb.interleave.core;
 
 import java.util.List;
@@ -10,6 +11,7 @@ import java.util.List;
  */
 public final class Schedule {
 
+    /** Thread ids. */
     private final List<Integer> threadIds;
 
     /**
@@ -26,12 +28,13 @@ public final class Schedule {
     /**
      * Returns the thread IDs in scheduling order.
      *
-     * @return an immutable list
+     * @return immutable ordered thread choices
      */
     public List<Integer> threadIds() {
         return threadIds;
     }
 
+    /** {@inheritDoc} */
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();

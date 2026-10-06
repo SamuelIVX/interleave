@@ -1,3 +1,4 @@
+/** Evaluates declarative expressions against a {@link DynamicState}. */
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.format.registry.RegistryException;
@@ -7,31 +8,73 @@ import dev.samhb.interleave.format.registry.RegistryException;
  */
 public final class Evaluator {
 
+    /** Prevents instantiation of this utility class. */
     private Evaluator() {}
 
     /**
      * Evaluation result.
      */
     public sealed interface Value permits IntVal, BoolVal {
-        /** Returns int value if this is IntVal. */
+        /**
+         * Returns int value if this is IntVal.
+         * @return integer payload
+         */
         int asInt();
-        /** Returns bool value if this is BoolVal. */
+        /**
+         * Returns bool value if this is BoolVal.
+         * @return boolean payload
+         */
         boolean asBool();
-        /** Returns type. */
+        /**
+         * Returns type.
+         * @return INT or BOOL according to the represented payload
+         */
         FieldType type();
     }
 
-    /** Integer value. */
+    /**
+     * Integer value.
+     * @param value literal payload
+     */
     public record IntVal(int value) implements Value {
+        /**
+         * Returns the integer payload or rejects conversion from a boolean value.
+         * @return integer payload
+         */
         @Override public int asInt() { return value; }
+        /**
+         * Returns the boolean payload or rejects conversion from an integer value.
+         * @return boolean payload
+         * @throws IllegalStateException if the payload has the other DSL value category
+         */
         @Override public boolean asBool() { throw new IllegalStateException("not bool"); }
+        /**
+         * Returns type for this int val.
+         * @return INT or BOOL according to the represented payload
+         */
         @Override public FieldType type() { return FieldType.INT; }
     }
 
-    /** Boolean value. */
+    /**
+     * Boolean value.
+     * @param value literal payload
+     */
     public record BoolVal(boolean value) implements Value {
+        /**
+         * Returns the integer payload or rejects conversion from a boolean value.
+         * @return integer payload
+         * @throws IllegalStateException if the payload has the other DSL value category
+         */
         @Override public int asInt() { throw new IllegalStateException("not int"); }
+        /**
+         * Returns the boolean payload or rejects conversion from an integer value.
+         * @return boolean payload
+         */
         @Override public boolean asBool() { return value; }
+        /**
+         * Returns type for this bool val.
+         * @return INT or BOOL according to the represented payload
+         */
         @Override public FieldType type() { return FieldType.BOOL; }
     }
 
@@ -39,6 +82,10 @@ public final class Evaluator {
      * Thrown for runtime evaluation errors (OOB, % by zero) that should surface as VIOLATION.
      */
     public static final class EvalException extends RuntimeException {
+        /**
+         * Creates eval exception from the supplied values.
+         * @param msg diagnostic explaining the failure
+         */
         public EvalException(String msg) { super(msg); }
     }
 

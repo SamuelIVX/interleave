@@ -1,3 +1,4 @@
+/** Seeded, bounded generator that produces programs via curated templates and classifies them with a budget-aware exact DFS oracle. */
 package dev.samhb.interleave.corpus;
 
 import dev.samhb.interleave.bugs.WriteCounterStep;
@@ -16,12 +17,15 @@ import java.util.*;
  * curated registry (realism).
  */
 public final class CorpusGenerator {
+    /** Creates corpus generator with its default configuration. */
+    public CorpusGenerator() {}
+
 
     /**
      * Generates corpus results with oracle verdicts.
      *
      * @param config generation config (validated)
-     * @return unmodifiable list of results
+     * @return generated corpus and exploration metadata
      */
     public List<CorpusResult> generate(GeneratorConfig config) {
         CorpusTemplate template = TemplateRegistry.get(config.templateId());
@@ -70,6 +74,9 @@ public final class CorpusGenerator {
      * Returns invariant for templates that have a known expected outcome.
      * Currently only lost-update has a precise invariant: final counter must
      * equal initial + number of writes, otherwise a lost update occurred.
+     * @param templateId registered corpus-template identifier
+     * @param program modeled program whose threads are explored
+     * @return lost-update completion property, or null for other templates
      */
     private Invariant invariantFor(String templateId, Program program) {
         if (!"lost-update".equals(templateId)) return null;

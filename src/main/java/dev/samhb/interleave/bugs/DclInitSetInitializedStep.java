@@ -6,13 +6,20 @@ import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 
+/** Marks the modeled instance as initialized. */
 public final class DclInitSetInitializedStep implements Step {
+    /** Thread id. */
     private final int threadId;
 
+    /**
+     * Creates dcl init set initialized step from the supplied values.
+     * @param threadId zero-based modeled thread ID
+     */
     public DclInitSetInitializedStep(int threadId) {
         this.threadId = threadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public Set<MemoryLocation> reads() {
         return Collections.singleton(MemoryLocation.of("instance"));
@@ -31,11 +38,13 @@ public final class DclInitSetInitializedStep implements Step {
         );
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean enabled(SharedState state) {
         return state instanceof DclState;
     }
 
+    /** {@inheritDoc} */
     @Override
     public StepOutcome execute(SharedState state) {
         DclState ds = (DclState) state;
@@ -43,6 +52,7 @@ public final class DclInitSetInitializedStep implements Step {
         return StepOutcome.ADVANCED;
     }
 
+    /** {@inheritDoc} */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -50,6 +60,7 @@ public final class DclInitSetInitializedStep implements Step {
         return threadId == that.threadId;
     }
 
+    /** {@inheritDoc} */
     @Override
     public int hashCode() {
         return Objects.hash(threadId);

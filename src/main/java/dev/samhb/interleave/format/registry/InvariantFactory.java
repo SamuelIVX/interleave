@@ -1,3 +1,4 @@
+/** Factory interface for creating {@link Invariant} instances from JSON parameters. */
 package dev.samhb.interleave.format.registry;
 
 import com.google.gson.JsonObject;
