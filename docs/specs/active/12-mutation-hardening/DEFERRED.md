@@ -29,9 +29,9 @@ that commit rather than trusted from the previous pin; the base label was stale,
 | ~~[E2](#e2)~~ | Spec-recorded numbers go stale as sibling specs land | process | — | closed by 13.07 |
 | ~~[E3](#e3)~~ | ~~`CanonicalEncoder`'s equivalent `flush()` mutant has no recorded PIT suppression~~ | **closed — reason now machine-readable** | — | closed 2026-10-03 |
 | ~~[E4](#e4)~~ | 1 mutant has no owning spec — `ContextBoundedExplorer` L187 | accounting | — | closed by 13.04; subject removed in 13.03 |
-| [E5](#e5) | Ratchet can fail CI on a wall-clock timeout indistinguishable from a regression | process | **med** | first CI run of the 12.06 gate |
+| ~~[E5](#e5)~~ | Ratchet can fail CI on a wall-clock timeout indistinguishable from a regression | process | — | closed by 13.10 / PR #45; repeated parallel CI verified |
 
-The entry evidence below is historical unless its status says otherwise. **Still open:** E5. A4 is closed by 13.08's property-aware path; arbitrary callbacks retain exhaustive fallback.
+The entry evidence below is historical unless its status says otherwise. **Still open:** none. E5 is closed by 13.10 / PR #45. A4 is closed by 13.08's property-aware path; arbitrary callbacks retain exhaustive fallback.
 Spec 13.09 closes B1/B2 with a shared key API and diagnostic-only rendering contract. Spec 13.03
 originally documented the hazards and consolidated one predicate; it did not change
 `DclState.toString()` or add a canonical value-identity API. C1 and E3 were already closed in set 12.
