@@ -116,14 +116,17 @@ reviews:
         Flag changes that silently skip required validation, mask failures,
         broaden deployment access, or weaken security and quality gates.
 
-        Preserve the distinction between constrained local Gradle execution and
-        parallel CI. Do not recommend serializing CI merely because local runs
+        In workflow files, preserve parallel CI execution. Do not add local
+        Gradle parallelism limits to CI commands merely because local runs
         require limited parallelism.
 
     - path: "{*.gradle.kts,gradle.properties,gradle/wrapper/gradle-wrapper.properties}"
       instructions: |
         Check dependency and build changes for compatibility with Java, Gradle,
         plugins, application callers, and supported environments.
+
+        Keep local Gradle parallelism limits on local command lines. Do not add
+        shared build defaults that serialize CI to solve a local resource issue.
 
         Flag unnecessary dependencies, untrusted package sources, and weakened
         verification. When advisory information is available, cite it and explain
