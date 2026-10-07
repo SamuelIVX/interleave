@@ -1,7 +1,6 @@
-// Minimal assertion script for normalize(). Not a test suite: no runner, no CI wiring, no
-// coverage of the rendering code. It exists because the INCOMPLETE branch it guards is
-// security-sensitive (it treats all input as untrusted) and would otherwise have no automated
-// guard at all.
+// Verdict compatibility assertions for normalize(), run by the Visualizer compatibility CI job.
+// Covers verdict selection for supported result shapes and fixtures, including bounded runs.
+// Does not cover rendering, browser interactions, or freshly generated Java output.
 //
 // Run: node docs/visualizer-normalize-check.mjs
 import { readFileSync } from 'node:fs';
@@ -11,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel) => readFileSync(join(root, rel), 'utf8');
 const src = read('docs/visualizer.js');
-// Extract normalize() plus the constant it needs. A guard is required rather than a bare slice:
+// Extract normalize(). A guard is required rather than a bare slice:
 // indexOf returns -1 on a rename or reformat, and slice(-1, ...) would then yield garbage and
 // report it as a per-case failure instead of naming the real cause.
 const start = src.indexOf('function normalize(');
