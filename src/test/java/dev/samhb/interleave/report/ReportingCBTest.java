@@ -227,6 +227,23 @@ class ReportingCBTest {
             Set.of("DFS")).runAll()).writeJson();
         String with = new ReportWriter(corpusRows()).writeJson();
         assertEquals(keySet(without), keySet(with));
+        var schemas = new java.util.ArrayList<java.util.Map<List<String>, Set<String>>>();
+        for (String report : List.of(without, with)) {
+            var rows = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(report)
+                .getAsJsonArray("benchmarks");
+            var dfsSchemas = new java.util.LinkedHashMap<List<String>, Set<String>>();
+            for (var element : rows) {
+                var row = element.getAsJsonObject();
+                if (!"DFS".equals(row.get("strategy").getAsString())) continue;
+                assertTrue(row.has("preemptionsUsed"), "DFS rows must retain the bound member in both reports");
+                assertTrue(row.get("preemptionsUsed").isJsonNull(), "DFS has no preemption bound");
+                var identity = List.of(row.get("bug").getAsString(), row.get("storeType").getAsString());
+                assertNull(dfsSchemas.put(identity, Set.copyOf(row.keySet())), "DFS rows must be unique");
+            }
+            assertEquals(16, dfsSchemas.size(), "eight programs each have exact and bitstate DFS rows");
+            schemas.add(dfsSchemas);
+        }
+        assertEquals(schemas.get(0), schemas.get(1), "matching DFS rows must have the same nested schema");
     }
 
     /** Reads the top-level report schema with a strict JSON parser.

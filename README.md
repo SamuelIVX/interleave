@@ -362,7 +362,7 @@ All step types accept an optional `thread` parameter (defaults to the owning thr
 
 ### Example files
 
-Seven example program definitions are included in `examples/programs/` and `src/main/resources/programs/`:
+Eight built-in program definitions live in `src/main/resources/programs/`; runnable JSON examples also live in `examples/programs/`:
 
 - `peterson.json` (correct Peterson, expected PASS, no invariant)
 - `broken-peterson.json` (VIOLATION, mutual_exclusion_peterson)
@@ -370,6 +370,7 @@ Seven example program definitions are included in `examples/programs/` and `src/
 - `deadlock.json` (DEADLOCK, no invariant)
 - `double-checked-locking.json` (VIOLATION, dcl_uninitialized_observed)
 - `lost-update.json` (VIOLATION, counter_equals)
+- `lost-update-3t.json` (declarative three-thread lost update, expected VIOLATION)
 - `torn-counter.json` (VIOLATION, torn_read)
 
 ### Migration
