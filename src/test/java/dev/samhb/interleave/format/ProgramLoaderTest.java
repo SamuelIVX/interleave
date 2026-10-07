@@ -1,3 +1,4 @@
+/** Typed model loading, input diagnostics and executable thread defaults. */
 package dev.samhb.interleave.format;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
@@ -485,7 +486,14 @@ class ProgramLoaderTest {
             }
             """;
         BenchmarkProgram program = loader.load(json);
-        // Should not throw - thread defaults to owning thread's ID
         assertEquals("test", program.name());
+        var model = program.program();
+        var state = (dev.samhb.interleave.core.CounterState) model.initialConfiguration().state();
+        state.setCounter(7);
+        for (var thread : model.threads()) {
+            assertEquals(dev.samhb.interleave.core.StepOutcome.ADVANCED, thread.steps().getFirst().execute(state));
+        }
+        assertEquals(7, state.getRegister(0));
+        assertEquals(7, state.getRegister(1));
     }
 }

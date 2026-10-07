@@ -16,6 +16,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.function.LongSupplier;
 
 /**
  * Reusable runner for model-checking programs with configurable per-run isolation.
@@ -55,13 +56,38 @@ public final class InterleaveRunner implements Serializable {
 
     /**
      * Runs verification on the given program with the configured strategy and limits.
-     * Creates a fresh {@link StateStore} for this run to avoid cross-run contamination.
+     * Obtains and clears a configured {@link StateStore} for each search; isolation depends on
+     * the store factory, since a concrete store without {@link StateStore#freshCopy()} support
+     * is reused. Uses the system wall clock for time limits and elapsed milliseconds.
+     * State and time limits are checked at state visits; reaching either returns captured
+     * partial results with {@code limitExceeded} set rather than throwing.
+     * Other exceptions from the store factory, store, invariant, or modeled operations propagate.
      *
      * @param program the program to verify
      * @return the test result including states explored, verdict, and traces
+     * @throws IllegalStateException if iterative deepening receives a previously used store instance
+     * @throws IllegalArgumentException if a bitstate store cannot represent the current preemption bound
+     * @throws ArithmeticException if the time limit overflows when converted to milliseconds
      */
     public TestResult run(Program program) {
-        long start = System.currentTimeMillis();
+        return run(program, System::currentTimeMillis);
+    }
+
+    /**
+     * Runs with a per-call millisecond clock so deadline boundaries can be tested deterministically.
+     * The clock is not retained by this reusable runner or supplied to modeled program operations.
+     * Public runs retain the system wall clock and existing millisecond duration semantics.
+     * Otherwise follows {@link #run(Program)}, including store reuse and propagated errors.
+     * Reported elapsed time starts at method entry; the deadline starts when the limit visitor
+     * is created and is shared across iterative-deepening bounds. Clock exceptions propagate
+     * unless a {@link LimitExceededException} is thrown during exploration, in which case
+     * captured partial results are returned with {@code limitExceeded} set.
+     * @param program the program to verify
+     * @param clock millisecond time source, used for elapsed-time checks and reporting
+     * @return exploration result, preserving captured traces and marking resource-limit interruption
+     */
+    TestResult run(Program program, LongSupplier clock) {
+        long start = clock.getAsLong();
         Runtime runtime = Runtime.getRuntime();
         runtime.gc();
         long memBefore = runtime.totalMemory() - runtime.freeMemory();
@@ -78,7 +104,7 @@ public final class InterleaveRunner implements Serializable {
         };
 
         LimitState limitState = new LimitState();
-        StateVisitor visitor = createLimitEnforcingVisitor(limitState);
+        StateVisitor visitor = createLimitEnforcingVisitor(limitState, clock);
 
         DfsResult result;
         try {
@@ -106,14 +132,14 @@ public final class InterleaveRunner implements Serializable {
         } catch (LimitExceededException e) {
             // Explorer was interrupted by limit - return partial results including traces
             long memAfter = runtime.totalMemory() - runtime.freeMemory();
-            long wallTime = System.currentTimeMillis() - start;
+            long wallTime = clock.getAsLong() - start;
             long heapDelta = Math.max(0, memAfter - memBefore);
 
             return convertToTestResult(limitState.partialResult, wallTime, heapDelta, true);
         }
 
         long memAfter = runtime.totalMemory() - runtime.freeMemory();
-        long wallTime = System.currentTimeMillis() - start;
+        long wallTime = clock.getAsLong() - start;
         long heapDelta = Math.max(0, memAfter - memBefore);
 
         return convertToTestResult(result, wallTime, heapDelta, false);
@@ -121,15 +147,28 @@ public final class InterleaveRunner implements Serializable {
 
     /**
      * Creates a run-local visitor that counts positions and captures traces before enforcing limits.
+     * Captures the deadline's start time immediately. Limits are checked only at state visits,
+     * after updating the partial count, so the visit that reaches a limit is included.
      * @param limitState run-local counters and interruption state
+     * @param clock per-call millisecond clock used to enforce the configured deadline
      * @return visitor sharing the supplied run-local limit counters and captured traces
      */
-    private StateVisitor createLimitEnforcingVisitor(LimitState limitState) {
+    private StateVisitor createLimitEnforcingVisitor(LimitState limitState, LongSupplier clock) {
         long[] stateCount = {0};
-        long startTime = System.currentTimeMillis();
+        long startTime = clock.getAsLong();
 
         return new StateVisitor() {
-            /** {@inheritDoc} */
+            /**
+             * {@inheritDoc}
+             * Updates the partial visit count while retaining previously captured traces.
+             * Checks the positive state limit first, then the non-null time limit, using elapsed
+             * milliseconds since visitor creation and {@link Duration#toMillis()} precision.
+             * Equality reaches either limit; with a nondecreasing clock, a zero or negative
+             * time limit stops at the first visit.
+             * @throws LimitExceededException if the state or time limit is reached; the runner
+             *         converts this to a partial result with {@code limitExceeded} set
+             * @throws ArithmeticException if the time limit overflows when converted to milliseconds
+             */
             @Override
             public void onStateVisited(Configuration config) {
                 stateCount[0]++;
@@ -148,7 +187,7 @@ public final class InterleaveRunner implements Serializable {
                 if (maxStates > 0 && stateCount[0] >= maxStates) {
                     throw new LimitExceededException("Max states limit exceeded: " + maxStates);
                 }
-                if (maxTime != null && System.currentTimeMillis() - startTime >= maxTime.toMillis()) {
+                if (maxTime != null && clock.getAsLong() - startTime >= maxTime.toMillis()) {
                     throw new LimitExceededException("Max time limit exceeded: " + maxTime);
                 }
             }

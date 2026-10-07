@@ -1,3 +1,4 @@
+/** Initial-state snapshots and mutation isolation between program runs. */
 package dev.samhb.interleave.core;
 
 import org.junit.jupiter.api.Test;
@@ -49,5 +50,12 @@ class ProgramImmutabilityTest {
 
         assertNotSame(first.state(), second.state(),
                 "each call must hand back an independent state, not a shared one");
+        ((PetersonState) first.state()).setFlag(0, true);
+        ((PetersonState) first.state()).setTurn(1);
+        assertEquals(false, ((PetersonState) second.state()).flag(0));
+        assertEquals(0, ((PetersonState) second.state()).turn());
+        Configuration third = program.initialConfiguration();
+        assertEquals(false, ((PetersonState) third.state()).flag(0));
+        assertEquals(0, ((PetersonState) third.state()).turn());
     }
 }

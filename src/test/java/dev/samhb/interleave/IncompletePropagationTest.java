@@ -1,3 +1,4 @@
+/** Bounded-search evidence retained through conversion, JSON and minimization boundaries. */
 package dev.samhb.interleave;
 
 import dev.samhb.interleave.core.*;
@@ -68,7 +69,7 @@ class IncompletePropagationTest {
     @Test
     void verificationResult_incompleteTrace_appearsInToJson() {
         String json = VerificationResult.from(resultWith(incompleteTrace()), Strategy.DFS, 1, 2).toJson();
-        assertTrue(json.contains("\"incompleteTraces\""), json);
+        assertEquals(1, dev.samhb.interleave.testsupport.JsonAssertions.parseObject(json).getAsJsonArray("incompleteTraces").size());
     }
 
     @Test
@@ -87,7 +88,7 @@ class IncompletePropagationTest {
         // on the key rather than on its presence.
         TestResult result = new TestResult(Strategy.DFS, 3, 1, 0,
             List.of(), List.of(), List.of(), List.of(), false);
-        assertTrue(result.toJson().contains("\"incompleteTraces\": []"), result.toJson());
+        assertTrue(dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.toJson()).getAsJsonArray("incompleteTraces").isEmpty());
     }
 
     @Test
@@ -96,8 +97,8 @@ class IncompletePropagationTest {
         TestResult result = new TestResult(Strategy.DFS, 3, 1, 0,
             List.of(), List.of(), List.of(), List.of(record), false);
         String json = result.toJson();
-        assertTrue(json.contains("\"incompleteTraces\""), json);
-        assertTrue(json.contains("INCOMPLETE"), json);
+        assertEquals(1, dev.samhb.interleave.testsupport.JsonAssertions.parseObject(json).getAsJsonArray("incompleteTraces").size());
+        assertEquals("INCOMPLETE", dev.samhb.interleave.testsupport.JsonAssertions.parseObject(json).getAsJsonArray("incompleteTraces").get(0).getAsJsonObject().get("outcome").getAsString());
     }
 
     @Test
@@ -108,15 +109,20 @@ class IncompletePropagationTest {
             List.of(), List.of(), List.of(), false);
         String json = result.toJson();
 
-        assertTrue(json.contains("\"strategy\": \"DFS\""), json);
-        assertTrue(json.contains("\"statesExplored\": 42"), json);
-        assertTrue(json.contains("\"wallTimeMs\": 7"), json);
-        assertTrue(json.contains("\"heapDeltaBytes\": 99"), json);
-        assertTrue(json.contains("\"hasViolation\": true"), json);
-        assertTrue(json.contains("\"limitExceeded\": false"), json);
-        assertTrue(json.contains("\"failingTraces\""), json);
-        assertTrue(json.contains("\"deadlockedTraces\""), json);
-        assertTrue(json.contains("\"completedTraces\""), json);
+        var parsed = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(json);
+        assertEquals(new com.google.gson.JsonPrimitive("DFS"), parsed.get("strategy"));
+        assertEquals(new com.google.gson.JsonPrimitive(42), parsed.get("statesExplored"));
+        assertEquals(new com.google.gson.JsonPrimitive(7), parsed.get("wallTimeMs"));
+        assertEquals(new com.google.gson.JsonPrimitive(99), parsed.get("heapDeltaBytes"));
+        assertEquals(new com.google.gson.JsonPrimitive(true), parsed.get("hasViolation"));
+        assertEquals(new com.google.gson.JsonPrimitive(false), parsed.get("limitExceeded"));
+        var failure = parsed.getAsJsonArray("failingTraces");
+        assertEquals(1, failure.size());
+        assertEquals("VIOLATION", failure.get(0).getAsJsonObject().get("outcome").getAsString());
+        assertEquals(new com.google.gson.JsonPrimitive(0), failure.get(0).getAsJsonObject().getAsJsonArray("threads").get(0));
+        assertTrue(parsed.getAsJsonArray("deadlockedTraces").isEmpty());
+        assertTrue(parsed.getAsJsonArray("completedTraces").isEmpty());
+        assertTrue(parsed.getAsJsonArray("incompleteTraces").isEmpty());
     }
 
     @Test
@@ -131,44 +137,12 @@ class IncompletePropagationTest {
         assertEquals(jsonKeys(withoutIncomplete), jsonKeys(withIncomplete));
     }
 
+    /** Parses schema member names, including rejection of malformed JSON.
+     * @param json serialized test result
+     * @return top-level member names in emitted order
+     */
     private static List<String> jsonKeys(String json) {
-        // Depth-aware scan for top-level members only. Indentation is not usable here: the trace
-        // serializer emits nested fields at the same two-space indent as the top level.
-        List<String> keys = new ArrayList<>();
-        int depth = 0;
-        boolean inString = false;
-        boolean escaped = false;
-        for (int i = 0; i < json.length(); i++) {
-            char c = json.charAt(i);
-            if (inString) {
-                if (escaped) {
-                    escaped = false;
-                } else if (c == '\\') {
-                    escaped = true;
-                } else if (c == '"') {
-                    inString = false;
-                }
-                continue;
-            }
-            if (c == '"') {
-                // A key is a string that is immediately followed by ':' at depth 1.
-                if (depth == 1) {
-                    int j = i + 1;
-                    while (j < json.length() && json.charAt(j) != '"') {
-                        j++;
-                    }
-                    if (j + 1 < json.length() && json.charAt(j + 1) == ':') {
-                        keys.add(json.substring(i + 1, j));
-                    }
-                }
-                inString = true;
-            } else if (c == '{' || c == '[') {
-                depth++;
-            } else if (c == '}' || c == ']') {
-                depth--;
-            }
-        }
-        return keys;
+        return new ArrayList<>(dev.samhb.interleave.testsupport.JsonAssertions.parseObject(json).keySet());
     }
 
     @Test

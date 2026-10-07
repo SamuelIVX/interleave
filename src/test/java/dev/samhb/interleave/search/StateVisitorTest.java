@@ -1,3 +1,4 @@
+/** Explorer visit callbacks and observable use of supplied stores. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.*;
@@ -13,7 +14,7 @@ class StateVisitorTest {
 
     private Program createPetersonProgram() {
         PetersonState initial = PetersonState.of(false, false, 0);
-        
+
         List<Step> thread0Steps = List.of(
             new WriteFlagStep(0, true),
             new WriteTurnStep(1),
@@ -22,7 +23,7 @@ class StateVisitorTest {
             new CSExitStep(),
             new WriteFlagStep(0, false)
         );
-        
+
         List<Step> thread1Steps = List.of(
             new WriteFlagStep(1, true),
             new WriteTurnStep(0),
@@ -31,23 +32,23 @@ class StateVisitorTest {
             new CSExitStep(),
             new WriteFlagStep(1, false)
         );
-        
+
         ModelThread t0 = new ModelThread(0, thread0Steps);
         ModelThread t1 = new ModelThread(1, thread1Steps);
-        
-        return Interleave.program(PetersonState.of(false, false, 0), t0, t1);
+
+        return Interleave.program(initial, t0, t1);
     }
 
     @Test
     void dfsExplorer_callsVisitorOnEachState() {
         Program program = createPetersonProgram();
         int[] callCount = {0};
-        
+
         StateVisitor visitor = config -> callCount[0]++;
-        
+
         DfsExplorer explorer = new DfsExplorer();
         DfsResult result = explorer.explore(program, null, null, visitor);
-        
+
         assertTrue(callCount[0] > 0, "Visitor should be called at least once");
         assertEquals(result.statesExplored(), callCount[0], "Visitor should be called once per state");
     }
@@ -56,12 +57,12 @@ class StateVisitorTest {
     void staticPorExplorer_callsVisitorOnEachState() {
         Program program = createPetersonProgram();
         int[] callCount = {0};
-        
+
         StateVisitor visitor = config -> callCount[0]++;
-        
+
         StaticPorExplorer explorer = new StaticPorExplorer();
         DfsResult result = explorer.explore(program, null, null, visitor);
-        
+
         assertTrue(callCount[0] > 0, "Visitor should be called at least once");
         assertEquals(result.statesExplored(), callCount[0], "Visitor should be called once per state");
     }
@@ -70,12 +71,12 @@ class StateVisitorTest {
     void dporExplorer_callsVisitorOnEachState() {
         Program program = createPetersonProgram();
         int[] callCount = {0};
-        
+
         StateVisitor visitor = config -> callCount[0]++;
-        
+
         DporExplorer explorer = new DporExplorer();
         DfsResult result = explorer.explore(program, null, null, visitor);
-        
+
         assertTrue(callCount[0] > 0, "Visitor should be called at least once");
         assertEquals(result.statesExplored(), callCount[0], "Visitor should be called once per state");
     }
@@ -83,10 +84,10 @@ class StateVisitorTest {
     @Test
     void nullVisitor_doesNotThrow() {
         Program program = createPetersonProgram();
-        
+
         DfsExplorer explorer = new DfsExplorer();
         DfsResult result = explorer.explore(program, null, null, null);
-        
+
         assertNotNull(result);
         assertTrue(result.statesExplored() > 0);
     }
@@ -95,10 +96,11 @@ class StateVisitorTest {
     void dfsExplorer_usesProvidedStateStore() {
         Program program = createPetersonProgram();
         HashingStateStore store = new HashingStateStore();
-        
+
         DfsExplorer explorer = new DfsExplorer();
         DfsResult result = explorer.explore(program, null, store, null);
-        
+
+        assertTrue(store.size() > 0, "supplied store must receive visits");
         assertEquals(store.size(), result.statesExplored());
     }
 
@@ -106,10 +108,11 @@ class StateVisitorTest {
     void staticPorExplorer_usesProvidedStateStore() {
         Program program = createPetersonProgram();
         HashingStateStore store = new HashingStateStore();
-        
+
         StaticPorExplorer explorer = new StaticPorExplorer();
         DfsResult result = explorer.explore(program, null, store, null);
-        
+
+        assertTrue(store.size() > 0, "supplied store must receive visits");
         assertEquals(store.size(), result.statesExplored());
     }
 
@@ -117,10 +120,11 @@ class StateVisitorTest {
     void dporExplorer_usesProvidedStateStore() {
         Program program = createPetersonProgram();
         HashingStateStore store = new HashingStateStore();
-        
+
         DporExplorer explorer = new DporExplorer();
         DfsResult result = explorer.explore(program, null, store, null);
-        
+
+        assertTrue(store.size() > 0, "supplied store must receive visits");
         assertEquals(store.size(), result.statesExplored());
     }
 }

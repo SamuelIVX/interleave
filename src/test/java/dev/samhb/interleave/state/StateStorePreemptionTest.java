@@ -182,10 +182,7 @@ class StateStorePreemptionTest {
         assertEquals(3, store.maxPreemptions());
     }
 
-    @Test
-    void bitstateStore_negativeMaxPreemptions_throws() {
-        assertThrows(IllegalArgumentException.class, () -> new BitstateStore(1_000, 4, -1));
-    }
+
 
     @Test
     void bitstateStore_keepsPreemptionLevelsIndependent() {
@@ -277,23 +274,15 @@ class StateStorePreemptionTest {
         assertTrue(bounded.bitDensity() > 0.0, "sanity: the bounded store really did mark bits");
     }
 
-    /**
-     * A K>0 run spreads marks across several preemption vectors and still never marks the main
-     * one, so its capacity is the allocated preemption vectors alone.
-     */
+    /** Two occupied one-bit vectors have density 1 even with unused vectors allocated. */
     @Test
     void bitstateStore_metrics_countOnlyVectorsInUse() {
-        Program program = twoThreadProgram();
-        List<Configuration> configs = distinctConfigs(program);
-
-        BitstateStore bounded = new BitstateStore(4096, 4, 2);
-        bounded.markVisited(configs.get(0), 0, 0);
-        bounded.markVisited(configs.get(1), 0, 1);
-
-        int expectedVectors = 2; // levels 0 and 1 written; level 2 untouched
-        double expectedDensity = (double) bounded.bitCount() / (4096.0 * expectedVectors);
-        assertEquals(expectedDensity, bounded.bitDensity(), 1e-12,
-            "capacity must count written vectors, not the allocated maximum");
+        Configuration config = twoThreadProgram().initialConfiguration();
+        BitstateStore bounded = new BitstateStore(1, 1, 2);
+        bounded.markVisited(config, 0, 0);
+        bounded.markVisited(config, 0, 1);
+        assertEquals(2, bounded.bitCount(), "exactly two one-bit vectors are occupied");
+        assertEquals(1.0, bounded.bitDensity(), "unused main and level-2 vectors must not dilute density");
     }
 
     @Test

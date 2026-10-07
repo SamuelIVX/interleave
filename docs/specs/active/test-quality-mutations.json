@@ -1,0 +1,4326 @@
+{
+  "default": {
+    "counts": {
+      "KILLED": 255,
+      "SURVIVED": 13
+    },
+    "remaining": [
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.state.BitstateStore",
+        "description": "Replaced integer multiplication with division",
+        "descriptor": "(I)[I",
+        "indexes": [
+          "39"
+        ],
+        "method": "doubleHash",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.state.BitstateStore",
+        "description": "Replaced integer addition with subtraction",
+        "descriptor": "(I)[I",
+        "indexes": [
+          "40"
+        ],
+        "method": "doubleHash",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.state.BitstateStore",
+        "description": "Replaced integer addition with subtraction",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;I)[I",
+        "indexes": [
+          "10"
+        ],
+        "method": "preemptionHashIndices",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "Replaced integer multiplication with division",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;)I",
+        "indexes": [
+          "13"
+        ],
+        "method": "hashCode",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "Replaced integer addition with subtraction",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;)I",
+        "indexes": [
+          "17"
+        ],
+        "method": "hashCode",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "removed call to dev/samhb/interleave/state/CanonicalEncoder::hashCode",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;)I",
+        "indexes": [
+          "7"
+        ],
+        "method": "hashCode",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "removed call to java/util/List::hashCode",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;)I",
+        "indexes": [
+          "16"
+        ],
+        "method": "hashCode",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "replaced int return with 0 for dev/samhb/interleave/state/HashingStateStore::hashCode",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;)I",
+        "indexes": [
+          "22"
+        ],
+        "method": "hashCode",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.PrimitiveReturnsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "Replaced integer multiplication with division",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;I)I",
+        "indexes": [
+          "7"
+        ],
+        "method": "preemptionHash",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "Replaced integer addition with subtraction",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;I)I",
+        "indexes": [
+          "9"
+        ],
+        "method": "preemptionHash",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "removed call to dev/samhb/interleave/state/HashingStateStore::hashCode",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;I)I",
+        "indexes": [
+          "6"
+        ],
+        "method": "preemptionHash",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.state.HashingStateStore",
+        "description": "replaced int return with 0 for dev/samhb/interleave/state/HashingStateStore::preemptionHash",
+        "descriptor": "(Ldev/samhb/interleave/core/Configuration;I)I",
+        "indexes": [
+          "10"
+        ],
+        "method": "preemptionHash",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.PrimitiveReturnsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.state.CanonicalEncoder",
+        "description": "removed call to java/io/DataOutputStream::flush",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)[B",
+        "indexes": [
+          "22"
+        ],
+        "method": "encode",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      }
+    ]
+  },
+  "dsl": {
+    "counts": {
+      "KILLED": 125,
+      "NO_COVERAGE": 34,
+      "SURVIVED": 10
+    },
+    "remaining": [
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "negated conditional",
+        "descriptor": "(ILdev/samhb/interleave/format/dsl/Expr;Ljava/util/List;Ldev/samhb/interleave/format/dsl/StateDecl;Ljava/lang/String;)V",
+        "indexes": [
+          "46"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "13"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to dev/samhb/interleave/format/dsl/Effect::rhs",
+        "descriptor": "(ILdev/samhb/interleave/format/dsl/Expr;Ljava/util/List;Ldev/samhb/interleave/format/dsl/StateDecl;Ljava/lang/String;)V",
+        "indexes": [
+          "76"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to dev/samhb/interleave/format/dsl/ExpressionReads::collect",
+        "descriptor": "(ILdev/samhb/interleave/format/dsl/Expr;Ljava/util/List;Ldev/samhb/interleave/format/dsl/StateDecl;Ljava/lang/String;)V",
+        "indexes": [
+          "50"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "14"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to dev/samhb/interleave/format/dsl/ExpressionReads::collect",
+        "descriptor": "(ILdev/samhb/interleave/format/dsl/Expr;Ljava/util/List;Ldev/samhb/interleave/format/dsl/StateDecl;Ljava/lang/String;)V",
+        "indexes": [
+          "79"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "6"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to dev/samhb/interleave/format/dsl/Lhs$LocalLhs::name",
+        "descriptor": "(Ldev/samhb/interleave/format/dsl/Lhs;Ljava/util/Set;)V",
+        "indexes": [
+          "31"
+        ],
+        "method": "addWrite",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "8"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to java/util/Set::add",
+        "descriptor": "(Ldev/samhb/interleave/format/dsl/Lhs;Ljava/util/Set;)V",
+        "indexes": [
+          "34"
+        ],
+        "method": "addWrite",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "8"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced boolean return with false for dev/samhb/interleave/format/dsl/DynamicStep::enabled",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Z",
+        "indexes": [
+          "41"
+        ],
+        "method": "enabled",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanFalseReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "12"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced boolean return with false for dev/samhb/interleave/format/dsl/DynamicStep::enabled",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Z",
+        "indexes": [
+          "64"
+        ],
+        "method": "enabled",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanFalseReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced boolean return with true for dev/samhb/interleave/format/dsl/DynamicStep::enabled",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Z",
+        "indexes": [
+          "14"
+        ],
+        "method": "enabled",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanTrueReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "87"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "337"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "62"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "240"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "61"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to dev/samhb/interleave/format/dsl/Evaluator$Value::type",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "238"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "64"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to dev/samhb/interleave/format/dsl/Lhs$LocalLhs::name",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "251"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "65"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to dev/samhb/interleave/format/dsl/Evaluator$Value::asBool",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "253"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "66"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to dev/samhb/interleave/format/dsl/DynamicState::setLocalBool",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "254"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "14"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "7"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "38"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "10"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "47"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "13"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "67"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "26"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "120"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "31"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "136"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "40"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "162"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "45"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "178"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "51"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "205"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "56"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "221"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "63"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "243"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "74"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "287"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "77"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "297"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "82"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "316"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "94"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DynamicStep::execute",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;)Ldev/samhb/interleave/core/StepOutcome;",
+        "indexes": [
+          "376"
+        ],
+        "method": "execute",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "negated conditional",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "7"
+        ],
+        "method": "toString",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to java/lang/String::valueOf",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "19"
+        ],
+        "method": "toString",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "removed call to java/lang/String::valueOf",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "22"
+        ],
+        "method": "toString",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DynamicStep",
+        "description": "replaced return value with \"\" for dev/samhb/interleave/format/dsl/DynamicStep::toString",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "24"
+        ],
+        "method": "toString",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.EmptyObjectReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "removed call to java/util/List::of",
+        "descriptor": "(Ldev/samhb/interleave/format/dsl/Expr;Ldev/samhb/interleave/format/dsl/StateDecl;)V",
+        "indexes": [
+          "5"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "removed call to java/util/List::of",
+        "descriptor": "(Ldev/samhb/interleave/format/dsl/Expr;Ldev/samhb/interleave/format/dsl/StateDecl;Ldev/samhb/interleave/format/dsl/DslInvariant$When;)V",
+        "indexes": [
+          "5"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ljava/util/List;Ldev/samhb/interleave/format/dsl/StateDecl;Ldev/samhb/interleave/format/dsl/DslInvariant$When;)V",
+        "indexes": [
+          "15"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "removed call to java/util/List::isEmpty",
+        "descriptor": "(Ljava/util/List;Ldev/samhb/interleave/format/dsl/StateDecl;Ldev/samhb/interleave/format/dsl/DslInvariant$When;)V",
+        "indexes": [
+          "10"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "removed call to java/util/List::size",
+        "descriptor": "(Ljava/util/List;Ldev/samhb/interleave/format/dsl/StateDecl;Ldev/samhb/interleave/format/dsl/DslInvariant$When;)V",
+        "indexes": [
+          "13"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "replaced boolean return with false for dev/samhb/interleave/format/dsl/DslInvariant::holds",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;Ldev/samhb/interleave/core/Configuration;)Z",
+        "indexes": [
+          "14"
+        ],
+        "method": "holds",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanFalseReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "15"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "replaced boolean return with true for dev/samhb/interleave/format/dsl/DslInvariant::holds",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;Ldev/samhb/interleave/core/Configuration;)Z",
+        "indexes": [
+          "58"
+        ],
+        "method": "holds",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanTrueReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "22"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "replaced boolean return with true for dev/samhb/interleave/format/dsl/DslInvariant::holds",
+        "descriptor": "(Ldev/samhb/interleave/core/SharedState;Ldev/samhb/interleave/core/Configuration;)Z",
+        "indexes": [
+          "93"
+        ],
+        "method": "holds",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanTrueReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "removed call to java/util/List::get",
+        "descriptor": "()Ldev/samhb/interleave/format/dsl/Expr;",
+        "indexes": [
+          "6"
+        ],
+        "method": "predicate",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.format.dsl.DslInvariant",
+        "description": "replaced return value with null for dev/samhb/interleave/format/dsl/DslInvariant::predicate",
+        "descriptor": "()Ldev/samhb/interleave/format/dsl/Expr;",
+        "indexes": [
+          "8"
+        ],
+        "method": "predicate",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      }
+    ]
+  },
+  "expanded": {
+    "counts": {
+      "KILLED": 916,
+      "NO_COVERAGE": 108,
+      "SURVIVED": 142
+    },
+    "remaining": [
+      {
+        "blocks": [
+          "31"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "131"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "34"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "137"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "39"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "156"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "46"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "185"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "77"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "304"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateStore::isVisited",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "5"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "29"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::isEmpty",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "126"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "32"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::state",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "134"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "33"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Invariant::holds",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "136"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "35"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "141"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "36"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "143"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "37"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Trace::of",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "145"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "38"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "151"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "42"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "170"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "43"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "172"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "44"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Trace::of",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "174"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "45"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "180"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "73"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "289"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "74"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "291"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "75"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Trace::of",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "293"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "76"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "299"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateStore::markVisited",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "15"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "17"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "78"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "26"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "112"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "40"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "161"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "47"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "190"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "78"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "309"
+        ],
+        "method": "dfsDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "11"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "54"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "16"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "73"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "34"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "137"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "39"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "156"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "62"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "243"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "64"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "248"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "79"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "319"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "91"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "361"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "101"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "402"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "109"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "431"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "113"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "450"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "117"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "464"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "162"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "663"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "9"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::state",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "51"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "10"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Invariant::holds",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "53"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "12"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "58"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "13"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "60"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "14"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Trace::of",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "62"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "15"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "68"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "32"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::state",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "134"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "33"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Invariant::holds",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "136"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "35"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "141"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "36"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "143"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "37"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Trace::of",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "145"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "38"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "151"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "61"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::get",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "237"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "63"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/dpor/SleepSet::contains",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "247"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "75"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "304"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "76"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "306"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "77"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Trace::of",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "308"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "78"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "314"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "90"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/lang/Integer::intValue",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "355"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "106"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/lang/Integer::intValue",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "418"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "108"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::get",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "425"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "110"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/por/IndependenceRelation::areIndependent",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "438"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "112"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/por/IndependenceRelation::hasEnableDisableInterference",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "449"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "124"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/por/IndependenceRelation::areIndependent",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "501"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "158"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "648"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "159"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "650"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "160"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Trace::of",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "652"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "161"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "658"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "17"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "78"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "26"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "112"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "40"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "161"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "47"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "190"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "80"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "324"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "92"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/dpor/HappensBefore::record",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "369"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "129"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/dpor/SleepSet::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "525"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "163"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/dpor/SleepSet;Ldev/samhb/interleave/dpor/HappensBefore;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)V",
+        "indexes": [
+          "668"
+        ],
+        "method": "dporDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "7"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Invariant;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "44"
+        ],
+        "method": "explore",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.dpor.DporExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateStore::clear",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Invariant;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "18"
+        ],
+        "method": "explore",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to dev/samhb/interleave/report/BenchmarkResult::estimatedFalsePositiveRate",
+        "descriptor": "(Ldev/samhb/interleave/report/BenchmarkResult;)Ljava/lang/String;",
+        "indexes": [
+          "12"
+        ],
+        "method": "formatBitstateMetrics",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to dev/samhb/interleave/report/BenchmarkResult::bitstateBitCount",
+        "descriptor": "(Ldev/samhb/interleave/report/BenchmarkResult;)Ljava/lang/String;",
+        "indexes": [
+          "20"
+        ],
+        "method": "formatBitstateMetrics",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/Integer::valueOf",
+        "descriptor": "(Ldev/samhb/interleave/report/BenchmarkResult;)Ljava/lang/String;",
+        "indexes": [
+          "21"
+        ],
+        "method": "formatBitstateMetrics",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "changed conditional boundary",
+        "descriptor": "(D)Ljava/lang/String;",
+        "indexes": [
+          "16"
+        ],
+        "method": "formatSmallDouble",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "negated conditional",
+        "descriptor": "(D)Ljava/lang/String;",
+        "indexes": [
+          "16"
+        ],
+        "method": "formatSmallDouble",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/Math::abs",
+        "descriptor": "(D)Ljava/lang/String;",
+        "indexes": [
+          "13"
+        ],
+        "method": "formatSmallDouble",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "7"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/Double::valueOf",
+        "descriptor": "(D)Ljava/lang/String;",
+        "indexes": [
+          "40"
+        ],
+        "method": "formatSmallDouble",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "8"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/String::format",
+        "descriptor": "(D)Ljava/lang/String;",
+        "indexes": [
+          "42"
+        ],
+        "method": "formatSmallDouble",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "9"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "replaced return value with \"\" for dev/samhb/interleave/report/ReportWriter::formatSmallDouble",
+        "descriptor": "(D)Ljava/lang/String;",
+        "indexes": [
+          "43"
+        ],
+        "method": "formatSmallDouble",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.EmptyObjectReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "57"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "238"
+        ],
+        "method": "writeJson",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "68"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "285"
+        ],
+        "method": "writeJson",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "32"
+        ],
+        "method": "writeMarkdown",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "7"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/String::isEmpty",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "42"
+        ],
+        "method": "writeMarkdown",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "10"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "54"
+        ],
+        "method": "writeMarkdown",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "12"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "61"
+        ],
+        "method": "writeMarkdown",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "15"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "74"
+        ],
+        "method": "writeMarkdown",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "18"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to dev/samhb/interleave/report/SoundnessAttestation::formatMarkdown",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "89"
+        ],
+        "method": "writeMarkdown",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "19"
+        ],
+        "class": "dev.samhb.interleave.report.ReportWriter",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "90"
+        ],
+        "method": "writeMarkdown",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateStore::clear",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Invariant;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "18"
+        ],
+        "method": "explore",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "40"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "165"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "110"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "426"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "38"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to java/util/List::size",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "162"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "68"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to java/lang/Integer::intValue",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "257"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "100"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::allTerminated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "396"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "106"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "411"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "107"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to java/util/List::copyOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "413"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "108"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to dev/samhb/interleave/search/Trace::of",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "415"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "109"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "421"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "17"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "78"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "26"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "112"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "91"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "357"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "111"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "431"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "118"
+        ],
+        "class": "dev.samhb.interleave.por.StaticPorExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ljava/util/Map;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;[JLdev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/por/PropertyPersistentSetComputer;)V",
+        "indexes": [
+          "460"
+        ],
+        "method": "porDfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner::builder",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "3"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner$Builder::strategy",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "7"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner$Builder::stateStoreFactory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "11"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner$Builder::build",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "14"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner::run",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "18"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "replaced return value with null for dev/samhb/interleave/Interleave::quickCheck",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "21"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner::builder",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "3"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner$Builder::stateStoreFactory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "7"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner$Builder::build",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "10"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner::run",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "14"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "replaced return value with null for dev/samhb/interleave/Interleave::quickCheck",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/Supplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "17"
+        ],
+        "method": "quickCheck",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "changed conditional boundary",
+        "descriptor": "(I)V",
+        "indexes": [
+          "4"
+        ],
+        "method": "requireNonNegativeBound",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;Ldev/samhb/interleave/Strategy;JLjava/lang/Runtime;J)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "7"
+        ],
+        "method": "timed",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;Ldev/samhb/interleave/Strategy;JLjava/lang/Runtime;J)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "13"
+        ],
+        "method": "timed",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;Ldev/samhb/interleave/Strategy;JLjava/lang/Runtime;J)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "20"
+        ],
+        "method": "timed",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;Ldev/samhb/interleave/Strategy;JLjava/lang/Runtime;J)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "4"
+        ],
+        "method": "timed",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;Ldev/samhb/interleave/Strategy;JLjava/lang/Runtime;J)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "6"
+        ],
+        "method": "timed",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/System::currentTimeMillis",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;Ldev/samhb/interleave/Strategy;JLjava/lang/Runtime;J)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "11"
+        ],
+        "method": "timed",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Math::max",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;Ldev/samhb/interleave/Strategy;JLjava/lang/Runtime;J)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "21"
+        ],
+        "method": "timed",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "19"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "22"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "85"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "23"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "91"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "23"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "98"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/System::currentTimeMillis",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "3"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "16"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "18"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "20"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "82"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "21"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "84"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "23"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Math::max",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "99"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::gc",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "12"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "6"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "23"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/System::currentTimeMillis",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "7"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "20"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "22"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "11"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/search/DfsExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "48"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "14"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/por/StaticPorExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "58"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "17"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/dpor/DporExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "68"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/Interleave::requireNonNegativeBound",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "4"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::gc",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "16"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "19"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "26"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "107"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "27"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "113"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "27"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "120"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/System::currentTimeMillis",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "3"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "16"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "18"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "14"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/search/DfsExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "60"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "17"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/por/StaticPorExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "72"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "20"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/dpor/DporExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "84"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "24"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "104"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "25"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "106"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "26"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/System::currentTimeMillis",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "111"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "27"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Math::max",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "121"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::gc",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "12"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "6"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "23"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/System::currentTimeMillis",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "7"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "20"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "22"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "15"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/search/DfsExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "64"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "18"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/por/StaticPorExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "76"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "21"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/dpor/DporExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "88"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to dev/samhb/interleave/Interleave::requireNonNegativeBound",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "4"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.Interleave",
+        "description": "removed call to java/lang/Runtime::gc",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/Strategy;Ldev/samhb/interleave/search/Invariant;Ljava/util/function/Supplier;I)Ldev/samhb/interleave/VerificationResult;",
+        "indexes": [
+          "16"
+        ],
+        "method": "verify",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.VerificationResult",
+        "description": "removed call to java/util/List::isEmpty",
+        "descriptor": "(Ljava/util/List;)Ljava/lang/String;",
+        "indexes": [
+          "4"
+        ],
+        "method": "jsonTraces",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "25"
+        ],
+        "class": "dev.samhb.interleave.VerificationResult",
+        "description": "removed call to java/util/List::size",
+        "descriptor": "(Ljava/util/List;)Ljava/lang/String;",
+        "indexes": [
+          "95"
+        ],
+        "method": "jsonTraces",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "27"
+        ],
+        "class": "dev.samhb.interleave.VerificationResult",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "(Ljava/util/List;)Ljava/lang/String;",
+        "indexes": [
+          "101"
+        ],
+        "method": "jsonTraces",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "29"
+        ],
+        "class": "dev.samhb.interleave.VerificationResult",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "(Ljava/util/List;)Ljava/lang/String;",
+        "indexes": [
+          "108"
+        ],
+        "method": "jsonTraces",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "15"
+        ],
+        "class": "dev.samhb.interleave.VerificationResult",
+        "description": "removed call to dev/samhb/interleave/VerificationResult::hasViolation",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "63"
+        ],
+        "method": "toJson",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "33"
+        ],
+        "class": "dev.samhb.interleave.VerificationResult",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "118"
+        ],
+        "method": "toJson",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "16"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/util/List::add",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;JJZ)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "66"
+        ],
+        "method": "convertToTestResult",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/util/stream/Stream::anyMatch",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;)Z",
+        "indexes": [
+          "7"
+        ],
+        "method": "isFailure",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "replaced boolean return with false for dev/samhb/interleave/InterleaveRunner::isFailure",
+        "descriptor": "(Ldev/samhb/interleave/search/DfsResult;)Z",
+        "indexes": [
+          "8"
+        ],
+        "method": "isFailure",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanFalseReturnValsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to dev/samhb/interleave/search/Trace::outcome",
+        "descriptor": "(Ldev/samhb/interleave/search/Trace;)Z",
+        "indexes": [
+          "4"
+        ],
+        "method": "lambda$isFailure$0",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to dev/samhb/interleave/search/Trace::outcome",
+        "descriptor": "(Ldev/samhb/interleave/search/Trace;)Z",
+        "indexes": [
+          "8"
+        ],
+        "method": "lambda$isFailure$0",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "20"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "34"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "187"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "35"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "201"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "40"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "221"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "41"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "Replaced long subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "235"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "17"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "19"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "28"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/String::valueOf",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "169"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "32"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "184"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "33"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "186"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "35"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Math::max",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "202"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "38"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Runtime::totalMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "218"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "39"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Runtime::freeMemory",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "220"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "41"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Math::max",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "236"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to java/lang/Runtime::gc",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ljava/util/function/LongSupplier;)Ldev/samhb/interleave/TestResult;",
+        "indexes": [
+          "13"
+        ],
+        "method": "run",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Invariant;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/InterleaveRunner$LimitState;)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "21"
+        ],
+        "method": "runIterativeDeepening",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "12"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "removed call to dev/samhb/interleave/InterleaveRunner::isFailure",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Invariant;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/InterleaveRunner$LimitState;)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "69"
+        ],
+        "method": "runIterativeDeepening",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "21"
+        ],
+        "class": "dev.samhb.interleave.InterleaveRunner",
+        "description": "replaced return value with null for dev/samhb/interleave/InterleaveRunner::runIterativeDeepening",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Invariant;Ldev/samhb/interleave/search/StateVisitor;Ldev/samhb/interleave/InterleaveRunner$LimitState;)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "103"
+        ],
+        "method": "runIterativeDeepening",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "3"
+        ],
+        "class": "dev.samhb.interleave.format.registry.InvariantRegistry",
+        "description": "removed call to com/google/gson/JsonElement::isJsonNull",
+        "descriptor": "(Lcom/google/gson/JsonObject;)Ldev/samhb/interleave/search/Invariant;",
+        "indexes": [
+          "10"
+        ],
+        "method": "create",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "20"
+        ],
+        "class": "dev.samhb.interleave.format.registry.InvariantRegistry",
+        "description": "removed call to java/util/Map::keySet",
+        "descriptor": "(Lcom/google/gson/JsonObject;)Ldev/samhb/interleave/search/Invariant;",
+        "indexes": [
+          "69"
+        ],
+        "method": "create",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "21"
+        ],
+        "class": "dev.samhb.interleave.format.registry.InvariantRegistry",
+        "description": "removed call to java/lang/String::valueOf",
+        "descriptor": "(Lcom/google/gson/JsonObject;)Ldev/samhb/interleave/search/Invariant;",
+        "indexes": [
+          "70"
+        ],
+        "method": "create",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "6"
+        ],
+        "class": "dev.samhb.interleave.format.registry.InvariantRegistry",
+        "description": "removed call to java/lang/String::valueOf",
+        "descriptor": "(Ljava/lang/String;Ljava/lang/String;)V",
+        "indexes": [
+          "34"
+        ],
+        "method": "validateCompatibility",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;)V",
+        "indexes": [
+          "8"
+        ],
+        "method": "dfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "37"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;)V",
+        "indexes": [
+          "161"
+        ],
+        "method": "dfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "69"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::allTerminated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;)V",
+        "indexes": [
+          "292"
+        ],
+        "method": "dfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "19"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;)V",
+        "indexes": [
+          "95"
+        ],
+        "method": "dfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "60"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;)V",
+        "indexes": [
+          "259"
+        ],
+        "method": "dfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "76"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "removed call to dev/samhb/interleave/search/StateVisitor::onTraceCreated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/core/Configuration;Ljava/util/List;Ljava/util/List;Ldev/samhb/interleave/search/Invariant;)V",
+        "indexes": [
+          "320"
+        ],
+        "method": "dfs",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "removed call to dev/samhb/interleave/search/DfsExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;J)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "9"
+        ],
+        "method": "explore",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "replaced return value with null for dev/samhb/interleave/search/DfsExplorer::explore",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;J)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "10"
+        ],
+        "method": "explore",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "4"
+        ],
+        "class": "dev.samhb.interleave.search.DfsExplorer",
+        "description": "removed call to java/util/Map::clear",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Invariant;Ldev/samhb/interleave/search/StateStore;Ldev/samhb/interleave/search/StateVisitor;J)Ldev/samhb/interleave/search/DfsResult;",
+        "indexes": [
+          "34"
+        ],
+        "method": "explore",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.TestResult",
+        "description": "removed call to java/util/List::of",
+        "descriptor": "(Ldev/samhb/interleave/Strategy;JJJLjava/util/List;Ljava/util/List;Ljava/util/List;Z)V",
+        "indexes": [
+          "13"
+        ],
+        "method": "<init>",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.TestResult",
+        "description": "removed call to java/util/List::isEmpty",
+        "descriptor": "(Ljava/util/List;)Ljava/lang/String;",
+        "indexes": [
+          "4"
+        ],
+        "method": "jsonTraces",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "12"
+        ],
+        "class": "dev.samhb.interleave.TestResult",
+        "description": "removed call to java/util/List::size",
+        "descriptor": "(Ljava/util/List;)Ljava/lang/String;",
+        "indexes": [
+          "49"
+        ],
+        "method": "jsonTraces",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "14"
+        ],
+        "class": "dev.samhb.interleave.TestResult",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "(Ljava/util/List;)Ljava/lang/String;",
+        "indexes": [
+          "55"
+        ],
+        "method": "jsonTraces",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "16"
+        ],
+        "class": "dev.samhb.interleave.TestResult",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "(Ljava/util/List;)Ljava/lang/String;",
+        "indexes": [
+          "62"
+        ],
+        "method": "jsonTraces",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "36"
+        ],
+        "class": "dev.samhb.interleave.TestResult",
+        "description": "removed call to java/lang/StringBuilder::append",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "129"
+        ],
+        "method": "toJson",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "25"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "83"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "27"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "86"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "10"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::allTerminated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "45"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "12"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::isDeadlockCandidate",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "51"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "15"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::allTerminated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "61"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "17"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::isDeadlockCandidate",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "64"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "24"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::allTerminated",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "82"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "26"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "removed call to dev/samhb/interleave/core/Configuration::isDeadlockCandidate",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "85"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "5"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "replaced boolean return with true for dev/samhb/interleave/minimize/DeltaDebugger::isStillFailing",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "24"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanTrueReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "32"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "replaced boolean return with true for dev/samhb/interleave/minimize/DeltaDebugger::isStillFailing",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Z",
+        "indexes": [
+          "108"
+        ],
+        "method": "isStillFailing",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.BooleanTrueReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "8"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "39"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "13"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "61"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "18"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "86"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "19"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "changed conditional boundary",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "92"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.ConditionalsBoundaryMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "19"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "Replaced integer multiplication with division",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "90"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "19"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "Replaced integer subtraction with addition",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "91"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "20"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "Replaced integer multiplication with division",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "97"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.MathMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "13"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "61"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "15"
+        ],
+        "class": "dev.samhb.interleave.minimize.DeltaDebugger",
+        "description": "negated conditional",
+        "descriptor": "(Ldev/samhb/interleave/core/Program;Ldev/samhb/interleave/search/Trace;Ldev/samhb/interleave/search/TraceOutcome;Ldev/samhb/interleave/search/Invariant;)Ldev/samhb/interleave/search/Trace;",
+        "indexes": [
+          "74"
+        ],
+        "method": "minimize",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NegateConditionalsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.TraceRecord",
+        "description": "replaced return value with \"\" for dev/samhb/interleave/TraceRecord::programHash",
+        "descriptor": "()Ljava/lang/String;",
+        "indexes": [
+          "5"
+        ],
+        "method": "programHash",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.EmptyObjectReturnValsMutator",
+        "status": "SURVIVED"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.dpor.SleepSet",
+        "description": "removed call to java/util/Map::clear",
+        "descriptor": "()V",
+        "indexes": [
+          "5"
+        ],
+        "method": "clear",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.VoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "2"
+        ],
+        "class": "dev.samhb.interleave.dpor.SleepSet",
+        "description": "replaced return value with null for dev/samhb/interleave/dpor/SleepSet::copy",
+        "descriptor": "()Ldev/samhb/interleave/dpor/SleepSet;",
+        "indexes": [
+          "11"
+        ],
+        "method": "copy",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.NullReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.dpor.SleepSet",
+        "description": "removed call to java/util/Map::entrySet",
+        "descriptor": "()Ljava/util/Set;",
+        "indexes": [
+          "5"
+        ],
+        "method": "entries",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.dpor.SleepSet",
+        "description": "replaced return value with Collections.emptySet for dev/samhb/interleave/dpor/SleepSet::entries",
+        "descriptor": "()Ljava/util/Set;",
+        "indexes": [
+          "6"
+        ],
+        "method": "entries",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.EmptyObjectReturnValsMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.dpor.SleepSet",
+        "description": "removed call to java/lang/Integer::valueOf",
+        "descriptor": "(I)V",
+        "indexes": [
+          "6"
+        ],
+        "method": "remove",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.dpor.SleepSet",
+        "description": "removed call to java/util/Map::remove",
+        "descriptor": "(I)V",
+        "indexes": [
+          "7"
+        ],
+        "method": "remove",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "0"
+        ],
+        "class": "dev.samhb.interleave.dpor.SleepSet",
+        "description": "removed call to java/util/Map::size",
+        "descriptor": "()I",
+        "indexes": [
+          "5"
+        ],
+        "method": "size",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.NonVoidMethodCallMutator",
+        "status": "NO_COVERAGE"
+      },
+      {
+        "blocks": [
+          "1"
+        ],
+        "class": "dev.samhb.interleave.dpor.SleepSet",
+        "description": "replaced int return with 0 for dev/samhb/interleave/dpor/SleepSet::size",
+        "descriptor": "()I",
+        "indexes": [
+          "6"
+        ],
+        "method": "size",
+        "operator": "org.pitest.mutationtest.engine.gregor.mutators.returns.PrimitiveReturnsMutator",
+        "status": "NO_COVERAGE"
+      }
+    ]
+  }
+}
