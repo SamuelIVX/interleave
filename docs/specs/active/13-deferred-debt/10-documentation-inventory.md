@@ -22,5 +22,6 @@ Javadoc run additionally validates implementation-helper and private-record cont
 functions require documentation; CodeRabbit’s 80% check remains a minimum, not the audit target.
 
 This inventory measures explicit source declarations, not CodeRabbit’s touched-function denominator
-and not all repository tests. Remote CodeRabbit coverage remains pending until publication is
-authorized. Generated reports and the temporary compiler audit utility are not committed.
+and not all repository tests. PR #45’s remote CodeRabbit review was skipped because its 122 files
+exceeded the available 100-file capacity; no remote coverage percentage was produced. Generated
+reports and the temporary compiler audit utility are not committed.

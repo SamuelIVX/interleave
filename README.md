@@ -145,7 +145,17 @@ This project is built from a frozen 7-spec plan. Each spec defines requirements,
 
 Specs: [`docs/specs/active`](docs/specs/active)
 
-Specs 1–7 are the original frozen 7-spec plan. Specs 8–10 (corpus mining, the JSON DSL core, and its invariants) were added later as the declarative-programming surface. Spec 11 ([`11-context-bounded`](docs/specs/active/11-context-bounded/README.md)) added CBS and is shipped. Spec 12 ([`12-mutation-hardening`](docs/specs/active/12-mutation-hardening/README.md)) closes the mutation-testing gaps left by PIT and is implemented, including the assertion-backed ratchet. Spec 13 closes deferred implementation debt; E5 remains open pending parallel-CI evidence.
+Specs 1–7 are the original frozen 7-spec plan. Specs 8–10 (corpus mining, the JSON DSL core, and its invariants) were added later as the declarative-programming surface. Spec 11 ([`11-context-bounded`](docs/specs/active/11-context-bounded/README.md)) added CBS and is shipped. Spec 12 ([`12-mutation-hardening`](docs/specs/active/12-mutation-hardening/README.md)) closes the mutation-testing gaps left by PIT and is implemented, including the assertion-backed ratchet. Spec 13 ([`13-deferred-debt`](docs/specs/active/13-deferred-debt/README.md)) is complete. It closes the deferred implementation debt, including E5 through repeated full-scope parallel CI evidence.
+
+The verification recorded in [13.10](docs/specs/active/13-deferred-debt/10-parallel-ci-and-documentation.md)
+passes 526 tests and PIT at 255/268, with zero timeout or execution-error statuses. PR #45’s final
+mutation job used three workers and satisfied E5’s closure criterion; the strict gate remains intact.
+
+Java documentation now covers all 824 explicit methods and constructors in the audited production
+and PR #44 test scope. Javadoc enables all doclint groups and treats warnings as errors.
+CodeRabbit’s 80% docstring threshold is a minimum; every new function requires meaningful
+documentation. PR #45’s remote CodeRabbit review was skipped due to its file limit, so no remote
+coverage percentage was produced. The local audit, Javadoc checks, and two local reviews passed.
 
 ## Tech stack
 
@@ -218,11 +228,13 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 ## Recent improvements (2026-09-11)
 
 ### PR #8: HappensBefore wake-up fix
+
 - `HappensBefore.record()` now uses `putIfAbsent` to preserve the first/earliest PC for each edge pair
 - `SleepSet.copyFiltering()` re-evaluates sleep set entries when current step changes
 - Test fixture updated to isolate recorded-PC dependency
 
 ### Historical PR #9: Static POR with invariant support
+
 - Static POR now always uses `porDfs()` regardless of invariant presence
 - `IndependenceRelation` treats read-read as independent (standard POR semantics)
 - Static POR reduces states with invariants: `broken-peterson` 46→15 (67%), `lost-update` 13→9 (31%)

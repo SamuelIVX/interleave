@@ -7,7 +7,7 @@ the exact store, and key-under-test helpers to it; retain independent visitor/va
 `SharedState.toString()` contract. Preserve CBS's scheduling identity and the existing store's
 preemption dominance rule. This follows 13.03's partial mitigation; it does not implement 13.08/A4.
 
-**Status:** implemented; PR review/CI pending.
+**Status:** merged in [PR #43](https://github.com/SamuelIVX/interleave/pull/43) at `9276cd4`; final review and CI passed.
 **Closes:** B1 and B2 in [the deferred register](../12-mutation-hardening/DEFERRED.md).
 **Baseline:** merged PR #42, `main` at `7cdc1ef`. Measure tests/PIT and corpus results before changes.
 
@@ -103,4 +103,5 @@ per-class expectations and the current spec-12 table follow the measured census.
 
 The second local CodeRabbit review found a documentation arithmetic error (the removals/additions
 sum to 17 each); corrected above. No further local CLI review is run after the two-pass limit.
-Remote CI/review results are recorded in the PR. A4 and E5 remain open.
+Remote CI/review results are recorded in PR #43. A4 and E5 were open at that spec’s exit;
+PR #44 / 13.08 subsequently closed A4, and PR #45 / 13.10 satisfied E5’s parallel-CI closure condition.
