@@ -1,0 +1,146 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# Shared settings are inherited; repository review instructions live here.
+inheritance: true
+
+reviews:
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Prioritize correctness, security, data integrity, and user-visible
+        regressions. Skip cosmetic nitpicks unless they conceal a concrete defect.
+
+        For actionable findings, identify the affected symbol or configuration,
+        a concrete trigger, supporting evidence, expected versus actual behavior,
+        and the consequence. Explain severity in proportion to impact and state
+        uncertainty explicitly.
+
+        Distinguish defects introduced or exposed by this PR from unrelated
+        pre-existing issues. Consolidate findings describing the same root cause,
+        including findings arising from overlapping instructions.
+
+        Propose the smallest correct fix, using a committable suggestion block
+        when sufficient context exists. For behavior changes, suggest a focused
+        regression test with an independently derived expected result. Keep
+        low-severity findings brief.
+
+        Never recommend weakening tests, validation, security controls, or
+        quality gates merely to make checks pass.
+
+    - path: "{src/main/java/**,examples/*.java,docs/visualizer*.{js,mjs,html,css}}"
+      instructions: |
+        Apply implementation criteria to production and example code. For test
+        code or verification scripts, apply test-quality criteria instead.
+
+        Check consistency between implementation, callers, types, API contracts,
+        configuration, and documented behavior. Examine boundaries, error paths,
+        state transitions, concurrency, resource cleanup, and compatibility.
+
+        For exploration algorithms, check configuration identity, canonical
+        encoding, thread and preemption accounting, reduction assumptions,
+        invariant observation, and completeness claims. Optimizations must
+        preserve the properties they claim to verify.
+
+        For security findings, identify a concrete reachable failure or attack
+        path and its trust boundary. Consider untrusted program input, file
+        access, injection, sensitive logging, and resource exhaustion where
+        relevant. Avoid unsupported theoretical findings.
+
+        Flag new public APIs or non-obvious functions lacking meaningful
+        documentation, regardless of overall coverage. Verify documented
+        parameters, returns, exceptions, preconditions, and side effects.
+        Avoid boilerplate demands for trivial helpers or lambdas.
+
+        Check that changed behavior has focused tests covering its contract and
+        relevant failure cases, using independently derived expected results.
+
+    - path: "src/test/**"
+      instructions: |
+        Review tests and fixtures for their ability to detect plausible
+        regressions in the behavior or contract under test.
+
+        Check that assertions verify meaningful outcomes and would fail if the
+        behavior broke. Derive expectations from an independent contract,
+        example, or oracle rather than reproducing the implementation.
+
+        For numeric expectations, follow the repository's independent-derivation
+        convention. For exploration and reduction tests, check that comparisons
+        use an appropriate exhaustive reference and verify relevant outcomes.
+
+        Check boundaries, failure paths, and state transitions. Flag mocks or
+        fixtures that bypass the behavior under test, conceal integration
+        failures, or make assertions trivially true.
+
+        Flag skipped tests, weakened assertions, reduced coverage requirements,
+        or removed cases unless the PR description or code comments provide a
+        specific justification supported by the changed behavior. An explanation
+        alone does not justify weakening verification.
+
+        Prefer supported interfaces and existing test seams. Avoid demanding
+        implementation-coupled assertions, redundant tests, or documentation for
+        trivial test functions. Document non-obvious fixture assumptions and
+        test helpers where needed.
+
+    - path: "**/*.md"
+      instructions: |
+        Check documented behavior, examples, commands, configuration, and
+        requirements against implementation and available evidence.
+
+        Flag contradictions between summaries and detailed documentation, stale
+        statuses, unsupported completion claims, and obsolete examples.
+
+        For test counts, coverage, mutation results, benchmarks, or other
+        numerical claims, distinguish historical measurements from current
+        results. Flag conflicting figures or unsupported comparisons; historical
+        figures do not automatically require updating.
+
+        Distinguish completed implementation from pending validation or
+        operational evidence. A skipped check or successful status without
+        completed analysis must not be described as a completed review.
+
+        Prioritize factual accuracy and actionable inconsistencies. Avoid
+        rewriting prose for personal stylistic preference.
+
+    - path: ".github/**"
+      instructions: |
+        Check automation configuration for correctness, secret exposure,
+        excessive permissions, and unsafe handling of untrusted input.
+
+        Examine event triggers, token permissions, privileged jobs, secret
+        availability, and execution of pull-request-controlled code. Report
+        security findings only with a concrete reachable attack path.
+
+        Check externally fetched actions or scripts for integrity controls
+        appropriate to their trust level. Avoid blanket pinning demands for
+        ordinary application dependencies managed through a lockfile.
+
+        Flag changes that silently skip required validation, mask failures,
+        broaden deployment access, or weaken security and quality gates.
+
+        In workflow files, preserve parallel CI execution. Do not add local
+        Gradle parallelism limits to CI commands merely because local runs
+        require limited parallelism.
+
+    - path: "{*.gradle.kts,gradle.properties,gradle/wrapper/gradle-wrapper.properties}"
+      instructions: |
+        Check dependency and build changes for compatibility with Java, Gradle,
+        plugins, application callers, and supported environments.
+
+        Keep local Gradle parallelism limits on local command lines. Do not add
+        shared build defaults that serialize CI to solve a local resource issue.
+
+        Flag unnecessary dependencies, untrusted package sources, and weakened
+        verification. When advisory information is available, cite it and explain
+        applicability to the affected version and usage. State limitations when
+        advisory or reachability information cannot be verified.
+
+        Check consistency between dependency declarations, resolution controls,
+        wrapper versions, and installation workflows where evidence is available.
+        Avoid blanket exact-version demands without considering the existing
+        dependency resolution strategy.
+
+        Check mutation-ratchet accounting, scoped versus full-run behavior,
+        failure propagation, and Javadoc warning enforcement when changed.
+        Altered thresholds or denominators do not demonstrate a regression fix.
+
+        For breaking upgrades, identify affected usage and the smallest required
+        migration. Avoid speculative upgrade requests unrelated to this PR.
