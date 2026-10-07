@@ -2,7 +2,7 @@
 
 These are explicitly out of scope for the 7-spec deliverable, but are natural extensions.
 
-## Items 1–6: Completed
+## Items 1–7: Completed
 
 | # | Item | Status |
 |---|---|---|
@@ -12,12 +12,12 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 | 4 | Property-based corpus mining | ✅ Done (PR #19) — `CorpusGenerator`/`TemplateRegistry` + 2 curated templates, `GeneratorConfig` bounds, budget-aware `DfsExplorer` oracle, `CorpusEntry` JSON persistence, `generate` CLI |
 | 5 | General-purpose JSON format | ✅ Done (PR #21 + PR #22) — `09-json-dsl-core` (format dispatch, sandboxed DSL, DynamicState/DynamicStep, deterministic encoding, POR derivation) + `10-json-dsl-invariants` (composable `all`/`when` invariants, curated examples), differential `lost-update` anchor |
 | 6 | Web UI / visualizer — Tier 1 (static trace renderer) | ✅ Done — `docs/visualizer.html`, `examples/traces/*.json`, pure HTML/CSS/JS, no build, loads all `--json` shapes |
+| 7 | Context-bounding / CHESS-style | ✅ Done — Spec 11; preemption-bounded exploration, CLI, reporting, and visualizer integration |
 
 ## In Progress & Remaining Items — Ranked by LOE
 
 | # | Item | LOE | Spec Needed? | Why |
 |---|---|---|---|---|
-| 7 | Context-bounding / CHESS-style | Medium | Yes | `StateStore` preemption-aware methods, `ContextBoundedExplorer` with CHESS-style preemption counting, CLI `--max-preemptions` flag, full `BenchmarkHarness` integration |
 | 8 | Web UI / visualizer — Tier 2 (state-space DAG) | Medium | Yes | `--emit-graph` schema, budget, truncation, layout policy, attestation re-run |
 | 9 | Concurrent-program parser | High | Yes | Language design + parser + semantic mapping — full spec needed |
 | 10 | Symmetry reduction | High | Yes | Canonicalization is subtle; soundness must be proven |
@@ -36,7 +36,13 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 
 7. **Context-bounding / CHESS-style stateless search** — ✅ Shipped as Spec 11 (7 specs, `docs/specs/active/11-context-bounded/`). Bounds the number of **preemptive** context switches (forced switches are free) instead of exploring all interleavings. `ContextBoundedExplorer` + `Strategy.CONTEXT_BOUNDED` + `TraceOutcome.INCOMPLETE`; preemption-aware `StateStore` overloads with min-count indexing; CLI `--max-preemptions` / `--iterative-deepening`; `BenchmarkHarness` + `SoundnessAttestation` + visualizer integration. Verified on the 7-program corpus: every buggy program is caught at K=2 and the correct one (`peterson`) reports `INCOMPLETE`.
 
-   *Two follow-ups worth filing rather than forgetting:* the visualizer still has no JS test suite in CI — `docs/visualizer-normalize-check.mjs` guards `normalize()` but is not wired to the build; and CBS explores *more* configurations than DFS on this corpus, so the reduction table shows bare counts rather than percentages for those rows.
+   *Visualizer CI follow-up:* `docs/visualizer-normalize-check.mjs` now runs in the independent
+   **Visualizer compatibility** job. It checks normalized verdicts; browser rendering and freshly
+   generated Java output remain outside its coverage. This closes the existing check's CI-wiring
+   gap, rather than introducing a full JavaScript test suite.
+
+   *Remaining observation:* CBS explores *more* configurations than DFS on this corpus, so the
+   reduction table shows bare counts rather than percentages for those rows.
 
 8. **Web UI / visualizer — Tier 2 (state-space DAG)** — Full DAG visualization of the explored state space. Requires `--emit-graph` flag in explorers to emit nodes/edges (config → step → config) with budget/truncation, graph layout algorithm, and `SoundnessAttestation` re-run when enabled. Spec `12-state-graph-emission.md` needed.
 

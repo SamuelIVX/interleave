@@ -24,6 +24,20 @@ cd interleave
 ./gradlew test
 ```
 
+### Check visualizer compatibility
+
+With Node.js 24 installed, run:
+
+```bash
+node docs/visualizer-normalize-check.mjs
+```
+
+The **Visualizer compatibility** CI job runs these 10 checks on pull requests targeting `main`
+and pushes to `main`. They check normalized verdicts for supported result shapes and fixtures,
+including incomplete exploration and resource limits. They do not test browser rendering or
+freshly generated Java output. A failed assertion or source-extraction error fails the CI job.
+The check uses Node.js built-ins and requires no package installation.
+
 ### Run the CLI
 
 ```bash
