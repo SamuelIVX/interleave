@@ -1,4 +1,9 @@
+/** Declarative loading, validation, and executable model contracts. */
 package dev.samhb.interleave.format.dsl;
+
+import java.util.Set;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.core.Program;
@@ -110,6 +115,14 @@ class DslLoaderTest {
         BenchmarkProgram prog = loader.load(json);
         DfsResult res = new DfsExplorer().explore(prog.program(), prog.invariant().orElse(null));
         assertFalse(res.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION));
+        assertEquals(List.of(1), prog.program().initialConfiguration().enabledThreadIds());
+        assertEquals(3, res.statesExplored());
+        var completed = res.traces().stream().filter(t -> t.outcome() == TraceOutcome.COMPLETED).toList();
+        assertEquals(1, completed.size());
+        assertEquals(List.of(1, 0), completed.get(0).threadIds());
+        var terminal = new dev.samhb.interleave.search.TraceReplayer().replay(prog.program(), completed.get(0));
+        assertEquals(1, ((DynamicState) terminal.state()).getInt("x"));
+        assertTrue(((DynamicState) terminal.state()).getBool("flag"));
     }
 
     @Test
@@ -558,35 +571,30 @@ class DslLoaderTest {
         assertTrue(ex.getMessage().toLowerCase().contains("null"));
     }
 
+    /** Dynamic index reads and array aliases preserve all three hand-derived terminal values. */
     @Test
-    /** Tests porousIndependence_mixedDynamicConstant_agreesAcrossExplorers. */
     void porousIndependence_mixedDynamicConstant_agreesAcrossExplorers() {
-        String json = """
-            {
-              "format": "declarative",
-              "name": "por-mixed",
-              "state": {
-                "fields": [
-                  {"name": "arr", "type": "int[]", "init": [0,0]},
-                  {"name": "a", "type": "int", "init": 0}
-                ]
-              },
-              "threads": [
-                {"id": 0, "steps": [{"effects": ["arr[a] = 1"]}]},
-                {"id": 1, "steps": [{"effects": ["arr[0] = 1"]}]},
-                {"id": 2, "steps": [{"effects": ["a = 1"]}]}
-              ],
-              "invariant": {"expr": "false"}
-            }
-            """;
-        BenchmarkProgram prog = loader.load(json);
-        DfsExplorer dfs = new DfsExplorer();
-        dev.samhb.interleave.por.StaticPorExplorer por = new dev.samhb.interleave.por.StaticPorExplorer();
-        dev.samhb.interleave.dpor.DporExplorer dpor = new dev.samhb.interleave.dpor.DporExplorer();
-        boolean dfsViol = dfs.explore(prog.program(), prog.invariant().orElse(null)).traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
-        boolean porViol = por.explore(prog.program(), prog.invariant().orElse(null)).traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
-        boolean dporViol = dpor.explore(prog.program(), prog.invariant().orElse(null)).traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION);
-        assertEquals(dfsViol, porViol);
-        assertEquals(dfsViol, dporViol);
+        var model = loader.load("""
+            {"format":"declarative", "name":"mixed-array-orders",
+             "state":{"fields":[{"name":"arr","type":"int[]","init":[0,0]},
+                                  {"name":"a","type":"int","init":0}]},
+             "threads":[{"id":0,"steps":[{"effects":["arr[a] = 1"]}]},
+                        {"id":1,"steps":[{"effects":["arr[0] = 2"]}]},
+                        {"id":2,"steps":[{"effects":["a = 1"]}]}]}
+            """);
+        var program = model.program();
+        var results = List.of(new DfsExplorer().explore(program),
+            new dev.samhb.interleave.por.StaticPorExplorer().explore(program),
+            new dev.samhb.interleave.dpor.DporExplorer().explore(program));
+        for (var result : results) {
+            Set<List<Integer>> values = result.states().values().stream()
+                .filter(dev.samhb.interleave.core.Configuration::allTerminated)
+                .map(config -> {
+                    DynamicState state = (DynamicState) config.state();
+                    int[] arr = state.getArray("arr");
+                    return List.of(arr[0], arr[1], state.getInt("a"));
+                }).collect(Collectors.toSet());
+            assertEquals(Set.of(List.of(1, 0, 1), List.of(2, 0, 1), List.of(2, 1, 1)), values);
+        }
     }
 }

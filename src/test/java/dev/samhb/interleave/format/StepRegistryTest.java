@@ -1,3 +1,4 @@
+/** Typed step construction, compatibility and preserved thread references. */
 package dev.samhb.interleave.format.registry;
 
 import dev.samhb.interleave.core.Step;
@@ -14,7 +15,7 @@ class StepRegistryTest {
     @Test
     void allNineteenStepTypesRegistered() {
         assertEquals(19, registry.typeNames().size());
-        
+
         // Peterson steps
         assertTrue(registry.typeNames().contains("write_flag"));
         assertTrue(registry.typeNames().contains("write_turn"));
@@ -22,20 +23,20 @@ class StepRegistryTest {
         assertTrue(registry.typeNames().contains("read_flag"));
         assertTrue(registry.typeNames().contains("cs_enter"));
         assertTrue(registry.typeNames().contains("cs_exit"));
-        
+
         // Counter steps
         assertTrue(registry.typeNames().contains("read_counter"));
         assertTrue(registry.typeNames().contains("write_counter"));
-        
+
         // Pair steps
         assertTrue(registry.typeNames().contains("write_high"));
         assertTrue(registry.typeNames().contains("write_low"));
         assertTrue(registry.typeNames().contains("read_snapshot"));
-        
+
         // Deadlock steps
         assertTrue(registry.typeNames().contains("deadlock_write_flag"));
         assertTrue(registry.typeNames().contains("unconditional_wait"));
-        
+
         // DCL steps
         assertTrue(registry.typeNames().contains("dcl_lock"));
         assertTrue(registry.typeNames().contains("dcl_unlock"));
@@ -49,7 +50,7 @@ class StepRegistryTest {
     void createStep_unknownType_throws() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "unknown_step");
-        
+
         RegistryException ex = assertThrows(RegistryException.class,
             () -> registry.create(json, 0));
         assertTrue(ex.getMessage().contains("Unknown step type"));
@@ -60,7 +61,7 @@ class StepRegistryTest {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "write_turn");
         // missing required "value" param
-        
+
         RegistryException ex = assertThrows(RegistryException.class,
             () -> registry.create(json, 0));
         assertTrue(ex.getMessage().contains("value"));
@@ -116,14 +117,15 @@ class StepRegistryTest {
     void createStep_threadParamDefaultsToOwner() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "read_counter");
-        
+
         // Create step with owning thread ID 1
         dev.samhb.interleave.core.Step step = registry.create(json, 1);
         assertNotNull(step);
-        
-        // Verify the step reads from the correct MemoryLocation
-        // ReadCounterStep reads from "counter" MemoryLocation
-        assertEquals("counter", step.reads().iterator().next().toString());
+
+        var state = dev.samhb.interleave.core.CounterState.of(7, 2);
+        assertEquals(dev.samhb.interleave.core.StepOutcome.ADVANCED, step.execute(state));
+        assertEquals(0, state.getRegister(0), "the default must not silently target thread zero");
+        assertEquals(7, state.getRegister(1), "the owning thread receives the counter value");
     }
 
     @Test
@@ -132,10 +134,10 @@ class StepRegistryTest {
         json.addProperty("type", "write_flag");
         json.addProperty("value", true);
         json.addProperty("thread", 1); // Explicit thread param matching owning thread ID
-        
+
         dev.samhb.interleave.core.Step step = registry.create(json, 1);
         assertNotNull(step);
-        
+
         // Verify the step uses the correct thread ID
         // WriteFlagStep writes to flag[threadId]
         assertTrue(step.writes().iterator().next().toString().contains("[1]"));
@@ -147,10 +149,10 @@ class StepRegistryTest {
         json.addProperty("type", "write_flag");
         json.addProperty("value", true);
         // No explicit thread param - should default to owning thread ID
-        
+
         dev.samhb.interleave.core.Step step = registry.create(json, 1);
         assertNotNull(step);
-        
+
         // Verify the step uses the owning thread ID (1) as writer ID
         assertTrue(step.writes().iterator().next().toString().contains("[1]"));
     }
@@ -160,21 +162,22 @@ class StepRegistryTest {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "read_counter");
         json.addProperty("thread", 5); // Doesn't match owning thread ID 0
-        
+
         RegistryException ex = assertThrows(RegistryException.class,
             () -> registry.create(json, 0));
         assertTrue(ex.getMessage().contains("thread"));
     }
 
     @Test
-    void createStep_otherParam_outOfRange() {
+    void createStepPreservesOtherThreadReferenceForLoaderValidation() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "busy_wait");
         json.addProperty("other", 5); // Only 2 threads in typical programs
-        
+
         // Note: other validation happens at load time, not in StepRegistry directly
         // The registry doesn't know thread count, so it doesn't validate 'other' here
         dev.samhb.interleave.core.Step step = registry.create(json, 0);
-        assertNotNull(step);
+        assertEquals(java.util.Set.of(dev.samhb.interleave.core.MemoryLocation.of("flag[5]"),
+            dev.samhb.interleave.core.MemoryLocation.of("turn")), step.reads());
     }
 }

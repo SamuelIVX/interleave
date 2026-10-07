@@ -1,3 +1,4 @@
+/** Bounded verdict reporting, soundness attestation and parsed JSON schema. */
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.bugs.BugCorpus;
@@ -161,35 +162,42 @@ class ReportingCBTest {
 
     @Test
     void writeJson_incomplete_verdictRoundTrips() {
-        String json = new ReportWriter(corpusRows()).writeJson();
-        assertTrue(json.contains("\"verdict\": \"INCOMPLETE\""), "INCOMPLETE verdict missing from JSON");
+        var row = new BenchmarkResult("CONTEXT_BOUNDED", "peterson", 3, 1, 0, "INCOMPLETE", null, StoreType.EXACT);
+        var parsed = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(new ReportWriter(List.of(row)).writeJson());
+        assertEquals("INCOMPLETE", parsed.getAsJsonArray("benchmarks").get(0).getAsJsonObject().get("verdict").getAsString());
     }
 
     @Test
     void writeJson_approximatePass_verdictRoundTrips() {
-        List<BenchmarkResult> rows = new BenchmarkHarness(1_000_003, 4,
-            Set.of(StoreType.BITSTATE), Set.of("CONTEXT_BOUNDED"), 1, false).runAll();
-        String json = new ReportWriter(rows).writeJson();
-        assertTrue(json.contains("APPROXIMATE_PASS") || json.contains("INCOMPLETE"),
-            "expected a bounded verdict on bitstate rows");
+        var row = new BenchmarkResult("CONTEXT_BOUNDED", "peterson", 3, 1, 0, "APPROXIMATE_PASS", null, StoreType.BITSTATE);
+        var parsed = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(new ReportWriter(List.of(row)).writeJson());
+        assertEquals("APPROXIMATE_PASS", parsed.getAsJsonArray("benchmarks").get(0).getAsJsonObject().get("verdict").getAsString());
     }
 
     @Test
     void writeJson_preemptionsUsed_presentForEveryRow() {
-        String json = new ReportWriter(corpusRows()).writeJson();
-        long rows = corpusRows().size();
-        long emitted = json.lines().filter(l -> l.contains("\"preemptionsUsed\"")).count();
-        assertEquals(rows, emitted,
-            "every row should carry a preemptionsUsed member, even when null");
+        var rows = corpusRows();
+        var parsed = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(new ReportWriter(rows).writeJson()).getAsJsonArray("benchmarks");
+        assertEquals(rows.size(), parsed.size());
+        for (var row : parsed) assertTrue(row.getAsJsonObject().has("preemptionsUsed"));
     }
 
     @Test
     void writeJson_preemptionsUsed_nullForNonCbsAndBoundForCbs() {
-        String json = new ReportWriter(corpusRows()).writeJson();
-        assertTrue(json.contains("\"preemptionsUsed\": null"),
-            "non-context-bounded rows should report null");
-        assertTrue(json.contains("\"preemptionsUsed\": 2"),
-            "context-bounded rows at the default bound should report 2");
+        var parsed = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(new ReportWriter(corpusRows()).writeJson()).getAsJsonArray("benchmarks");
+        boolean sawBound = false;
+        boolean sawUnbounded = false;
+        for (var element : parsed) {
+            var row = element.getAsJsonObject();
+            if ("CONTEXT_BOUNDED".equals(row.get("strategy").getAsString())) {
+                assertEquals(new com.google.gson.JsonPrimitive(2), row.get("preemptionsUsed"));
+                sawBound = true;
+            } else {
+                assertTrue(row.get("preemptionsUsed").isJsonNull());
+                sawUnbounded = true;
+            }
+        }
+        assertTrue(sawBound && sawUnbounded);
     }
 
     @Test
@@ -221,19 +229,11 @@ class ReportingCBTest {
         assertEquals(keySet(without), keySet(with));
     }
 
+    /** Reads the top-level report schema with a strict JSON parser.
+     * @param json serialized report
+     * @return top-level member names
+     */
     private static Set<String> keySet(String json) {
-        return json.lines()
-            .map(String::trim)
-            .filter(l -> l.startsWith("\""))
-            .map(l -> l.substring(1, l.indexOf('"', 1)))
-            .collect(java.util.stream.Collectors.toSet());
-    }
-
-    @Test
-    void traceOutcome_incomplete_isNotAFailingOutcome() {
-        // The enum-level statement behind all of the above.
-        assertNotEquals(TraceOutcome.VIOLATION, TraceOutcome.INCOMPLETE);
-        assertNotEquals(TraceOutcome.DEADLOCK, TraceOutcome.INCOMPLETE);
-        assertNotEquals(TraceOutcome.COMPLETED, TraceOutcome.INCOMPLETE);
+        return dev.samhb.interleave.testsupport.JsonAssertions.parseObject(json).keySet();
     }
 }

@@ -1,3 +1,4 @@
+/** CLI process validation and filtering plus typed report contracts. */
 package dev.samhb.interleave.cli;
 
 import dev.samhb.interleave.report.BenchmarkResult;
@@ -14,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests for the CLI entry point.
- * Tests argument parsing and filtering logic by invoking the harness directly.
+ * Tests invalid arguments through the entry point and report contracts through the harness.
  */
 class MainTest {
 
@@ -33,107 +34,104 @@ class MainTest {
 
     /** Verifies that --all flag runs the entire corpus. */
     @Test
-    void allFlagRunsFullCorpus() {
-        BenchmarkHarness harness = new BenchmarkHarness();
-        List<BenchmarkResult> results = harness.runAll();
-
-        int programCount = BugCorpus.all().size();
-        assertEquals(programCount * 8, results.size(),
-            "should produce 8 results per program");
+    void allFlagRunsFullCorpus() throws Exception {
+        CliResult result = invokeCli("--all", "--json", "--store", "exact", "--strategy", "DFS");
+        assertEquals(0, result.exitCode(), result.output());
+        var rows = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output()).getAsJsonArray("benchmarks");
+        var names = new java.util.HashSet<String>();
+        for (var element : rows) {
+            var row = element.getAsJsonObject();
+            assertEquals("EXACT", row.get("storeType").getAsString());
+            assertEquals("DFS", row.get("strategy").getAsString());
+            assertTrue(names.add(row.get("bug").getAsString()));
+        }
+        assertEquals(java.util.Set.of("peterson", "broken-peterson", "broken-peterson-v2", "lost-update",
+            "deadlock", "double-checked-locking", "torn-counter", "lost-update-3t"), names);
     }
 
     /** Verifies that --store exact filter works correctly. */
     @Test
-    void storeFilterExact() {
-        BenchmarkProgram program = findProgram("peterson");
-        BenchmarkHarness harness = new BenchmarkHarness();
-        List<BenchmarkResult> allResults = harness.runProgram(program);
-
-        List<BenchmarkResult> exactOnly = allResults.stream()
-            .filter(r -> r.storeType() == StoreType.EXACT)
-            .toList();
-
-        assertEquals(4, exactOnly.size(), "exact filter should keep 4 results (4 strategies)");
-        assertTrue(exactOnly.stream().allMatch(r -> r.storeType() == StoreType.EXACT));
+    void storeFilterExact() throws Exception {
+        CliResult result = invokeCli("peterson", "--json", "--store", "exact");
+        assertEquals(0, result.exitCode(), result.output());
+        var rows = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output()).getAsJsonArray("benchmarks");
+        assertEquals(4, rows.size());
+        for (var row : rows) assertEquals("EXACT", row.getAsJsonObject().get("storeType").getAsString());
     }
 
     /** Verifies that --store bitstate filter works correctly. */
     @Test
-    void storeFilterBitstate() {
-        BenchmarkProgram program = findProgram("peterson");
-        BenchmarkHarness harness = new BenchmarkHarness();
-        List<BenchmarkResult> allResults = harness.runProgram(program);
-
-        List<BenchmarkResult> bitstateOnly = allResults.stream()
-            .filter(r -> r.storeType() == StoreType.BITSTATE)
-            .toList();
-
-        assertEquals(4, bitstateOnly.size(), "bitstate filter should keep 4 results");
-        assertTrue(bitstateOnly.stream().allMatch(r -> r.storeType() == StoreType.BITSTATE));
+    void storeFilterBitstate() throws Exception {
+        CliResult result = invokeCli("peterson", "--json", "--store", "bitstate");
+        assertEquals(0, result.exitCode(), result.output());
+        var rows = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output()).getAsJsonArray("benchmarks");
+        assertEquals(4, rows.size());
+        for (var row : rows) assertEquals("BITSTATE", row.getAsJsonObject().get("storeType").getAsString());
     }
 
     /** Verifies that --strategy DFS filter works correctly. */
     @Test
-    void strategyFilterDfs() {
-        BenchmarkProgram program = findProgram("peterson");
-        BenchmarkHarness harness = new BenchmarkHarness();
-        List<BenchmarkResult> allResults = harness.runProgram(program);
-
-        List<BenchmarkResult> dfsOnly = allResults.stream()
-            .filter(r -> r.strategy().equals("DFS"))
-            .toList();
-
-        assertEquals(2, dfsOnly.size(), "DFS filter should keep 2 results (exact + bitstate)");
-        assertTrue(dfsOnly.stream().allMatch(r -> r.strategy().equals("DFS")));
+    void strategyFilterDfs() throws Exception {
+        CliResult result = invokeCli("peterson", "--json", "--strategy", "DFS");
+        assertEquals(0, result.exitCode(), result.output());
+        var rows = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output()).getAsJsonArray("benchmarks");
+        assertEquals(2, rows.size());
+        for (var row : rows) assertEquals("DFS", row.getAsJsonObject().get("strategy").getAsString());
     }
 
     /** Verifies that combining store and strategy filters works correctly. */
     @Test
-    void combinedFilterStoreAndStrategy() {
-        BenchmarkProgram program = findProgram("peterson");
-        BenchmarkHarness harness = new BenchmarkHarness();
-        List<BenchmarkResult> allResults = harness.runProgram(program);
-
-        List<BenchmarkResult> filtered = allResults.stream()
-            .filter(r -> r.storeType() == StoreType.EXACT && r.strategy().equals("DFS"))
-            .toList();
-
-        assertEquals(1, filtered.size(), "combined filter should keep 1 result");
-        assertEquals(StoreType.EXACT, filtered.get(0).storeType());
-        assertEquals("DFS", filtered.get(0).strategy());
+    void combinedFilterStoreAndStrategy() throws Exception {
+        CliResult result = invokeCli("peterson", "--json", "--store", "exact", "--strategy", "CONTEXT_BOUNDED");
+        assertEquals(0, result.exitCode(), result.output());
+        var rows = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output()).getAsJsonArray("benchmarks");
+        assertEquals(1, rows.size());
+        var row = rows.get(0).getAsJsonObject();
+        assertEquals("EXACT", row.get("storeType").getAsString());
+        assertEquals("CONTEXT_BOUNDED", row.get("strategy").getAsString());
+        assertEquals(new com.google.gson.JsonPrimitive(2), row.get("preemptionsUsed"));
     }
 
     /** Verifies that JSON output contains bitstate metrics. */
     @Test
     void jsonReportContainsBitstateMetrics() {
-        BenchmarkProgram program = findProgram("peterson");
-        BenchmarkHarness harness = new BenchmarkHarness();
-        List<BenchmarkResult> results = harness.runProgram(program);
-
-        ReportWriter writer = new ReportWriter(results);
-        String json = writer.writeJson();
-
-        assertTrue(json.contains("bitstateMetrics"), "JSON should contain bitstateMetrics");
-        assertTrue(json.contains("falsePositiveRate"), "JSON should contain falsePositiveRate");
-        assertTrue(json.contains("bitDensity"), "JSON should contain bitDensity");
+        var rows = new BenchmarkHarness().runProgram(findProgram("peterson"));
+        var jsonRows = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(new ReportWriter(rows).writeJson()).getAsJsonArray("benchmarks");
+        assertEquals(rows.size(), jsonRows.size());
+        for (int i = 0; i < rows.size(); i++) {
+            var emitted = jsonRows.get(i).getAsJsonObject();
+            var source = rows.get(i);
+            if (source.storeType() == StoreType.BITSTATE) {
+                var metrics = emitted.getAsJsonObject("bitstateMetrics");
+                assertTrue(metrics.get("falsePositiveRate").getAsJsonPrimitive().isNumber());
+                assertTrue(metrics.get("bitDensity").getAsJsonPrimitive().isNumber());
+                assertEquals(source.estimatedFalsePositiveRate(), metrics.get("falsePositiveRate").getAsDouble(), 0.000001);
+                assertEquals(source.bitstateBitDensity(), metrics.get("bitDensity").getAsDouble(), 0.000001);
+            } else {
+                assertFalse(emitted.has("bitstateMetrics"));
+            }
+        }
     }
 
     /** Verifies that JSON output contains failing traces for violations. */
     @Test
     void jsonReportContainsFailingTrace() {
-        // broken-peterson always has a violation
-        BenchmarkProgram program = findProgram("broken-peterson");
-        assertNotNull(program);
-
-        BenchmarkHarness harness = new BenchmarkHarness();
-        List<BenchmarkResult> results = harness.runProgram(program);
-
-        ReportWriter writer = new ReportWriter(results);
-        String json = writer.writeJson();
-
-        assertTrue(json.contains("failingTrace"), "JSON should contain failingTrace for violations");
-        assertTrue(json.contains("threadIds"), "JSON should contain threadIds in failing trace");
-        assertTrue(json.contains("outcomes"), "JSON should contain outcomes in failing trace");
+        var rows = new BenchmarkHarness().runProgram(findProgram("broken-peterson"));
+        var parsed = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(new ReportWriter(rows).writeJson()).getAsJsonArray("benchmarks");
+        assertFalse(rows.isEmpty());
+        for (int i = 0; i < rows.size(); i++) {
+            var source = rows.get(i).failingTrace().orElseThrow();
+            var trace = parsed.get(i).getAsJsonObject().getAsJsonObject("failingTrace");
+            assertEquals(source.outcome().name(), parsed.get(i).getAsJsonObject().get("verdict").getAsString());
+            var ids = trace.getAsJsonArray("threadIds");
+            var outcomes = trace.getAsJsonArray("outcomes");
+            assertEquals(source.length(), ids.size());
+            assertEquals(source.length(), outcomes.size());
+            for (int j = 0; j < source.length(); j++) {
+                assertEquals(source.threadIds().get(j).intValue(), ids.get(j).getAsInt());
+                assertEquals(source.outcomes().get(j).name(), outcomes.get(j).getAsString());
+            }
+        }
     }
 
     /** Verifies that Markdown reports include bitstate summary section. */
@@ -168,35 +166,21 @@ class MainTest {
 
     /** Verifies that invalid store flag values are rejected. */
     @Test
-    void invalidStoreFlagRejected() {
-        // Verify that invalid store values would be caught
-        // We test the validation logic directly
-        String[] validStores = {"EXACT", "BITSTATE"};
-        String[] invalidStores = {"HASH", "BLOOM", "INVALID"};
-
-        for (String store : validStores) {
-            assertTrue("EXACT".equals(store) || "BITSTATE".equals(store),
-                store + " should be valid");
-        }
-        for (String store : invalidStores) {
-            assertFalse("EXACT".equals(store) || "BITSTATE".equals(store),
-                store + " should be invalid");
+    void invalidStoreFlagRejected() throws Exception {
+        for (String value : List.of("HASH","BLOOM","INVALID")) {
+            CliResult result = invokeCli("peterson", "--store", value);
+            assertEquals(1, result.exitCode());
+            assertEquals("Error: --store must be 'exact' or 'bitstate'\n", result.output().replace("\r\n", "\n"));
         }
     }
 
     /** Verifies that invalid strategy flag values are rejected. */
     @Test
-    void invalidStrategyFlagRejected() {
-        String[] validStrategies = {"DFS", "STATIC_POR", "DPOR"};
-        String[] invalidStrategies = {"RANDOM", "BFS", "INVALID"};
-
-        for (String strategy : validStrategies) {
-            assertTrue("DFS".equals(strategy) || "STATIC_POR".equals(strategy) || "DPOR".equals(strategy),
-                strategy + " should be valid");
-        }
-        for (String strategy : invalidStrategies) {
-            assertFalse("DFS".equals(strategy) || "STATIC_POR".equals(strategy) || "DPOR".equals(strategy),
-                strategy + " should be invalid");
+    void invalidStrategyFlagRejected() throws Exception {
+        for (String value : List.of("RANDOM","BFS","INVALID")) {
+            CliResult result = invokeCli("peterson", "--strategy", value);
+            assertEquals(1, result.exitCode());
+            assertEquals("Error: --strategy must be 'DFS', 'STATIC_POR', 'DPOR', or 'CONTEXT_BOUNDED'\n", result.output().replace("\r\n", "\n"));
         }
     }
 
@@ -267,4 +251,36 @@ class MainTest {
         }
         return null;
     }
+    /** Runs the actual entry point in a child JVM because validation calls System.exit.
+     * @param arguments CLI arguments
+     * @return exit status and merged output
+     * @throws Exception if launch, resource lookup, or waiting fails
+     */
+    private static CliResult invokeCli(String... arguments) throws Exception {
+        String separator = java.io.File.pathSeparator;
+        String classpath = java.nio.file.Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+            + separator + java.nio.file.Path.of(com.google.gson.Gson.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+            + separator + java.nio.file.Path.of(java.util.Objects.requireNonNull(
+                Main.class.getResource("/programs/peterson.json"), "corpus resource must exist").toURI()).getParent().getParent();
+        List<String> command = new java.util.ArrayList<>(List.of(
+            java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString(),
+            "-cp", classpath, Main.class.getName()));
+        command.addAll(List.of(arguments));
+        java.nio.file.Path output = java.nio.file.Files.createTempFile("interleave-cli-", ".log");
+        Process process = null;
+        try {
+            process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(output.toFile()).start();
+            assertTrue(process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS), "CLI must terminate");
+            return new CliResult(process.exitValue(), java.nio.file.Files.readString(output));
+        } finally {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+                process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+            }
+            java.nio.file.Files.deleteIfExists(output);
+        }
+    }
+
+    /** Observed process result, with stderr merged into stdout. */
+    private record CliResult(int exitCode, String output) {}
 }

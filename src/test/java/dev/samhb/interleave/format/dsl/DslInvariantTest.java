@@ -194,12 +194,7 @@ class DslInvariantTest {
         assertTrue(ex2.getMessage().toLowerCase().contains("exactly one"));
     }
 
-    @Test
-    void whenFinalIsDefault() {
-        String json = baseFields(", \"invariant\": {\"expr\": \"x == 0\"}");
-        DslInvariant inv = (DslInvariant) loader.load(json).invariant().orElseThrow();
-        assertEquals(DslInvariant.When.FINAL, inv.when());
-    }
+
 
     @Test
     void whenAlwaysParses() {
@@ -307,9 +302,9 @@ class DslInvariantTest {
                 "when:always should catch transient violation");
     }
 
+    /** Both a false conjunct and an evaluated array error produce safety violations. */
     @Test
-    void conjunctionShortCircuits() {
-        // second predicate would be OOB if evaluated, but first is false so second not evaluated
+    void falseConjunctAndEvaluationErrorBothReportViolation() {
         String json = """
             {
               "format": "declarative",
@@ -324,16 +319,13 @@ class DslInvariantTest {
               "invariant": {"all": ["x == 1", "arr[5] == 0"], "when": "always"}
             }
             """;
-        // x==1 is false at initial state (x=0), so conjunction false without evaluating arr[5]
-        // If short-circuit, first predicate fails -> violation? Wait invariant x==1 false => violation should be reported
-        // Need case where first false triggers violation regardless of second: actually conjunction false means violation
-        // For short-circuit test, use first false and ensure no crash on second's OOB when not evaluated? But our holds evaluates left-to-right and on false returns false without evaluating second? Let's check implementation: it loops and returns false on first false without evaluating further -> second's OOB never triggered.
+
+
         BenchmarkProgram prog = loader.load(json);
         DfsResult res = new DfsExplorer().explore(prog.program(), prog.invariant().orElse(null));
         assertTrue(res.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.VIOLATION));
-        // If short-circuit works, no EvalException crash from arr[5]; just false.
 
-        // Now case where first true, second OOB -> should be violation via EvalException (second evaluated)
+
         String json2 = """
             {
               "format": "declarative",

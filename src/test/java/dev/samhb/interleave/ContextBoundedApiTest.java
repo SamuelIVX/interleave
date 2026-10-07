@@ -1,3 +1,4 @@
+/** Context-bounded API dispatch, supplied stores, limits and iterative deepening. */
 package dev.samhb.interleave;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
@@ -52,14 +53,16 @@ class ContextBoundedApiTest {
         assertEquals(direct.statesExplored(), result.statesExplored());
     }
 
+    /** Requires visits in the supplied approximate store, not just a nonempty exploration. */
     @Test
     void verify_contextBounded_customStore_isUsed() {
-        // A BitstateStore with capacity 3 only works if it is actually passed through; dropping it
-        // would substitute a default exact store, or trip the capacity assertion.
         Program program = named("lost-update").program();
+        BitstateStore store = new BitstateStore(1_000_003, 4, 3);
         VerificationResult result = Interleave.verify(program, Strategy.CONTEXT_BOUNDED, null,
-            () -> new BitstateStore(1_000_003, 4, 3), 3);
+            () -> store, 3);
         assertTrue(result.statesExplored() > 0);
+        assertEquals(result.statesExplored(), store.preemptionStatesMarked());
+        assertTrue(store.bitCount() > 0);
     }
 
     @Test

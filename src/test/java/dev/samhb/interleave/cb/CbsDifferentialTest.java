@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * asserts only that a result exists, so it would pass with the pruner arbitrarily broken.
  *
  * <p>Every test here is written so that it goes red if CBS reports a wrong verdict. See
- * {@link #syntheticOracle_actuallyDisagreesWithBoundedSearch_provesTheComparisonHasTeeth}, which
+ * {@link #verdictComparisonRejectsDisagreementAndAcceptsAgreement}, which
  * fails if the comparison below ever stops being able to detect a disagreement.
  */
 class CbsDifferentialTest {
@@ -153,7 +153,7 @@ class CbsDifferentialTest {
     // --- Falsification ---------------------------------------------------------------
 
     @Test
-    void syntheticOracle_actuallyDisagreesWithBoundedSearch_provesTheComparisonHasTeeth() {
+    void verdictComparisonRejectsDisagreementAndAcceptsAgreement() {
         // A differential test is only as good as its ability to fail. If this comparison cannot
         // detect a wrong verdict, the equality test above is manufacturing confidence and nobody
         // would know until a real bug slipped through.
@@ -217,7 +217,7 @@ class CbsDifferentialTest {
      *
      * <p>If the comparison lives inline in the test, a falsification check cannot exercise it --
      * it can only restate the assertion in different words, which proves nothing. Keeping it in a
-     * method lets {@link #syntheticOracle_actuallyDisagreesWithBoundedSearch_provesTheComparisonHasTeeth()}
+     * method lets {@link #verdictComparisonRejectsDisagreementAndAcceptsAgreement()}
      * feed it a deliberately wrong verdict and require it to fail.
      */
     private static void assertVerdictsAgree(String name, int bound, String exhaustive, String bounded) {

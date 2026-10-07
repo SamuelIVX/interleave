@@ -351,9 +351,9 @@ class ContextBoundedExplorerTest {
     }
 
     @Test
-    void limitEnforcingVisitor_stillTripsUnderCbs() {
+    void visitorReceivesEveryCbsVisit() {
         // The 3-arg onStateVisited default delegates to the 1-arg form the runner overrides, so
-        // maxStates must keep working for a bounded search without any change to that visitor.
+        // the runner's one-argument visitor must receive every bounded-search visit.
         Program program = named("lost-update").program();
         long[] count = {0};
         StateVisitor counting = new StateVisitor() {
@@ -367,7 +367,6 @@ class ContextBoundedExplorerTest {
         assertEquals(result.statesExplored(), count[0],
             "the 3-arg callback must fire once per state, matching statesExplored");
     }
-
 
 
 }

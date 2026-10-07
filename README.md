@@ -132,7 +132,7 @@ src/main/java/dev/samhb/interleave/
   cb/          ContextBoundedExplorer (CHESS-style preemption-bounded search)
   corpus/      CorpusGenerator, TemplateRegistry, CorpusEntry
   format/      JSON program loader + declarative DSL
-  bugs/        Concurrency classics corpus (7 programs)
+  bugs/        Concurrency classics corpus (8 programs, including lost-update-3t)
   minimize/    DeltaDebugger (ddmin)
   report/      BenchmarkHarness, StatesExploredTable, SoundnessAttestation, ReportWriter
   cli/         Main
@@ -147,12 +147,19 @@ Specs: [`docs/specs/active`](docs/specs/active)
 
 Specs 1–7 are the original frozen 7-spec plan. Specs 8–10 (corpus mining, the JSON DSL core, and its invariants) were added later as the declarative-programming surface. Spec 11 ([`11-context-bounded`](docs/specs/active/11-context-bounded/README.md)) added CBS and is shipped. Spec 12 ([`12-mutation-hardening`](docs/specs/active/12-mutation-hardening/README.md)) closes the mutation-testing gaps left by PIT and is implemented, including the assertion-backed ratchet. Spec 13 ([`13-deferred-debt`](docs/specs/active/13-deferred-debt/README.md)) is complete. It closes the deferred implementation debt, including E5 through repeated full-scope parallel CI evidence.
 
-The verification recorded in [13.10](docs/specs/active/13-deferred-debt/10-parallel-ci-and-documentation.md)
+The historical verification recorded in [13.10](docs/specs/active/13-deferred-debt/10-parallel-ci-and-documentation.md)
 passes 526 tests and PIT at 255/268, with zero timeout or execution-error statuses. PR #45’s final
 mutation job used three workers and satisfied E5’s closure criterion; the strict gate remains intact.
 
-Java documentation now covers all 824 explicit methods and constructors in the audited production
-and PR #44 test scope. Javadoc enables all doclint groups and treats warnings as errors.
+[Spec 14](docs/specs/active/14-test-quality.md) audits the test contracts, replaces placeholders and
+overstated checks, and maps every consolidation to retained coverage in the
+[per-method ledger](docs/plans/test-quality-audit.md). The cleanup suite has 524 passing invocations;
+its scoped mutation comparisons and remaining limits are recorded separately from the historical
+default-scope score above.
+
+The historical spec 13.10 documentation audit covered 824 explicit methods and constructors in its
+production and PR #44 test scope. That census predates the test-quality changes; it is not a current
+whole-suite documentation count. Javadoc enables all doclint groups and treats warnings as errors.
 CodeRabbit’s 80% docstring threshold is a minimum; every new function requires meaningful
 documentation. PR #45’s remote CodeRabbit review was skipped due to its file limit, so no remote
 coverage percentage was produced. The local audit, Javadoc checks, and two local reviews passed.
@@ -367,6 +374,7 @@ Seven example program definitions are included in `examples/programs/` and `src/
 
 ### Migration
 
+The built-in corpus also includes the declarative `lost-update-3t` resource, bringing it to eight programs.
 The built-in `BugCorpus` programs now load from JSON resources. Load-and-compare tests verify that JSON-loaded programs produce identical results to the original Java implementations.
 
 ### Program formats

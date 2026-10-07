@@ -1,3 +1,4 @@
+/** Built-in invariant factory behavior at live, terminal, and critical-section boundaries. */
 package dev.samhb.interleave.format.registry;
 
 import dev.samhb.interleave.core.*;
@@ -27,103 +28,62 @@ class InvariantRegistryTest {
     void createInvariant_unknownType_throws() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "unknown_invariant");
-        
+
         RegistryException ex = assertThrows(RegistryException.class,
             () -> registry.create(json));
         assertTrue(ex.getMessage().contains("Unknown invariant type"));
     }
 
-    @Test
-    void createMutualExclusionPeterson_valid() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
-        json.addProperty("type", "mutual_exclusion_peterson");
-        json.addProperty("thread0_cs_pc", 3);
-        json.addProperty("thread1_cs_pc", 2);
-        
-        Invariant invariant = registry.create(json);
-        assertNotNull(invariant);
-    }
 
     @Test
     void createMutualExclusionPeterson_missingParams_throws() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "mutual_exclusion_peterson");
         // missing thread0_cs_pc
-        
+
         RegistryException ex = assertThrows(RegistryException.class,
             () -> registry.create(json));
         assertTrue(ex.getMessage().contains("thread0_cs_pc"));
     }
 
+    /** False flags remain safe even with both counters in the critical-section zone. */
     @Test
     void mutualExclusionPeterson_holds_whenFlagsFalse() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
+        var json = new com.google.gson.JsonObject();
         json.addProperty("type", "mutual_exclusion_peterson");
         json.addProperty("thread0_cs_pc", 3);
         json.addProperty("thread1_cs_pc", 2);
-        
         Invariant invariant = registry.create(json);
-        
-        PetersonState state = PetersonState.of(false, false, 0);
-        // Create minimal program with 2 threads for Configuration
-        Program program = new Program(state, List.of(
-            new ModelThread(0, List.of()),
-            new ModelThread(1, List.of())
-        ));
-        Configuration config = Configuration.initial(state, List.of(
-            new ModelThread(0, List.of()),
-            new ModelThread(1, List.of())
-        ));
-        
-        assertTrue(invariant.holds(state, config));
+        Configuration config = Configuration.forTest(PetersonState.of(false, false, 0),
+            List.of(3, 2), List.of(4, 3), List.of(0, 1));
+        assertTrue(invariant.holds(config.state(), config));
     }
 
+    /** Each false flag independently prevents a violation inside both critical-section zones. */
     @Test
     void mutualExclusionPeterson_holds_whenOneFlagFalse() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
+        var json = new com.google.gson.JsonObject();
         json.addProperty("type", "mutual_exclusion_peterson");
         json.addProperty("thread0_cs_pc", 3);
         json.addProperty("thread1_cs_pc", 2);
-        
         Invariant invariant = registry.create(json);
-        
-        // Thread 0 flag true, thread 1 flag false
-        PetersonState state = new PetersonState(new boolean[]{true, false}, 0, -1);
-        Configuration config = Configuration.initial(state, List.of(
-            new ModelThread(0, List.of()),
-            new ModelThread(1, List.of())
-        ));
-        // Set PCs to simulate both in CS zone
-        // Note: Configuration doesn't allow direct PC manipulation, so we test with actual PC values
-        // The invariant checks PCs directly, so we need a proper config
-        // For this test, we verify the invariant logic by checking the state directly
-        
-        // We can't easily set arbitrary PCs in Configuration, so we test the invariant logic directly
-        // by checking the state conditions
-        assertTrue(invariant.holds(state, Configuration.initial(state, List.of(
-            new ModelThread(0, List.of()),
-            new ModelThread(1, List.of())
-        ))));
+        for (PetersonState state : List.of(PetersonState.of(true, false, 0), PetersonState.of(false, true, 0))) {
+            Configuration config = Configuration.forTest(state, List.of(3, 2), List.of(4, 3), List.of(0, 1));
+            assertTrue(invariant.holds(state, config));
+        }
     }
 
+    /** The exact threshold for both counters must expose simultaneous entry. */
     @Test
     void mutualExclusionPeterson_violation_whenBothFlagsTrueAndBothInCS() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
+        var json = new com.google.gson.JsonObject();
         json.addProperty("type", "mutual_exclusion_peterson");
         json.addProperty("thread0_cs_pc", 3);
         json.addProperty("thread1_cs_pc", 2);
-        
         Invariant invariant = registry.create(json);
-        
-        // Both flags true, both threads in CS zone
-        // We can't easily set arbitrary PCs in Configuration, so we test the invariant logic directly
-        // by creating a Configuration with appropriate PCs
-        
-        // For this test, we verify the invariant logic by checking that when both flags are true
-        // and both PCs are in CS zone, the invariant returns false
-        // Since we can't easily set arbitrary PCs, we'll skip this detailed test
-        // and rely on the integration tests that run through the full explorer
-        assertTrue(true); // Placeholder - actual behavior tested in integration tests
+        Configuration config = Configuration.forTest(PetersonState.of(true, true, 0),
+            List.of(3, 2), List.of(4, 3), List.of(0, 1));
+        assertFalse(invariant.holds(config.state(), config));
     }
 
     @Test
@@ -132,88 +92,77 @@ class InvariantRegistryTest {
         json.addProperty("type", "mutual_exclusion_peterson");
         json.addProperty("thread0_cs_pc", 3);
         json.addProperty("thread1_cs_pc", 2);
-        
+
         Invariant invariant = registry.create(json);
-        assertNotNull(invariant);
+        for (List<Integer> pcs : List.of(List.of(2, 2), List.of(3, 1))) {
+            Configuration config = Configuration.forTest(PetersonState.of(true, true, 0),
+                pcs, List.of(5, 4), List.of(0, 1));
+            assertTrue(invariant.holds(config.state(), config));
+        }
+        Configuration after = Configuration.forTest(PetersonState.of(true, true, 0),
+            List.of(4, 3), List.of(5, 4), List.of(0, 1));
+        assertFalse(invariant.holds(after.state(), after), "the CS zone includes counters past its boundary");
     }
 
-    @Test
-    void createCounterEquals_valid() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
-        json.addProperty("type", "counter_equals");
-        json.addProperty("expected", 2);
-        
-        Invariant invariant = registry.create(json);
-        assertNotNull(invariant);
-    }
 
     @Test
     void counterEquals_holds_whenNotTerminated() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "counter_equals");
         json.addProperty("expected", 2);
-        
+
         Invariant invariant = registry.create(json);
-        
+
         CounterState state = CounterState.of(5);
         // Create a configuration with non-terminated threads
         Configuration config = Configuration.initial(state, List.of(
             new ModelThread(0, List.of(new WriteCounterStep(0))),
             new ModelThread(1, List.of(new WriteCounterStep(1)))
         ));
-        
+
         assertTrue(invariant.holds(state, config));
     }
 
+    /** Compares the actual counter against the configured expectation after both threads terminate. */
     @Test
     void counterEquals_holds_whenTerminatedAndCounterMatches() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
+        var json = new com.google.gson.JsonObject();
         json.addProperty("type", "counter_equals");
         json.addProperty("expected", 2);
-        
         Invariant invariant = registry.create(json);
-        
         CounterState state = CounterState.of(2);
-        // Create a configuration where both threads are terminated
-        // We can't easily create terminated config, so we test the logic directly
-        assertTrue(true); // Placeholder - actual behavior tested in integration tests
+        Configuration config = Configuration.forTest(state, List.of(1, 1), List.of(1, 1), List.of());
+        assertTrue(config.allTerminated(), "fixture must reach the terminal-only comparison");
+        assertTrue(invariant.holds(state, config));
     }
 
+    /** Compares the actual counter against the configured expectation after both threads terminate. */
     @Test
     void counterEquals_violation_whenTerminatedAndCounterMismatch() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
+        var json = new com.google.gson.JsonObject();
         json.addProperty("type", "counter_equals");
         json.addProperty("expected", 2);
-        
         Invariant invariant = registry.create(json);
-        
-        CounterState state = CounterState.of(1); // Lost update: counter = 1
-        // Placeholder - actual behavior tested in integration tests
-        assertTrue(true); // Placeholder
+        CounterState state = CounterState.of(1);
+        Configuration config = Configuration.forTest(state, List.of(1, 1), List.of(1, 1), List.of());
+        assertTrue(config.allTerminated(), "fixture must reach the terminal-only comparison");
+        assertFalse(invariant.holds(state, config));
     }
 
-    @Test
-    void createDclUninitializedObserved_valid() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
-        json.addProperty("type", "dcl_uninitialized_observed");
-        
-        Invariant invariant = registry.create(json);
-        assertNotNull(invariant);
-    }
 
     @Test
     void dclUninitializedObserved_holds_whenNotInitializedAndObservedNull() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "dcl_uninitialized_observed");
-        
+
         Invariant invariant = registry.create(json);
-        
+
         DclState state = DclState.of(false); // initialized=false, instance=null, observedInstance=null
         Configuration config = Configuration.initial(state, List.of(
             new ModelThread(0, List.of()),
             new ModelThread(1, List.of())
         ));
-        
+
         assertTrue(invariant.holds(state, config));
     }
 
@@ -221,19 +170,19 @@ class InvariantRegistryTest {
     void dclUninitializedObserved_holds_whenInitialized() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "dcl_uninitialized_observed");
-        
+
         Invariant invariant = registry.create(json);
-        
+
         // Create a DclState with initialized=true
         DclState state = new DclState(true);
         state.setInstance(new Object());
         state.setObservedInstance(new Object());
-        
+
         Configuration config = Configuration.initial(state, List.of(
             new ModelThread(0, List.of()),
             new ModelThread(1, List.of())
         ));
-        
+
         assertTrue(invariant.holds(state, config));
     }
 
@@ -241,33 +190,23 @@ class InvariantRegistryTest {
     void dclUninitializedObserved_violation_whenObservedNonNullAndNotInitialized() {
         com.google.gson.JsonObject json = new com.google.gson.JsonObject();
         json.addProperty("type", "dcl_uninitialized_observed");
-        
+
         Invariant invariant = registry.create(json);
-        
+
         // Create a DclState with initialized=false but observedInstance != null
         DclState state = new DclState(false);
         state.setInitialized(false);
         state.setInstance(null);
         state.setObservedInstance(new Object()); // T1 observed instance before initialization
-        
+
         Configuration config = Configuration.initial(state, List.of(
             new ModelThread(0, List.of()),
             new ModelThread(1, List.of())
         ));
-        
+
         assertFalse(invariant.holds(state, config));
     }
 
-    @Test
-    void createTornRead_valid() {
-        com.google.gson.JsonObject json = new com.google.gson.JsonObject();
-        json.addProperty("type", "torn_read");
-        json.addProperty("high_value", 2);
-        json.addProperty("low_value", 2);
-        
-        Invariant invariant = registry.create(json);
-        assertNotNull(invariant);
-    }
 
     @Test
     void tornRead_holds_whenNoObservation() {
@@ -275,15 +214,15 @@ class InvariantRegistryTest {
         json.addProperty("type", "torn_read");
         json.addProperty("high_value", 2);
         json.addProperty("low_value", 2);
-        
+
         Invariant invariant = registry.create(json);
-        
+
         PairState state = PairState.of(0, 0); // No observation yet
         Configuration config = Configuration.initial(state, List.of(
             new ModelThread(0, List.of()),
             new ModelThread(1, List.of())
         ));
-        
+
         assertTrue(invariant.holds(state, config));
     }
 
@@ -293,18 +232,18 @@ class InvariantRegistryTest {
         json.addProperty("type", "torn_read");
         json.addProperty("high_value", 2);
         json.addProperty("low_value", 2);
-        
+
         Invariant invariant = registry.create(json);
-        
+
         // Use recordObservation to set observed values
         PairState state = new PairState(2, 2);
         state.recordObservation(2, 2);
-        
+
         Configuration config = Configuration.initial(state, List.of(
             new ModelThread(0, List.of()),
             new ModelThread(1, List.of())
         ));
-        
+
         assertTrue(invariant.holds(state, config));
     }
 
@@ -314,18 +253,18 @@ class InvariantRegistryTest {
         json.addProperty("type", "torn_read");
         json.addProperty("high_value", 2);
         json.addProperty("low_value", 2);
-        
+
         Invariant invariant = registry.create(json);
-        
+
         // Torn read: observed high=2 (matches), observed low=0 (doesn't match)
         PairState state = new PairState(2, 2);
         state.recordObservation(2, 0); // Torn!
-        
+
         Configuration config = Configuration.initial(state, List.of(
             new ModelThread(0, List.of()),
             new ModelThread(1, List.of())
         ));
-        
+
         assertFalse(invariant.holds(state, config));
     }
 
