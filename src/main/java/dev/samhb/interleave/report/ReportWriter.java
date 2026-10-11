@@ -1,6 +1,8 @@
 /** Generates Markdown and JSON reports from benchmark results. */
 package dev.samhb.interleave.report;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import dev.samhb.interleave.bugs.BugCorpus;
 import dev.samhb.interleave.core.StepOutcome;
 import dev.samhb.interleave.search.Trace;
@@ -10,6 +12,8 @@ import java.util.*;
  * Generates Markdown and JSON reports from benchmark results.
  */
 public final class ReportWriter {
+    /** JSON serializer with standard string escaping and HTML escaping disabled. */
+    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     /** Results. */
     private final List<BenchmarkResult> results;
 
@@ -73,7 +77,7 @@ public final class ReportWriter {
         for (int i = 0; i < results.size(); i++) {
             BenchmarkResult result = results.get(i);
             sb.append("    {\n");
-            sb.append(String.format("      \"bug\": \"%s\",\n", result.bugName()));
+            sb.append("      \"bug\": ").append(GSON.toJson(result.bugName())).append(",\n");
             sb.append(String.format("      \"strategy\": \"%s\",\n", result.strategy()));
             sb.append(String.format("      \"storeType\": \"%s\",\n", result.storeType()));
             sb.append(String.format("      \"statesExplored\": %d,\n", result.statesExplored()));

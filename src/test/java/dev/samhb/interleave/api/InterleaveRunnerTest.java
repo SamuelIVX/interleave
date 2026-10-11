@@ -176,6 +176,17 @@ class InterleaveRunnerTest {
         assertEquals(new JsonPrimitive("fixture-hash"), json.get("programHash"));
     }
 
+    @Test
+    void traceRecord_toJson_escapesQuotesAndHandlesNullProgramHash() {
+        String specialHash = "hash\"with\\quotes\nand\ttabs";
+        TraceRecord recordWithSpecial = new TraceRecord(List.of(0), List.of(StepOutcome.ADVANCED), TraceOutcome.COMPLETED, specialHash);
+        var jsonWithSpecial = parseObject(recordWithSpecial.toJson());
+        assertEquals(new JsonPrimitive(specialHash), jsonWithSpecial.get("programHash"));
+
+        TraceRecord recordWithNull = new TraceRecord(List.of(0), List.of(StepOutcome.ADVANCED), TraceOutcome.COMPLETED, null);
+        var jsonWithNull = parseObject(recordWithNull.toJson());
+        assertTrue(jsonWithNull.get("programHash").isJsonNull());
+    }
 
     @Test
     void runner_enforcesMaxStates() {
