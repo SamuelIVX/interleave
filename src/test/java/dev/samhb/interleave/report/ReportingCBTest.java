@@ -246,6 +246,17 @@ class ReportingCBTest {
         assertEquals(schemas.get(0), schemas.get(1), "matching DFS rows must have the same nested schema");
     }
 
+    @Test
+    void writeJson_escapesSpecialCharactersInBugName() {
+        String specialName = "test\"bug\\with\nquotes\tand\\slashes";
+        BenchmarkResult row = new BenchmarkResult("DFS", specialName, 1, 1, 0, "PASS");
+        String json = new ReportWriter(List.of(row)).writeJson();
+        var parsed = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(json);
+        var benchmarks = parsed.getAsJsonArray("benchmarks");
+        assertEquals(1, benchmarks.size());
+        assertEquals(specialName, benchmarks.get(0).getAsJsonObject().get("bug").getAsString());
+    }
+
     /** Reads the top-level report schema with a strict JSON parser.
      * @param json serialized report
      * @return top-level member names
