@@ -189,6 +189,34 @@ class InvariantRegistryTest {
         assertFalse(invariant.holds(sThree, cThree));
     }
 
+    /**
+     * Verifies that evaluating mutual_exclusion_peterson throws IllegalArgumentException
+     * when thread counts mismatch between configured thresholds, configuration program counters,
+     * or PetersonState flags.
+     */
+    @Test
+    void mutualExclusionPeterson_threadCountMismatch_throws() {
+        var json = new com.google.gson.JsonObject();
+        json.addProperty("type", "mutual_exclusion_peterson");
+        var arr = new com.google.gson.JsonArray();
+        arr.add(2);
+        arr.add(2);
+        json.add("cs_pcs", arr);
+        Invariant invariant = registry.create(json);
+
+        // Mismatch: invariant has 2 thresholds, but configuration has 3 pcs
+        PetersonState s2 = PetersonState.of(new boolean[]{false, false}, 0);
+        Configuration c3 = Configuration.forTest(s2, List.of(2, 2, 2), List.of(3, 3, 3), List.of(0, 1, 2));
+        IllegalArgumentException ex1 = assertThrows(IllegalArgumentException.class, () -> invariant.holds(s2, c3));
+        assertTrue(ex1.getMessage().contains("Thread count mismatch"));
+
+        // Mismatch: invariant has 2 thresholds, pcs has 2, but state has 3 threads
+        PetersonState s3 = PetersonState.of(new boolean[]{false, false, false}, 0);
+        Configuration c2 = Configuration.forTest(s3, List.of(2, 2), List.of(3, 3), List.of(0, 1));
+        IllegalArgumentException ex2 = assertThrows(IllegalArgumentException.class, () -> invariant.holds(s3, c2));
+        assertTrue(ex2.getMessage().contains("Thread count mismatch"));
+    }
+
 
     @Test
     void counterEquals_holds_whenNotTerminated() {

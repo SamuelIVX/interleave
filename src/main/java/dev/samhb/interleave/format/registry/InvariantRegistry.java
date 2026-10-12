@@ -64,9 +64,13 @@ public final class InvariantRegistry {
             return (state, config) -> {
                 PetersonState ps = (PetersonState) state;
                 List<Integer> pcs = config.programCounters();
-                int limit = Math.min(csPcs.length, Math.min(pcs.size(), ps.threadCount()));
+                if (csPcs.length != pcs.size() || csPcs.length != ps.threadCount()) {
+                    throw new IllegalArgumentException("Thread count mismatch: invariant configured for "
+                        + csPcs.length + " thresholds, but configuration has " + pcs.size()
+                        + " program counters and state has " + ps.threadCount() + " threads");
+                }
                 int inCs = 0;
-                for (int i = 0; i < limit; i++) {
+                for (int i = 0; i < csPcs.length; i++) {
                     if (ps.flag(i) && pcs.get(i) >= csPcs[i]) {
                         inCs++;
                         if (inCs > 1) {
