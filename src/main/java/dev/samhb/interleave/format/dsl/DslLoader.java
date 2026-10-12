@@ -134,6 +134,7 @@ public final class DslLoader {
                     } else if (lhs instanceof Lhs.LocalLhs ll) {
                         LocalDecl ld = decl.findLocal(ll.name());
                         if (ld == null) throw new RegistryException("Unknown local '" + ll.name() + "' at " + path + ".effects[" + eIdx + "]");
+                        if (ld.type() == FieldType.INT_ARRAY) throw new RegistryException("Local array '" + ll.name() + "' requires index: use local." + ll.name() + "[expr] at " + path + ".effects[" + eIdx + "]");
                         if (ld.type() != rhsType) throw new RegistryException("Type mismatch at " + path + ".effects[" + eIdx + "]: local '" + ll.name() + "' is " + ld.type() + ", rhs is " + rhsType);
                     } else if (lhs instanceof Lhs.ArrayLhs al) {
                         FieldDecl fd = decl.findField(al.arrayName());
@@ -152,6 +153,21 @@ public final class DslLoader {
                         totalNodes += n;
                         if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000");
                         // also check depth for index
+                    } else if (lhs instanceof Lhs.LocalArrayLhs lal) {
+                        LocalDecl ld = decl.findLocal(lal.localName());
+                        if (ld == null || ld.type() != FieldType.INT_ARRAY) throw new RegistryException("Unknown local array '" + lal.localName() + "' at " + path + ".effects[" + eIdx + "]");
+                        if (rhsType != FieldType.INT) throw new RegistryException("Array element assignment requires int at " + path + ".effects[" + eIdx + "]");
+                        try {
+                            TypeChecker.requireInt(lal.index(), decl);
+                        } catch (RegistryException ex) {
+                            throw new RegistryException("Array index must be int at " + path + ".effects[" + eIdx + "]: " + ex.getMessage(), ex);
+                        }
+                        int d = Expr.depth(lal.index());
+                        int n = Expr.nodeCount(lal.index());
+                        if (d > 16) throw new RegistryException("Expression depth exceeds 16 at " + path + ".effects[" + eIdx + "] lhs index");
+                        if (n > 5000) throw new RegistryException("Expression nodes exceed bound at " + path + ".effects[" + eIdx + "]");
+                        totalNodes += n;
+                        if (totalNodes > 5000) throw new RegistryException("Total AST node count exceeds 5000");
                     }
                     int d = Expr.depth(rhs);
                     int n = Expr.nodeCount(rhs);
@@ -434,8 +450,18 @@ public final class DslLoader {
                         if (!initEl.isJsonPrimitive() || !initEl.getAsJsonPrimitive().isBoolean()) throw new RegistryException("'init' must be bool at " + path);
                         ld = LocalDecl.ofBool(name, initEl.getAsBoolean());
                     }
-                    case "int[]" -> throw new RegistryException("Local type 'int[]' not allowed at " + path + ".type");
-                    default -> throw new RegistryException("Unknown local type '" + typeStr + "' at " + path + ".type (valid: int, bool)");
+                    case "int[]" -> {
+                        if (!initEl.isJsonArray()) throw new RegistryException("'init' must be array at " + path);
+                        JsonArray arr = initEl.getAsJsonArray();
+                        if (arr.size() > 64) throw new RegistryException("Array length must be <=64 at " + path);
+                        int[] vals = new int[arr.size()];
+                        for (int k = 0; k < arr.size(); k++) {
+                            if (!arr.get(k).isJsonPrimitive() || !arr.get(k).getAsJsonPrimitive().isNumber()) throw new RegistryException("Array element must be int at " + path + ".init[" + k + "]");
+                            vals[k] = parseStrictInt(arr.get(k), path + ".init[" + k + "]");
+                        }
+                        ld = LocalDecl.ofArray(name, vals);
+                    }
+                    default -> throw new RegistryException("Unknown local type '" + typeStr + "' at " + path + ".type (valid: int, bool, int[])");
                 }
                 for (String k : o.keySet()) if (!k.equals("name") && !k.equals("type") && !k.equals("init")) throw new RegistryException("Unknown field '" + k + "' at " + path);
                 locals.add(ld);

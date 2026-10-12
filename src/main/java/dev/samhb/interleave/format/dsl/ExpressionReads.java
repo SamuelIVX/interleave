@@ -20,7 +20,13 @@ final class ExpressionReads {
         else if (expr instanceof Expr.LocalRef l) out.add(MemoryLocation.of("t" + owner + "." + l.name()));
         else if (expr instanceof Expr.ArrayAccess a) {
             if (a.arrayName().startsWith("local.")) {
-                out.add(MemoryLocation.of("t" + owner + "." + a.arrayName().substring(6)));
+                String localName = a.arrayName().substring("local.".length());
+                if (a.index() instanceof Expr.IntLit literal) {
+                    out.add(MemoryLocation.of("t" + owner + "." + localName + "[" + literal.value() + "]"));
+                } else {
+                    out.add(MemoryLocation.of("t" + owner + "." + localName));
+                    collect(a.index(), owner, out);
+                }
             } else if (a.index() instanceof Expr.IntLit literal) {
                 out.add(MemoryLocation.of(a.arrayName() + "[" + literal.value() + "]"));
             } else {

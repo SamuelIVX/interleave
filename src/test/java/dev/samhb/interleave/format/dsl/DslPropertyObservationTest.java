@@ -76,12 +76,12 @@ class DslPropertyObservationTest {
         assertEquals(TraceOutcome.VIOLATION, result.traces().getFirst().outcome());
     }
 
-    /** Verifies that local arrays are rejected before observation analysis. */
+    /** Verifies that local arrays in invariants are rejected before observation analysis. */
     @Test
-    void localArraysAreRejectedBeforeObservationAnalysis() {
+    void localArraysInInvariantsAreRejectedBeforeObservationAnalysis() {
         RegistryException error = assertThrows(RegistryException.class, () -> new ProgramLoader().load(
-            arrays("{\"when\":\"always\",\"expr\":\"x >= 0\"}", "x = local.r[idx]", "y = 1")));
-        assertTrue(error.getMessage().contains("Local array access not supported"));
+            arrays("{\"when\":\"always\",\"expr\":\"local.arr[0] >= 0\"}", "x = 1", "y = 1")));
+        assertTrue(error.getMessage().contains("Invariant must not reference local.*"));
     }
 
     /** Verifies that independent work reduces an eight thread grid to one schedule. */

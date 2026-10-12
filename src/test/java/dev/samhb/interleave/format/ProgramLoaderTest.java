@@ -343,6 +343,62 @@ class ProgramLoaderTest {
         assertEquals("test", program.name());
     }
 
+    /**
+     * Verifies that a three-thread Peterson program configured with {@code cs_pcs} loads successfully
+     * with its invariant present, and that the loaded invariant evaluates mutual exclusion across all three threads.
+     */
+    @Test
+    void loadMutualExclusionPeterson_threeThreads_withCsPcs_succeeds() {
+        String json = """
+            {
+              "format": "typed",
+              "name": "test-3t",
+              "state": {"type": "peterson", "flags": [false, false, false], "turn": 0},
+              "threads": [
+                {"id": 0, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 1, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 2, "steps": [{"type": "write_flag", "value": true}]}
+              ],
+              "invariant": {"type": "mutual_exclusion_peterson", "cs_pcs": [1, 1, 1]}
+            }
+            """;
+        BenchmarkProgram program = loader.load(json);
+        assertNotNull(program);
+        assertEquals("test-3t", program.name());
+        assertTrue(program.invariant().isPresent());
+
+        // Check invariant behavior on loaded program: violation when threads 1 and 2 are in CS
+        dev.samhb.interleave.search.Invariant inv = program.invariant().get();
+        dev.samhb.interleave.core.PetersonState s = dev.samhb.interleave.core.PetersonState.of(new boolean[]{false, true, true}, 0);
+        dev.samhb.interleave.core.Configuration c = dev.samhb.interleave.core.Configuration.forTest(
+            s, List.of(0, 1, 1), List.of(1, 1, 1), List.of(0, 1, 2));
+        assertFalse(inv.holds(s, c));
+    }
+
+    /**
+     * Verifies that specifying a {@code cs_pcs} array whose length differs from the thread count
+     * is rejected during loading with an explanatory error message.
+     */
+    @Test
+    void loadMutualExclusionPeterson_csPcsLengthMismatch_throwsRegistryException() {
+        String json = """
+            {
+              "format": "typed",
+              "name": "test-mismatch",
+              "state": {"type": "peterson", "flags": [false, false, false], "turn": 0},
+              "threads": [
+                {"id": 0, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 1, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 2, "steps": [{"type": "write_flag", "value": true}]}
+              ],
+              "invariant": {"type": "mutual_exclusion_peterson", "cs_pcs": [1, 1]}
+            }
+            """;
+        RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
+            () -> loader.load(json));
+        assertTrue(ex.getMessage().contains("must match thread count"), ex.getMessage());
+    }
+
     @Test
     /** Tests loadMissingState_throwsRegistryException. */
     void loadMissingState_throwsRegistryException() {

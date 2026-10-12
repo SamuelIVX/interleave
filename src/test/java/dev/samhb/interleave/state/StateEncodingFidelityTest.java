@@ -515,6 +515,24 @@ class StateEncodingFidelityTest {
         assertAllEncodingsDistinct("DynamicState mixed int and boolean locals",
                 List.of(mixedBase, mixedIntSet, mixedBoolSet));
 
+        // Local array branch: local INT_ARRAY values and mutations
+        StateDecl withArrayLocal = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT)),
+                List.of(LocalDecl.ofArray("arr", new int[]{1, 2, 3})));
+        DynamicState arrayLocalBase = new DynamicState(withArrayLocal, 1);
+        DynamicState arrayLocalElemChanged = new DynamicState(withArrayLocal, 1);
+        arrayLocalElemChanged.setLocalArrayElement(0, "arr", 1, 99);
+        assertEncodingDiffers("localValues[arr] element changed", arrayLocalBase, arrayLocalElemChanged);
+
+        StateDecl withShorterArrayLocal = new StateDecl(
+                List.of(FieldDecl.ofInt("count", BASE_INT)),
+                List.of(LocalDecl.ofArray("arr", new int[]{1, 2})));
+        DynamicState shorterArrayLocal = new DynamicState(withShorterArrayLocal, 1);
+        assertEncodingDiffers("localValues[arr] length", arrayLocalBase, shorterArrayLocal);
+
+        assertAllEncodingsDistinct("DynamicState local array variations",
+                List.of(arrayLocalBase, arrayLocalElemChanged, shorterArrayLocal));
+
         // Full integer spread on the local, not just the single 7 above.
         List<SharedState> locals = new ArrayList<>();
         for (int value : INT_SPREAD) {

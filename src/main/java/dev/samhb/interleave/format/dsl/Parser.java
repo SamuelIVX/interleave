@@ -135,10 +135,20 @@ public final class Parser {
     private Lhs parseLhs(String s) {
         s = s.trim();
         if (s.startsWith("local.")) {
-            String name = s.substring(6).trim();
-            if (name.contains("[") || name.contains("]")) throw new RegistryException("Local lhs must not have array index: '" + s + "'");
-            validateIdent(name);
-            return new Lhs.LocalLhs(name);
+            String rest = s.substring(6).trim();
+            int lb = rest.indexOf('[');
+            if (lb >= 0) {
+                int rb = rest.lastIndexOf(']');
+                if (rb < 0 || rb != rest.length() - 1) throw new RegistryException("Invalid local array lhs: '" + s + "'");
+                String name = rest.substring(0, lb).trim();
+                String idxStr = rest.substring(lb + 1, rb).trim();
+                validateIdent(name);
+                if (idxStr.isEmpty()) throw new RegistryException("Array index empty: '" + s + "'");
+                Expr idx = new Parser(idxStr).parseExpr();
+                return new Lhs.LocalArrayLhs(name, idx);
+            }
+            validateIdent(rest);
+            return new Lhs.LocalLhs(rest);
         }
         // check array lhs
         int lb = s.indexOf('[');

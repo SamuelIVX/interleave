@@ -31,10 +31,19 @@ public final class TypeChecker {
         if (expr instanceof Expr.LocalRef l) {
             LocalDecl ld = decl.findLocal(l.name());
             if (ld == null) throw new RegistryException("Unknown local '" + l.name() + "'");
+            if (ld.type() == FieldType.INT_ARRAY) throw new RegistryException("Local array '" + l.name() + "' cannot be used as scalar: use local." + l.name() + "[index]");
             return ld.type();
         }
         if (expr instanceof Expr.ArrayAccess a) {
-            if (a.arrayName().startsWith("local.")) throw new RegistryException("Local array access not supported: " + a.arrayName());
+            if (a.arrayName().startsWith("local.")) {
+                String locName = a.arrayName().substring(6);
+                LocalDecl ld = decl.findLocal(locName);
+                if (ld == null) throw new RegistryException("Unknown local array '" + locName + "'");
+                if (ld.type() != FieldType.INT_ARRAY) throw new RegistryException("Local '" + locName + "' is not an array");
+                FieldType idxT = check(a.index(), decl);
+                if (idxT != FieldType.INT) throw new RegistryException("Array index must be int");
+                return FieldType.INT;
+            }
             FieldDecl f = decl.findField(a.arrayName());
             if (f == null) throw new RegistryException("Unknown array field '" + a.arrayName() + "'");
             if (f.type() != FieldType.INT_ARRAY) throw new RegistryException("Field '" + a.arrayName() + "' is not an array");
