@@ -92,4 +92,58 @@ class DeltaDebuggerTest {
         assertTrue(minimizedIndex == minimizedThreadIds.size(),
             "Minimized trace should be a subsequence of original");
     }
+
+    @Test
+    void minimize_invariantViolationInDeadlockedConfiguration_succeeds() {
+        // T0 writes counter=1 then blocks on a condition that never becomes true.
+        // T1 performs an irrelevant read then terminates.
+        // Invariant asserts counter != 1.
+        // The terminal configuration is deadlocked (T0 live and blocked; T1 terminated),
+        // yet violates the invariant. DeltaDebugger should accept and minimize this trace.
+        Program program = new Program(CounterState.of(0), List.of(
+            new ModelThread(0, List.of(
+                new WriteCounterStep(0),
+                new Step() {
+                    @Override
+                    public boolean enabled(SharedState state) {
+                        return false; // permanently blocked -> deadlock candidate
+                    }
+
+                    @Override
+                    public StepOutcome execute(SharedState state) {
+                        return StepOutcome.BLOCKED;
+                    }
+
+                    @Override
+                    public Set<MemoryLocation> reads() {
+                        return Set.of();
+                    }
+
+                    @Override
+                    public Set<MemoryLocation> writes() {
+                        return Set.of();
+                    }
+                }
+            )),
+            new ModelThread(1, List.of(new ReadCounterStep(1)))
+        ));
+
+        Invariant invariant = (state, config) -> ((CounterState) state).counter() != 1;
+        Trace failing = Trace.of(
+            List.of(1, 0),
+            List.of(StepOutcome.ADVANCED, StepOutcome.ADVANCED),
+            TraceOutcome.VIOLATION
+        );
+
+        Configuration end = new TraceReplayer().replay(program, failing);
+        assertTrue(end.isDeadlockCandidate(), "Replayed configuration must be a deadlock candidate");
+        assertFalse(invariant.holds(end.state(), end), "Invariant must fail");
+
+        DeltaDebugger debugger = new DeltaDebugger();
+        Trace minimized = debugger.minimize(program, failing, TraceOutcome.VIOLATION, invariant);
+
+        assertEquals(List.of(0), minimized.threadIds(), "Should shrink away T1's irrelevant read");
+        assertEquals(List.of(StepOutcome.ADVANCED), minimized.outcomes());
+    }
 }
+

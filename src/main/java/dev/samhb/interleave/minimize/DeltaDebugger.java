@@ -81,16 +81,10 @@ public final class DeltaDebugger {
      * outcomes, the invariant is re-checked to ensure the trace genuinely reproduces
      * the bug.
      *
-     * <p><b>The VIOLATION guard is not {@code isDeadlockCandidate()}, and must not be "simplified" into
-     * it.</b> The guard below expands to {@code !allTerminated() && !enabled.isEmpty()} — live threads
-     * <em>and</em> something still enabled — which is a different predicate from "not a deadlock". Using
-     * the canonical predicate here would accept deadlocked configurations that violate the invariant,
-     * and would let the minimiser shrink a trace into one that ends in a state the search would have
-     * classified differently. The cost of the current form is that a violation occurring in a deadlocked
-     * state is not recognised as still failing, so such a trace cannot be minimised. That is a real
-     * limitation, but fixing it changes which traces the minimiser accepts and needs its own
-     * specification and tests rather than a quiet edit here. Recorded in
-     * {@code docs/specs/active/13-deferred-debt/03-canonical-configuration-key.md}.
+     * <p>For {@code VIOLATION} outcomes with an invariant, the invariant predicate is evaluated
+     * directly regardless of thread termination or deadlock status, ensuring invariant violations
+     * occurring in deadlocked terminal configurations are recognized and minimizable. When no invariant
+     * is supplied, fallback checks require live threads and non-deadlocked configurations.
      *
      * @param program the program to replay
      * @param trace the trace to replay
@@ -108,7 +102,7 @@ public final class DeltaDebugger {
                 case COMPLETED -> config.allTerminated();
                 case DEADLOCK -> config.isDeadlockCandidate();
                 case VIOLATION -> invariant != null
-                    ? !config.allTerminated() && !config.isDeadlockCandidate() && !invariant.holds(config.state(), config)
+                    ? !invariant.holds(config.state(), config)
                     : !config.allTerminated() && !config.isDeadlockCandidate();
                 // INCOMPLETE describes the search, not a schedule: it means the preemption bound
                 // was reached. No replay of a prefix can reproduce that, so reporting true here

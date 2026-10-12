@@ -9,12 +9,10 @@ public final class TraceReplayer {
     public TraceReplayer() {}
 
     /**
-     * Replays thread choices while trusting the step outcomes recorded in the trace.
+     * Replays thread choices while validating each step outcome against the trace.
      *
      * <p>The program supplies a fresh initial configuration. Each chosen step mutates that
-     * configuration’s state; the recorded outcome, rather than the returned execution outcome,
-     * controls counter advancement. This method does not validate trace consistency or verdicts.
-     * Callers must supply aligned thread/outcome lists and valid thread IDs and counters.
+     * configuration’s state and must produce the outcome recorded in the trace.
      *
      * <pre>{@code
      * Configuration end = new TraceReplayer().replay(program, trace);
@@ -22,6 +20,7 @@ public final class TraceReplayer {
      * @param program program whose initial state and steps are replayed
      * @param trace recorded thread choices and outcomes
      * @return configuration after the recorded prefix has been executed
+     * @throws CorruptedTraceException if an executed step outcome differs from the trace outcome
      * @throws IndexOutOfBoundsException if a recorded thread, counter, or outcome index is invalid
      */
     public Configuration replay(Program program, Trace trace) {
@@ -35,10 +34,17 @@ public final class TraceReplayer {
             int pc = config.programCounters().get(threadId);
             Step step = thread.steps().get(pc);
 
-            step.execute(config.state());
+            StepOutcome actualOutcome = step.execute(config.state());
+            if (actualOutcome != outcome) {
+                throw new CorruptedTraceException(
+                    "Trace outcome mismatch at step " + i + " (thread " + threadId + "): "
+                    + "recorded " + outcome + " but execution produced " + actualOutcome
+                );
+            }
             config = config.successor(threadId, outcome, program.threads(), config.state());
         }
 
         return config;
     }
 }
+
