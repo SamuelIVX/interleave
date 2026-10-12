@@ -35,17 +35,40 @@ public final class InvariantRegistry {
 
     /** Registers the supported built-in factories by their declarative names. */
     private void registerBuiltins() {
-        // mutual_exclusion_peterson: thread0_cs_pc, thread1_cs_pc
+        // mutual_exclusion_peterson: cs_pcs (array of int) or thread0_cs_pc, thread1_cs_pc
         register("mutual_exclusion_peterson", Set.of("peterson"), json -> {
-            int t0Pc = JsonHelper.getInt(json, "thread0_cs_pc", "mutual_exclusion_peterson");
-            int t1Pc = JsonHelper.getInt(json, "thread1_cs_pc", "mutual_exclusion_peterson");
+            int[] csPcs;
+            if (json.has("cs_pcs")) {
+                com.google.gson.JsonArray arr = JsonHelper.getArray(json, "cs_pcs", "mutual_exclusion_peterson");
+                if (arr.size() < 2) {
+                    throw new RegistryException("Parameter 'cs_pcs' for mutual_exclusion_peterson must have at least 2 entries");
+                }
+                csPcs = new int[arr.size()];
+                for (int i = 0; i < arr.size(); i++) {
+                    com.google.gson.JsonElement el = arr.get(i);
+                    if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) {
+                        throw new RegistryException("Entry in 'cs_pcs' must be an integer at index " + i);
+                    }
+                    csPcs[i] = el.getAsInt();
+                }
+            } else {
+                int t0Pc = JsonHelper.getInt(json, "thread0_cs_pc", "mutual_exclusion_peterson");
+                int t1Pc = JsonHelper.getInt(json, "thread1_cs_pc", "mutual_exclusion_peterson");
+                csPcs = new int[]{t0Pc, t1Pc};
+            }
             return (state, config) -> {
                 PetersonState ps = (PetersonState) state;
                 List<Integer> pcs = config.programCounters();
-                boolean bothFlagsTrue = ps.flag(0) && ps.flag(1);
-                boolean t0InCsZone = pcs.get(0) >= t0Pc;
-                boolean t1InCsZone = pcs.get(1) >= t1Pc;
-                return !(bothFlagsTrue && t0InCsZone && t1InCsZone);
+                int inCs = 0;
+                for (int i = 0; i < csPcs.length; i++) {
+                    if (i < pcs.size() && ps.flag(i) && pcs.get(i) >= csPcs[i]) {
+                        inCs++;
+                        if (inCs > 1) {
+                            return false;
+                        }
+                    }
+                }
+                return true;
             };
         }, "peterson");
 

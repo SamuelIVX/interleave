@@ -344,6 +344,48 @@ class ProgramLoaderTest {
     }
 
     @Test
+    /** Tests loadMutualExclusionPeterson_threeThreads_withCsPcs_succeeds. */
+    void loadMutualExclusionPeterson_threeThreads_withCsPcs_succeeds() {
+        String json = """
+            {
+              "format": "typed",
+              "name": "test-3t",
+              "state": {"type": "peterson", "flags": [false, false, false], "turn": 0},
+              "threads": [
+                {"id": 0, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 1, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 2, "steps": [{"type": "write_flag", "value": true}]}
+              ],
+              "invariant": {"type": "mutual_exclusion_peterson", "cs_pcs": [1, 1, 1]}
+            }
+            """;
+        BenchmarkProgram program = loader.load(json);
+        assertNotNull(program);
+        assertEquals("test-3t", program.name());
+    }
+
+    @Test
+    /** Tests loadMutualExclusionPeterson_csPcsLengthMismatch_throwsRegistryException. */
+    void loadMutualExclusionPeterson_csPcsLengthMismatch_throwsRegistryException() {
+        String json = """
+            {
+              "format": "typed",
+              "name": "test-mismatch",
+              "state": {"type": "peterson", "flags": [false, false, false], "turn": 0},
+              "threads": [
+                {"id": 0, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 1, "steps": [{"type": "write_flag", "value": true}]},
+                {"id": 2, "steps": [{"type": "write_flag", "value": true}]}
+              ],
+              "invariant": {"type": "mutual_exclusion_peterson", "cs_pcs": [1, 1]}
+            }
+            """;
+        RegistryException ex = assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
+            () -> loader.load(json));
+        assertTrue(ex.getMessage().contains("must match thread count"), ex.getMessage());
+    }
+
+    @Test
     /** Tests loadMissingState_throwsRegistryException. */
     void loadMissingState_throwsRegistryException() {
         String json = """

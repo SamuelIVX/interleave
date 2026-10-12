@@ -55,6 +55,7 @@ public final class DynamicStep implements Step {
             ExpressionReads.collect(e.rhs(), owner, r);
             // lhs index reads for array
             if (e.lhs() instanceof Lhs.ArrayLhs al) ExpressionReads.collect(al.index(), owner, r);
+            if (e.lhs() instanceof Lhs.LocalArrayLhs lal) ExpressionReads.collect(lal.index(), owner, r);
         }
         // Property observations are separate; step footprints describe execution and enabledness.
         this.reads = Set.copyOf(r);
@@ -76,6 +77,9 @@ public final class DynamicStep implements Step {
         else if (lhs instanceof Lhs.ArrayLhs al) {
             if (al.index() instanceof Expr.IntLit lit) w.add(MemoryLocation.of(al.arrayName() + "[" + lit.value() + "]"));
             else w.add(MemoryLocation.of(al.arrayName()));
+        } else if (lhs instanceof Lhs.LocalArrayLhs lal) {
+            if (lal.index() instanceof Expr.IntLit lit) w.add(MemoryLocation.of("t" + owner + "." + lal.localName() + "[" + lit.value() + "]"));
+            else w.add(MemoryLocation.of("t" + owner + "." + lal.localName()));
         }
     }
 
@@ -172,10 +176,10 @@ public final class DynamicStep implements Step {
                     if (ld.type() == FieldType.INT) {
                         if (rhsVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
                         ds.setLocalInt(owner, ll.name(), rhsVal.asInt());
-                    } else {
+                    } else if (ld.type() == FieldType.BOOL) {
                         if (rhsVal.type() != FieldType.BOOL) return StepOutcome.ASSERTION_FAILED;
                         ds.setLocalBool(owner, ll.name(), rhsVal.asBool());
-                    }
+                    } else return StepOutcome.ASSERTION_FAILED;
                 } else if (lhs instanceof Lhs.ArrayLhs al) {
                     FieldDecl fd = decl.findField(al.arrayName());
                     if (fd == null || fd.type() != FieldType.INT_ARRAY) return StepOutcome.ASSERTION_FAILED;
@@ -184,6 +188,16 @@ public final class DynamicStep implements Step {
                     if (idxVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
                     int idx = idxVal.asInt();
                     int[] arr = ds.getArrayRef(al.arrayName());
+                    if (idx < 0 || idx >= arr.length) return StepOutcome.ASSERTION_FAILED;
+                    arr[idx] = rhsVal.asInt();
+                } else if (lhs instanceof Lhs.LocalArrayLhs lal) {
+                    LocalDecl ld = decl.findLocal(lal.localName());
+                    if (ld == null || ld.type() != FieldType.INT_ARRAY) return StepOutcome.ASSERTION_FAILED;
+                    if (rhsVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
+                    Evaluator.Value idxVal = Evaluator.eval(lal.index(), ds, owner);
+                    if (idxVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
+                    int idx = idxVal.asInt();
+                    int[] arr = ds.getLocalArrayRef(owner, lal.localName());
                     if (idx < 0 || idx >= arr.length) return StepOutcome.ASSERTION_FAILED;
                     arr[idx] = rhsVal.asInt();
                 }

@@ -4,7 +4,7 @@ package dev.samhb.interleave.format.dsl;
 /**
  * Left-hand side of an effect assignment.
  */
-public sealed interface Lhs permits Lhs.FieldLhs, Lhs.LocalLhs, Lhs.ArrayLhs {
+public sealed interface Lhs permits Lhs.FieldLhs, Lhs.LocalLhs, Lhs.ArrayLhs, Lhs.LocalArrayLhs {
     /**
      * Shared field scalar assignment.
      * @param name declared field or local name
@@ -21,4 +21,10 @@ public sealed interface Lhs permits Lhs.FieldLhs, Lhs.LocalLhs, Lhs.ArrayLhs {
      * @param index expression selecting an array element
      */
     record ArrayLhs(String arrayName, Expr index) implements Lhs {}
+    /**
+     * Per-thread local array element assignment.
+     * @param localName declared per-thread local array name
+     * @param index expression selecting an array element
+     */
+    record LocalArrayLhs(String localName, Expr index) implements Lhs {}
 }

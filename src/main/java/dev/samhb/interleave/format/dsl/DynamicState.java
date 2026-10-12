@@ -69,7 +69,13 @@ public final class DynamicState implements SharedState {
         for (int tid = 0; tid < threadCount; tid++) {
             for (int j = 0; j < decl.locals().size(); j++) {
                 LocalDecl l = decl.locals().get(j);
-                localValues[tid][j] = l.type() == FieldType.INT ? l.intInit() : l.boolInit();
+                if (l.type() == FieldType.INT) {
+                    localValues[tid][j] = l.intInit();
+                } else if (l.type() == FieldType.BOOL) {
+                    localValues[tid][j] = l.boolInit();
+                } else {
+                    localValues[tid][j] = Arrays.copyOf(l.arrayInit(), l.arrayInit().length);
+                }
             }
         }
     }
@@ -236,6 +242,44 @@ public final class DynamicState implements SharedState {
     }
 
     /**
+     * Returns a copy of a thread's declared {@code INT_ARRAY} local.
+     *
+     * @param tid the thread id
+     * @param name the declared local name
+     * @return copy of the array
+     */
+    public int[] getLocalArray(int tid, String name) {
+        int idx = indexOfLocal(name);
+        int[] arr = (int[]) localValues[tid][idx];
+        return Arrays.copyOf(arr, arr.length);
+    }
+
+    /**
+     * Returns direct array reference for internal use (no copy).
+     *
+     * @param tid the thread id
+     * @param name the declared local name
+     * @return array reference
+     */
+    int[] getLocalArrayRef(int tid, String name) {
+        int idx = indexOfLocal(name);
+        return (int[]) localValues[tid][idx];
+    }
+
+    /**
+     * Sets a thread's local array element.
+     *
+     * @param tid the thread id
+     * @param name the declared local name
+     * @param index element index
+     * @param value value to set
+     */
+    public void setLocalArrayElement(int tid, String name, int index, int value) {
+        int[] arr = getLocalArrayRef(tid, name);
+        arr[index] = value;
+    }
+
+    /**
      * Resolves a declared field name to its storage index.
      *
      * @param name the field name to resolve
@@ -280,7 +324,11 @@ public final class DynamicState implements SharedState {
         }
         Object[][] localCopy = new Object[threadCount][decl.locals().size()];
         for (int tid = 0; tid < threadCount; tid++) {
-            localCopy[tid] = Arrays.copyOf(localValues[tid], localValues[tid].length);
+            for (int j = 0; j < decl.locals().size(); j++) {
+                Object lv = localValues[tid][j];
+                if (lv instanceof int[] arr) localCopy[tid][j] = Arrays.copyOf(arr, arr.length);
+                else localCopy[tid][j] = lv;
+            }
         }
         return new DynamicState(decl, threadCount, fieldCopy, localCopy);
     }
@@ -340,6 +388,13 @@ public final class DynamicState implements SharedState {
             out.writeInt(l.type().ordinal());
             out.writeInt(l.intInit());
             out.writeBoolean(l.boolInit());
+            int[] init = l.arrayInit();
+            if (init == null) {
+                out.writeInt(-1);
+            } else {
+                out.writeInt(init.length);
+                for (int v : init) out.writeInt(v);
+            }
         }
 
         // fields in declaration order: type ordinal, then value
@@ -360,8 +415,15 @@ public final class DynamicState implements SharedState {
         for (int tid = 0; tid < threadCount; tid++) {
             for (int j = 0; j < decl.locals().size(); j++) {
                 LocalDecl l = decl.locals().get(j);
-                if (l.type() == FieldType.INT) out.writeInt((Integer) localValues[tid][j]);
-                else out.writeBoolean((Boolean) localValues[tid][j]);
+                if (l.type() == FieldType.INT) {
+                    out.writeInt((Integer) localValues[tid][j]);
+                } else if (l.type() == FieldType.BOOL) {
+                    out.writeBoolean((Boolean) localValues[tid][j]);
+                } else {
+                    int[] arr = (int[]) localValues[tid][j];
+                    out.writeInt(arr.length);
+                    for (int v : arr) out.writeInt(v);
+                }
             }
         }
     }
@@ -393,11 +455,14 @@ public final class DynamicState implements SharedState {
             } else if (!a.equals(b)) return false;
         }
         for (int tid = 0; tid < threadCount; tid++) {
-            if (!Arrays.equals(localValues[tid], that.localValues[tid])) {
-                // need deep equals for possibly int[]? locals are scalar only, so direct equals
-                boolean eq = true;
-                for (int j = 0; j < localValues[tid].length; j++) if (!localValues[tid][j].equals(that.localValues[tid][j])) eq = false;
-                if (!eq) return false;
+            for (int j = 0; j < localValues[tid].length; j++) {
+                Object a = localValues[tid][j];
+                Object b = that.localValues[tid][j];
+                if (a instanceof int[] arrA && b instanceof int[] arrB) {
+                    if (!Arrays.equals(arrA, arrB)) return false;
+                } else if (!a.equals(b)) {
+                    return false;
+                }
             }
         }
         return true;
@@ -418,7 +483,12 @@ public final class DynamicState implements SharedState {
             if (v instanceof int[] arr) h = h * 31 + Arrays.hashCode(arr);
             else h = h * 31 + v.hashCode();
         }
-        for (Object[] row : localValues) h = h * 31 + Arrays.hashCode(row);
+        for (Object[] row : localValues) {
+            for (Object v : row) {
+                if (v instanceof int[] arr) h = h * 31 + Arrays.hashCode(arr);
+                else h = h * 31 + v.hashCode();
+            }
+        }
         return h;
     }
 
@@ -448,7 +518,10 @@ public final class DynamicState implements SharedState {
             for (int tid = 0; tid < threadCount; tid++) {
                 for (int j = 0; j < decl.locals().size(); j++) {
                     LocalDecl l = decl.locals().get(j);
-                    sb.append("t").append(tid).append(".").append(l.name()).append("=").append(localValues[tid][j]);
+                    sb.append("t").append(tid).append(".").append(l.name()).append("=");
+                    Object lv = localValues[tid][j];
+                    if (lv instanceof int[] arr) sb.append(Arrays.toString(arr));
+                    else sb.append(lv);
                     if (tid != threadCount - 1 || j != decl.locals().size() - 1) sb.append(", ");
                 }
             }

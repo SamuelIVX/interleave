@@ -113,13 +113,20 @@ public final class Evaluator {
             LocalDecl ld = state.decl().findLocal(l.name());
             if (ld == null) throw new RegistryException("Unknown local '" + l.name() + "'");
             if (ld.type() == FieldType.INT) return new IntVal(state.getLocalInt(tid, l.name()));
-            return new BoolVal(state.getLocalBool(tid, l.name()));
+            if (ld.type() == FieldType.BOOL) return new BoolVal(state.getLocalBool(tid, l.name()));
+            throw new RegistryException("Local '" + l.name() + "' is array; use local." + l.name() + "[index]");
         }
         if (expr instanceof Expr.ArrayAccess a) {
-            // local array access is not allowed (locals scalar only) — will have been rejected at type-check,
-            // but handle "local.name" case for robustness
             if (a.arrayName().startsWith("local.")) {
-                throw new EvalException("Local array access not supported: " + a.arrayName());
+                String localName = a.arrayName().substring("local.".length());
+                LocalDecl ld = state.decl().findLocal(localName);
+                if (ld == null || ld.type() != FieldType.INT_ARRAY) throw new RegistryException("Unknown local array '" + localName + "'");
+                Value idxVal = eval(a.index(), state, tid);
+                if (idxVal.type() != FieldType.INT) throw new RegistryException("Array index must be int");
+                int idx = idxVal.asInt();
+                int[] arr = state.getLocalArrayRef(tid, localName);
+                if (idx < 0 || idx >= arr.length) throw new EvalException("Array index out of bounds: " + a.arrayName() + "[" + idx + "] length " + arr.length);
+                return new IntVal(arr[idx]);
             }
             FieldDecl f = state.decl().findField(a.arrayName());
             if (f == null || f.type() != FieldType.INT_ARRAY) throw new RegistryException("Unknown array field '" + a.arrayName() + "'");

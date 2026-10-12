@@ -274,11 +274,28 @@ public final class ProgramLoader {
             String invariantType = def.invariant().get("type").getAsString();
             invariantRegistry.validateCompatibility(invariantType, def.state().get("type").getAsString());
 
-            // mutual_exclusion_peterson requires exactly two threads
-            if ("mutual_exclusion_peterson".equals(invariantType) && threadDefs.size() != 2) {
-                throw new RegistryException(
-                    "Invariant 'mutual_exclusion_peterson' requires exactly two threads"
-                );
+            // mutual_exclusion_peterson requires at least two threads
+            if ("mutual_exclusion_peterson".equals(invariantType)) {
+                if (threadDefs.size() < 2) {
+                    throw new RegistryException(
+                        "Invariant 'mutual_exclusion_peterson' requires at least two threads"
+                    );
+                }
+                JsonObject invJson = def.invariant();
+                if (invJson.has("cs_pcs")) {
+                    if (invJson.get("cs_pcs").isJsonArray()) {
+                        int csPcsLen = invJson.getAsJsonArray("cs_pcs").size();
+                        if (csPcsLen != threadDefs.size()) {
+                            throw new RegistryException(
+                                "Invariant 'cs_pcs' length (" + csPcsLen + ") must match thread count (" + threadDefs.size() + ")"
+                            );
+                        }
+                    }
+                } else if (threadDefs.size() != 2) {
+                    throw new RegistryException(
+                        "Invariant 'mutual_exclusion_peterson' requires two threads when using thread0_cs_pc/thread1_cs_pc; use 'cs_pcs' for N threads"
+                    );
+                }
             }
 
             invariant = invariantRegistry.create(def.invariant());

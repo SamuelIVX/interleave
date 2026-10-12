@@ -104,6 +104,63 @@ class InvariantRegistryTest {
         assertFalse(invariant.holds(after.state(), after), "the CS zone includes counters past its boundary");
     }
 
+    @Test
+    void mutualExclusionPeterson_csPcs_validation() {
+        var notArr = new com.google.gson.JsonObject();
+        notArr.addProperty("type", "mutual_exclusion_peterson");
+        notArr.addProperty("cs_pcs", 123);
+        RegistryException ex1 = assertThrows(RegistryException.class, () -> registry.create(notArr));
+        assertTrue(ex1.getMessage().contains("must be an array"));
+
+        var tooShort = new com.google.gson.JsonObject();
+        tooShort.addProperty("type", "mutual_exclusion_peterson");
+        var shortArr = new com.google.gson.JsonArray();
+        shortArr.add(1);
+        tooShort.add("cs_pcs", shortArr);
+        RegistryException ex2 = assertThrows(RegistryException.class, () -> registry.create(tooShort));
+        assertTrue(ex2.getMessage().contains("at least 2 entries"));
+
+        var notNum = new com.google.gson.JsonObject();
+        notNum.addProperty("type", "mutual_exclusion_peterson");
+        var badArr = new com.google.gson.JsonArray();
+        badArr.add(1);
+        badArr.add("not-a-number");
+        notNum.add("cs_pcs", badArr);
+        RegistryException ex3 = assertThrows(RegistryException.class, () -> registry.create(notNum));
+        assertTrue(ex3.getMessage().contains("must be an integer at index 1"));
+    }
+
+    @Test
+    void mutualExclusionPeterson_threeThreads_withCsPcs() {
+        var json = new com.google.gson.JsonObject();
+        json.addProperty("type", "mutual_exclusion_peterson");
+        var arr = new com.google.gson.JsonArray();
+        arr.add(2);
+        arr.add(2);
+        arr.add(2);
+        json.add("cs_pcs", arr);
+        Invariant invariant = registry.create(json);
+
+        // PetersonState for 3 threads: flags [t0, t1, t2]
+        PetersonState sNone = PetersonState.of(new boolean[]{false, false, false}, 0);
+        Configuration cNone = Configuration.forTest(sNone, List.of(2, 2, 2), List.of(3, 3, 3), List.of(0, 1, 2));
+        assertTrue(invariant.holds(sNone, cNone));
+
+        PetersonState sOne = PetersonState.of(new boolean[]{true, false, false}, 0);
+        Configuration cOne = Configuration.forTest(sOne, List.of(2, 2, 2), List.of(3, 3, 3), List.of(0, 1, 2));
+        assertTrue(invariant.holds(sOne, cOne));
+
+        // Two in CS -> violation
+        PetersonState sTwo = PetersonState.of(new boolean[]{true, true, false}, 0);
+        Configuration cTwo = Configuration.forTest(sTwo, List.of(2, 2, 1), List.of(3, 3, 3), List.of(0, 1, 2));
+        assertFalse(invariant.holds(sTwo, cTwo));
+
+        // All three in CS -> violation
+        PetersonState sThree = PetersonState.of(new boolean[]{true, true, true}, 0);
+        Configuration cThree = Configuration.forTest(sThree, List.of(2, 2, 2), List.of(3, 3, 3), List.of(0, 1, 2));
+        assertFalse(invariant.holds(sThree, cThree));
+    }
+
 
     @Test
     void counterEquals_holds_whenNotTerminated() {
