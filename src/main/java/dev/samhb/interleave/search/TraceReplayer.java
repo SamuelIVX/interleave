@@ -13,6 +13,9 @@ public final class TraceReplayer {
      *
      * <p>The program supplies a fresh initial configuration. Each chosen step mutates that
      * configuration’s state and must produce the outcome recorded in the trace.
+     * An empty trace returns the initial configuration. Replay does not reject a chosen step
+     * solely because it is disabled, or validate the trace's terminal verdict. Exceptions from
+     * model callbacks propagate to the caller.
      *
      * <pre>{@code
      * Configuration end = new TraceReplayer().replay(program, trace);

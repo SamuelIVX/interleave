@@ -77,20 +77,24 @@ public final class DeltaDebugger {
      * Checks whether replaying the given trace still produces the expected outcome.
      *
      * <p>Replays the trace from the initial state using {@link ExecutionDriver} and
-     * verifies the final configuration matches the expected outcome. For VIOLATION
-     * outcomes, the invariant is re-checked to ensure the trace genuinely reproduces
-     * the bug.
+     * verifies the final configuration matches the expected outcome. Only thread choices are
+     * replayed; recorded step outcomes and the trace's terminal verdict are ignored. Replay
+     * stops when the schedule is consumed or all threads terminate.
      *
      * <p>For {@code VIOLATION} outcomes with an invariant, the invariant predicate is evaluated
      * directly regardless of thread termination or deadlock status, ensuring invariant violations
      * occurring in deadlocked terminal configurations are recognized and minimizable. When no invariant
      * is supplied, fallback checks require live threads and non-deadlocked configurations.
      *
+     * <p>An {@link IllegalScheduleException} from replay or invariant evaluation produces
+     * {@code false}; other runtime exceptions propagate to the caller.
+     *
      * @param program the program to replay
      * @param trace the trace to replay
      * @param expectedOutcome the expected outcome to verify
      * @param invariant the invariant to check for VIOLATION outcomes; may be null
-     * @return true if the replayed trace reproduces the expected outcome
+     * @return true if the final configuration satisfies the selected outcome check;
+     *         false for an illegal schedule or {@code INCOMPLETE}
      */
     private boolean isStillFailing(Program program, Trace trace, TraceOutcome expectedOutcome, Invariant invariant) {
         try {
