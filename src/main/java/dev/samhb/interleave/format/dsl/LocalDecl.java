@@ -15,10 +15,27 @@ import java.util.Objects;
  */
 public record LocalDecl(String name, FieldType type, int intInit, boolean boolInit, int[] arrayInit) {
     /**
-     * Compact constructor: defensive copy of array init to preserve immutability.
+     * Compact constructor: defensive copy of array init to preserve immutability,
+     * normalizing null to an empty array for INT_ARRAY type.
      */
     public LocalDecl {
-        if (arrayInit != null) arrayInit = Arrays.copyOf(arrayInit, arrayInit.length);
+        if (arrayInit != null) {
+            arrayInit = Arrays.copyOf(arrayInit, arrayInit.length);
+        } else if (type == FieldType.INT_ARRAY) {
+            arrayInit = new int[0];
+        }
+    }
+
+    /**
+     * Backward-compatible 4-argument constructor for scalar locals.
+     *
+     * @param name local name
+     * @param type local type
+     * @param intInit initial int value
+     * @param boolInit initial bool value
+     */
+    public LocalDecl(String name, FieldType type, int intInit, boolean boolInit) {
+        this(name, type, intInit, boolInit, null);
     }
 
     /**
@@ -56,11 +73,12 @@ public record LocalDecl(String name, FieldType type, int intInit, boolean boolIn
      * Creates local for int array.
      *
      * @param name local name
-     * @param init initial contents
+     * @param init initial contents (copied, or normalized to empty array if null)
      * @return decl
      */
     public static LocalDecl ofArray(String name, int[] init) {
-        return new LocalDecl(name, FieldType.INT_ARRAY, 0, false, init);
+        int[] copy = init == null ? new int[0] : Arrays.copyOf(init, init.length);
+        return new LocalDecl(name, FieldType.INT_ARRAY, 0, false, copy);
     }
 
     @Override

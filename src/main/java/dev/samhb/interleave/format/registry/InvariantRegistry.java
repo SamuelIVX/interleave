@@ -49,7 +49,12 @@ public final class InvariantRegistry {
                     if (!el.isJsonPrimitive() || !el.getAsJsonPrimitive().isNumber()) {
                         throw new RegistryException("Entry in 'cs_pcs' must be an integer at index " + i);
                     }
-                    csPcs[i] = el.getAsInt();
+                    try {
+                        csPcs[i] = el.getAsJsonPrimitive().getAsBigDecimal().intValueExact();
+                    } catch (ArithmeticException | NumberFormatException ex) {
+                        throw new RegistryException(
+                            "Entry in 'cs_pcs' must be an in-range integer at index " + i, ex);
+                    }
                 }
             } else {
                 int t0Pc = JsonHelper.getInt(json, "thread0_cs_pc", "mutual_exclusion_peterson");
@@ -59,9 +64,10 @@ public final class InvariantRegistry {
             return (state, config) -> {
                 PetersonState ps = (PetersonState) state;
                 List<Integer> pcs = config.programCounters();
+                int limit = Math.min(csPcs.length, Math.min(pcs.size(), ps.threadCount()));
                 int inCs = 0;
-                for (int i = 0; i < csPcs.length; i++) {
-                    if (i < pcs.size() && ps.flag(i) && pcs.get(i) >= csPcs[i]) {
+                for (int i = 0; i < limit; i++) {
+                    if (ps.flag(i) && pcs.get(i) >= csPcs[i]) {
                         inCs++;
                         if (inCs > 1) {
                             return false;

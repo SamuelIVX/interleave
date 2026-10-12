@@ -104,6 +104,11 @@ class InvariantRegistryTest {
         assertFalse(invariant.holds(after.state(), after), "the CS zone includes counters past its boundary");
     }
 
+    /**
+     * Verifies that invalid shapes for the {@code cs_pcs} array are rejected:
+     * non-array parameters, arrays with fewer than 2 entries, non-numeric values,
+     * fractional floats, and out-of-range integers.
+     */
     @Test
     void mutualExclusionPeterson_csPcs_validation() {
         var notArr = new com.google.gson.JsonObject();
@@ -128,8 +133,31 @@ class InvariantRegistryTest {
         notNum.add("cs_pcs", badArr);
         RegistryException ex3 = assertThrows(RegistryException.class, () -> registry.create(notNum));
         assertTrue(ex3.getMessage().contains("must be an integer at index 1"));
+
+        var fractional = new com.google.gson.JsonObject();
+        fractional.addProperty("type", "mutual_exclusion_peterson");
+        var fracArr = new com.google.gson.JsonArray();
+        fracArr.add(1);
+        fracArr.add(1.9);
+        fractional.add("cs_pcs", fracArr);
+        RegistryException ex4 = assertThrows(RegistryException.class, () -> registry.create(fractional));
+        assertTrue(ex4.getMessage().contains("must be an in-range integer at index 1"));
+
+        var overflow = new com.google.gson.JsonObject();
+        overflow.addProperty("type", "mutual_exclusion_peterson");
+        var overArr = new com.google.gson.JsonArray();
+        overArr.add(1);
+        overArr.add(new java.math.BigDecimal("-2147483649"));
+        overflow.add("cs_pcs", overArr);
+        RegistryException ex5 = assertThrows(RegistryException.class, () -> registry.create(overflow));
+        assertTrue(ex5.getMessage().contains("must be an in-range integer at index 1"));
     }
 
+    /**
+     * Verifies mutual exclusion evaluation for three threads configured with {@code cs_pcs}:
+     * holds when 0 or 1 thread is in the critical section, and violates when two threads
+     * (including thread 2) or all three threads are in their critical sections simultaneously.
+     */
     @Test
     void mutualExclusionPeterson_threeThreads_withCsPcs() {
         var json = new com.google.gson.JsonObject();
@@ -150,9 +178,9 @@ class InvariantRegistryTest {
         Configuration cOne = Configuration.forTest(sOne, List.of(2, 2, 2), List.of(3, 3, 3), List.of(0, 1, 2));
         assertTrue(invariant.holds(sOne, cOne));
 
-        // Two in CS -> violation
-        PetersonState sTwo = PetersonState.of(new boolean[]{true, true, false}, 0);
-        Configuration cTwo = Configuration.forTest(sTwo, List.of(2, 2, 1), List.of(3, 3, 3), List.of(0, 1, 2));
+        // Two in CS -> violation (threads 1 and 2 in CS, ensuring thread 2 is checked)
+        PetersonState sTwo = PetersonState.of(new boolean[]{false, true, true}, 0);
+        Configuration cTwo = Configuration.forTest(sTwo, List.of(1, 2, 2), List.of(3, 3, 3), List.of(0, 1, 2));
         assertFalse(invariant.holds(sTwo, cTwo));
 
         // All three in CS -> violation

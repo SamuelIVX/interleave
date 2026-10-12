@@ -343,8 +343,11 @@ class ProgramLoaderTest {
         assertEquals("test", program.name());
     }
 
+    /**
+     * Verifies that a three-thread Peterson program configured with {@code cs_pcs} loads successfully
+     * with its invariant present, and that the loaded invariant evaluates mutual exclusion across all three threads.
+     */
     @Test
-    /** Tests loadMutualExclusionPeterson_threeThreads_withCsPcs_succeeds. */
     void loadMutualExclusionPeterson_threeThreads_withCsPcs_succeeds() {
         String json = """
             {
@@ -362,10 +365,21 @@ class ProgramLoaderTest {
         BenchmarkProgram program = loader.load(json);
         assertNotNull(program);
         assertEquals("test-3t", program.name());
+        assertTrue(program.invariant().isPresent());
+
+        // Check invariant behavior on loaded program: violation when threads 1 and 2 are in CS
+        dev.samhb.interleave.search.Invariant inv = program.invariant().get();
+        dev.samhb.interleave.core.PetersonState s = dev.samhb.interleave.core.PetersonState.of(new boolean[]{false, true, true}, 0);
+        dev.samhb.interleave.core.Configuration c = dev.samhb.interleave.core.Configuration.forTest(
+            s, List.of(0, 1, 1), List.of(1, 1, 1), List.of(0, 1, 2));
+        assertFalse(inv.holds(s, c));
     }
 
+    /**
+     * Verifies that specifying a {@code cs_pcs} array whose length differs from the thread count
+     * is rejected during loading with an explanatory error message.
+     */
     @Test
-    /** Tests loadMutualExclusionPeterson_csPcsLengthMismatch_throwsRegistryException. */
     void loadMutualExclusionPeterson_csPcsLengthMismatch_throwsRegistryException() {
         String json = """
             {

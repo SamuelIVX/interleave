@@ -16,6 +16,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -27,7 +28,10 @@ class DslLocalArrayTest {
 
     private final ProgramLoader loader = new ProgramLoader();
 
-    /** Tests valid declaration and execution of a program with local arrays. */
+    /**
+     * Verifies valid declaration, state loading, and end-to-end execution of a program with local arrays,
+     * inspecting the final state to assert that the array element was updated.
+     */
     @Test
     void loadAndExecute_localArrayProgram_succeeds() {
         String json = """
@@ -60,10 +64,36 @@ class DslLocalArrayTest {
         BenchmarkProgram prog = loader.load(json);
         assertNotNull(prog);
 
+        java.util.List<DynamicState> visited = new java.util.ArrayList<>();
         DfsExplorer explorer = new DfsExplorer();
-        DfsResult result = explorer.explore(prog.program(), null, new HashingStateStore(), null);
+        DfsResult result = explorer.explore(prog.program(), null, new HashingStateStore(), c -> {
+            if (c.state() instanceof DynamicState ds) {
+                visited.add(ds);
+            }
+        });
         assertNotNull(result);
         assertEquals(2, result.statesExplored());
+        assertFalse(visited.isEmpty());
+        DynamicState terminal = visited.getLast();
+        assertArrayEquals(new int[]{10, 99, 30}, terminal.getLocalArray(0, "items"));
+    }
+
+    /** Verifies that a null local-array initializer normalizes to an empty array without throwing in DynamicState. */
+    @Test
+    void nullInitializer_normalizesToEmptyArrayAndInitializesWithoutThrowing() {
+        LocalDecl declNull = LocalDecl.ofArray("buf", null);
+        assertNotNull(declNull.arrayInit());
+        assertEquals(0, declNull.arrayInit().length);
+
+        StateDecl stateDecl = new StateDecl(
+            List.of(FieldDecl.ofInt("x", 0)),
+            List.of(declNull)
+        );
+        DynamicState state = new DynamicState(stateDecl, 2);
+        assertNotNull(state.getLocalArray(0, "buf"));
+        assertEquals(0, state.getLocalArray(0, "buf").length);
+        assertNotNull(state.getLocalArray(1, "buf"));
+        assertEquals(0, state.getLocalArray(1, "buf").length);
     }
 
     /** Tests thread isolation for local arrays. */
@@ -85,7 +115,7 @@ class DslLocalArrayTest {
         assertArrayEquals(new int[]{1, 2, 3}, state.getLocalArray(1, "buf"));
     }
 
-    /** Tests memory footprint derivation for static and dynamic local array accesses. */
+    /** Verifies memory footprint derivation for static and dynamic local array accesses. */
     @Test
     void stepFootprint_localArrayReadsAndWrites() {
         StateDecl decl = new StateDecl(
@@ -111,7 +141,7 @@ class DslLocalArrayTest {
         assertEquals(Set.of(MemoryLocation.of("t0.buf"), MemoryLocation.of("t0.i")), stepGuard.reads());
     }
 
-    /** Tests runtime out-of-bounds error handling. */
+    /** Verifies runtime out-of-bounds error handling in guards and effects evaluating to ASSERTION_FAILED. */
     @Test
     void outOfBounds_evaluatesToAssertionFailed() {
         StateDecl decl = new StateDecl(
@@ -134,7 +164,7 @@ class DslLocalArrayTest {
         assertEquals(StepOutcome.ASSERTION_FAILED, stepWrite.execute(state));
     }
 
-    /** Tests validation error on local array without index in expression. */
+    /** Verifies validation error when a local array is referenced without an index as a scalar. */
     @Test
     void validation_localArrayWithoutIndexInExpr_throws() {
         String json = """
@@ -159,7 +189,7 @@ class DslLocalArrayTest {
         assertTrue(ex.getMessage().contains("cannot be used as scalar: use local.arr[index]"));
     }
 
-    /** Tests validation error on whole local array assignment. */
+    /** Verifies validation error when a whole local array is assigned without an element index. */
     @Test
     void validation_localArrayWholeAssignment_throws() {
         String json = """
@@ -184,7 +214,7 @@ class DslLocalArrayTest {
         assertTrue(ex.getMessage().contains("requires index: use local.arr[expr]"));
     }
 
-    /** Tests validation error on non-int assignment to local array element. */
+    /** Verifies validation error when assigning a non-int value to a local array element. */
     @Test
     void validation_nonIntAssignToLocalArray_throws() {
         String json = """
@@ -209,7 +239,7 @@ class DslLocalArrayTest {
         assertTrue(ex.getMessage().contains("requires int"));
     }
 
-    /** Tests validation error when local array is referenced in invariant. */
+    /** Verifies that referencing local arrays in invariant expressions is rejected before property analysis. */
     @Test
     void validation_localArrayInInvariant_throws() {
         String json = """
@@ -235,7 +265,7 @@ class DslLocalArrayTest {
         assertTrue(ex.getMessage().contains("Invariant must not reference local.*"));
     }
 
-    /** Tests local array init exceeding 64 elements limit. */
+    /** Verifies that declaring a local array with more than 64 elements is rejected during loading. */
     @Test
     void validation_localArrayTooLong_throws() {
         StringBuilder sb = new StringBuilder("[");
