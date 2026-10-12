@@ -77,26 +77,24 @@ public final class DeltaDebugger {
      * Checks whether replaying the given trace still produces the expected outcome.
      *
      * <p>Replays the trace from the initial state using {@link ExecutionDriver} and
-     * verifies the final configuration matches the expected outcome. For VIOLATION
-     * outcomes, the invariant is re-checked to ensure the trace genuinely reproduces
-     * the bug.
+     * verifies the final configuration matches the expected outcome. Only thread choices are
+     * replayed; recorded step outcomes and the trace's terminal verdict are ignored. Replay
+     * stops when the schedule is consumed or all threads terminate.
      *
-     * <p><b>The VIOLATION guard is not {@code isDeadlockCandidate()}, and must not be "simplified" into
-     * it.</b> The guard below expands to {@code !allTerminated() && !enabled.isEmpty()} — live threads
-     * <em>and</em> something still enabled — which is a different predicate from "not a deadlock". Using
-     * the canonical predicate here would accept deadlocked configurations that violate the invariant,
-     * and would let the minimiser shrink a trace into one that ends in a state the search would have
-     * classified differently. The cost of the current form is that a violation occurring in a deadlocked
-     * state is not recognised as still failing, so such a trace cannot be minimised. That is a real
-     * limitation, but fixing it changes which traces the minimiser accepts and needs its own
-     * specification and tests rather than a quiet edit here. Recorded in
-     * {@code docs/specs/active/13-deferred-debt/03-canonical-configuration-key.md}.
+     * <p>For {@code VIOLATION} outcomes with an invariant, the invariant predicate is evaluated
+     * directly regardless of thread termination or deadlock status, ensuring invariant violations
+     * occurring in deadlocked terminal configurations are recognized and minimizable. When no invariant
+     * is supplied, fallback checks require live threads and non-deadlocked configurations.
+     *
+     * <p>An {@link IllegalScheduleException} from replay or invariant evaluation produces
+     * {@code false}; other runtime exceptions propagate to the caller.
      *
      * @param program the program to replay
      * @param trace the trace to replay
      * @param expectedOutcome the expected outcome to verify
      * @param invariant the invariant to check for VIOLATION outcomes; may be null
-     * @return true if the replayed trace reproduces the expected outcome
+     * @return true if the final configuration satisfies the selected outcome check;
+     *         false for an illegal schedule or {@code INCOMPLETE}
      */
     private boolean isStillFailing(Program program, Trace trace, TraceOutcome expectedOutcome, Invariant invariant) {
         try {
@@ -108,7 +106,7 @@ public final class DeltaDebugger {
                 case COMPLETED -> config.allTerminated();
                 case DEADLOCK -> config.isDeadlockCandidate();
                 case VIOLATION -> invariant != null
-                    ? !config.allTerminated() && !config.isDeadlockCandidate() && !invariant.holds(config.state(), config)
+                    ? !invariant.holds(config.state(), config)
                     : !config.allTerminated() && !config.isDeadlockCandidate();
                 // INCOMPLETE describes the search, not a schedule: it means the preemption bound
                 // was reached. No replay of a prefix can reproduce that, so reporting true here
