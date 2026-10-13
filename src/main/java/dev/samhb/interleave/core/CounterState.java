@@ -110,6 +110,14 @@ public final class CounterState implements SharedState {
     }
 
     /**
+     * Returns the number of thread-local registers modeled by this state.
+     * @return register and thread count
+     */
+    public int threadCount() {
+        return registers.length;
+    }
+
+    /**
      * Sets thread-local register.
      * @param threadId thread id
      * @param value value

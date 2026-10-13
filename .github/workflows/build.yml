@@ -33,8 +33,14 @@ jobs:
           node-version: "24"
           package-manager-cache: false
 
-      - name: Check visualizer verdict compatibility
-        run: node docs/visualizer-normalize-check.mjs
+      - name: Install dependencies
+        run: npm ci --prefix docs
+
+      - name: Install Playwright browsers
+        run: npx --prefix docs playwright install --with-deps chromium
+
+      - name: Run visualizer test suite
+        run: npm test --prefix docs
 
   build:
     name: Build

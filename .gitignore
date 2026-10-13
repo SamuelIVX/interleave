@@ -13,3 +13,4 @@ out/
 gradle-app.setting
 !gradle-wrapper.jar
 !gradle-wrapper.properties
+node_modules/

@@ -2,8 +2,9 @@
 package dev.samhb.interleave;
 
 import dev.samhb.interleave.cb.ContextBoundedExplorer;
-import dev.samhb.interleave.core.Program;
 import dev.samhb.interleave.core.Configuration;
+import dev.samhb.interleave.core.Program;
+import dev.samhb.interleave.core.StateSnapshot;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.dpor.DporExplorer;
 import dev.samhb.interleave.por.StaticPorExplorer;
@@ -104,7 +105,7 @@ public final class InterleaveRunner implements Serializable {
         };
 
         LimitState limitState = new LimitState();
-        StateVisitor visitor = createLimitEnforcingVisitor(limitState, clock);
+        StateVisitor visitor = createLimitEnforcingVisitor(limitState, clock, program);
 
         DfsResult result;
         try {
@@ -142,7 +143,7 @@ public final class InterleaveRunner implements Serializable {
         long wallTime = clock.getAsLong() - start;
         long heapDelta = Math.max(0, memAfter - memBefore);
 
-        return convertToTestResult(result, wallTime, heapDelta, false);
+        return convertToTestResult(result, program, wallTime, heapDelta, false);
     }
 
     /**
@@ -151,9 +152,10 @@ public final class InterleaveRunner implements Serializable {
      * after updating the partial count, so the visit that reaches a limit is included.
      * @param limitState run-local counters and interruption state
      * @param clock per-call millisecond clock used to enforce the configured deadline
+     * @param program program whose steps are replayed for snapshot enrichment
      * @return visitor sharing the supplied run-local limit counters and captured traces
      */
-    private StateVisitor createLimitEnforcingVisitor(LimitState limitState, LongSupplier clock) {
+    private StateVisitor createLimitEnforcingVisitor(LimitState limitState, LongSupplier clock, Program program) {
         long[] stateCount = {0};
         long startTime = clock.getAsLong();
 
@@ -196,6 +198,14 @@ public final class InterleaveRunner implements Serializable {
             @Override
             public void onTraceCreated(Trace trace) {
                 TraceRecord record = trace.toRecord();
+                if (program != null) {
+                    try {
+                        List<StateSnapshot> states = new TraceReplayer().captureSnapshots(program, trace);
+                        record = record.withStates(states);
+                    } catch (Exception ignored) {
+                        // Diagnostic snapshot enrichment is best-effort
+                    }
+                }
                 limitState.partialResult = limitState.partialResult.withTrace(record);
             }
         };
@@ -377,22 +387,44 @@ public final class InterleaveRunner implements Serializable {
     /**
      * Converts exploration counts and trace categories into the public result format.
      * @param result completed exploration result
+     * @param program program whose steps were explored
      * @param wallTime elapsed exploration time in milliseconds
      * @param heapDelta observed heap delta in bytes
      * @param limitExceeded whether a configured exploration limit stopped the run
      * @return public result preserving counts, categorized traces, and the interruption flag
      */
-    private TestResult convertToTestResult(DfsResult result, long wallTime, long heapDelta, boolean limitExceeded) {
+    private TestResult convertToTestResult(DfsResult result, Program program, long wallTime, long heapDelta, boolean limitExceeded) {
         List<TraceRecord> failingTraces = new ArrayList<>();
         List<TraceRecord> deadlockedTraces = new ArrayList<>();
         List<TraceRecord> completedTraces = new ArrayList<>();
         List<TraceRecord> incompleteTraces = new ArrayList<>();
 
+        TraceReplayer replayer = new TraceReplayer();
         for (Trace trace : result.traces()) {
             TraceRecord record = trace.toRecord();
             switch (trace.outcome()) {
-                case VIOLATION -> failingTraces.add(record);
-                case DEADLOCK -> deadlockedTraces.add(record);
+                case VIOLATION -> {
+                    if (program != null) {
+                        try {
+                            List<StateSnapshot> states = replayer.captureSnapshots(program, trace);
+                            record = record.withStates(states);
+                        } catch (Exception ignored) {
+                            // Diagnostic snapshot capture is best-effort
+                        }
+                    }
+                    failingTraces.add(record);
+                }
+                case DEADLOCK -> {
+                    if (program != null) {
+                        try {
+                            List<StateSnapshot> states = replayer.captureSnapshots(program, trace);
+                            record = record.withStates(states);
+                        } catch (Exception ignored) {
+                            // Diagnostic snapshot capture is best-effort
+                        }
+                    }
+                    deadlockedTraces.add(record);
+                }
                 case COMPLETED -> completedTraces.add(record);
                 case INCOMPLETE -> incompleteTraces.add(record);
             }

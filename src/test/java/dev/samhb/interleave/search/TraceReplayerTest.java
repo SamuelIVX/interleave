@@ -52,4 +52,45 @@ class TraceReplayerTest {
 
         assertTrue(ex.getMessage().contains("recorded BLOCKED but execution produced ADVANCED"));
     }
+
+    @Test
+    void captureSnapshots_recordsNPlusOneSnapshots() {
+        Program program = new Program(CounterState.of(0), List.of(
+            new ModelThread(0, List.of(new WriteCounterStep(0), new ReadCounterStep(0)))
+        ));
+
+        Trace trace = Trace.of(
+            List.of(0, 0),
+            List.of(StepOutcome.ADVANCED, StepOutcome.ADVANCED),
+            TraceOutcome.COMPLETED
+        );
+
+        TraceReplayer replayer = new TraceReplayer();
+        List<StateSnapshot> snapshots = replayer.captureSnapshots(program, trace);
+
+        assertEquals(3, snapshots.size(), "2-step trace must yield 3 snapshots (c0, c1, c2)");
+        assertEquals(0, snapshots.get(0).fields().get("counter"));
+        assertEquals(1, snapshots.get(1).fields().get("counter"));
+        assertEquals(1, snapshots.get(2).fields().get("counter"));
+        assertEquals(1, snapshots.get(2).locals().get("0").get("register"));
+    }
+
+    @Test
+    void enrich_attachesSnapshotsToTraceRecord() {
+        Program program = new Program(CounterState.of(0), List.of(
+            new ModelThread(0, List.of(new WriteCounterStep(0)))
+        ));
+
+        dev.samhb.interleave.TraceRecord record = new dev.samhb.interleave.TraceRecord(
+            List.of(0), List.of(StepOutcome.ADVANCED), TraceOutcome.COMPLETED, "hash-test"
+        );
+
+        TraceReplayer replayer = new TraceReplayer();
+        dev.samhb.interleave.TraceRecord enriched = replayer.enrich(program, record);
+
+        assertEquals(2, enriched.states().size());
+        assertEquals("hash-test", enriched.programHash());
+        assertEquals(0, enriched.states().get(0).fields().get("counter"));
+        assertEquals(1, enriched.states().get(1).fields().get("counter"));
+    }
 }
