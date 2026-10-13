@@ -28,6 +28,13 @@ public record StateSnapshot(
         locals = deepCopyLocals(locals);
     }
 
+    /**
+     * Performs a deep defensive copy of a field map, cloning primitive arrays (int[], boolean[])
+     * and returning an unmodifiable map. Returns an empty map if the input is null or empty.
+     *
+     * @param map map of field names to values
+     * @return unmodifiable defensive copy with cloned arrays
+     */
     private static Map<String, Object> deepCopyFields(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return Map.of();
@@ -45,6 +52,14 @@ public record StateSnapshot(
         return Collections.unmodifiableMap(copy);
     }
 
+    /**
+     * Performs a deep defensive copy of a nested thread locals map, cloning any nested
+     * primitive arrays and returning an unmodifiable outer map. Returns an empty map if
+     * the input is null or empty.
+     *
+     * @param map map of thread id strings to local maps
+     * @return unmodifiable defensive copy of nested locals
+     */
     private static Map<String, Map<String, Object>> deepCopyLocals(Map<String, Map<String, Object>> map) {
         if (map == null || map.isEmpty()) {
             return Map.of();

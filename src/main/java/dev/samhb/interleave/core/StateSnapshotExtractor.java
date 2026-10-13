@@ -12,6 +12,9 @@ import java.util.Map;
  */
 public final class StateSnapshotExtractor {
 
+    /**
+     * Non-instantiable utility class.
+     */
     private StateSnapshotExtractor() {}
 
     /**
@@ -38,6 +41,12 @@ public final class StateSnapshotExtractor {
         }
     }
 
+    /**
+     * Extracts fields and thread locals from a dynamic DSL state.
+     *
+     * @param ds the dynamic state
+     * @return snapshot with fields declared in ds and locals per thread
+     */
     private static StateSnapshot extractDynamic(DynamicState ds) {
         Map<String, Object> fields = new LinkedHashMap<>();
         for (FieldDecl f : ds.decl().fields()) {
@@ -68,6 +77,13 @@ public final class StateSnapshotExtractor {
         return new StateSnapshot(fields, locals);
     }
 
+    /**
+     * Extracts fields from a Peterson state: {@code flag} boolean array, {@code turn} integer,
+     * and {@code inCriticalSection} count.
+     *
+     * @param ps the Peterson state
+     * @return snapshot with Peterson fields
+     */
     private static StateSnapshot extractPeterson(PetersonState ps) {
         Map<String, Object> fields = new LinkedHashMap<>();
         boolean[] flags = new boolean[ps.threadCount()];
@@ -80,6 +96,13 @@ public final class StateSnapshotExtractor {
         return StateSnapshot.ofFields(fields);
     }
 
+    /**
+     * Extracts fields ({@code counter}, {@code control}) and thread locals ({@code register})
+     * from a counter state.
+     *
+     * @param cs the counter state
+     * @return snapshot with counter fields and per-thread register locals
+     */
     private static StateSnapshot extractCounter(CounterState cs) {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("counter", cs.counter());
@@ -92,6 +115,13 @@ public final class StateSnapshotExtractor {
         return new StateSnapshot(fields, locals);
     }
 
+    /**
+     * Extracts fields from a Pair state: {@code high}, {@code low}, {@code control},
+     * {@code observedHigh}, {@code observedLow}, and {@code hasObservation}.
+     *
+     * @param ps the pair state
+     * @return snapshot with pair fields
+     */
     private static StateSnapshot extractPair(PairState ps) {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("high", ps.high());
@@ -103,6 +133,12 @@ public final class StateSnapshotExtractor {
         return StateSnapshot.ofFields(fields);
     }
 
+    /**
+     * Extracts fields from a Deadlock state: {@code flag} boolean array and {@code control} flag.
+     *
+     * @param ds the deadlock state
+     * @return snapshot with deadlock fields
+     */
     private static StateSnapshot extractDeadlock(DeadlockState ds) {
         Map<String, Object> fields = new LinkedHashMap<>();
         boolean[] flags = new boolean[ds.threadCount()];
@@ -114,6 +150,14 @@ public final class StateSnapshotExtractor {
         return StateSnapshot.ofFields(fields);
     }
 
+    /**
+     * Extracts fields from a double-checked locking state: {@code initialized}, {@code instance}
+     * (encoded as "null" string or string value), {@code locked}, {@code lockOwner},
+     * {@code control}, and {@code observedInstance} (encoded as "null" string or string value).
+     *
+     * @param ds the DCL state
+     * @return snapshot with DCL fields
+     */
     private static StateSnapshot extractDcl(DclState ds) {
         Map<String, Object> fields = new LinkedHashMap<>();
         fields.put("initialized", ds.initialized());

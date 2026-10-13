@@ -118,7 +118,7 @@ function formatVal(v){
   if(v === null) return 'null';
   if(typeof v === 'boolean') return String(v);
   if(typeof v === 'number') return String(v);
-  if(Array.isArray(v)) return '[' + v.map(formatVal).join(', ') + ']';
+  if(Array.isArray(v)) return capStr('[' + v.map(formatVal).join(', ') + ']');
   if(typeof v === 'object') return capStr(JSON.stringify(v));
   return capStr(String(v));
 }

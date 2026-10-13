@@ -198,7 +198,8 @@ public final class InterleaveRunner implements Serializable {
             @Override
             public void onTraceCreated(Trace trace) {
                 TraceRecord record = trace.toRecord();
-                if (program != null) {
+                if (program != null && (record.outcome() == TraceOutcome.VIOLATION
+                        || record.outcome() == TraceOutcome.DEADLOCK)) {
                     try {
                         List<StateSnapshot> states = new TraceReplayer().captureSnapshots(program, trace);
                         record = record.withStates(states);
