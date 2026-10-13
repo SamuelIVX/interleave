@@ -10,11 +10,12 @@ import dev.samhb.interleave.por.StaticPorExplorer;
 import dev.samhb.interleave.search.DfsExplorer;
 import dev.samhb.interleave.search.DfsResult;
 import dev.samhb.interleave.search.Invariant;
+import dev.samhb.interleave.search.StateStore;
 import dev.samhb.interleave.search.Trace;
 import dev.samhb.interleave.search.TraceOutcome;
+import dev.samhb.interleave.search.TraceReplayer;
 import dev.samhb.interleave.state.BitstateStore;
 import dev.samhb.interleave.state.HashingStateStore;
-import dev.samhb.interleave.search.StateStore;
 import java.util.*;
 
 /**
@@ -180,7 +181,7 @@ public final class BenchmarkHarness {
                     " for " + program.name() + " but got " + dfsVerdict);
             }
             Trace dfsFailing = findFailingTrace(dfsResult.result());
-            results.add(createResult("DFS", program.name(), dfsResult, dfsVerdict, dfsFailing, storeType, dfsStore, null));
+            results.add(createResult("DFS", program.name(), program.program(), dfsResult, dfsVerdict, dfsFailing, storeType, dfsStore, null));
         }
 
         // STATIC_POR
@@ -190,7 +191,7 @@ public final class BenchmarkHarness {
             DfsResultWithTiming porResult = runExplorer(() -> porExplorer.explore(program.program(), invariant, porStore, null));
             String porVerdict = actualVerdict(porResult.result());
             Trace porFailing = findFailingTrace(porResult.result());
-            results.add(createResult("STATIC_POR", program.name(), porResult, porVerdict, porFailing, storeType, porStore, null));
+            results.add(createResult("STATIC_POR", program.name(), program.program(), porResult, porVerdict, porFailing, storeType, porStore, null));
         }
 
         // DPOR
@@ -200,7 +201,7 @@ public final class BenchmarkHarness {
             DfsResultWithTiming dporResult = runExplorer(() -> dporExplorer.explore(program.program(), invariant, dporStore, null));
             String dporVerdict = actualVerdict(dporResult.result());
             Trace dporFailing = findFailingTrace(dporResult.result());
-            results.add(createResult("DPOR", program.name(), dporResult, dporVerdict, dporFailing, storeType, dporStore, null));
+            results.add(createResult("DPOR", program.name(), program.program(), dporResult, dporVerdict, dporFailing, storeType, dporStore, null));
         }
 
         // CONTEXT_BOUNDED
@@ -215,7 +216,7 @@ public final class BenchmarkHarness {
             // The store that actually produced this result, not the pre-branch one: under
             // iterative deepening the winning iteration used its own store, and the Bloom metrics
             // must describe that one rather than an unsearched instance.
-            results.add(createResult(CONTEXT_BOUNDED, program.name(), result, verdict, failing,
+            results.add(createResult(CONTEXT_BOUNDED, program.name(), program.program(), result, verdict, failing,
                 storeType, cbRun.store(), cbRun.preemptionsUsed()));
         }
 
@@ -307,6 +308,7 @@ public final class BenchmarkHarness {
      * Combines exploration outcomes and measured store diagnostics into a benchmark row.
      * @param strategy exploration strategy used for these results
      * @param bugName benchmark program name
+     * @param program program whose steps were explored
      * @param result completed exploration result
      * @param verdict reported exploration verdict
      * @param failingTrace representative failure trace, or null when absent
@@ -315,19 +317,27 @@ public final class BenchmarkHarness {
      * @param preemptionsUsed preemption bound used, or null for an unbounded strategy
      * @return benchmark row preserving verdict, trace, measurements, and store diagnostics
      */
-    private BenchmarkResult createResult(String strategy, String bugName,
+    private BenchmarkResult createResult(String strategy, String bugName, Program program,
                                           DfsResultWithTiming result, String verdict,
                                           Trace failingTrace, StoreType storeType,
                                           StateStore store, Integer preemptionsUsed) {
+        List<dev.samhb.interleave.core.StateSnapshot> states = List.of();
+        if (failingTrace != null && program != null) {
+            try {
+                states = new TraceReplayer().captureSnapshots(program, failingTrace);
+            } catch (Exception e) {
+                states = List.of();
+            }
+        }
         if (store instanceof BitstateStore bs) {
             return new BenchmarkResult(strategy, bugName, result.result().statesExplored(),
                 result.wallTimeMs(), result.heapDeltaBytes(), verdict,
                 failingTrace, storeType,
-                bs.estimatedFalsePositiveRate(), bs.bitCount(), bs.bitDensity(), preemptionsUsed);
+                bs.estimatedFalsePositiveRate(), bs.bitCount(), bs.bitDensity(), preemptionsUsed, states);
         }
         return new BenchmarkResult(strategy, bugName, result.result().statesExplored(),
             result.wallTimeMs(), result.heapDeltaBytes(), verdict,
-            failingTrace, storeType, 0.0, 0, 0.0, preemptionsUsed);
+            failingTrace, storeType, 0.0, 0, 0.0, preemptionsUsed, states);
     }
 
     /**
@@ -403,14 +413,14 @@ public final class BenchmarkHarness {
     }
 
     /**
-     * Finds the first failing trace in the result.
+     * Finds the first failing or deadlocked trace in the result.
      *
      * @param result the exploration result
-     * @return the first trace with VIOLATION outcome, or null if none
+     * @return the first trace with VIOLATION or DEADLOCK outcome, or null if none
      */
     private static Trace findFailingTrace(DfsResult result) {
         return result.traces().stream()
-            .filter(t -> t.outcome() == TraceOutcome.VIOLATION)
+            .filter(t -> t.outcome() == TraceOutcome.VIOLATION || t.outcome() == TraceOutcome.DEADLOCK)
             .findFirst()
             .orElse(null);
     }

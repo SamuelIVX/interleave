@@ -1,7 +1,9 @@
 /** Immutable result of a single benchmark run (one strategy + one store type). */
 package dev.samhb.interleave.report;
 
+import dev.samhb.interleave.core.StateSnapshot;
 import dev.samhb.interleave.search.Trace;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -32,6 +34,8 @@ public final class BenchmarkResult {
     private final double bitstateBitDensity;
     /** Preemptions used. */
     private final Integer preemptionsUsed;
+    /** State snapshots. */
+    private final List<StateSnapshot> states;
 
     /**
      * Creates a result with the exact store type (backward compatible).
@@ -147,6 +151,33 @@ public final class BenchmarkResult {
                            Trace failingTrace, StoreType storeType,
                            double estimatedFalsePositiveRate, int bitstateBitCount,
                            double bitstateBitDensity, Integer preemptionsUsed) {
+        this(strategy, bugName, statesExplored, wallTimeMs, heapDeltaBytes, verdict,
+             failingTrace, storeType, estimatedFalsePositiveRate, bitstateBitCount,
+             bitstateBitDensity, preemptionsUsed, List.of());
+    }
+
+    /**
+     * Creates a benchmark row with full parameters and state snapshots.
+     * @param strategy exploration strategy used for these results
+     * @param bugName benchmark program name
+     * @param statesExplored number of explored configurations
+     * @param wallTimeMs elapsed exploration time in milliseconds
+     * @param heapDeltaBytes observed heap delta in bytes
+     * @param verdict reported exploration verdict
+     * @param failingTrace representative failure trace, or null when absent
+     * @param storeType visited-store strategy represented by this row
+     * @param estimatedFalsePositiveRate estimated Bloom-filter false-positive rate; zero for an exact store
+     * @param bitstateBitCount number of set bits in the Bloom filter
+     * @param bitstateBitDensity fraction of Bloom-filter bits that are set
+     * @param preemptionsUsed the preemption bound the search actually ran at, or null
+     * @param states captured state snapshots along the failing trace
+     */
+    public BenchmarkResult(String strategy, String bugName, long statesExplored,
+                           long wallTimeMs, long heapDeltaBytes, String verdict,
+                           Trace failingTrace, StoreType storeType,
+                           double estimatedFalsePositiveRate, int bitstateBitCount,
+                           double bitstateBitDensity, Integer preemptionsUsed,
+                           List<StateSnapshot> states) {
         this.strategy = strategy;
         this.bugName = bugName;
         this.statesExplored = statesExplored;
@@ -159,6 +190,7 @@ public final class BenchmarkResult {
         this.bitstateBitCount = bitstateBitCount;
         this.bitstateBitDensity = bitstateBitDensity;
         this.preemptionsUsed = preemptionsUsed;
+        this.states = states == null ? List.of() : List.copyOf(states);
     }
 
     /**
@@ -275,5 +307,13 @@ public final class BenchmarkResult {
      */
     public Integer preemptionsUsed() {
         return preemptionsUsed;
+    }
+
+    /**
+     * Returns captured state snapshots for the failing trace, if available.
+     * @return immutable ordered state snapshots
+     */
+    public List<StateSnapshot> states() {
+        return states;
     }
 }

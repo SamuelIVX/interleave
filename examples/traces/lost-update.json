@@ -9,7 +9,14 @@
       "heapDeltaBytes": 848376,
       "failingTrace": {
         "threadIds": [0, 1, 0, 1],
-        "outcomes": ["ADVANCED", "ADVANCED", "ADVANCED", "ADVANCED"]
+        "outcomes": ["ADVANCED", "ADVANCED", "ADVANCED", "ADVANCED"],
+        "states": [
+          {"fields": {"counter": 0, "control": false}, "locals": {"0": {"register": 0}, "1": {"register": 0}}},
+          {"fields": {"counter": 0, "control": false}, "locals": {"0": {"register": 0}, "1": {"register": 0}}},
+          {"fields": {"counter": 0, "control": false}, "locals": {"0": {"register": 0}, "1": {"register": 0}}},
+          {"fields": {"counter": 1, "control": true}, "locals": {"0": {"register": 0}, "1": {"register": 0}}},
+          {"fields": {"counter": 1, "control": true}, "locals": {"0": {"register": 0}, "1": {"register": 0}}}
+        ]
       },
       "verdict": "VIOLATION"
     }

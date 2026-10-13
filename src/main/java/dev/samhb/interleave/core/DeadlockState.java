@@ -53,6 +53,14 @@ public final class DeadlockState implements SharedState {
     }
 
     /**
+     * Returns the number of threads modeled by this state.
+     * @return thread count
+     */
+    public int threadCount() {
+        return flag.length;
+    }
+
+    /**
      * Updates flag in this mutable modeled state.
      * @param threadId zero-based modeled thread ID
      * @param value value to assign

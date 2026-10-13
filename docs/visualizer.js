@@ -90,6 +90,57 @@ function capName(s){
 }
 
 /**
+ * Compare two state values for equality (handles primitives and shallow arrays/objects).
+ * @param {*} v1 - first value
+ * @param {*} v2 - second value
+ * @returns {boolean} true if equal
+ */
+function isValEqual(v1, v2){
+  if(v1 === v2) return true;
+  if(v1 == null || v2 == null) return false;
+  if(Array.isArray(v1) && Array.isArray(v2)){
+    if(v1.length !== v2.length) return false;
+    return v1.every((x, i) => isValEqual(x, v2[i]));
+  }
+  if(typeof v1 === 'object' && typeof v2 === 'object'){
+    return JSON.stringify(v1) === JSON.stringify(v2);
+  }
+  return false;
+}
+
+/**
+ * Format a snapshot value for safe display.
+ * @param {*} v - value to format
+ * @returns {string} formatted string
+ */
+function formatVal(v){
+  if(v === undefined) return '—';
+  if(v === null) return 'null';
+  if(typeof v === 'boolean') return String(v);
+  if(typeof v === 'number') return String(v);
+  if(Array.isArray(v)) return capStr('[' + v.map(formatVal).join(', ') + ']');
+  if(typeof v === 'object') return capStr(JSON.stringify(v));
+  return capStr(String(v));
+}
+
+/**
+ * Render a table cell for a snapshot value, adding .val-changed if it changed from previous config.
+ * @param {*} val - value at selected config
+ * @param {boolean} isChanged - whether value changed from previous config
+ * @returns {HTMLTableCellElement} table cell
+ */
+function renderValCell(val, isChanged){
+  const td = document.createElement('td');
+  const span = document.createElement('span');
+  span.textContent = formatVal(val);
+  if(isChanged){
+    span.className = 'val-changed';
+  }
+  td.append(span);
+  return td;
+}
+
+/**
  * Normalize any supported raw JSON payload into a {trace, meta} pair.
  * Supports TraceRecord {threads}, ReportWriter {benchmarks}, and TestResult
  * {failingTraces|deadlockedTraces|completedTraces|incompleteTraces}.
@@ -110,7 +161,7 @@ function normalize(raw){
     if(ft){
       const threads = ft.threads || ft.threadIds;
       if(!Array.isArray(threads)) throw new Error('benchmarks[].failingTrace missing threads/threadIds');
-      return { trace: { threads, outcomes: ft.outcomes, outcome: entry.verdict || 'VIOLATION', programHash: entry.bug }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
+      return { trace: { threads, outcomes: ft.outcomes, outcome: entry.verdict || 'VIOLATION', programHash: entry.bug, states: ft.states }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
     }
     return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
   }
@@ -380,10 +431,10 @@ function renderStateStrip(){
   const el = $('#stateStrip');
   el.textContent = '';
 
-  // Snapshot block is independent of programDef (fix 4116389768)
   const snapshot = currentTrace.states && Array.isArray(currentTrace.states) ? currentTrace.states[selectedIdx] : null;
+  const prevSnapshot = currentTrace.states && Array.isArray(currentTrace.states) && selectedIdx > 0 ? currentTrace.states[selectedIdx - 1] : null;
 
-  if(!programDef){
+  if(!programDef && !snapshot){
     const p = document.createElement('p'); p.className='placeholder';
     p.append(document.createTextNode('No program JSON loaded — load a program file (e.g. '));
     const code = document.createElement('code'); code.textContent='src/main/resources/programs/lost-update.json';
@@ -396,35 +447,24 @@ function renderStateStrip(){
     p.append(c3);
     p.append(document.createTextNode(' header. State values are schedule-only today.'));
     el.append(p);
-    if(snapshot){
-      const ps = document.createElement('p'); ps.className='placeholder'; ps.textContent='Snapshot present for this config (future harness):';
-      const pre = document.createElement('pre'); pre.style.font='12px var(--mono)'; pre.style.background='var(--bg)'; pre.style.padding='8px'; pre.style.borderRadius='8px'; pre.style.overflow='auto';
-      pre.textContent = JSON.stringify(snapshot, null, 2);
-      el.append(ps, pre);
-    }
     return;
   }
-  const fieldsRaw = programDef.state?.fields || (programDef.state?.type ? [{name: programDef.state.type, type: 'typed'}] : []);
-  const localsRaw = programDef.state?.locals || [];
-  // Cap display (fix 4116389773) — validated length already ≤MAX_FIELDS, but slice defensively
-  const fields = Array.isArray(fieldsRaw) ? fieldsRaw.slice(0, MAX_FIELDS) : [];
-  const locals = Array.isArray(localsRaw) ? localsRaw.slice(0, MAX_FIELDS) : [];
-  const truncatedFields = Array.isArray(fieldsRaw) && fieldsRaw.length > MAX_FIELDS;
-  const truncatedLocals = Array.isArray(localsRaw) && localsRaw.length > MAX_FIELDS;
 
-  const div = document.createElement('div'); div.style.marginBottom='8px';
-  div.append(document.createTextNode('Invariant: '));
-  if(programDef.invariant){
-    const code = document.createElement('code');
-    code.textContent = capStr(programDef.invariant.expr || JSON.stringify(programDef.invariant));
-    div.append(code);
-  } else {
-    const sp = document.createElement('span'); sp.className='muted'; sp.textContent='—';
-    div.append(sp);
+  if(programDef){
+    const div = document.createElement('div'); div.style.marginBottom='8px';
+    div.append(document.createTextNode('Invariant: '));
+    if(programDef.invariant){
+      const code = document.createElement('code');
+      code.textContent = capStr(programDef.invariant.expr || JSON.stringify(programDef.invariant));
+      div.append(code);
+    } else {
+      const sp = document.createElement('span'); sp.className='muted'; sp.textContent='—';
+      div.append(sp);
+    }
+    const wh = document.createElement('span'); wh.className='muted'; wh.textContent = ` (${programDef.invariant?.when||'final'})`;
+    div.append(wh);
+    el.append(div);
   }
-  const wh = document.createElement('span'); wh.className='muted'; wh.textContent = ` (${programDef.invariant?.when||'final'})`;
-  div.append(wh);
-  el.append(div);
 
   const table = document.createElement('table');
   const thead = document.createElement('thead');
@@ -432,45 +472,141 @@ function renderStateStrip(){
   ['Scope','Name','Value at selected config'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; hr.append(th); });
   thead.append(hr); table.append(thead);
   const tbody = document.createElement('tbody');
-  if(fields.length===0 && locals.length===0){
-    const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=3; td.className='placeholder'; td.textContent='No fields/locals declared in program JSON.'; tr.append(td); tbody.append(tr);
-  } else {
-    fields.forEach(f=>{
-      const tr=document.createElement('tr');
-      const tdS=document.createElement('td'); tdS.textContent='field';
-      const tdN=document.createElement('td');
-      const code=document.createElement('code'); code.textContent=capName(String(f.name));
-      tdN.append(code);
-      const mut=document.createElement('span'); mut.className='muted'; mut.textContent=' ' + capName(String(f.type||''));
-      tdN.append(mut);
-      const tdV=document.createElement('td'); tdV.className='placeholder'; tdV.textContent='no snapshot — schedule only (header from program JSON)';
-      tr.append(tdS, tdN, tdV); tbody.append(tr);
-    });
-    if(truncatedFields){
-      const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=3; td.className='placeholder'; td.textContent=`… truncated, ${fieldsRaw.length - MAX_FIELDS} more fields not shown`; tr.append(td); tbody.append(tr);
-    }
-    locals.forEach(l=>{
-      const tr=document.createElement('tr');
-      const tdS=document.createElement('td'); tdS.textContent='local';
-      const tdN=document.createElement('td');
-      const code=document.createElement('code'); code.textContent=capName(String(l.name));
-      tdN.append(code);
-      const mut=document.createElement('span'); mut.className='muted'; mut.textContent=' ' + capName(String(l.type||''));
-      tdN.append(mut);
-      const tdV=document.createElement('td'); tdV.className='placeholder'; tdV.textContent='no snapshot — schedule only';
-      tr.append(tdS, tdN, tdV); tbody.append(tr);
-    });
-    if(truncatedLocals){
-      const tr=document.createElement('tr'); const td=document.createElement('td'); td.colSpan=3; td.className='placeholder'; td.textContent=`… truncated, ${localsRaw.length - MAX_FIELDS} more locals not shown`; tr.append(td); tbody.append(tr);
-    }
-  }
-  table.append(tbody); el.append(table);
+
   if(snapshot){
-    const p=document.createElement('p'); p.className='placeholder'; p.textContent='Snapshot present for this config (future harness):';
-    const pre=document.createElement('pre'); pre.style.font='12px var(--mono)'; pre.style.background='var(--bg)'; pre.style.padding='8px'; pre.style.borderRadius='8px'; pre.style.overflow='auto';
-    pre.textContent = JSON.stringify(snapshot, null, 2);
-    el.append(p, pre);
+    let rowCount = 0;
+    const fieldMap = new Map();
+    if(snapshot.fields && typeof snapshot.fields === 'object' && !Array.isArray(snapshot.fields)){
+      for(const [k, v] of Object.entries(snapshot.fields)){
+        fieldMap.set(k, v);
+      }
+    }
+    const declaredFieldTypes = new Map();
+    if(programDef && Array.isArray(programDef.state?.fields)){
+      programDef.state.fields.forEach(f=>{ if(f && f.name) declaredFieldTypes.set(f.name, f.type); });
+    }
+
+    fieldMap.forEach((val, name)=>{
+      if(rowCount >= MAX_FIELDS) return;
+      rowCount++;
+      const tr = document.createElement('tr');
+      const tdS = document.createElement('td'); tdS.textContent = 'field';
+      const tdN = document.createElement('td');
+      const code = document.createElement('code'); code.textContent = capName(String(name));
+      tdN.append(code);
+      const typeStr = declaredFieldTypes.get(name);
+      if(typeStr){
+        const mut = document.createElement('span'); mut.className = 'muted'; mut.textContent = ' ' + capName(String(typeStr));
+        tdN.append(mut);
+      }
+      const prevVal = prevSnapshot?.fields ? prevSnapshot.fields[name] : undefined;
+      const isChanged = prevSnapshot != null && !isValEqual(prevVal, val);
+      const tdV = renderValCell(val, isChanged);
+      tr.append(tdS, tdN, tdV);
+      tbody.append(tr);
+    });
+
+    const declaredLocalTypes = new Map();
+    if(programDef && Array.isArray(programDef.state?.locals)){
+      programDef.state.locals.forEach(l=>{ if(l && l.name) declaredLocalTypes.set(l.name, l.type); });
+    }
+
+    if(snapshot.locals && typeof snapshot.locals === 'object' && !Array.isArray(snapshot.locals)){
+      const tids = Object.keys(snapshot.locals).sort((a,b)=> {
+        const na = Number(a), nb = Number(b);
+        return (!isNaN(na) && !isNaN(nb)) ? na - nb : a.localeCompare(b);
+      });
+      for(const tid of tids){
+        const tLocals = snapshot.locals[tid];
+        if(!tLocals || typeof tLocals !== 'object' || Array.isArray(tLocals)) continue;
+        for(const [name, val] of Object.entries(tLocals)){
+          if(rowCount >= MAX_FIELDS * 2) break;
+          rowCount++;
+          const tr = document.createElement('tr');
+          const tdS = document.createElement('td'); tdS.textContent = `local (T${tid})`;
+          const tdN = document.createElement('td');
+          const code = document.createElement('code'); code.textContent = capName(String(name));
+          tdN.append(code);
+          const typeStr = declaredLocalTypes.get(name);
+          if(typeStr){
+            const mut = document.createElement('span'); mut.className = 'muted'; mut.textContent = ' ' + capName(String(typeStr));
+            tdN.append(mut);
+          }
+          const prevVal = prevSnapshot?.locals?.[tid] ? prevSnapshot.locals[tid][name] : undefined;
+          const isChanged = prevSnapshot != null && !isValEqual(prevVal, val);
+          const tdV = renderValCell(val, isChanged);
+          tr.append(tdS, tdN, tdV);
+          tbody.append(tr);
+        }
+      }
+    }
+
+    if(rowCount === 0){
+      const tr = document.createElement('tr');
+      const td = document.createElement('td'); td.colSpan = 3; td.className = 'placeholder';
+      td.textContent = 'Empty state snapshot.';
+      tr.append(td);
+      tbody.append(tr);
+    }
+  } else {
+    // Schedule only — no snapshot
+    const fieldsRaw = programDef.state?.fields || (programDef.state?.type ? [{name: programDef.state.type, type: 'typed'}] : []);
+    const localsRaw = programDef.state?.locals || [];
+    const fields = Array.isArray(fieldsRaw) ? fieldsRaw.slice(0, MAX_FIELDS) : [];
+    const locals = Array.isArray(localsRaw) ? localsRaw.slice(0, MAX_FIELDS) : [];
+    const truncatedFields = Array.isArray(fieldsRaw) && fieldsRaw.length > MAX_FIELDS;
+    const truncatedLocals = Array.isArray(localsRaw) && localsRaw.length > MAX_FIELDS;
+
+    if(fields.length === 0 && locals.length === 0){
+      const tr = document.createElement('tr');
+      const td = document.createElement('td'); td.colSpan = 3; td.className = 'placeholder';
+      td.textContent = 'No fields/locals declared in program JSON.';
+      tr.append(td);
+      tbody.append(tr);
+    } else {
+      fields.forEach(f=>{
+        const tr = document.createElement('tr');
+        const tdS = document.createElement('td'); tdS.textContent = 'field';
+        const tdN = document.createElement('td');
+        const code = document.createElement('code'); code.textContent = capName(String(f.name));
+        tdN.append(code);
+        const mut = document.createElement('span'); mut.className = 'muted'; mut.textContent = ' ' + capName(String(f.type || ''));
+        tdN.append(mut);
+        const tdV = document.createElement('td'); tdV.className = 'placeholder'; tdV.textContent = 'no snapshot — schedule only (header from program JSON)';
+        tr.append(tdS, tdN, tdV);
+        tbody.append(tr);
+      });
+      if(truncatedFields){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td'); td.colSpan = 3; td.className = 'placeholder';
+        td.textContent = `… truncated, ${fieldsRaw.length - MAX_FIELDS} more fields not shown`;
+        tr.append(td);
+        tbody.append(tr);
+      }
+      locals.forEach(l=>{
+        const tr = document.createElement('tr');
+        const tdS = document.createElement('td'); tdS.textContent = 'local';
+        const tdN = document.createElement('td');
+        const code = document.createElement('code'); code.textContent = capName(String(l.name));
+        tdN.append(code);
+        const mut = document.createElement('span'); mut.className = 'muted'; mut.textContent = ' ' + capName(String(l.type || ''));
+        tdN.append(mut);
+        const tdV = document.createElement('td'); tdV.className = 'placeholder'; tdV.textContent = 'no snapshot — schedule only';
+        tr.append(tdS, tdN, tdV);
+        tbody.append(tr);
+      });
+      if(truncatedLocals){
+        const tr = document.createElement('tr');
+        const td = document.createElement('td'); td.colSpan = 3; td.className = 'placeholder';
+        td.textContent = `… truncated, ${localsRaw.length - MAX_FIELDS} more locals not shown`;
+        tr.append(td);
+        tbody.append(tr);
+      }
+    }
   }
+
+  table.append(tbody);
+  el.append(table);
 }
 
 /**
@@ -551,7 +687,21 @@ copyBtn.addEventListener('click', async ()=>{
 });
 
 const samples = {
-  'lost-update': { trace: { threads:[0,1,0,1], outcomes:["ADVANCED","ADVANCED","ADVANCED","ADVANCED"], outcome:"VIOLATION" }, meta:{verdict:"VIOLATION", bug:"lost-update", strategy:"DFS", storeType:"EXACT", statesExplored:13} },
+  'lost-update': {
+    trace: {
+      threads: [0, 1, 0, 1],
+      outcomes: ["ADVANCED", "ADVANCED", "ADVANCED", "ADVANCED"],
+      outcome: "VIOLATION",
+      states: [
+        {"fields": {"counter": 0, "control": false}, "locals": {"0": {"register": 0}, "1": {"register": 0}}},
+        {"fields": {"counter": 0, "control": false}, "locals": {"0": {"register": 0}, "1": {"register": 0}}},
+        {"fields": {"counter": 0, "control": false}, "locals": {"0": {"register": 0}, "1": {"register": 0}}},
+        {"fields": {"counter": 1, "control": true}, "locals": {"0": {"register": 0}, "1": {"register": 0}}},
+        {"fields": {"counter": 1, "control": true}, "locals": {"0": {"register": 0}, "1": {"register": 0}}}
+      ]
+    },
+    meta: {verdict: "VIOLATION", bug: "lost-update", strategy: "DFS", storeType: "EXACT", statesExplored: 13}
+  },
   'peterson': { trace: { threads:[], outcome:"PASS" }, meta:{verdict:"PASS", bug:"peterson", strategy:"DFS", storeType:"EXACT", statesExplored:6} },
   'bounded-buffer': { trace: { threads:[], outcome:"PASS" }, meta:{verdict:"PASS", bug:"bounded-buffer-declarative", strategy:"DFS", storeType:"EXACT", statesExplored:6} }
 };

@@ -167,4 +167,23 @@ class BenchmarkHarnessTest {
         assertTrue(reduction.contains("STATIC_POR (exact): 50"));
         assertTrue(reduction.contains("DPOR (exact): 30"));
     }
+
+    @Test
+    void runProgram_deadlockCapturesStateSnapshots() {
+        BenchmarkHarness harness = new BenchmarkHarness();
+        BenchmarkProgram deadlockProg = BugCorpus.all().stream()
+            .filter(p -> "DEADLOCK".equals(p.expectedVerdict()))
+            .findFirst()
+            .orElseThrow();
+
+        List<BenchmarkResult> results = harness.runProgram(deadlockProg);
+        BenchmarkResult dfsDeadlock = results.stream()
+            .filter(r -> "DFS".equals(r.strategy()) && r.storeType() == StoreType.EXACT)
+            .findFirst()
+            .orElseThrow();
+
+        assertEquals("DEADLOCK", dfsDeadlock.verdict());
+        assertTrue(dfsDeadlock.failingTrace().isPresent(), "Deadlock should have a failing/deadlocked trace");
+        assertFalse(dfsDeadlock.states().isEmpty(), "Deadlock benchmark result should capture state snapshots");
+    }
 }

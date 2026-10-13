@@ -4,6 +4,7 @@ package dev.samhb.interleave.report;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.samhb.interleave.bugs.BugCorpus;
+import dev.samhb.interleave.core.StateSnapshot;
 import dev.samhb.interleave.core.StepOutcome;
 import dev.samhb.interleave.search.Trace;
 import java.util.*;
@@ -89,7 +90,7 @@ public final class ReportWriter {
             // Failing trace
             if (result.failingTrace().isPresent()) {
                 sb.append("      \"failingTrace\": ");
-                sb.append(formatFailingTrace(result.failingTrace().get()));
+                sb.append(formatFailingTrace(result.failingTrace().get(), result.states()));
                 sb.append(",\n");
             }
 
@@ -129,11 +130,12 @@ public final class ReportWriter {
     }
 
     /**
-     * Formats recorded thread choices and outcomes for a failure row.
+     * Formats recorded thread choices, outcomes, and optional state snapshots for a failure row.
      * @param trace recorded execution to inspect or replay
-     * @return formatted thread choices and outcomes, or the absent-trace placeholder
+     * @param states captured state snapshots, if available
+     * @return formatted thread choices, outcomes, and state snapshots
      */
-    private static String formatFailingTrace(Trace trace) {
+    private static String formatFailingTrace(Trace trace, List<StateSnapshot> states) {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         sb.append("        \"threadIds\": [");
@@ -147,8 +149,11 @@ public final class ReportWriter {
             if (i > 0) sb.append(", ");
             sb.append(String.format("\"%s\"", trace.outcomes().get(i)));
         }
-        sb.append("]\n");
-        sb.append("      }");
+        sb.append("]");
+        if (states != null && !states.isEmpty()) {
+            sb.append(",\n        \"states\": ").append(GSON.toJson(states));
+        }
+        sb.append("\n      }");
         return sb.toString();
     }
 
