@@ -150,4 +150,34 @@ class StateSnapshotExtractorTest {
         assertEquals(1, s2.fields().get("a"));
         assertTrue(s2.locals().isEmpty());
     }
+
+    @Test
+    void snapshotAccessors_returnDefensiveCopiesOfArrays() {
+        boolean[] flags = new boolean[]{false, false};
+        int[] arr = new int[]{10, 20};
+        Map<String, Object> fields = Map.of("flag", flags, "arr", arr);
+        Map<String, Map<String, Object>> locals = Map.of("0", Map.of("localArr", new int[]{99}));
+
+        StateSnapshot snapshot = new StateSnapshot(fields, locals);
+
+        // Mutate array returned by fields()
+        boolean[] returnedFlags = (boolean[]) snapshot.fields().get("flag");
+        returnedFlags[0] = true;
+        int[] returnedArr = (int[]) snapshot.fields().get("arr");
+        returnedArr[0] = 999;
+
+        // Mutate array returned by locals()
+        int[] returnedLocalArr = (int[]) snapshot.locals().get("0").get("localArr");
+        returnedLocalArr[0] = -1;
+
+        // Verify snapshot internal state is uncorrupted
+        boolean[] freshFlags = (boolean[]) snapshot.fields().get("flag");
+        assertFalse(freshFlags[0], "Mutating returned flags must not mutate snapshot internal state");
+
+        int[] freshArr = (int[]) snapshot.fields().get("arr");
+        assertEquals(10, freshArr[0], "Mutating returned int array must not mutate snapshot internal state");
+
+        int[] freshLocalArr = (int[]) snapshot.locals().get("0").get("localArr");
+        assertEquals(99, freshLocalArr[0], "Mutating returned local array must not mutate snapshot internal state");
+    }
 }

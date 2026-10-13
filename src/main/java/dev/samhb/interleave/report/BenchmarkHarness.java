@@ -308,11 +308,11 @@ public final class BenchmarkHarness {
      * Combines exploration outcomes and measured store diagnostics into a benchmark row.
      * @param strategy exploration strategy used for these results
      * @param bugName benchmark program name
+     * @param program program whose steps were explored
      * @param result completed exploration result
      * @param verdict reported exploration verdict
      * @param failingTrace representative failure trace, or null when absent
      * @param storeType visited-store strategy represented by this row
-     * @param program program whose steps were explored
      * @param store visited-position store for this run
      * @param preemptionsUsed preemption bound used, or null for an unbounded strategy
      * @return benchmark row preserving verdict, trace, measurements, and store diagnostics
@@ -413,14 +413,14 @@ public final class BenchmarkHarness {
     }
 
     /**
-     * Finds the first failing trace in the result.
+     * Finds the first failing or deadlocked trace in the result.
      *
      * @param result the exploration result
-     * @return the first trace with VIOLATION outcome, or null if none
+     * @return the first trace with VIOLATION or DEADLOCK outcome, or null if none
      */
     private static Trace findFailingTrace(DfsResult result) {
         return result.traces().stream()
-            .filter(t -> t.outcome() == TraceOutcome.VIOLATION)
+            .filter(t -> t.outcome() == TraceOutcome.VIOLATION || t.outcome() == TraceOutcome.DEADLOCK)
             .findFirst()
             .orElse(null);
     }

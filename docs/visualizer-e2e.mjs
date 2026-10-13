@@ -131,9 +131,9 @@ async function runTests() {
     const config4Label = await page.locator('#selectedIdxLabel').textContent();
     assert(config4Label.includes('config 4'), 'State strip header shows config 4');
 
-    const stateCells = await page.locator('#stateStrip table tbody tr').allTextContents();
-    const counterRow4 = stateCells.find((row) => row.includes('counter'));
-    assert(counterRow4 != null && counterRow4.includes('1'), 'State strip at config 4 displays counter = 1');
+    const counterRow4 = page.locator('#stateStrip table tbody tr').filter({ hasText: 'counter' });
+    const counterVal4 = await counterRow4.locator('td').nth(2).textContent();
+    assert(counterVal4?.trim() === '1', 'State strip at config 4 displays counter = 1');
 
     // -------------------------------------------------------------
     // Test 3: Interactive Row Click & State Diff Highlighting
@@ -147,16 +147,22 @@ async function runTests() {
     const config3Label = await page.locator('#selectedIdxLabel').textContent();
     assert(config3Label.includes('config 3'), 'State strip header updates to config 3');
 
-    // In config 3, counter changed from 0 to 1, so .val-changed should be present
-    const changedCellCount3 = await page.locator('#stateStrip .val-changed').count();
-    assert(changedCellCount3 > 0, 'State strip contains highlighted .val-changed cells on value change');
+    // In config 3, counter changed from 0 to 1, so counter value cell must have .val-changed
+    const counterRow3 = page.locator('#stateStrip table tbody tr').filter({ hasText: 'counter' });
+    const isCounterChanged3 = await counterRow3.locator('td').nth(2).locator('.val-changed').count() > 0;
+    assert(isCounterChanged3, 'State strip at config 3 highlights counter value cell with .val-changed');
+
+    // Click config 4: no values changed from config 3, so .val-changed must be absent
+    await timelineRows.nth(4).click();
+    const changedCellCount4 = await page.locator('#stateStrip .val-changed').count();
+    assert(changedCellCount4 === 0, 'State strip at config 4 has 0 .val-changed cells when no values changed');
 
     // Click config 0 (initial state: counter = 0)
     await timelineRows.nth(0).click();
     assert(await timelineRows.nth(0).evaluate((el) => el.classList.contains('active-row')), 'Row 0 becomes active on click');
-    const stateCells0 = await page.locator('#stateStrip table tbody tr').allTextContents();
-    const counterRow0 = stateCells0.find((row) => row.includes('counter'));
-    assert(counterRow0 != null && counterRow0.includes('0'), 'State strip at config 0 displays counter = 0');
+    const counterRow0 = page.locator('#stateStrip table tbody tr').filter({ hasText: 'counter' });
+    const counterVal0 = await counterRow0.locator('td').nth(2).textContent();
+    assert(counterVal0?.trim() === '0', 'State strip at config 0 displays counter = 0');
 
     // -------------------------------------------------------------
     // Test 4: Keyboard Navigation (Enter and Space)

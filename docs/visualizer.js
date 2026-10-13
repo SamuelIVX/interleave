@@ -500,7 +500,7 @@ function renderStateStrip(){
         tdN.append(mut);
       }
       const prevVal = prevSnapshot?.fields ? prevSnapshot.fields[name] : undefined;
-      const isChanged = prevSnapshot != null && prevVal !== undefined && !isValEqual(prevVal, val);
+      const isChanged = prevSnapshot != null && !isValEqual(prevVal, val);
       const tdV = renderValCell(val, isChanged);
       tr.append(tdS, tdN, tdV);
       tbody.append(tr);
@@ -533,7 +533,7 @@ function renderStateStrip(){
             tdN.append(mut);
           }
           const prevVal = prevSnapshot?.locals?.[tid] ? prevSnapshot.locals[tid][name] : undefined;
-          const isChanged = prevSnapshot != null && prevVal !== undefined && !isValEqual(prevVal, val);
+          const isChanged = prevSnapshot != null && !isValEqual(prevVal, val);
           const tdV = renderValCell(val, isChanged);
           tr.append(tdS, tdN, tdV);
           tbody.append(tr);

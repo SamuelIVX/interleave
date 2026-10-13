@@ -72,6 +72,26 @@ public record StateSnapshot(
     }
 
     /**
+     * Returns an unmodifiable defensive copy of the snapshot's fields with cloned array values.
+     *
+     * @return unmodifiable map of field names to values with array copies
+     */
+    @Override
+    public Map<String, Object> fields() {
+        return deepCopyFields(fields);
+    }
+
+    /**
+     * Returns an unmodifiable defensive copy of the snapshot's locals with cloned array values.
+     *
+     * @return unmodifiable map of thread locals with array copies
+     */
+    @Override
+    public Map<String, Map<String, Object>> locals() {
+        return deepCopyLocals(locals);
+    }
+
+    /**
      * Factory for snapshots with fields only.
      *
      * @param fields field mapping
