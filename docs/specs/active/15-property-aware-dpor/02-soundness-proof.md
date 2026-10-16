@@ -57,3 +57,14 @@ Otherwise, consider the branching at $\sigma_0$:
   - If $s_1$ and $u$ are dependent, $u$ cannot place $s_1$ to sleep (independence requirement).
   - If $u$ is visible, Rule 2 refreshes the sleep set to empty, ensuring any previously sleeping transitions are re-enabled to observe the updated state.
 Because threads have finite linear lengths and counters strictly increase on progress, induction on remaining step distance $R(\sigma)$ guarantees that a violation-reaching schedule is preserved in the explored search tree. $\blacksquare$
+
+### Interaction Between Sleep Sets and the Visited-State Store
+
+A known subtlety in model checking is combining sleep sets with state caching (`StateStore.isVisited(config)`). In general cyclic transition systems, premature state pruning can occur if a state is revisited with a sleep set that does not subsume the earlier sleep set.
+
+In `interleave`, this interaction is provably sound because:
+1. **Exact Canonical Configuration Identity**: `Configuration` keys (encoded via `CanonicalEncoder`) capture both all modeled shared-state variables and the exact vector of program counters $(pc_0, \dots, pc_{N-1})$. Two configurations are identical if and only if their state valuations and thread positions are identical.
+2. **Strictly Acyclic Progress**: Every progressing edge advances a thread's program counter by +1. The sum $\sum_{i=0}^{N-1} pc_i$ strictly increases along every progressing path. Therefore, no configuration can ever be an ancestor of itself along a progressing edge; the state graph is a finite DAG.
+3. **State-Determined Suffixes**: Because threads are deterministic and linear, the set of enabled transitions and subsequent reachable states from configuration $\sigma$ depends strictly on its state and program counters, not on the scheduling history that reached it.
+4. **Immediate Violation Detection**: The invariant $I(\sigma)$ is checked upon entering `dporDfs` at every configuration $\sigma$ before state-store pruning. If $\sigma$ violates $I$, it is detected and emitted as a `VIOLATION` trace immediately.
+5. **Future Violation Preservation**: If a violation occurs only in a continuation from $\sigma$, then when $\sigma$ was first visited and marked, all non-sleeping branches from $\sigma$ were explored. By commutativity of independent prefixes, any schedule reaching $\sigma$ shares the same downstream equivalence classes; pruning revisits to $\sigma$ cannot eliminate a reachable property violation. $\blacksquare$

@@ -21,7 +21,7 @@ This document details the verification suite, empirical benchmarks, differential
 
 ### 2. Differential Oracles
 
-For all parameterized tests and corpus benchmarks:
+For all corpus benchmarks:
 - **Verdict Equivalence**: $\text{outcomes}(\text{DPOR}(P, I)) \equiv \text{outcomes}(\text{DFS}(P, I))$
 - **Violation Preservation**: If $\text{DFS}(P, I)$ contains `VIOLATION`, then $\text{DPOR}(P, I)$ contains `VIOLATION`.
 - **Deadlock Preservation**: If $\text{DFS}(P, I)$ contains `DEADLOCK`, then $\text{DPOR}(P, I)$ contains `DEADLOCK`.
@@ -29,15 +29,15 @@ For all parameterized tests and corpus benchmarks:
 
 ### 3. BugCorpus Benchmark Suite
 
-All benchmarks in `BugCorpus.all()` are executed against `DporExplorer`:
-- `lost-update`: Expected `VIOLATION`
+All 8 benchmarks in `BugCorpus.all()` are executed against `DporExplorer`:
 - `peterson`: Expected `COMPLETED` (mutual exclusion holds)
 - `broken-peterson`: Expected `VIOLATION`
 - `broken-peterson-v2`: Expected `VIOLATION`
-- `producer-consumer-bounded`: Expected `COMPLETED`
-- `circular-buffer`: Expected `COMPLETED`
-- `deadlock-3thread`: Expected `DEADLOCK`
-- `dining-philosophers`: Expected `DEADLOCK`
+- `deadlock`: Expected `DEADLOCK`
+- `double-checked-locking`: Expected `VIOLATION`
+- `lost-update`: Expected `VIOLATION`
+- `lost-update-3t`: Expected `VIOLATION`
+- `torn-counter`: Expected `VIOLATION`
 
 ## Mutation Targets (PIT)
 

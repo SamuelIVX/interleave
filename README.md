@@ -30,8 +30,8 @@ DfsResult result = new StaticPorExplorer().explore(program, safe);
 ```
 
 DSL `when: "always"` invariants derive their observations automatically. Default/`final` checks
-and properties inspecting counters or termination retain exhaustive branching. DPOR's invariant
-fallback is unchanged.
+and properties inspecting counters or termination retain exhaustive branching in both static POR and DPOR.
+Invariants declaring complete observations enable property-aware reduction in both `StaticPorExplorer` and `DporExplorer`.
 
 Complete step footprints and pure value-based properties are required; incomplete declarations can
 cause false passes. With an exact store, reduced runs preserve violation detection but report only

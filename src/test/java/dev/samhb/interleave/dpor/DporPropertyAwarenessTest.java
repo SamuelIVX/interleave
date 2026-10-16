@@ -4,6 +4,7 @@ package dev.samhb.interleave.dpor;
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.bugs.BugCorpus;
 import dev.samhb.interleave.core.*;
+import dev.samhb.interleave.format.ProgramLoader;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.por.StaticPorExplorer;
 import org.junit.jupiter.api.Test;
@@ -83,9 +84,30 @@ class DporPropertyAwarenessTest {
         // Thread 1: step 0 writes cell[1]=1 (visible!).
         Cells initial = new Cells(0, 0, 0);
         Step conditionalViolate = new Step() {
+            /**
+             * Returns read locations for the conditional step.
+             * @return set containing cell[1]
+             */
             public Set<MemoryLocation> reads() { return locations("cell[1]"); }
+
+            /**
+             * Returns write locations for the conditional step.
+             * @return set containing cell[2]
+             */
             public Set<MemoryLocation> writes() { return locations("cell[2]"); }
+
+            /**
+             * Reports whether the conditional step is enabled.
+             * @param state modeled state to inspect
+             * @return true always
+             */
             public boolean enabled(SharedState state) { return true; }
+
+            /**
+             * Executes the conditional violation when cell[1] == 1.
+             * @param state modeled state to mutate
+             * @return ADVANCED outcome
+             */
             public StepOutcome execute(SharedState state) {
                 Cells c = (Cells) state;
                 if (c.values[1] == 1) {
@@ -185,7 +207,9 @@ class DporPropertyAwarenessTest {
         DfsResult dfs = new DfsExplorer().explore(program, emptyProperty);
         DfsResult dpor = new DporExplorer().explore(program, emptyProperty);
 
-        assertTrue(dpor.statesExplored() <= dfs.statesExplored());
+        assertTrue(dpor.statesExplored() < dfs.statesExplored(),
+            "Empty observation set must strictly reduce independent work compared to DFS. DFS: "
+            + dfs.statesExplored() + ", DPOR: " + dpor.statesExplored());
         assertEquals(outcomes(dfs), outcomes(dpor));
     }
 
@@ -206,6 +230,39 @@ class DporPropertyAwarenessTest {
         assertEquals(outcomes(dfs), outcomes(dpor));
     }
 
+    /** Verifies that a declarative DSL program with an always invariant applies property-aware reduction. */
+    @Test
+    void dslAlwaysPropertyAppliesPropertyAwareReduction() {
+        String json = """
+            {
+              "format": "declarative",
+              "name": "dsl-always-test",
+              "state": {"fields": [{"name": "a", "type": "int", "init": 0}, {"name": "b", "type": "int", "init": 0}, {"name": "x", "type": "int", "init": 0}]},
+              "threads": [
+                {"id": 0, "steps": [{"effects": ["a = 1"]}, {"effects": ["a = 2"]}]},
+                {"id": 1, "steps": [{"effects": ["b = 1"]}, {"effects": ["b = 2"]}]},
+                {"id": 2, "steps": [{"effects": ["x = 1"]}]}
+              ],
+              "invariant": {
+                "expr": "x >= 0",
+                "when": "always"
+              }
+            }
+            """;
+        BenchmarkProgram prog = new ProgramLoader().load(json);
+        Invariant invariant = prog.invariant().orElseThrow();
+        assertTrue(invariant.observedLocations().isPresent());
+
+        DfsResult dfs = new DfsExplorer().explore(prog.program(), invariant);
+        DfsResult dpor = new DporExplorer().explore(prog.program(), invariant);
+
+        assertTrue(dpor.statesExplored() < dfs.statesExplored(),
+            "DPOR must explore fewer states than DFS on DSL always property with independent work. DFS: "
+            + dfs.statesExplored() + ", DPOR: " + dpor.statesExplored());
+        assertEquals(outcomes(dfs), outcomes(dpor));
+        assertTrue(outcomes(dpor).contains(TraceOutcome.COMPLETED));
+    }
+
     /** Verifies differential equivalence across all benchmarks in BugCorpus. */
     @Test
     void bugCorpusAllVerdictsPreserved() {
@@ -219,6 +276,8 @@ class DporPropertyAwarenessTest {
 
             assertEquals(dfsOutcomes, dporOutcomes,
                 "Outcomes must match for corpus program: " + benchmark.name());
+            assertTrue(dporResult.statesExplored() <= dfsResult.statesExplored(),
+                "DPOR states explored must be <= DFS states explored for benchmark " + benchmark.name());
 
             TraceOutcome expectedOutcome = switch (benchmark.expectedVerdict()) {
                 case "VIOLATION" -> TraceOutcome.VIOLATION;
@@ -251,10 +310,20 @@ class DporPropertyAwarenessTest {
         assertTrue(outcomes(dpor).contains(TraceOutcome.VIOLATION));
     }
 
+    /**
+     * Creates a set of memory locations from the provided names.
+     * @param names stable memory location identifiers
+     * @return immutable set containing the specified memory locations
+     */
     private static Set<MemoryLocation> locations(String... names) {
         return Arrays.stream(names).map(MemoryLocation::of).collect(java.util.stream.Collectors.toSet());
     }
 
+    /**
+     * Extracts the distinct trace outcomes recorded in an exploration result.
+     * @param result completed exploration result to inspect
+     * @return set of distinct terminal outcomes observed across all traces
+     */
     private static Set<TraceOutcome> outcomes(DfsResult result) {
         Set<TraceOutcome> outcomes = EnumSet.noneOf(TraceOutcome.class);
         result.traces().forEach(trace -> outcomes.add(trace.outcome()));
@@ -263,27 +332,61 @@ class DporPropertyAwarenessTest {
 
     /** Simple three-cell shared state for tests. */
     private static final class Cells implements SharedState {
+        /** Cell values array. */
         private final int[] values;
 
+        /**
+         * Creates a three-cell shared state with the specified initial values.
+         * @param values initial cell values to store
+         */
         Cells(int... values) { this.values = values.clone(); }
 
+        /**
+         * Returns an isolated deep copy preserving modeled cell values.
+         * @return new Cells instance with duplicated values
+         */
         public SharedState deepCopy() { return new Cells(values); }
 
+        /**
+         * Writes the cell values in deterministic canonical order.
+         * @param out data output destination
+         * @throws IOException if encoding fails
+         */
         public void encodeTo(DataOutput out) throws IOException {
             for (int value : values) out.writeInt(value);
         }
 
+        /**
+         * Compares cells for value equality across all elements.
+         * @param other object to compare
+         * @return true if other is a Cells instance with identical values
+         */
         public boolean equals(Object other) {
             return other instanceof Cells cells && Arrays.equals(values, cells.values);
         }
 
+        /**
+         * Returns hash code consistent with array value equality.
+         * @return array-based hash code
+         */
         public int hashCode() {
             return Arrays.hashCode(values);
         }
     }
 
-    /** Simple deterministic step modifying cells. */
+    /**
+     * Deterministic transition modifying cells with conservative footprints.
+     * @param read cell index to read, or -1 for none
+     * @param write cell index to write, or -1 for none
+     * @param value literal value to assign when write is performed without read
+     * @param guard cell index required to be 1 for enabledness, or -1 for none
+     * @param assertion whether this step asserts cell[read] == 0
+     */
     private record CellStep(int read, int write, int value, int guard, boolean assertion) implements Step {
+        /**
+         * Returns declared read locations including guard and assertion dependencies.
+         * @return set of read memory locations
+         */
         public Set<MemoryLocation> reads() {
             Set<MemoryLocation> reads = new HashSet<>();
             if (read >= 0) reads.add(MemoryLocation.of("cell[" + read + "]"));
@@ -291,14 +394,28 @@ class DporPropertyAwarenessTest {
             return reads;
         }
 
+        /**
+         * Returns declared write locations for this cell step.
+         * @return set containing the written cell location, or empty if none
+         */
         public Set<MemoryLocation> writes() {
             return write < 0 ? Set.of() : locations("cell[" + write + "]");
         }
 
+        /**
+         * Reports whether this step is enabled in the current state based on its guard.
+         * @param state modeled state to inspect
+         * @return true if guard is absent or satisfied
+         */
         public boolean enabled(SharedState state) {
             return guard < 0 || ((Cells) state).values[guard] == 1;
         }
 
+        /**
+         * Executes this cell step, applying mutations or checking assertions.
+         * @param state modeled state to mutate
+         * @return execution outcome (ADVANCED or ASSERTION_FAILED)
+         */
         public StepOutcome execute(SharedState state) {
             Cells cells = (Cells) state;
             if (assertion) {
