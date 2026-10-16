@@ -46,9 +46,9 @@ class StateRegistryTest {
         json.add("flags", flags);
         json.addProperty("turn", 0);
         
-        dev.samhb.interleave.core.SharedState state = registry.create(json, 2);
-        assertTrue(state instanceof dev.samhb.interleave.core.PetersonState);
-        dev.samhb.interleave.core.PetersonState ps = (dev.samhb.interleave.core.PetersonState) state;
+        SharedState state = registry.create(json, 2);
+        assertTrue(state instanceof PetersonState);
+        PetersonState ps = (PetersonState) state;
         assertFalse(ps.flag(0));
         assertFalse(ps.flag(1));
         assertEquals(0, ps.turn());
@@ -85,9 +85,9 @@ class StateRegistryTest {
         json.addProperty("type", "counter");
         json.addProperty("counter", 5);
         
-        dev.samhb.interleave.core.SharedState state = registry.create(json, 2);
-        assertTrue(state instanceof dev.samhb.interleave.core.CounterState);
-        dev.samhb.interleave.core.CounterState cs = (dev.samhb.interleave.core.CounterState) state;
+        SharedState state = registry.create(json, 2);
+        assertTrue(state instanceof CounterState);
+        CounterState cs = (CounterState) state;
         assertEquals(5, cs.counter());
     }
 
@@ -97,9 +97,9 @@ class StateRegistryTest {
         json.addProperty("type", "dcl");
         json.addProperty("initialized", true);
         
-        dev.samhb.interleave.core.SharedState state = registry.create(json, 2);
-        assertTrue(state instanceof dev.samhb.interleave.core.DclState);
-        dev.samhb.interleave.core.DclState ds = (dev.samhb.interleave.core.DclState) state;
+        SharedState state = registry.create(json, 2);
+        assertTrue(state instanceof DclState);
+        DclState ds = (DclState) state;
         assertTrue(ds.initialized());
     }
 
@@ -112,9 +112,9 @@ class StateRegistryTest {
         flags.add(false);
         json.add("flags", flags);
         
-        dev.samhb.interleave.core.SharedState state = registry.create(json, 2);
-        assertTrue(state instanceof dev.samhb.interleave.core.DeadlockState);
-        dev.samhb.interleave.core.DeadlockState ds = (dev.samhb.interleave.core.DeadlockState) state;
+        SharedState state = registry.create(json, 2);
+        assertTrue(state instanceof DeadlockState);
+        DeadlockState ds = (DeadlockState) state;
         assertTrue(ds.flag(0));
         assertFalse(ds.flag(1));
     }
@@ -126,9 +126,9 @@ class StateRegistryTest {
         json.addProperty("high", 10);
         json.addProperty("low", 20);
 
-        dev.samhb.interleave.core.SharedState state = registry.create(json, 2);
-        assertTrue(state instanceof dev.samhb.interleave.core.PairState);
-        dev.samhb.interleave.core.PairState ps = (dev.samhb.interleave.core.PairState) state;
+        SharedState state = registry.create(json, 2);
+        assertTrue(state instanceof PairState);
+        PairState ps = (PairState) state;
         assertEquals(10, ps.high());
         assertEquals(20, ps.low());
     }

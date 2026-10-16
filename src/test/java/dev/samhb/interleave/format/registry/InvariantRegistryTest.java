@@ -4,12 +4,11 @@ package dev.samhb.interleave.format.registry;
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.bugs.WriteCounterStep;
 import dev.samhb.interleave.search.Invariant;
-import dev.samhb.interleave.core.Configuration;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
-import static org.junit.jupiter.api.Assertions.*;;;
+import static org.junit.jupiter.api.Assertions.*;
 
 class InvariantRegistryTest {
 

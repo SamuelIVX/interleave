@@ -119,7 +119,7 @@ class StepRegistryTest {
         json.addProperty("type", "read_counter");
 
         // Create step with owning thread ID 1
-        dev.samhb.interleave.core.Step step = registry.create(json, 1);
+        Step step = registry.create(json, 1);
         assertNotNull(step);
 
         var state = dev.samhb.interleave.core.CounterState.of(7, 2);
@@ -135,7 +135,7 @@ class StepRegistryTest {
         json.addProperty("value", true);
         json.addProperty("thread", 1); // Explicit thread param matching owning thread ID
 
-        dev.samhb.interleave.core.Step step = registry.create(json, 1);
+        Step step = registry.create(json, 1);
         assertNotNull(step);
 
         // Verify the step uses the correct thread ID
@@ -150,7 +150,7 @@ class StepRegistryTest {
         json.addProperty("value", true);
         // No explicit thread param - should default to owning thread ID
 
-        dev.samhb.interleave.core.Step step = registry.create(json, 1);
+        Step step = registry.create(json, 1);
         assertNotNull(step);
 
         // Verify the step uses the owning thread ID (1) as writer ID
@@ -176,8 +176,8 @@ class StepRegistryTest {
 
         // Note: other validation happens at load time, not in StepRegistry directly
         // The registry doesn't know thread count, so it doesn't validate 'other' here
-        dev.samhb.interleave.core.Step step = registry.create(json, 0);
-        assertEquals(java.util.Set.of(dev.samhb.interleave.core.MemoryLocation.of("flag[5]"),
+        Step step = registry.create(json, 0);
+        assertEquals(Set.of(dev.samhb.interleave.core.MemoryLocation.of("flag[5]"),
             dev.samhb.interleave.core.MemoryLocation.of("turn")), step.reads());
     }
 }
