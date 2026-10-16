@@ -30,8 +30,8 @@ DfsResult result = new StaticPorExplorer().explore(program, safe);
 ```
 
 DSL `when: "always"` invariants derive their observations automatically. Default/`final` checks
-and properties inspecting counters or termination retain exhaustive branching. DPOR's invariant
-fallback is unchanged.
+and properties inspecting counters or termination retain exhaustive branching in both static POR and DPOR.
+Invariants declaring complete observations enable property-aware reduction in both `StaticPorExplorer` and `DporExplorer`.
 
 Complete step footprints and pure value-based properties are required; incomplete declarations can
 cause false passes. With an exact store, reduced runs preserve violation detection but report only
@@ -156,6 +156,8 @@ overstated checks, and maps every consolidation to retained coverage in the
 [per-method ledger](docs/plans/test-quality-audit.md). The cleanup suite has 524 passing invocations;
 its scoped mutation comparisons and remaining limits are recorded separately from the historical
 default-scope score above.
+
+[Spec 15](docs/specs/active/15-property-aware-dpor/README.md) implements property-aware dynamic partial order reduction (DPOR) with sleep sets, enabling pruning of independent invisible work for state invariants while strictly preserving exhaustive fallback for unannotated predicates.
 
 The historical spec 13.10 documentation audit covered 824 explicit methods and constructors in its
 production and PR #44 test scope. That census predates the test-quality changes; it is not a current
