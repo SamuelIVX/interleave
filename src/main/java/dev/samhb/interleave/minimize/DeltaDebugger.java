@@ -39,19 +39,11 @@ public final class DeltaDebugger {
         List<StepOutcome> outcomes = new ArrayList<>(failingTrace.outcomes());
 
         int n = threadIds.size();
-        if (n <= 1) {
-            return Trace.of(threadIds, outcomes, expectedOutcome);
-        }
 
-        for (int m = 2; m <= n; m = m * 2) {
-            if (m > n) m = n;
-
-            int chunkSize = n / m;
-            if (chunkSize == 0) chunkSize = 1;
-
-            for (int i = 0; i < m && n - i * chunkSize > 0; i++) {
-                int start = i * chunkSize;
-                int end = Math.min(start + chunkSize, n);
+        for (int m = 2; m <= n; ) {
+            for (int i = 0; i < m; i++) {
+                int start = (int) ((long) i * n / m);
+                int end = (int) ((long) (i + 1) * n / m);
 
                 List<Integer> reducedThreadIds = new ArrayList<>();
                 List<StepOutcome> reducedOutcomes = new ArrayList<>();
@@ -68,6 +60,12 @@ public final class DeltaDebugger {
                     return minimize(program, reducedTrace, expectedOutcome, invariant);
                 }
             }
+
+            int nextM = Math.min(m * 2, n);
+            if (nextM == m) {
+                break;
+            }
+            m = nextM;
         }
 
         return Trace.of(threadIds, outcomes, expectedOutcome);
@@ -96,11 +94,10 @@ public final class DeltaDebugger {
      * @return true if the final configuration satisfies the selected outcome check;
      *         false for an illegal schedule or {@code INCOMPLETE}
      */
-    private boolean isStillFailing(Program program, Trace trace, TraceOutcome expectedOutcome, Invariant invariant) {
+    boolean isStillFailing(Program program, Trace trace, TraceOutcome expectedOutcome, Invariant invariant) {
         try {
             ExecutionDriver driver = new ExecutionDriver();
             Configuration config = driver.run(program, new Schedule(trace.threadIds()));
-            if (config == null) return false;
 
             return switch (expectedOutcome) {
                 case COMPLETED -> config.allTerminated();
