@@ -42,8 +42,8 @@ public final class DeltaDebugger {
 
         for (int m = 2; m <= n; ) {
             for (int i = 0; i < m; i++) {
-                int start = i * n / m;
-                int end = (i + 1) * n / m;
+                int start = (int) ((long) i * n / m);
+                int end = (int) ((long) (i + 1) * n / m);
 
                 List<Integer> reducedThreadIds = new ArrayList<>();
                 List<StepOutcome> reducedOutcomes = new ArrayList<>();
