@@ -9,6 +9,7 @@ Dynamic partial order reduction in `DporExplorer` uses sleep sets to avoid explo
 ### 1. Invariant Observation Classification
 
 An invariant `Invariant` evaluates safety predicates against modeled configurations:
+
 ```java
 public interface Invariant {
     boolean holds(SharedState state, Configuration config);

@@ -16,6 +16,7 @@ This document proves that Dynamic Partial Order Reduction using sleep sets with 
 ## Lemmas & Proofs
 
 ### Lemma 1 (Invisible Transition Valuation Invariance)
+
 If step $s$ is invisible with respect to $\mathcal{O}$ ($\text{writesOverlap}(W(s), \mathcal{O}) = \emptyset$), then for any configuration $\sigma$:
 $$I(s(\sigma)) = I(\sigma)$$
 
@@ -23,6 +24,7 @@ $$I(s(\sigma)) = I(\sigma)$$
 Because $s$ writes to no location in $\mathcal{O}$, the projection of state $\sigma$ onto $\mathcal{O}$ is identical to the projection of $s(\sigma)$ onto $\mathcal{O}$. Since $I$ depends exclusively on $\mathcal{O}$, $I(s(\sigma)) = I(\sigma)$. $\blacksquare$
 
 ### Lemma 2 (Intermediate State Invariance Under Invisible Commutation)
+
 Let $s_1$ and $s_2$ be two independent transitions ($s_1 \, I \, s_2$) enabled at $\sigma$.
 Consider schedule $\pi_1 = \sigma \xrightarrow{s_1} s_1(\sigma) \xrightarrow{s_2} s_1(s_2(\sigma))$ and schedule $\pi_2 = \sigma \xrightarrow{s_2} s_2(\sigma) \xrightarrow{s_1} s_2(s_1(\sigma))$.
 By independence, $s_1(s_2(\sigma)) = s_2(s_1(\sigma))$.
@@ -42,6 +44,7 @@ By independence, $s_1(s_2(\sigma)) = s_2(s_1(\sigma))$.
   Both schedules visit the exact same set of invariant valuations. $\blacksquare$
 
 ### Theorem 1 (Soundness of Visible Sleep-Set Maintenance)
+
 Under Rules 1, 2, and 3:
 If there exists an execution sequence in the full state graph reaching a state violating $I$, then the property-aware DPOR search discovers a violation trace.
 
@@ -51,11 +54,11 @@ If $\neg I(\sigma_0)$ at the initial state, the violation is detected immediatel
 Otherwise, consider the branching at $\sigma_0$:
 - If the first transition $s_1$ in $w$ is explored from $\sigma_0$, induction applies on the remaining suffix of length $k-1$.
 - Suppose instead transition $u \neq s_1$ is explored first from $\sigma_0$:
-  - If $s_1$ is visible to $I$, Rule 1 guarantees that $s_1$ is never placed into `nextSleepSet`. Thus, $s_1$ remains enabled and eligible for exploration from $\sigma_0$ when backtracking.
-  - If $s_1$ is invisible to $I$ and independent of $u$:
+  - In case $s_1$ is visible to $I$, Rule 1 guarantees that $s_1$ is never placed into `nextSleepSet`. Thus, $s_1$ remains enabled and eligible for exploration from $\sigma_0$ when backtracking.
+  - When $s_1$ is invisible to $I$ and independent of $u$:
     By Lemma 2, commuting $u$ and $s_1$ yields a valid execution reaching the same state valuation on $\mathcal{O}$.
-  - If $s_1$ and $u$ are dependent, $u$ cannot place $s_1$ to sleep (independence requirement).
-  - If $u$ is visible, Rule 2 refreshes the sleep set to empty, ensuring any previously sleeping transitions are re-enabled to observe the updated state.
+  - Should $s_1$ and $u$ be dependent, $u$ cannot place $s_1$ to sleep (independence requirement).
+  - Whenever $u$ is visible, Rule 2 refreshes the sleep set to empty, ensuring any previously sleeping transitions are re-enabled to observe the updated state.
 Because threads have finite linear lengths and counters strictly increase on progress, induction on remaining step distance $R(\sigma)$ guarantees that a violation-reaching schedule is preserved in the explored search tree. $\blacksquare$
 
 ### Interaction Between Sleep Sets and the Visited-State Store
