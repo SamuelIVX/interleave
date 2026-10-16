@@ -2,7 +2,6 @@
 package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
 

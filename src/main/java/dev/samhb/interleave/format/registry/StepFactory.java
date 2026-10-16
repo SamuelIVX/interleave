@@ -21,5 +21,5 @@ public interface StepFactory {
      * @return a new {@link Step} instance
      * @throws RegistryException if required parameters are missing or have invalid types
      */
-    Step create(com.google.gson.JsonObject stepJson, int owningThreadId);
+    Step create(JsonObject stepJson, int owningThreadId);
 }

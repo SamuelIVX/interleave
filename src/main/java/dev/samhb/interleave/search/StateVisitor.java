@@ -1,7 +1,6 @@
 /** Callbacks for newly visited configurations and recorded traces. */
 package dev.samhb.interleave.search;
 
-import dev.samhb.interleave.search.Trace;
 import dev.samhb.interleave.core.Configuration;
 
 /** Callbacks for newly visited configurations and recorded traces. */

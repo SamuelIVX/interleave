@@ -153,4 +153,11 @@ public final class DslInvariant implements Invariant {
      * @return when
      */
     public When when() { return when; }
+
+    /**
+     * Returns the state declaration.
+     *
+     * @return state declaration
+     */
+    public StateDecl decl() { return decl; }
 }

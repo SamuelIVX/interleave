@@ -1,7 +1,6 @@
 /** Declarative state declaration holding shared fields and per-thread locals. */
 package dev.samhb.interleave.format.dsl;
 
-import java.util.Collections;
 import java.util.List;
 
 /**

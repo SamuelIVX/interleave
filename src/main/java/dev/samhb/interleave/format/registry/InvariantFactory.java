@@ -16,5 +16,5 @@ public interface InvariantFactory {
      * @return a new {@link Invariant} instance
      * @throws RegistryException if required parameters are missing or have invalid types
      */
-    Invariant create(com.google.gson.JsonObject invariantJson);
+    Invariant create(JsonObject invariantJson);
 }

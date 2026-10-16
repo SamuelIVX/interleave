@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
-import dev.samhb.interleave.core.Program;
 import dev.samhb.interleave.format.ProgramLoader;
 import dev.samhb.interleave.format.registry.RegistryException;
 import dev.samhb.interleave.search.DfsExplorer;
@@ -293,19 +292,6 @@ class DslLoaderTest {
         assertTrue(steps.get(2).writes().toString().contains("arr[0]"));
         assertTrue(steps.get(3).writes().toString().contains("arr[1]"));
         // non-constant index should be whole array
-        String json2 = """
-            {
-              "format": "declarative",
-              "name": "por-test2",
-              "state": {
-                "fields": [{"name": "arr", "type": "int[]", "init": [0,0,0]}]
-              },
-              "threads": [
-                {"id": 0, "steps": [{"effects": ["arr[0] = 1"]}]},
-                {"id": 1, "steps": [{"effects": ["arr[a] = 1"], "guard": null}]}
-              ]
-            }
-            """;
         // need a field a, but we omitted, create with a
         String json3 = """
             {

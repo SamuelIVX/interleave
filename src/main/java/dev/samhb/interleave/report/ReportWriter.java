@@ -5,7 +5,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.samhb.interleave.bugs.BugCorpus;
 import dev.samhb.interleave.core.StateSnapshot;
-import dev.samhb.interleave.core.StepOutcome;
 import dev.samhb.interleave.search.Trace;
 import java.util.*;
 

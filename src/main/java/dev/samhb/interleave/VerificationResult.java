@@ -1,7 +1,6 @@
 /** Exploration traces and runtime measurements for one selected strategy. */
 package dev.samhb.interleave;
 
-import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
 import java.io.Serializable;
 import java.util.*;

@@ -23,5 +23,5 @@ public interface StateFactory {
      * @throws RegistryException if required fields are missing or have invalid types, or a per-thread
      *     array's length disagrees with {@code threadCount}
      */
-    SharedState create(com.google.gson.JsonObject stateJson, int threadCount);
+    SharedState create(JsonObject stateJson, int threadCount);
 }

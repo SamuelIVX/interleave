@@ -3,8 +3,6 @@ package dev.samhb.interleave.format;
 
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.bugs.BugCorpus;
-import dev.samhb.interleave.core.Program;
-import dev.samhb.interleave.search.Invariant;
 import dev.samhb.interleave.format.registry.RegistryException;
 import org.junit.jupiter.api.Test;
 

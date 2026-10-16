@@ -8,7 +8,6 @@ import dev.samhb.interleave.core.CounterState;
 import dev.samhb.interleave.core.DclState;
 import dev.samhb.interleave.core.DeadlockState;
 import dev.samhb.interleave.core.PairState;
-import dev.samhb.interleave.format.registry.JsonHelper;
 
 import java.util.Map;
 import java.util.HashMap;

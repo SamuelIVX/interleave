@@ -13,12 +13,10 @@ import dev.samhb.interleave.format.registry.RegistryException;
 import dev.samhb.interleave.report.BenchmarkHarness;
 import dev.samhb.interleave.report.BenchmarkResult;
 import dev.samhb.interleave.report.ReportWriter;
-import dev.samhb.interleave.report.StatesExploredTable;
 import dev.samhb.interleave.report.StoreType;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 

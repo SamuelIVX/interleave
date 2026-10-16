@@ -3,7 +3,6 @@ package dev.samhb.interleave.bugs;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.format.ProgramLoader;
-import dev.samhb.interleave.format.registry.RegistryException;
 import dev.samhb.interleave.search.Invariant;
 import java.util.List;
 import java.util.ArrayList;

@@ -7,13 +7,10 @@ import dev.samhb.interleave.core.PetersonState;
 import dev.samhb.interleave.core.CounterState;
 import dev.samhb.interleave.core.DclState;
 import dev.samhb.interleave.core.PairState;
-import dev.samhb.interleave.core.Configuration;
-import dev.samhb.interleave.format.registry.JsonHelper;
 
 import java.util.Map;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.HashSet;
 import java.util.List;
 
 /**

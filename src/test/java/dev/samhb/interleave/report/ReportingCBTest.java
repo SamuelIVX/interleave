@@ -2,7 +2,6 @@
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.bugs.BugCorpus;
-import dev.samhb.interleave.search.TraceOutcome;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

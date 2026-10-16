@@ -2,12 +2,10 @@
 package dev.samhb.interleave.format;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonElement;
 import com.google.gson.JsonSyntaxException;
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.core.Program;
 import dev.samhb.interleave.core.ModelThread;
-import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.search.Invariant;
 import dev.samhb.interleave.core.SharedState;
 import dev.samhb.interleave.core.Step;
@@ -18,10 +16,7 @@ import dev.samhb.interleave.format.registry.LoaderConfig;
 import dev.samhb.interleave.format.registry.StepRegistry;
 import dev.samhb.interleave.format.registry.StateRegistry;
 import dev.samhb.interleave.format.registry.InvariantRegistry;
-import dev.samhb.interleave.format.registry.JsonHelper;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonNull;
-import com.google.gson.JsonArray;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -29,7 +24,6 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * Loads a {@link BenchmarkProgram} from a JSON program definition.

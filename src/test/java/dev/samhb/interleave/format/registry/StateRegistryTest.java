@@ -9,7 +9,6 @@ import dev.samhb.interleave.core.PairState;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
-import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
 

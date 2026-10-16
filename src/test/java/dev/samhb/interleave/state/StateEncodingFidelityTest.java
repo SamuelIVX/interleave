@@ -799,6 +799,7 @@ class StateEncodingFidelityTest {
     }
 
     /** Stand-in with one instance field and one static constant, used only to test the filter. */
+    @SuppressWarnings("unused")
     private static final class WithAStaticConstant {
         private static final int NOT_STATE = 7;
         private int instanceOnly;

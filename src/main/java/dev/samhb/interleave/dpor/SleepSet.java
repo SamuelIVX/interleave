@@ -57,7 +57,7 @@ public final class SleepSet {
      * @param currentStep transition against which sleeping steps are checked
      * @return independent sleep set containing entries independent of the current step
      */
-    public SleepSet copyFiltering(dev.samhb.interleave.por.IndependenceRelation relation, Step currentStep) {
+    public SleepSet copyFiltering(IndependenceRelation relation, Step currentStep) {
         SleepSet filtered = new SleepSet();
         for (Map.Entry<Integer, Step> entry : sleepingSteps.entrySet()) {
             if (relation.areIndependent(currentStep, entry.getValue())) {

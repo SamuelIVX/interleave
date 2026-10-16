@@ -125,9 +125,7 @@ public final class DslLoader {
                     if (lhs instanceof Lhs.FieldLhs fl) {
                         FieldDecl fd = decl.findField(fl.name());
                         if (fd == null) throw new RegistryException("Unknown field '" + fl.name() + "' at " + path + ".effects[" + eIdx + "]");
-                        FieldType expected = fd.type() == FieldType.INT_ARRAY ? FieldType.INT : fd.type(); // array element is int
-                        if (fd.type() == FieldType.INT_ARRAY) expected = FieldType.INT; // array element assignment expects int
-                        else if (fd.type() == FieldType.INT && rhsType != FieldType.INT) throw new RegistryException("Type mismatch at " + path + ".effects[" + eIdx + "]: field '" + fl.name() + "' is int, rhs is " + rhsType);
+                        if (fd.type() == FieldType.INT && rhsType != FieldType.INT) throw new RegistryException("Type mismatch at " + path + ".effects[" + eIdx + "]: field '" + fl.name() + "' is int, rhs is " + rhsType);
                         else if (fd.type() == FieldType.BOOL && rhsType != FieldType.BOOL) throw new RegistryException("Type mismatch at " + path + ".effects[" + eIdx + "]: field '" + fl.name() + "' is bool, rhs is " + rhsType);
                         // for INT_ARRAY field itself, lhs must be array element, not scalar - but FieldLhs would be scalar field; that case would be type mismatch if field is array and lhs is scalar
                         if (fd.type() == FieldType.INT_ARRAY) throw new RegistryException("Array field '" + fl.name() + "' requires index: use " + fl.name() + "[expr] at " + path + ".effects[" + eIdx + "]");

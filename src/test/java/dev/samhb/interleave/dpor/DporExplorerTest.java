@@ -5,7 +5,6 @@ import java.util.stream.Collectors;
 
 import dev.samhb.interleave.bugs.*;
 import dev.samhb.interleave.core.*;
-import dev.samhb.interleave.por.StaticPorExplorer;
 import dev.samhb.interleave.por.IndependenceRelation;
 import dev.samhb.interleave.search.DfsExplorer;
 import dev.samhb.interleave.search.DfsResult;
