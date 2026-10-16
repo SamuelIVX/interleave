@@ -59,7 +59,7 @@ public final class IndependenceRelation {
      * @param observations property reads
      * @return whether a write may change an observed location
      */
-    boolean writesOverlap(Set<MemoryLocation> writes, Set<MemoryLocation> observations) {
+    public boolean writesOverlap(Set<MemoryLocation> writes, Set<MemoryLocation> observations) {
         for (MemoryLocation location : writes) {
             if (conflictsWithAny(location, observations)) return true;
         }

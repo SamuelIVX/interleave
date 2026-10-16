@@ -18,14 +18,12 @@ import java.util.*;
  * successor's sleep set only when it is independent, does not interfere with enable/disable, and the
  * stepping thread has no later dependent step that could observe a difference.
  *
- * <p><b>An invariant disables the reduction entirely.</b> When {@link #explore(Program, Invariant)}
- * is given an invariant, this explorer deliberately delegates to a plain depth-first search with no
- * sleep set. The reduction prunes schedules by arguing that reordering commuting steps cannot change
- * the reachable outcome — but an invariant is exactly a user-supplied predicate over states, so that
- * argument does not hold for one, and the traces it produces must be complete for it to be meaningful.
- * Passing a null invariant gets the reduced search; passing one gets exhaustive search. This is a real
- * difference in behaviour, not an optimization, and callers comparing the two modes should expect the
- * reduced mode to visit fewer configurations.
+ * <p><b>Property-aware reduction:</b> When an invariant declares complete {@link Invariant#observedLocations()},
+ * dynamic partial-order reduction is applied using property visibility: transitions that write to observed
+ * locations are treated as visible and never placed into sleep sets, and executing a visible transition
+ * refreshes sleeping transitions. Independent invisible transitions are pruned via sleep sets, reducing
+ * explored states while preserving all invariant violations. Invariants with unknown observations (e.g.
+ * unannotated callbacks or DSL {@code final} checks) retain exhaustive depth-first search fallback.
  *
  * <p>Deadlock is reported only after the invariant is checked at the same configuration, so a state that
  * both blocks every thread and violates the invariant is recorded as a violation rather than as a
@@ -56,8 +54,8 @@ public final class DporExplorer {
     /**
      * Explores, checking an invariant at every configuration.
      *
-     * <p>Supplying an invariant switches this to plain exhaustive depth-first search; see the class
-     * Javadoc for why the reduction is disabled rather than applied.
+     * <p>When the invariant declares complete {@link Invariant#observedLocations()}, dynamic reduction
+     * prunes independent invisible schedules. Invariants with unknown observations fall back to exhaustive search.
      *
      * @param program the program to explore
      * @param invariant the invariant to check, or null to keep the reduction
@@ -88,10 +86,15 @@ public final class DporExplorer {
         long[] statesExplored = new long[1];
 
         Configuration initial = program.initialConfiguration();
+        Optional<Set<MemoryLocation>> maybeObs = invariant != null ? invariant.observedLocations() : Optional.empty();
         if (invariant == null) {
             dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                     visitedStates, traces, invariant, statesExplored,
-                    new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor);
+                    new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, null);
+        } else if (maybeObs.isPresent()) {
+            dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
+                    visitedStates, traces, invariant, statesExplored,
+                    new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, maybeObs.get());
         } else {
             dfsDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                     visitedStates, traces, invariant, statesExplored, effectiveStateStore, stateVisitor);
@@ -114,6 +117,7 @@ public final class DporExplorer {
      * @param happensBefore ordering information for the current execution prefix
      * @param stateStore visited-position store used for pruning
      * @param stateVisitor optional observer of visited states and emitted traces
+     * @param observations known state-observation locations, or null when exploring without an observed property
      */
     private void dporDfs(Program program, Configuration config,
                          List<Integer> currentThreadIds,
@@ -125,7 +129,8 @@ public final class DporExplorer {
                          SleepSet sleepSet,
                          HappensBefore happensBefore,
                          StateStore stateStore,
-                         StateVisitor stateVisitor) {
+                         StateVisitor stateVisitor,
+                         Set<MemoryLocation> observations) {
         if (stateStore.isVisited(config)) {
             return;
         }
@@ -212,7 +217,8 @@ public final class DporExplorer {
                 }
             }
 
-            SleepSet nextSleepSet = sleepSet.copyFiltering(relation, step);
+            boolean stepVisible = observations != null && relation.writesOverlap(step.writes(), observations);
+            SleepSet nextSleepSet = stepVisible ? new SleepSet() : sleepSet.copyFiltering(relation, step);
             for (int otherId : enabled) {
                 if (otherId != threadId) {
                     ModelThread otherThread = program.threads().get(otherId);
@@ -221,7 +227,8 @@ public final class DporExplorer {
                     if (otherStep != null) {
                         boolean independent = relation.areIndependent(step, otherStep);
                         boolean noInterference = !relation.hasEnableDisableInterference(config, threadId, otherId, program.threads());
-                        if (independent && noInterference) {
+                        boolean otherInvisible = observations == null || !relation.writesOverlap(otherStep.writes(), observations);
+                        if (independent && noInterference && otherInvisible) {
                             boolean hasFutureDependent = false;
                             List<Step> currentThreadSteps = thread.steps();
                             for (int futurePc = pc + 1; futurePc < currentThreadSteps.size(); futurePc++) {
@@ -241,7 +248,7 @@ public final class DporExplorer {
 
             dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                     visitedStates, traces, invariant, statesExplored,
-                    nextSleepSet, nextHappensBefore, stateStore, stateVisitor);
+                    nextSleepSet, nextHappensBefore, stateStore, stateVisitor, observations);
         }
 
         if (!explored) {
@@ -273,7 +280,7 @@ public final class DporExplorer {
 
                 dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                         visitedStates, traces, invariant, statesExplored,
-                        new SleepSet(), new HappensBefore(), stateStore, stateVisitor);
+                        new SleepSet(), new HappensBefore(), stateStore, stateVisitor, observations);
             }
         }
     }
