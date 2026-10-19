@@ -2,6 +2,7 @@
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.format.registry.RegistryException;
+import dev.samhb.interleave.core.FailureEvidence;
 
 /**
  * Evaluates declarative expressions against a {@link DynamicState}.
@@ -10,6 +11,51 @@ public final class Evaluator {
 
     /** Prevents instantiation of this utility class. */
     private Evaluator() {}
+
+    /** Classifies evaluator failures consistently at step and property observation boundaries.
+     * @param error non-null modeled evaluation failure; arbitrary messages are never exposed
+     * @return stable category based on the exception type and evaluator-owned message prefixes
+     */
+    static FailureEvidence.Category failureCategory(RuntimeException error) {
+        String message = error.getMessage() == null ? "" : error.getMessage();
+        return message.startsWith("% by zero") ? FailureEvidence.Category.MODULO_BY_ZERO
+            : error instanceof IndexOutOfBoundsException || message.startsWith("Array index out of bounds")
+                ? FailureEvidence.Category.ARRAY_BOUNDS : FailureEvidence.Category.OTHER_EVALUATION_ERROR;
+    }
+
+    /**
+     * Applies one type-checked assignment with the same RHS-before-index order as declarative steps.
+     * @param effect validated assignment
+     * @param state mutable execution scratch
+     * @param owner owning thread
+     * @throws EvalException for invalid modeled indices or arithmetic
+     */
+    public static void assign(Effect effect, DynamicState state, int owner) {
+        Value value = eval(effect.rhs(), state, owner);
+        switch (effect.lhs()) {
+            case Lhs.FieldLhs f -> {
+                if (state.decl().findField(f.name()).type() == FieldType.BOOL) state.setBool(f.name(), value.asBool());
+                else state.setInt(f.name(), value.asInt());
+            }
+            case Lhs.LocalLhs l -> {
+                if (state.decl().findLocal(l.name()).type() == FieldType.BOOL) state.setLocalBool(owner, l.name(), value.asBool());
+                else state.setLocalInt(owner, l.name(), value.asInt());
+            }
+            case Lhs.ArrayLhs a -> assignArray(state.getArrayRef(a.arrayName()), eval(a.index(), state, owner).asInt(), value.asInt());
+            case Lhs.LocalArrayLhs a -> assignArray(state.getLocalArrayRef(owner, a.localName()), eval(a.index(), state, owner).asInt(), value.asInt());
+        }
+    }
+
+    /** Writes a checked modeled array element, classifying bounds failures consistently.
+     * @param array mutable modeled array owned by the supplied state
+     * @param index evaluated target position
+     * @param value already evaluated assignment value
+     * @throws EvalException if the index lies outside the modeled array
+     */
+    private static void assignArray(int[] array, int index, int value) {
+        if (index < 0 || index >= array.length) throw new EvalException("Array index out of bounds");
+        array[index] = value;
+    }
 
     /**
      * Evaluation result.

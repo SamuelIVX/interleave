@@ -113,3 +113,7 @@ Also test initial property-evaluation errors and errors after a successful commi
 an ASSERTION_FAILED action, and the latter preserves its ADVANCED outcome and committed write.
 Use strict JSON parsing for escaped source labels and process-produced artifacts. Browser tests
 must show the correct branch line and cutoff location; old fixture labels/verdicts still pass.
+
+## Implementation evidence
+
+`SourceAcceptanceTest` deletes a producer choice so minimization selects the opposite arm and must regenerate actual PCs; it rejects stale digests and misaligned identities. `SourceBoundaryTest` checks initial/post-commit property errors; `SourceProgramLoaderTest` covers runtime rollback/minimization and creates the fresh Java artifact used by the 35-assertion browser suite. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.

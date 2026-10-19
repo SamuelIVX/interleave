@@ -1,0 +1,8 @@
+program guarded_handoff {
+  shared bool ready = false;
+  shared int value = 0;
+  thread 0 { atomic { value = 7; ready = true; } }
+  thread 1 { atomic when (ready) { value = value + 1; ready = false; } }
+  invariant final (value == 8 && !ready);
+  expected PASS;
+}

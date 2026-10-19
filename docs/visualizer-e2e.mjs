@@ -223,6 +223,37 @@ async function runTests() {
     assert(stripText.includes('Invariant:'), 'State strip renders Invariant header when program is loaded');
 
     // -------------------------------------------------------------
+    // Fresh Java -> report -> normalization -> browser contract, enabled in CI.
+    if(process.env.SOURCE_TRACE_JSON){
+      const sourcePath = join(projectRoot, process.env.SOURCE_TRACE_JSON);
+      const sourceJson = readFileSync(sourcePath, 'utf8');
+      const raw = JSON.parse(sourceJson);
+      const sourceTrace = raw.benchmarks[0].incompleteTrace;
+      assert(sourceTrace.executedSteps.map(s=>s.instructionIndex).join(',')==='0,2,3', 'Java emitted actual skipped-branch PCs');
+      await page.locator('#clearBtn').click();
+      await page.locator('#paste').fill(sourceJson);
+      await page.locator('#loadPaste').click();
+      await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('LOOP_LIMIT'));
+      const sourceRows = page.locator('#timeline tbody tr');
+      assert(await sourceRows.count()===4, 'Cutoff does not add an uncommitted action row');
+      for(let i=0; i<sourceTrace.executedSteps.length; i++){
+        const pill = sourceRows.nth(i).locator('.cell-active');
+        const step = sourceTrace.executedSteps[i];
+        assert((await pill.textContent())===step.label && (await pill.getAttribute('title')).includes(`${step.source.endLine}:${step.source.endColumn}`), `Source action row ${i} has its own label and span`);
+      }
+      assert((await sourceRows.nth(0).textContent()).includes('if (false)'), 'First source action shows its decision');
+      assert((await page.locator('#meta').textContent()).includes('<source>:'), 'Cutoff source location is visible');
+      assert((await page.locator('#meta').textContent()).includes(sourceTrace.sourceDigest), 'Exact source digest is visible');
+      const counterRow = page.locator('#stateStrip tbody tr').filter({has:page.locator('td:nth-child(2) code', {hasText:/^counter$/})});
+      assert((await counterRow.locator('td').nth(2).textContent()).trim()==='2', 'State strip shows the final committed counter');
+      const unsafe = structuredClone(raw);
+      unsafe.benchmarks[0].incompleteTrace.executedSteps[1].label = '<img src=x onerror=alert(1)>';
+      await page.locator('#paste').fill(JSON.stringify(unsafe));
+      await page.locator('#loadPaste').click();
+      assert((await page.locator('#timeline tbody tr').nth(1).locator('.cell-active').textContent())===unsafe.benchmarks[0].incompleteTrace.executedSteps[1].label, 'Unsafe source label loaded as literal text');
+      assert(await page.locator('#timeline img').count()===0, 'Source labels are rendered as text');
+    }
+
     // Test 8: Integrity & Console Sanity
     // -------------------------------------------------------------
     console.log('\nTest 8: Console and error integrity');

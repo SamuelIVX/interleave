@@ -251,6 +251,26 @@ class MainTest {
         }
         return null;
     }
+    /** Source CLI reports boundedness without treating the declared expectation as a proof. */
+    @Test
+    void sourceSelectorProducesRealReportAndRejectsInvalidSelections(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        java.nio.file.Path source = directory.resolve("model.ilv");
+        java.nio.file.Files.writeString(source, "program cli { shared int counter = 0; thread 0 { while (true) limit 0 {} } expected PASS; }");
+        CliResult result = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS");
+        assertEquals(0, result.exitCode(), result.output());
+        var json = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output());
+        var row = json.getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals("INCOMPLETE", row.get("verdict").getAsString());
+        assertEquals("LOOP_LIMIT", row.getAsJsonObject("incompleteTrace").getAsJsonObject("cutoff").get("reason").getAsString());
+        assertTrue(json.get("soundness").getAsBoolean());
+        assertEquals(1, invokeCli("--source").exitCode());
+        assertEquals(1, invokeCli("--source", source.toString(), "--all").exitCode());
+        java.nio.file.Files.writeString(source, "program broken {");
+        CliResult bad = invokeCli("--source", source.toString());
+        assertEquals(1, bad.exitCode());
+        assertTrue(bad.output().contains("syntax"), bad.output());
+    }
+
     /** Runs the actual entry point in a child JVM because validation calls System.exit.
      * @param arguments CLI arguments
      * @return exit status and merged output

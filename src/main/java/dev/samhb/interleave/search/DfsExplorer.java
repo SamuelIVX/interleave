@@ -50,6 +50,8 @@ public final class DfsExplorer {
     private final Map<String, Configuration> visitedStates;
     /** Traces. */
     private final List<Trace> traces;
+    /** Loop cutoff witnesses already emitted by the current search. */
+    private final Set<CutoffEvidence> emittedCutoffs = new HashSet<>();
     /** States explored. */
     private long statesExplored;
     /** State store. */
@@ -130,6 +132,7 @@ public final class DfsExplorer {
         this.stateStore.clear();
         visitedStates.clear();
         traces.clear();
+        emittedCutoffs.clear();
         statesExplored = 0;
 
         Configuration initial = program.initialConfiguration();
@@ -164,7 +167,7 @@ public final class DfsExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -173,7 +176,7 @@ public final class DfsExplorer {
         }
 
         if (config.allTerminated()) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -183,12 +186,16 @@ public final class DfsExplorer {
 
         for (int threadId : config.enabledThreadIds()) {
             if (statesExplored >= maxStatesBudget) return;
-            ModelThread thread = program.threads().get(threadId);
-            int pc = config.programCounters().get(threadId);
-            Step step = thread.steps().get(pc);
-
-            SharedState nextState = config.state().deepCopy();
-            StepOutcome outcome = step.execute(nextState);
+            StepTransition execution = TransitionExecutor.execute(program, config, threadId);
+            if (execution.cutoff() != null) {
+                if (emittedCutoffs.add(execution.cutoff())) {
+                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                    traces.add(cutoff);
+                    if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
+                }
+                continue;
+            }
+            StepOutcome outcome = execution.outcome();
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -197,7 +204,7 @@ public final class DfsExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -205,13 +212,13 @@ public final class DfsExplorer {
                 continue;
             }
 
-            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
+            Configuration nextConfig = execution.successor();
 
             dfs(program, nextConfig, nextThreadIds, nextOutcomes, invariant);
         }
 
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);

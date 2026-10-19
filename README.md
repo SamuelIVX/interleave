@@ -8,10 +8,11 @@ The headline artifact is a states-explored reduction table: naive DFS → +hashi
 
 Concurrency bugs — race conditions, deadlocks, missed signals — are notoriously hard to find because they depend on exact thread ordering. Rather than running a program once and hoping for the right schedule, this checker systematically explores every distinct interleaving and reports the exact `(thread, step)` schedule that reaches a bad state.
 
-The project is built as a clean, spec-driven proof-of-concept. It is not a production Java bytecode checker; programs are modeled as hand-written atomic steps over cloneable shared state so the core algorithms can be taught, verified, and measured.
+The project is built as a clean, spec-driven proof-of-concept. It is not a production Java bytecode checker; programs are modeled as explicit atomic steps or bounded `.ilv` source over cloneable shared state so the core algorithms can be taught, verified, and measured.
 
 ## What it does
 
+- **Readable source models** — `.ilv` atomic blocks, branching, repetition and bounded loops share the existing checker and source-aware trace viewer.
 - **Exhaustive DFS** — tries every enabled thread at every reachable configuration.
 - **State hashing** — collapses identical configurations so the search space becomes a DAG instead of a tree.
 - **Static POR** — computes persistent sets from read/write access sets to avoid exploring equivalent interleavings.
@@ -70,6 +71,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | `--bitstate-k N` | Bitstate hash function count (default: 4) |
 | `--all` | Run entire corpus |
 | `--file <path>` | Load program from JSON file |
+| `--source <path>` | Load a bounded concurrent `.ilv` source model |
 
 ### Examples
 
@@ -131,7 +133,7 @@ src/main/java/dev/samhb/interleave/
   dpor/        DporExplorer, HappensBefore, SleepSet
   cb/          ContextBoundedExplorer (CHESS-style preemption-bounded search)
   corpus/      CorpusGenerator, TemplateRegistry, CorpusEntry
-  format/      JSON program loader + declarative DSL
+  format/      JSON/source program loaders + shared DSL semantics and source compiler
   bugs/        Concurrency classics corpus (8 programs, including lost-update-3t)
   minimize/    DeltaDebugger (ddmin)
   report/      BenchmarkHarness, StatesExploredTable, SoundnessAttestation, ReportWriter
@@ -285,6 +287,43 @@ deepening narrow instead of widen.
 - **Incomplete by design** — bugs requiring >K preemptions are missed
 - **Sweet spot: K=2** — every buggy program in the corpus is caught at K=2, and `peterson` (which
   is correct) is the one that reports `INCOMPLETE`
+
+## Readable concurrent models
+
+Use `.ilv` to describe a small concurrent model directly. Assignments inside one `atomic` block run
+together. Thread-level `if` and `while` conditions are separate scheduling actions; another thread
+can run between a decision and its body.
+
+```text
+program increments {
+  shared int counter = 0;
+  thread 0 { atomic { counter = counter + 1; } }
+  thread 1 { atomic { counter = counter + 1; } }
+  invariant final (counter == 2);
+  expected PASS;
+}
+```
+
+```bash
+./gradlew --max-workers=1 -PpitestThreads=1 run --args="--source examples/programs/atomic-increment.ilv --json"
+```
+
+Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
+`dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to
+the existing runner. Load failures are `RegistryException` diagnostics with file, line, column
+and category. JSON loading stays on `ProgramLoader` and `--file`.
+
+`repeat N` is fixed repetition. `while (condition) limit N` permits N bodies, then checks again:
+false completes, true reports INCOMPLETE with LOOP_LIMIT evidence. Atomic errors and internal loop
+cutoffs discard all tentative writes. Properties observe only committed states. Scheduling bounds
+(PREEMPTION_BOUND) and resource stops (MAX_STATES/MAX_TIME) remain separate causes.
+
+The language caps input at 1 MiB, eight threads, 64 expanded actions per thread, 64 private actions
+per atomic block and 5,000 expanded expression nodes. It supports integer/boolean fields, local
+fields, integer arrays, guards and bounded control flow. It executes no host functions or I/O and
+does not ingest Java projects. Exact-store PASS describes this finite model; bitstate absence is
+APPROXIMATE_PASS. See the [examples](examples/programs/README.md) and
+[language contract](docs/specs/active/16-concurrent-program-parser/01-language-and-semantics.md).
 
 ## JSON Program Definition Format
 

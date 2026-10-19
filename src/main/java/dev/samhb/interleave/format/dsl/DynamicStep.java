@@ -157,51 +157,7 @@ public final class DynamicStep implements Step {
             }
         }
         try {
-            for (Effect e : effects) {
-                Evaluator.Value rhsVal = Evaluator.eval(e.rhs(), ds, owner);
-                Lhs lhs = e.lhs();
-                if (lhs instanceof Lhs.FieldLhs fl) {
-                    FieldDecl fd = decl.findField(fl.name());
-                    if (fd == null) return StepOutcome.ASSERTION_FAILED;
-                    if (fd.type() == FieldType.INT) {
-                        if (rhsVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
-                        ds.setInt(fl.name(), rhsVal.asInt());
-                    } else if (fd.type() == FieldType.BOOL) {
-                        if (rhsVal.type() != FieldType.BOOL) return StepOutcome.ASSERTION_FAILED;
-                        ds.setBool(fl.name(), rhsVal.asBool());
-                    } else return StepOutcome.ASSERTION_FAILED;
-                } else if (lhs instanceof Lhs.LocalLhs ll) {
-                    LocalDecl ld = decl.findLocal(ll.name());
-                    if (ld == null) return StepOutcome.ASSERTION_FAILED;
-                    if (ld.type() == FieldType.INT) {
-                        if (rhsVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
-                        ds.setLocalInt(owner, ll.name(), rhsVal.asInt());
-                    } else if (ld.type() == FieldType.BOOL) {
-                        if (rhsVal.type() != FieldType.BOOL) return StepOutcome.ASSERTION_FAILED;
-                        ds.setLocalBool(owner, ll.name(), rhsVal.asBool());
-                    } else return StepOutcome.ASSERTION_FAILED;
-                } else if (lhs instanceof Lhs.ArrayLhs al) {
-                    FieldDecl fd = decl.findField(al.arrayName());
-                    if (fd == null || fd.type() != FieldType.INT_ARRAY) return StepOutcome.ASSERTION_FAILED;
-                    if (rhsVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
-                    Evaluator.Value idxVal = Evaluator.eval(al.index(), ds, owner);
-                    if (idxVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
-                    int idx = idxVal.asInt();
-                    int[] arr = ds.getArrayRef(al.arrayName());
-                    if (idx < 0 || idx >= arr.length) return StepOutcome.ASSERTION_FAILED;
-                    arr[idx] = rhsVal.asInt();
-                } else if (lhs instanceof Lhs.LocalArrayLhs lal) {
-                    LocalDecl ld = decl.findLocal(lal.localName());
-                    if (ld == null || ld.type() != FieldType.INT_ARRAY) return StepOutcome.ASSERTION_FAILED;
-                    if (rhsVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
-                    Evaluator.Value idxVal = Evaluator.eval(lal.index(), ds, owner);
-                    if (idxVal.type() != FieldType.INT) return StepOutcome.ASSERTION_FAILED;
-                    int idx = idxVal.asInt();
-                    int[] arr = ds.getLocalArrayRef(owner, lal.localName());
-                    if (idx < 0 || idx >= arr.length) return StepOutcome.ASSERTION_FAILED;
-                    arr[idx] = rhsVal.asInt();
-                }
-            }
+            for (Effect e : effects) Evaluator.assign(e, ds, owner);
             return StepOutcome.ADVANCED;
         } catch (Evaluator.EvalException e) {
             return StepOutcome.ASSERTION_FAILED;

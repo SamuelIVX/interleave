@@ -9,6 +9,7 @@ import dev.samhb.interleave.corpus.GeneratorConfig;
 import dev.samhb.interleave.corpus.TemplateRegistry;
 import dev.samhb.interleave.cb.ContextBoundedExplorer;
 import dev.samhb.interleave.format.ProgramLoader;
+import dev.samhb.interleave.format.SourceProgramLoader;
 import dev.samhb.interleave.format.registry.RegistryException;
 import dev.samhb.interleave.report.BenchmarkHarness;
 import dev.samhb.interleave.report.BenchmarkResult;
@@ -67,7 +68,7 @@ public final class Main {
     /**
      * Main entry point. Parses flags, runs benchmarks, and outputs results.
      *
-     * @param args command-line arguments (bug name, flags, or --file/--all)
+     * @param args command-line arguments (bug name, flags, or --file/--source/--all)
      */
     public static void main(String[] args) {
         if (args.length == 0) {
@@ -172,17 +173,18 @@ public final class Main {
                     }
                     i += 2;
                 }
-                case "--file" -> {
+                case "--file", "--source" -> {
                     if (i + 1 >= args.length) {
-                        System.err.println("Error: --file requires a path argument");
+                        System.err.println("Error: " + args[i] + " requires a path argument");
                         System.exit(1);
                     }
                     if (program != null) {
-                        System.err.println("Error: specify only one bug name or --file");
+                        System.err.println("Error: specify only one bug name, --file, or --source");
                         System.exit(1);
                     }
                     try {
-                        program = LOADER.loadFromFile(Paths.get(args[i + 1]));
+                        program = args[i].equals("--source") ? new SourceProgramLoader().loadFromFile(Paths.get(args[i + 1]))
+                            : LOADER.loadFromFile(Paths.get(args[i + 1]));
                     } catch (RegistryException e) {
                         System.err.println("Error loading program from file: " + e.getMessage());
                         System.exit(1);
@@ -196,7 +198,7 @@ public final class Main {
                         System.exit(1);
                     }
                     if (program != null) {
-                        System.err.println("Error: specify only one bug name or --file");
+                        System.err.println("Error: specify only one bug name, --file, or --source");
                         System.exit(1);
                     }
                     program = findProgram(args[i]);
@@ -210,15 +212,15 @@ public final class Main {
             }
         }
 
-        // Validate: --all is incompatible with --file and named bug
+        // Validate: --all is incompatible with --file, --source, and named bug
         if (all && program != null) {
-            System.err.println("Error: --all is incompatible with --file or a named bug");
+            System.err.println("Error: --all is incompatible with --file, --source, or a named bug");
             System.exit(1);
         }
 
-        // Validate: must have exactly one of --all, --file, or named bug
+        // Validate: must have exactly one of --all, --file, --source, or named bug
         if (!all && program == null) {
-            System.err.println("Error: specify a bug name, --file, or --all");
+            System.err.println("Error: specify a bug name, --file, --source, or --all");
             printUsage();
             System.exit(1);
         }
@@ -246,7 +248,7 @@ public final class Main {
         }
 
         // Generate report using all results (preserves soundness attestation and baseline data)
-        ReportWriter writer = new ReportWriter(allResults);
+        ReportWriter writer = new ReportWriter(allResults, all ? BugCorpus.all() : List.of(program));
 
         if (json) {
             System.out.println(writer.writeJson());
@@ -333,6 +335,7 @@ public final class Main {
     private static void printUsage() {
         System.out.println("Usage: interleave <bug-name> [flags]");
         System.out.println("       interleave --file <path> [flags]");
+        System.out.println("       interleave --source <path.ilv> [flags]");
         System.out.println("       interleave --all [flags]");
         System.out.println("       interleave generate --template <id> [flags]");
         System.out.println();

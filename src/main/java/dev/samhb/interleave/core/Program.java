@@ -16,6 +16,8 @@ public final class Program {
     private final SharedState initialState;
     /** Threads. */
     private final List<ModelThread> threads;
+    /** Exact source fingerprint, absent for legacy models. */
+    private final String sourceDigest;
 
     /**
      * Creates a program.
@@ -34,11 +36,43 @@ public final class Program {
      *         or empty
      */
     public Program(SharedState initialState, List<ModelThread> threads) {
+        this(initialState, threads, null);
+    }
+
+    /**
+     * Creates an immutable source model with diagnostic identity.
+     * @param initialState isolated initial values
+     * @param threads immutable forward instructions; every step must implement {@link SourceStep}
+     *        when a source digest is supplied
+     * @param sourceDigest exact UTF-8 SHA-256, or null for legacy models
+     * @throws IllegalArgumentException if the initial state is null, threads are null or empty,
+     *        the digest is not 64 lowercase hexadecimal characters, or a digest accompanies a
+     *        step that does not implement {@link SourceStep}
+     */
+    public Program(SharedState initialState, List<ModelThread> threads, String sourceDigest) {
         if (initialState == null) throw new IllegalArgumentException("initialState must not be null");
         if (threads == null || threads.isEmpty()) throw new IllegalArgumentException("threads must not be empty");
         this.initialState = initialState.deepCopy();
         this.threads = List.copyOf(threads);
+        if (sourceDigest != null && !sourceDigest.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("Invalid source digest");
+        }
+        if (sourceDigest != null && this.threads.stream().flatMap(thread -> thread.steps().stream())
+                .anyMatch(step -> !(step instanceof SourceStep))) {
+            throw new IllegalArgumentException("Source digest requires SourceStep instructions");
+        }
+        this.sourceDigest = sourceDigest;
     }
+
+    /** Returns source fingerprint, or null for a legacy Java/JSON model.
+     * @return source fingerprint, or null for a legacy Java/JSON model
+     */
+    public String sourceDigest() { return sourceDigest; }
+
+    /** Returns whether source execution/reporting semantics apply.
+     * @return whether source execution/reporting semantics apply
+     */
+    public boolean isSource() { return sourceDigest != null; }
 
     /**
      * Returns the starting configuration, with every thread's program counter at zero.

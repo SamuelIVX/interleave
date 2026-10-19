@@ -79,7 +79,8 @@ public final class SoundnessAttestation {
 if (program != null) {
                 String expectedVerdict = program.expectedVerdict();
                 if ("DFS".equals(result.strategy())) {
-                    if (expectedVerdict != null && !expectedVerdict.equals(actualVerdict)) {
+                    if (expectedVerdict != null && !expectedVerdict.equals(actualVerdict)
+                            && !(program.program().isSource() && isInconclusive(actualVerdict))) {
                         return SoundnessCheck.failed("DFS verdict mismatch for " + key +
                             ": expected " + expectedVerdict + " but got " + actualVerdict);
                     }
@@ -119,10 +120,11 @@ if (program != null) {
 
                 Program programDef = program.program();
                 TraceReplayer replayer = new TraceReplayer();
-                Configuration replayed = replayer.replay(programDef, failingTrace);
-
                 Invariant invariant = program.invariant().orElse(null);
-                if (invariant != null && invariant.holds(replayed.state(), replayed)) {
+                Configuration replayed = replayer.replay(programDef, failingTrace, invariant);
+                if (invariant != null && invariant.holds(replayed.state(), replayed)
+                        && !(programDef.isSource() && failingTrace.failure() != null
+                        && failingTrace.failure().kind() == dev.samhb.interleave.core.FailureEvidence.Kind.RUNTIME_ERROR)) {
                     return SoundnessCheck.failed("Replayed trace for " + result.bugName() +
                         " under " + result.strategy() + " (" + result.storeType() + ") does not violate invariant");
                 }
@@ -178,9 +180,11 @@ if (program != null) {
         sb.append("## Soundness Attestation\n\n");
 
         if (sound) {
-            sb.append("All EXACT programs produced expected verdicts under DFS. ");
+            sb.append("All checked EXACT DFS verdicts matched their supplied expectations. ");
+            sb.append("Source DFS results that were INCOMPLETE or APPROXIMATE_PASS were accepted as ");
+            sb.append("inconclusive, not matched verdicts; programs without expectations were not expectation-checked. ");
             sb.append("All failing traces (including bitstate and context-bounded) replayed to genuine violations. ");
-            sb.append("Results bounded by a preemption limit (INCOMPLETE or APPROXIMATE_PASS) are excluded ");
+            sb.append("Inconclusive results (INCOMPLETE or APPROXIMATE_PASS) are excluded ");
             sb.append("from the cross-strategy verdict agreement above, since they assert nothing about ");
             sb.append("the absence of a bug. ");
             sb.append("The model checker is sound.\n");

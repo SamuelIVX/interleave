@@ -151,19 +151,48 @@ function renderValCell(val, isChanged){
  */
 function normalize(raw){
   if(!raw || typeof raw !== 'object') throw new Error('JSON must be an object');
+  const diagnostics = (value, threads) => {
+    const validSpan = (span) => span && typeof span.file === 'string' &&
+      ['line','column','endLine','endColumn'].every(k=>Number.isSafeInteger(span[k]) && span[k]>0) &&
+      (span.endLine>span.line || (span.endLine===span.line && span.endColumn>=span.column));
+    const validPath = path => Array.isArray(path) && path.every(p=>p && Number.isSafeInteger(p.sourceOffset) && p.sourceOffset>=0 && Number.isSafeInteger(p.iteration) && p.iteration>=0);
+    if(value.sourceDigest != null && (typeof value.sourceDigest !== 'string' || !/^[0-9a-f]{64}$/.test(value.sourceDigest))) throw new Error('Invalid sourceDigest');
+    if(value.executedSteps != null){
+      if(!Array.isArray(value.executedSteps) || value.executedSteps.length!==threads.length || value.executedSteps.length>5000) throw new Error('Misaligned executedSteps');
+      for(const step of value.executedSteps){
+        if(!step || !Number.isSafeInteger(step.instructionIndex) || step.instructionIndex<0 || typeof step.label!=='string' || !validSpan(step.source)) throw new Error('Invalid executedSteps source identity');
+        if(!validPath(step.expansionPath)) throw new Error('Invalid source expansion path');
+      }
+    }
+    if(value.cutoff != null){
+      const c=value.cutoff;
+      if(!['LOOP_LIMIT','PREEMPTION_BOUND'].includes(c.reason) || !['threadId','instructionIndex','limit'].every(k=>Number.isSafeInteger(c[k]) && c[k]>=0) || (c.reason==='LOOP_LIMIT' && c.iterations!==c.limit) || (c.source!=null && !validSpan(c.source)) || (c.expansionPath!=null && !validPath(c.expansionPath))) throw new Error('Invalid cutoff evidence');
+    }
+    if(value.failure != null){
+      const f=value.failure;
+      if(!['INVARIANT','RUNTIME_ERROR'].includes(f.kind) || !['STEP','PROPERTY'].includes(f.phase) ||
+        (f.source!=null && !validSpan(f.source)) || (f.kind==='INVARIANT' ? f.phase!=='PROPERTY' || f.category!=null :
+          !['ARRAY_BOUNDS','MODULO_BY_ZERO','OTHER_EVALUATION_ERROR'].includes(f.category))) throw new Error('Invalid failure evidence');
+    }
+    if(value.failure!=null && value.cutoff!=null) throw new Error('Conflicting terminal evidence');
+    return {sourceDigest:value.sourceDigest,executedSteps:value.executedSteps,cutoff:value.cutoff,failure:value.failure};
+  };
+  const runDiagnostics = value => ({programKind:value.programKind,storeType:value.storeType,resourceLimitReason:value.resourceLimitReason,incompletenessReasons:value.incompletenessReasons});
+
   if(Array.isArray(raw.threads)){
-    return { trace: { threads: raw.threads, outcomes: raw.outcomes, outcome: raw.outcome, programHash: raw.programHash, states: raw.states }, meta: { verdict: raw.outcome, bug: raw.programHash } };
+    return { trace: { ...diagnostics(raw, raw.threads), threads: raw.threads, outcomes: raw.outcomes, outcome: raw.outcome, programHash: raw.programHash, states: raw.states }, meta: { verdict: raw.outcome, bug: raw.programHash } };
   }
   if(Array.isArray(raw.benchmarks)){
-    const entry = raw.benchmarks.find(b=> b.failingTrace) || raw.benchmarks[0];
+    const entry = raw.benchmarks.find(b=> b.failingTrace) || raw.benchmarks.find(b=> b.incompleteTrace) || raw.benchmarks[0];
     if(!entry) throw new Error('benchmarks[] is empty');
-    const ft = entry.failingTrace;
+    const ft = entry.failingTrace || entry.incompleteTrace;
     if(ft){
       const threads = ft.threads || ft.threadIds;
       if(!Array.isArray(threads)) throw new Error('benchmarks[].failingTrace missing threads/threadIds');
-      return { trace: { threads, outcomes: ft.outcomes, outcome: entry.verdict || 'VIOLATION', programHash: entry.bug, states: ft.states }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
+      const outcome = entry.verdict || ft.outcome || (entry.failingTrace ? 'VIOLATION' : 'INCOMPLETE');
+      return { trace: { ...diagnostics(ft, threads), threads, outcomes: ft.outcomes, outcome, programHash: entry.bug, states: ft.states }, meta: { ...runDiagnostics(entry), verdict: outcome, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
     }
-    return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
+    return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { ...runDiagnostics(entry), verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
   }
   if(Array.isArray(raw.failingTraces) || Array.isArray(raw.deadlockedTraces) || Array.isArray(raw.completedTraces) || Array.isArray(raw.incompleteTraces)){
     const pick = (arr) => arr && arr.length ? arr[0] : null;
@@ -176,18 +205,19 @@ function normalize(raw){
     let tr = pick(raw.failingTraces) || pick(raw.deadlockedTraces) || pick(raw.incompleteTraces) || pick(raw.completedTraces);
     if(!tr) {
       const incomplete = raw.limitExceeded === true && !raw.hasViolation;
-      const verdict = raw.hasViolation ? 'VIOLATION' : incomplete ? 'LIMIT EXCEEDED' : 'PASS';
-      return { trace: { threads: [], outcome: verdict }, meta: { verdict, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, limitExceeded: raw.limitExceeded === true } };
+      const verdict = raw.hasViolation ? 'VIOLATION' : incomplete ? (raw.programKind==='SOURCE' ? 'INCOMPLETE' : 'LIMIT EXCEEDED') : (raw.programKind==='SOURCE' ? (raw.storeType==='BITSTATE' ? 'APPROXIMATE_PASS' : raw.storeType==='EXACT' ? 'PASS' : 'UNKNOWN') : 'PASS');
+      return { trace: { threads: [], outcome: verdict }, meta: { ...runDiagnostics(raw), verdict, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, limitExceeded: raw.limitExceeded === true } };
     }
     const threads = tr.threads || tr.threadIds;
     if(!Array.isArray(threads)) throw new Error('failingTraces[0] missing threads/threadIds');
-    const incomplete = raw.limitExceeded === true && !raw.hasViolation;
+    const incomplete = raw.limitExceeded === true && !raw.hasViolation && !['VIOLATION','DEADLOCK'].includes(tr.outcome);
     // LIMIT EXCEEDED (a resource limit stopped the search) and INCOMPLETE (a preemption bound
     // did) are different states and are never merged: the latter arrives here as tr.outcome.
     // Rendering a bounded run that proved nothing as PASS is the most misleading thing this
     // viewer can do, so it must not be reachable.
-    const outcome = incomplete ? 'LIMIT EXCEEDED' : (tr.outcome || (raw.hasViolation ? 'VIOLATION' : 'PASS'));
-    return { trace: { threads, outcomes: tr.outcomes, outcome, programHash: tr.programHash, states: tr.states }, meta: { verdict: outcome, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, hasViolation: raw.hasViolation, limitExceeded: raw.limitExceeded === true } };
+    let outcome = incomplete ? (raw.programKind==='SOURCE' ? 'INCOMPLETE' : 'LIMIT EXCEEDED') : (tr.outcome || (raw.hasViolation ? 'VIOLATION' : 'PASS'));
+    if(raw.programKind==='SOURCE' && ['PASS','COMPLETED'].includes(outcome) && ['EXACT','BITSTATE'].includes(raw.storeType)) outcome = raw.storeType==='BITSTATE' ? 'APPROXIMATE_PASS' : 'PASS';
+    return { trace: { ...diagnostics(tr, threads), threads, outcomes: tr.outcomes, outcome, programHash: tr.programHash, states: tr.states }, meta: { ...runDiagnostics(raw), verdict: outcome, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, hasViolation: raw.hasViolation, limitExceeded: raw.limitExceeded === true } };
   }
   throw new Error('Unrecognized shape — expected TraceRecord {threads}, TestResult {failingTraces|incompleteTraces}, or ReportWriter {benchmarks}.');
 }
@@ -289,6 +319,17 @@ function renderHeader(){
   if(currentMeta.wallTimeMs != null) parts.push(addKV('time', asNum(currentMeta.wallTimeMs) + ' ms'));
   if(currentMeta.heapDeltaBytes != null) parts.push(addKV('heap', asNum(currentMeta.heapDeltaBytes)));
   if(currentMeta.limitExceeded) parts.push(addKV('limit', 'exceeded'));
+  if(currentMeta.resourceLimitReason) parts.push(addKV('resource', capStr(currentMeta.resourceLimitReason)));
+  if(Array.isArray(currentMeta.incompletenessReasons)) parts.push(addKV('bounds', capStr(currentMeta.incompletenessReasons.join(', '))));
+  if(currentTrace.sourceDigest) parts.push(addKV('source digest', currentTrace.sourceDigest));
+  const terminal = currentTrace.cutoff || currentTrace.failure;
+  if(terminal){
+    if(terminal.reason) parts.push(addKV('cutoff', `${capStr(terminal.reason)} (${terminal.limit})`));
+    if(terminal.kind) parts.push(addKV('failure', capStr(terminal.kind)));
+    if(terminal.phase) parts.push(addKV('phase', capStr(terminal.phase)));
+    if(terminal.source) parts.push(addKV('source', `${capName(terminal.source.file)}:${terminal.source.line}:${terminal.source.column}–${terminal.source.endLine}:${terminal.source.endColumn}`));
+  }
+
   if(programDef?.expected_verdict) parts.push(addKV('expected', capStr(programDef.expected_verdict)));
   if(parts.length===0){
     const placeholder = document.createElement('span');
@@ -377,8 +418,9 @@ function renderTimeline(){
     threadIds.forEach(tid=>{
       const td = document.createElement('td');
       if(activeTid===tid){
-        const stepIdx = counters[tid];
-        const info = stepInfoFor(programThreadsById, tid, stepIdx);
+        const sourceStep = currentTrace.executedSteps?.[idx];
+        const stepIdx = sourceStep ? sourceStep.instructionIndex : counters[tid];
+        const info = sourceStep ? {label:sourceStep.label,detail:`${capName(sourceStep.source.file)}:${sourceStep.source.line}:${sourceStep.source.column}–${sourceStep.source.endLine}:${sourceStep.source.endColumn} — ${sourceStep.label}`} : stepInfoFor(programThreadsById, tid, stepIdx);
         const rawLabel = info ? info.label : `step ${stepIdx}`;
         const pill = document.createElement('span');
         pill.className = 'cell-active';

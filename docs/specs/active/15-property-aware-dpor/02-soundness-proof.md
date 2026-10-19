@@ -71,3 +71,13 @@ In `interleave`, this interaction is provably sound because:
 3. **State-Determined Suffixes**: Because threads are deterministic and linear, the set of enabled transitions and subsequent reachable states from configuration $\sigma$ depends strictly on its state and program counters, not on the scheduling history that reached it.
 4. **Immediate Violation Detection**: The invariant $I(\sigma)$ is checked upon entering `dporDfs` at every configuration $\sigma$ before state-store pruning. If $\sigma$ violates $I$, it is detected and emitted as a `VIOLATION` trace immediately.
 5. **Future Violation Preservation**: If a violation occurs only in a continuation from $\sigma$, then when $\sigma$ was first visited and marked, all non-sleeping branches from $\sigma$ were explored. By commutativity of independent prefixes, any schedule reaching $\sigma$ shares the same downstream equivalence classes; pruning revisits to $\sigma$ cannot eliminate a reachable property violation. $\blacksquare$
+
+## Forward source-model applicability
+
+Spec 16 adds bounded source control flow with strictly forward targets and transactional atomic
+interiors. The original linear-thread measurements above remain historical. For source models,
+replace exact PC+1 progress with strict forward progress; lexical suffixes still contain every
+reachable continuation. Terminal cutoffs require existence preservation alongside safety outcomes.
+The extension, complete footprint argument and source-only DPOR sleep-set subsumption rule are
+recorded in [16.05](../16-concurrent-program-parser/05-por-and-dpor-soundness.md#implementation-preservation-argument).
+This does not extend the checker to backward edges or unbounded loops.

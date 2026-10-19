@@ -1,0 +1,11 @@
+program branching_flag {
+  shared bool flag = false;
+  shared int value = 0;
+  thread 0 {
+    if (flag) { atomic { value = 1; } }
+    else { atomic { value = 2; } }
+  }
+  thread 1 { atomic { flag = true; } }
+  invariant final (value == 1 || value == 2);
+  expected PASS;
+}

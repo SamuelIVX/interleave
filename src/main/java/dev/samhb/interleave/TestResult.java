@@ -3,6 +3,8 @@ package dev.samhb.interleave;
 
 import java.io.Serializable;
 import java.util.List;
+import dev.samhb.interleave.core.CutoffEvidence;
+import dev.samhb.interleave.core.ResourceLimitReason;
 
 /** Public verification outcome with categorized traces, measurements, and limit status. */
 public final class TestResult implements Serializable {
@@ -24,6 +26,12 @@ public final class TestResult implements Serializable {
     private final List<TraceRecord> incompleteTraces;
     /** Limit exceeded. */
     private final boolean limitExceeded;
+    /** Whether an approximate store participated in this source run. */
+    private final Boolean approximate;
+    /** Source reporting classification. */
+    private final boolean sourceModel;
+    /** Explicit cause of a resource interruption, if known. */
+    private final ResourceLimitReason resourceLimitReason;
 
     /**
      * Creates test result from the supplied values.
@@ -50,6 +58,57 @@ public final class TestResult implements Serializable {
         this.completedTraces = List.copyOf(completedTraces);
         this.incompleteTraces = List.copyOf(incompleteTraces);
         this.limitExceeded = limitExceeded;
+        this.approximate = null;
+        this.sourceModel = false;
+        this.resourceLimitReason = null;
+    }
+
+    /** Copies immutable results while attaching per-run reporting identity.
+     * @param result immutable outcome buckets and measurements to retain
+     * @param sourceModel whether source reporting rules apply
+     * @param reason resource cause, or null
+     * @param approximate true/false for a known store guarantee, null when unavailable
+     */
+    private TestResult(TestResult result, boolean sourceModel, ResourceLimitReason reason, Boolean approximate) {
+        this.strategy = result.strategy; this.statesExplored = result.statesExplored; this.wallTimeMs = result.wallTimeMs;
+        this.heapDeltaBytes = result.heapDeltaBytes; this.failingTraces = result.failingTraces;
+        this.deadlockedTraces = result.deadlockedTraces; this.completedTraces = result.completedTraces;
+        this.incompleteTraces = result.incompleteTraces; this.limitExceeded = result.limitExceeded;
+        this.sourceModel = sourceModel; this.resourceLimitReason = reason; this.approximate = approximate;
+    }
+
+    /**
+     * Attaches run identity without changing the legacy constructors.
+     * @param sourceModel whether the input was compiled source
+     * @param reason resource stop cause, or null
+     * @return immutable enriched result
+     */
+    public TestResult withRunMetadata(boolean sourceModel, ResourceLimitReason reason) {
+        return new TestResult(this, sourceModel, reason, approximate);
+    }
+
+    /**
+     * Attaches source reporting guarantees from the stores actually used by the run.
+     * @param sourceModel whether the input was compiled source
+     * @param reason resource stop cause, or null
+     * @param approximate whether an approximate store participated
+     * @return immutable enriched result
+     */
+    public TestResult withRunMetadata(boolean sourceModel, ResourceLimitReason reason, boolean approximate) {
+        return new TestResult(this, sourceModel, reason, approximate);
+    }
+
+    /** Returns resource stop cause, or null when no resource check stopped this run.
+     * @return resource stop cause, or null when no resource check stopped this run
+     */
+    public ResourceLimitReason resourceLimitReason() { return resourceLimitReason; }
+    /** Returns all recorded bound causes in stable enum order.
+     * @return all recorded bound causes in stable enum order
+     */
+    public List<CutoffEvidence.Reason> incompletenessReasons() {
+        return incompleteTraces.stream().map(TraceRecord::evidence).filter(java.util.Objects::nonNull)
+            .map(dev.samhb.interleave.core.TraceEvidence::cutoff).filter(java.util.Objects::nonNull)
+            .map(CutoffEvidence::reason).distinct().sorted().toList();
     }
 
     /**
@@ -128,8 +187,8 @@ public final class TestResult implements Serializable {
     }
 
     /**
-     * Returns traces from a context-bounded search that ran out of preemption budget without
-     * finding a violation. Empty for strategies that are exhaustive regardless of budget.
+     * Returns omitted-work witnesses, including source LOOP_LIMIT and scheduling PREEMPTION_BOUND.
+     * Source witnesses can coexist with real failures and survive a later resource interruption.
      *
      * @return immutable recorded incomplete traces
      */
@@ -138,15 +197,12 @@ public final class TestResult implements Serializable {
     }
 
     /**
-     * Returns whether this run was inconclusive because a preemption bound was reached.
+     * Returns whether this run retained any loop-limit or scheduling-bound witness.
      *
-     * <p>Independent of {@link #limitExceeded()} in the sense that neither is inferred from the
-     * other, but not co-occurring today: a run stopped by the resource limit throws out of
-     * {@code dfs()} before the INCOMPLETE trace is emitted, so it reports
-     * {@code limitExceeded() == true} and {@code hasIncomplete() == false}. Neither flag says
-     * anything about whether the preemption bound was reached in a resource-limited run.
+     * <p>Independent of {@link #limitExceeded()}: a source run can retain bound evidence discovered
+     * before a resource stop, so both flags can be true. Real failures can coexist with witnesses.
      *
-     * @return true if the search was truncated by its preemption bound
+     * @return true if omitted-work evidence was recorded
      */
     public boolean hasIncomplete() {
         return !incompleteTraces.isEmpty();
@@ -156,8 +212,9 @@ public final class TestResult implements Serializable {
      * Returns whether this run was stopped by a resource limit rather than by exhausting the
      * state space.
      *
-     * <p>Distinct from {@link #hasIncomplete()}: a resource limit aborts the search outright and
-     * yields no INCOMPLETE trace, so a limited run asserts nothing about completeness.
+     * <p>Distinct from {@link #hasIncomplete()}: a resource limit aborts exploration, but previously
+     * recorded source loop/scheduling witnesses remain available. Both flags can therefore be true.
+     * A resource-limited run makes no absence-of-bug claim.
      *
      * @return true if the run was truncated by a resource limit
      */
@@ -186,6 +243,13 @@ public final class TestResult implements Serializable {
         sb.append("  \"heapDeltaBytes\": ").append(heapDeltaBytes).append(",\n");
         sb.append("  \"hasViolation\": ").append(hasViolation()).append(",\n");
         sb.append("  \"limitExceeded\": ").append(limitExceeded).append(",\n");
+        if (sourceModel) {
+            sb.append("  \"programKind\": \"SOURCE\",\n");
+            if (approximate != null) sb.append("  \"storeType\": \"").append(approximate ? "BITSTATE" : "EXACT").append("\",\n");
+        }
+        if (resourceLimitReason != null) sb.append("  \"resourceLimitReason\": \"").append(resourceLimitReason).append("\",\n");
+        if (!incompletenessReasons().isEmpty()) sb.append("  \"incompletenessReasons\": ")
+            .append(new com.google.gson.Gson().toJson(incompletenessReasons())).append(",\n");
         sb.append("  \"failingTraces\": ").append(jsonTraces(failingTraces)).append(",\n");
         sb.append("  \"deadlockedTraces\": ").append(jsonTraces(deadlockedTraces)).append(",\n");
         sb.append("  \"completedTraces\": ").append(jsonTraces(completedTraces)).append(",\n");

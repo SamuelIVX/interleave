@@ -96,15 +96,16 @@ public final class InterleaveRunner implements Serializable {
         // Lazy: DFS, STATIC_POR and DPOR each need exactly one store, but iterative deepening
         // obtains one per bound and must not trigger an extra factory call here -- that would
         // build a store nothing reads and never clears.
+        LimitState limitState = new LimitState();
         StateStore[] storeSlot = new StateStore[1];
         Supplier<StateStore> runStore = () -> {
             if (storeSlot[0] == null) {
                 storeSlot[0] = stateStoreFactory.get();
+                limitState.approximate |= storeSlot[0] instanceof dev.samhb.interleave.state.BitstateStore;
             }
             return storeSlot[0];
         };
 
-        LimitState limitState = new LimitState();
         StateVisitor visitor = createLimitEnforcingVisitor(limitState, clock, program);
 
         DfsResult result;
@@ -136,14 +137,21 @@ public final class InterleaveRunner implements Serializable {
             long wallTime = clock.getAsLong() - start;
             long heapDelta = Math.max(0, memAfter - memBefore);
 
-            return convertToTestResult(limitState.partialResult, wallTime, heapDelta, true);
+            for (TraceRecord previous : limitState.sourceCutoffHistory) {
+                if (limitState.partialResult.incompleteTraces().stream().noneMatch(t -> previous.evidence().cutoff().equals(
+                        t.evidence() == null ? null : t.evidence().cutoff()))) {
+                    limitState.partialResult = limitState.partialResult.withTrace(previous);
+                }
+            }
+            return convertToTestResult(limitState.partialResult, wallTime, heapDelta, true)
+                .withRunMetadata(program.isSource(), limitState.resourceLimitReason, limitState.approximate);
         }
 
         long memAfter = runtime.totalMemory() - runtime.freeMemory();
         long wallTime = clock.getAsLong() - start;
         long heapDelta = Math.max(0, memAfter - memBefore);
 
-        return convertToTestResult(result, program, wallTime, heapDelta, false);
+        return convertToTestResult(result, program, wallTime, heapDelta, false).withRunMetadata(program.isSource(), null, limitState.approximate);
     }
 
     /**
@@ -187,9 +195,11 @@ public final class InterleaveRunner implements Serializable {
                 );
 
                 if (maxStates > 0 && stateCount[0] >= maxStates) {
+                    limitState.resourceLimitReason = dev.samhb.interleave.core.ResourceLimitReason.MAX_STATES;
                     throw new LimitExceededException("Max states limit exceeded: " + maxStates);
                 }
                 if (maxTime != null && clock.getAsLong() - startTime >= maxTime.toMillis()) {
+                    limitState.resourceLimitReason = dev.samhb.interleave.core.ResourceLimitReason.MAX_TIME;
                     throw new LimitExceededException("Max time limit exceeded: " + maxTime);
                 }
             }
@@ -198,7 +208,7 @@ public final class InterleaveRunner implements Serializable {
             @Override
             public void onTraceCreated(Trace trace) {
                 TraceRecord record = trace.toRecord();
-                if (program != null && (record.outcome() == TraceOutcome.VIOLATION
+                if (program != null && (program.isSource() || record.outcome() == TraceOutcome.VIOLATION
                         || record.outcome() == TraceOutcome.DEADLOCK)) {
                     try {
                         List<StateSnapshot> states = new TraceReplayer().captureSnapshots(program, trace);
@@ -208,6 +218,10 @@ public final class InterleaveRunner implements Serializable {
                     }
                 }
                 limitState.partialResult = limitState.partialResult.withTrace(record);
+                if (program.isSource() && trace.cutoff() != null && limitState.sourceCutoffHistory.stream()
+                        .noneMatch(previous -> trace.cutoff().equals(previous.evidence().cutoff()))) {
+                    limitState.sourceCutoffHistory.add(record);
+                }
             }
         };
     }
@@ -215,6 +229,12 @@ public final class InterleaveRunner implements Serializable {
     // Helper class to capture partial results during limit enforcement
     /** Run-local exploration counters and partial traces captured before limit interruption. */
     private static class LimitState {
+        /** Approximate stores cannot justify an exact absence-of-bug label. */
+        boolean approximate;
+        /** Source bound witnesses retained across K passes only for resource-interrupted results. */
+        final List<TraceRecord> sourceCutoffHistory = new ArrayList<>();
+        /** Resource cause, checked in deterministic state-before-time order. */
+        dev.samhb.interleave.core.ResourceLimitReason resourceLimitReason;
         /** Creates limit state with its default configuration. */
         private LimitState() {}
 
@@ -346,6 +366,7 @@ public final class InterleaveRunner implements Serializable {
             limitState.partialResult = limitState.partialResult.withTracesCleared();
 
             StateStore freshStore = stateStoreFactory.get();
+            limitState.approximate |= freshStore instanceof dev.samhb.interleave.state.BitstateStore;
             if (!seenStores.add(freshStore)) {
                 throw new IllegalStateException(
                     "Iterative deepening requires a fresh StateStore per bound, but the configured "
@@ -367,7 +388,7 @@ public final class InterleaveRunner implements Serializable {
             // is what stops a proven pass from being downgraded to limitExceeded by bounds that
             // cannot change the answer.
             boolean pruned = lastResult.traces().stream()
-                .anyMatch(t -> t.outcome() == TraceOutcome.INCOMPLETE);
+                .anyMatch(t -> t.cutoff() != null && t.cutoff().reason() == dev.samhb.interleave.core.CutoffEvidence.Reason.PREEMPTION_BOUND);
             if (!pruned) {
                 return lastResult; // exhaustive at k; deeper bounds are redundant
             }
@@ -403,9 +424,10 @@ public final class InterleaveRunner implements Serializable {
         TraceReplayer replayer = new TraceReplayer();
         for (Trace trace : result.traces()) {
             TraceRecord record = trace.toRecord();
+            if (program != null && program.isSource()) record = record.withStates(replayer.captureSnapshots(program, trace));
             switch (trace.outcome()) {
                 case VIOLATION -> {
-                    if (program != null) {
+                    if (program != null && !program.isSource()) {
                         try {
                             List<StateSnapshot> states = replayer.captureSnapshots(program, trace);
                             record = record.withStates(states);
@@ -416,7 +438,7 @@ public final class InterleaveRunner implements Serializable {
                     failingTraces.add(record);
                 }
                 case DEADLOCK -> {
-                    if (program != null) {
+                    if (program != null && !program.isSource()) {
                         try {
                             List<StateSnapshot> states = replayer.captureSnapshots(program, trace);
                             record = record.withStates(states);

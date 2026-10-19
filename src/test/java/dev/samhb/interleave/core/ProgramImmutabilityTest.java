@@ -7,6 +7,8 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 
 /**
  * Pins the aliasing property {@link Program} documents for itself.
@@ -17,6 +19,15 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
  * a run starts with, contradicting the class Javadoc. These fail if that defensive copy is removed.
  */
 class ProgramImmutabilityTest {
+    /** Source identity cannot route legacy instructions through source-only trace casts. */
+    @Test void sourceDigestRejectsLegacyStepsAtConstruction() {
+        var threads = List.of(new ModelThread(0, List.of(new WriteTurnStep(0))));
+        assertThrows(IllegalArgumentException.class,
+            () -> new Program(new CounterState(0), threads, "a".repeat(64)));
+        assertDoesNotThrow(() -> new Program(new CounterState(0), threads));
+        assertDoesNotThrow(() -> new Program(new CounterState(0), threads, null));
+    }
+
 
     @Test
     void constructor_snapshotsInitialState_soLaterMutationCannotChangeTheRun() {

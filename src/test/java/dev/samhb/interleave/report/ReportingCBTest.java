@@ -15,6 +15,21 @@ class ReportingCBTest {
         return new BenchmarkHarness().runAll();
     }
 
+    /** An accepted inconclusive source DFS row must not be described as a matched expectation. */
+    @Test void sourceInconclusiveAttestationDoesNotClaimExpectedVerdictMatched() {
+        var model = new dev.samhb.interleave.format.SourceProgramLoader().load(
+            "program bounded { shared int x = 0; thread 0 { while (true) limit 0 {} } expected PASS; }");
+        List<BenchmarkResult> rows = new BenchmarkHarness().runProgram(model).stream()
+            .filter(row -> row.strategy().equals("DFS") && row.storeType() == StoreType.EXACT).toList();
+        assertEquals(1, rows.size());
+        assertEquals("INCOMPLETE", rows.getFirst().verdict());
+        SoundnessAttestation attestation = new SoundnessAttestation(rows, List.of(model));
+        assertTrue(attestation.isSound());
+        String markdown = attestation.formatMarkdown();
+        assertTrue(markdown.contains("accepted as inconclusive, not matched verdicts"), markdown);
+        assertFalse(markdown.contains("All EXACT programs produced expected verdicts under DFS"), markdown);
+    }
+
     // --- SoundnessAttestation ------------------------------------------------------
 
     @Test

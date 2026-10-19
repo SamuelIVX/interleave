@@ -14,11 +14,11 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 | 6 | Web UI / visualizer — Tier 1 (static trace renderer) | ✅ Done — `docs/visualizer.html`, `examples/traces/*.json`, pure HTML/CSS/JS, no build, loads all `--json` shapes |
 | 7 | Context-bounding / CHESS-style | ✅ Done — Spec 11; preemption-bounded exploration, CLI, reporting, and visualizer integration |
 
-## Active Specification
+## Item 9: Implemented
 
 **#9 — Concurrent-program parser:** [Spec 16](../specs/active/16-concurrent-program-parser/README.md)
 defines a bounded `.ilv` modeling language with explicit atomic blocks, branching, fixed repetition,
-bounded while loops and POR/DPOR support. Specification authored; parser implementation not started.
+bounded while loops and POR/DPOR support. Implemented with CLI/library, source traces and all strategies. Spec 16 records local acceptance, mutation evidence and completed CLI review dispositions; publication/CI status is tracked on the implementation PR.
 
 ## Remaining Candidates — Ranked by LOE
 
@@ -58,7 +58,7 @@ planned. Revisit only if a concrete need emerges that the trace viewer and reduc
 
 8. **Web UI / visualizer — Tier 2 (state-space DAG)** — Deferred indefinitely; see the decision above. The earlier graph-emission proposal is not scheduled work.
 
-9. **Concurrent-program parser** — Specification authored in [Spec 16](../specs/active/16-concurrent-program-parser/README.md); implementation not started. Readable source models compile into finite forward control flow with atomic interiors, explicit loop cutoffs and shared execution/reduction machinery. Actual Java project ingestion remains item #12.
+9. **Concurrent-program parser** — Specification authored in [Spec 16](../specs/active/16-concurrent-program-parser/README.md); implemented with local acceptance and CLI reviews complete; see the set for measured evidence and the implementation PR for CI status. Readable source models compile into finite forward control flow with atomic interiors, explicit loop cutoffs and shared execution/reduction machinery. Actual Java project ingestion remains item #12.
 
 10. **Symmetry reduction** — exploit thread-identity symmetry to collapse equivalent states that differ only by which thread has which ID. Subtle correctness concerns; needs careful canonicalization and proof of soundness.
 

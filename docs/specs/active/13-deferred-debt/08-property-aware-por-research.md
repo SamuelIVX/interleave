@@ -148,3 +148,13 @@ No additional logical hole was found under these preconditions. Missing footprin
 approximate stores, impure callbacks/visitors, incomplete identities, or early termination
 are explicit exclusions rather than silently guaranteed cases. The existing no-invariant
 selector and DPOR fallback are outside this proof and receive no new guarantees from it.
+
+## Forward source-model applicability
+
+Spec 16 adds bounded source control flow with strictly forward targets and transactional atomic
+interiors. The original linear-thread measurements above remain historical. For source models,
+replace exact PC+1 progress with strict forward progress; lexical suffixes still contain every
+reachable continuation. Terminal cutoffs require existence preservation alongside safety outcomes.
+The extension, complete footprint argument and source-only DPOR sleep-set subsumption rule are
+recorded in [16.05](../16-concurrent-program-parser/05-por-and-dpor-soundness.md#implementation-preservation-argument).
+This does not extend the checker to backward edges or unbounded loops.

@@ -87,3 +87,7 @@ reserved and unknown names; local-array typing; every limit at/below/above its b
 nested count arithmetic; zero repeats with invalid bodies; and deterministic lowered targets/spans.
 Compare simple linear output with independent hand-authored declarative fixtures. For control flow,
 use hand-enumerated successors and schedules, not the compiler's own output as the oracle.
+
+## Implementation evidence
+
+`SourceBoundaryTest`, `SourceAcceptanceTest` and `SourceCompletenessTest` exercise malformed grammar, checked expansion, inclusive budgets, Unicode/CRLF identity, local arrays and source-facing diagnostics. `SourceCompiler` reuses the existing declaration/type/expression/evaluation semantics; no parser dependency was added. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.

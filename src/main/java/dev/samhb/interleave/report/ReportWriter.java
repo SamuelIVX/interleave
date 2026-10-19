@@ -4,6 +4,7 @@ package dev.samhb.interleave.report;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.samhb.interleave.bugs.BugCorpus;
+import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.core.StateSnapshot;
 import dev.samhb.interleave.search.Trace;
 import java.util.*;
@@ -16,6 +17,8 @@ public final class ReportWriter {
     private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     /** Results. */
     private final List<BenchmarkResult> results;
+    /** Actual models used to validate custom file/source traces. */
+    private final List<BenchmarkProgram> programs;
 
     /**
      * Creates a report writer for the given results.
@@ -23,7 +26,17 @@ public final class ReportWriter {
      * @param results the benchmark results to report
      */
     public ReportWriter(List<BenchmarkResult> results) {
+        this(results, BugCorpus.all());
+    }
+
+    /**
+     * Creates a writer with the actual models needed for soundness replay.
+     * @param results recorded rows
+     * @param programs model definitions, including custom source programs
+     */
+    public ReportWriter(List<BenchmarkResult> results, List<BenchmarkProgram> programs) {
         this.results = List.copyOf(results);
+        this.programs = List.copyOf(programs);
     }
 
     /**
@@ -55,7 +68,7 @@ public final class ReportWriter {
         sb.append(table.formatMarkdown());
         sb.append("\n");
 
-        SoundnessAttestation attestation = new SoundnessAttestation(results, BugCorpus.all());
+        SoundnessAttestation attestation = new SoundnessAttestation(results, programs);
         sb.append(attestation.formatMarkdown());
 
         return sb.toString();
@@ -85,6 +98,14 @@ public final class ReportWriter {
             sb.append(String.format("      \"heapDeltaBytes\": %d,\n", result.heapDeltaBytes()));
             // Always emitted, so a report's shape does not depend on which strategies ran.
             sb.append(String.format("      \"preemptionsUsed\": %s,\n", formatPreemptions(result)));
+            if (result.sourceModel()) sb.append("      \"programKind\": \"SOURCE\",\n");
+            if (!result.incompletenessReasons().isEmpty()) {
+                sb.append("      \"incompletenessReasons\": ").append(GSON.toJson(result.incompletenessReasons())).append(",\n");
+            }
+            if (!result.incompleteTraces().isEmpty() && result.sourceModel()) {
+                sb.append("      \"incompleteTrace\": ")
+                    .append(result.incompleteTraces().getFirst().toRecord().withStates(result.incompleteStates()).toJson()).append(",\n");
+            }
 
             // Failing trace
             if (result.failingTrace().isPresent()) {
@@ -108,7 +129,7 @@ public final class ReportWriter {
 
         sb.append("  ],\n");
 
-        SoundnessAttestation attestation = new SoundnessAttestation(results, BugCorpus.all());
+        SoundnessAttestation attestation = new SoundnessAttestation(results, programs);
         sb.append("  \"soundness\": ");
         sb.append(attestation.isSound() ? "true" : "false");
         sb.append("\n");
@@ -135,6 +156,11 @@ public final class ReportWriter {
      * @return formatted thread choices, outcomes, and state snapshots
      */
     private static String formatFailingTrace(Trace trace, List<StateSnapshot> states) {
+        if (trace.evidence() != null) {
+            var json = com.google.gson.JsonParser.parseString(trace.toRecord().withStates(states).toJson()).getAsJsonObject();
+            json.add("threadIds", GSON.toJsonTree(trace.threadIds()));
+            return GSON.toJson(json);
+        }
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         sb.append("        \"threadIds\": [");

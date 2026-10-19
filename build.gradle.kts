@@ -350,7 +350,18 @@ pitest {
 /**
  * Scope and mutator set are fixed; a different population is a different baseline.
  *
- * 268 remains the measured population in 13.09: CanonicalEncoder gains 12 killed mutants,
+ * Spec 16 adds a net 27 CBS mutations for isolated source transitions, loop cutoff collection and
+ * source preemption metadata/early notification. Same scope, mutators and Java runtime as the
+ * fresh 268/255 main baseline. Measurement: 281/295, including 126/127 CBS, 13 inherited
+ * state-store survivors and one unassigned CBS survivor. Removing seven obsolete execution
+ * lookups accounts for the intermediate 302 -> 295 population change; scope is unchanged.
+ * The initial unchanged 94% floor required 278 kills (94*295 = 27730).
+ * PR #57 feedback replaces the CBS cutoff stream/lambda with per-run Set membership.
+ * Seven old killed mutations disappear and three new mutations are generated, for a measured
+ * total of 291. The 94% floor is unchanged and now requires 274 kills (94*291 = 27354).
+ * This population reduction is not credited as improved assertion coverage.
+ *
+ * Historically, 268 remains the measured population in 13.09: CanonicalEncoder gains 12 killed mutants,
  * HashingStateStore loses a net 9 killed mutants, and ContextBoundedExplorer loses a net 3.
  * All 13 survivors are unchanged; the shared key moves derivation rather than suppressing mutants.
  * See 13.09 for the method-level census.
@@ -367,7 +378,7 @@ pitest {
  * away because the duplicated derivation was consolidated, which was the assigned work; had the call
  * been deleted for the purpose of killing the mutant, this would be the score-laundering D5 forbids.
  */
-val EXPECTED_TOTAL_MUTANTS = 268
+val EXPECTED_TOTAL_MUTANTS = 291
 
 /**
  * Per-class kills/total, checked against the measurement on every run and reported as a WARNING only.
@@ -387,7 +398,7 @@ val EXPECTED_PER_CLASS = mapOf(
     "dev.samhb.interleave.state.CanonicalEncoder" to "18/19",
     "dev.samhb.interleave.state.HashingStateStore" to "43/52",
     "dev.samhb.interleave.state.BitstateStore" to "94/97",
-    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "100/100",
+    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "122/123",
 )
 
 /**
@@ -396,7 +407,9 @@ val EXPECTED_PER_CLASS = mapOf(
  * Not 95: PIT rounds 94.81 up to 95, so a floor of 95 gates nothing the rounding has not already
  * granted. The floor is at most (rounded figure - 1) for exactly that reason.
  *
- * Recomputed against the 268-mutant population: 94*268 = 25192, so 252 kills clear the gate and 251
+ * Spec 16's initial 295-mutant population required 278 kills: 94*295 = 27730.
+ * The cutoff-set follow-up has 291 mutants and requires 274 kills: 94*291 = 27354.
+ * Historical arithmetic against the 268-mutant population: 94*268 = 25192, so 252 kills clear the gate and 251
  * does not. That is one lost kill more permissive than the 270-mutant arithmetic (94*270 = 25380, so
  * 254 cleared and 253 did not) — a fixed percentage against a smaller denominator buys a little slack.
  * Flagged rather than papered over: if the set wants the original sensitivity, the fix is to gate on an

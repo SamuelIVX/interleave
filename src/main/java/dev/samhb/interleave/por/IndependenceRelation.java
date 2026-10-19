@@ -123,10 +123,17 @@ public final class IndependenceRelation {
 
         boolean bEnabledBefore = stepB.enabled(config.state());
 
-        SharedState nextState = config.state().deepCopy();
-        stepA.execute(nextState);
-
-        boolean bEnabledAfter = stepB.enabled(nextState);
+        SharedState after;
+        if (stepA instanceof SourceStep) {
+            StepTransition transition = TransitionExecutor.execute(threads, config, threadA);
+            if (transition.successor() == null) return true;
+            after = transition.successor().state();
+        } else {
+            // Legacy probes observe tentative effects even when execute reports an assertion failure.
+            after = config.state().deepCopy();
+            stepA.execute(after);
+        }
+        boolean bEnabledAfter = stepB.enabled(after);
 
         return bEnabledBefore != bEnabledAfter;
     }

@@ -118,3 +118,7 @@ Require syntax acceptance/rejection cases for every production; empty constructs
 support; property timing; false/erroring guards; branch decision/body interleavings; ordered atomic
 effects; zero/early/exact-N loop exits and true final cutoff; and both lost-update variants.
 Validate values and scheduling boundaries against hand-written expectations, not generated output.
+
+## Implementation evidence
+
+`SourceProgramLoaderTest` and `SourceAcceptanceTest` exercise final-value/schedule oracles, nested allowance reset, atomic observation boundaries, guards and runtime rollback. The seven `.ilv` examples are loaded through all benchmark rows by `SourceAcceptanceTest`. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.

@@ -1,0 +1,7 @@
+program atomic_increment {
+  shared int counter = 0;
+  thread 0 { atomic { counter = counter + 1; } }
+  thread 1 { atomic { counter = counter + 1; } }
+  invariant final (counter == 2);
+  expected PASS;
+}

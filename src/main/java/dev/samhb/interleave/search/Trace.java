@@ -2,7 +2,7 @@
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.TraceRecord;
-import dev.samhb.interleave.core.StepOutcome;
+import dev.samhb.interleave.core.*;
 import java.io.Serializable;
 import java.util.*;
 
@@ -14,6 +14,8 @@ public final class Trace implements Serializable {
     private final List<StepOutcome> outcomes;
     /** Outcome. */
     private final TraceOutcome outcome;
+    /** Source metadata, absent for legacy traces. */
+    private final TraceEvidence evidence;
 
     /**
      * Creates trace from the supplied values.
@@ -22,6 +24,17 @@ public final class Trace implements Serializable {
      * @param outcome execution outcome being recorded
      */
     public Trace(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome) {
+        this(threadIds, outcomes, outcome, null);
+    }
+
+    /**
+     * Creates immutable aligned execution evidence.
+     * @param threadIds recorded choices
+     * @param outcomes recorded outcomes
+     * @param outcome terminal verdict
+     * @param evidence optional source identity and terminal detail
+     */
+    public Trace(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome, TraceEvidence evidence) {
         if (threadIds == null) throw new IllegalArgumentException("threadIds must not be null");
         if (outcomes == null) throw new IllegalArgumentException("outcomes must not be null");
         if (outcome == null) throw new IllegalArgumentException("outcome must not be null");
@@ -31,6 +44,77 @@ public final class Trace implements Serializable {
         this.threadIds = List.copyOf(threadIds);
         this.outcomes = List.copyOf(outcomes);
         this.outcome = outcome;
+        if (evidence != null && evidence.sourceDigest() != null && evidence.executedSteps().size() != threadIds.size()) {
+            throw new IllegalArgumentException("Misaligned executedSteps");
+        }
+        this.evidence = evidence;
+    }
+
+    /** Returns optional immutable source evidence.
+     * @return optional immutable source evidence
+     */
+    public TraceEvidence evidence() { return evidence; }
+
+    /** Returns omitted bounded choice, or null.
+     * @return omitted bounded choice, or null
+     */
+    public CutoffEvidence cutoff() { return evidence == null ? null : evidence.cutoff(); }
+
+    /** Returns classified modeled failure, or null.
+     * @return classified modeled failure, or null
+     */
+    public FailureEvidence failure() { return evidence == null ? null : evidence.failure(); }
+
+    /**
+     * Attaches source action identities by deterministic prefix replay.
+     * @param program immutable model
+     * @param threadIds recorded choices
+     * @param outcomes actual outcomes
+     * @param outcome terminal verdict
+     * @param invariant property, when supplied
+     * @return source-aware trace or unchanged legacy representation
+     * @throws IllegalArgumentException if choices and outcomes are misaligned, a source choice
+     *        reaches a cutoff, or a source step fails before the final recorded choice
+     * @throws IndexOutOfBoundsException if a recorded thread or instruction index is invalid
+     */
+    public static Trace create(Program program, List<Integer> threadIds, List<StepOutcome> outcomes,
+                               TraceOutcome outcome, Invariant invariant) {
+        return create(program, threadIds, outcomes, outcome, invariant, null);
+    }
+
+    /**
+     * Creates terminal evidence including a separate omitted action.
+     * @param program immutable model
+     * @param threadIds committed/failed attempts, excluding cutoff
+     * @param outcomes aligned outcomes
+     * @param outcome terminal verdict
+     * @param invariant optional property
+     * @param cutoff omitted bound witness
+     * @return immutable trace
+     * @throws IllegalArgumentException if choices and outcomes are misaligned, a source choice
+     *        reaches a cutoff, or a source step fails before the final recorded choice
+     * @throws IndexOutOfBoundsException if a recorded thread or instruction index is invalid
+     */
+    public static Trace create(Program program, List<Integer> threadIds, List<StepOutcome> outcomes,
+                               TraceOutcome outcome, Invariant invariant, CutoffEvidence cutoff) {
+        if (!program.isSource() && cutoff == null) return of(threadIds, outcomes, outcome);
+        Configuration config = program.initialConfiguration();
+        List<ExecutedStep> steps = new ArrayList<>();
+        FailureEvidence failure = null;
+        // shortcut: terminal source identities use deterministic replay; capture incrementally if profiling warrants it.
+        if (program.isSource()) for (int id : threadIds) {
+            int pc = config.programCounters().get(id);
+            steps.add(((SourceStep) program.threads().get(id).steps().get(pc)).metadata(pc));
+            StepTransition transition = TransitionExecutor.execute(program, config, id);
+            if (transition.failure() != null) { failure = transition.failure(); break; }
+            if (transition.successor() == null) throw new IllegalArgumentException("Prefix contains a cutoff");
+            config = transition.successor();
+        }
+        if (program.isSource() && outcome == TraceOutcome.VIOLATION && failure == null) {
+            failure = invariant instanceof DiagnosticInvariant detailed ? detailed.failure(config.state(), config)
+                : new FailureEvidence(FailureEvidence.Kind.INVARIANT, FailureEvidence.Phase.PROPERTY, null, null);
+        }
+        return new Trace(threadIds, outcomes, outcome, new TraceEvidence(program.sourceDigest(), steps, failure, cutoff));
     }
 
     /**
@@ -98,7 +182,7 @@ public final class Trace implements Serializable {
      */
     public TraceRecord toRecord() {
         // programHash is empty for backward compat - could be computed from program if needed
-        return new TraceRecord(threadIds, outcomes, outcome, "");
+        return new TraceRecord(threadIds, outcomes, outcome, "", List.of(), evidence);
     }
 
     /** {@inheritDoc} */

@@ -356,7 +356,7 @@ public final class DslLoader {
      * @return the parsed declaration
      * @throws RegistryException if the block is missing, malformed, or names an invalid identifier
      */
-    private static StateDecl parseStateDecl(JsonObject stateJson) {
+    static StateDecl parseStateDecl(JsonObject stateJson) {
         if (!stateJson.has("fields")) throw new RegistryException("Missing required 'fields' at state.fields");
         JsonElement fieldsEl = stateJson.get("fields");
         if (!fieldsEl.isJsonArray()) throw new RegistryException("'fields' must be array at state.fields");
