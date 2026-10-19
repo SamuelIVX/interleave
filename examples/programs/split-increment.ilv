@@ -1,0 +1,9 @@
+// Separate actions permit both reads before either write.
+program split_increment {
+  shared int counter = 0;
+  local int saved = 0;
+  thread 0 { atomic { local.saved = counter; } atomic { counter = local.saved + 1; } }
+  thread 1 { atomic { local.saved = counter; } atomic { counter = local.saved + 1; } }
+  invariant final (counter == 2);
+  expected VIOLATION;
+}

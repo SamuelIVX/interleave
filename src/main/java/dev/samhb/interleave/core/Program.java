@@ -16,6 +16,8 @@ public final class Program {
     private final SharedState initialState;
     /** Threads. */
     private final List<ModelThread> threads;
+    /** Exact source fingerprint, absent for legacy models. */
+    private final String sourceDigest;
 
     /**
      * Creates a program.
@@ -34,11 +36,35 @@ public final class Program {
      *         or empty
      */
     public Program(SharedState initialState, List<ModelThread> threads) {
+        this(initialState, threads, null);
+    }
+
+    /**
+     * Creates an immutable source model with diagnostic identity.
+     * @param initialState isolated initial values
+     * @param threads immutable forward instructions
+     * @param sourceDigest exact UTF-8 SHA-256, or null for legacy models
+     */
+    public Program(SharedState initialState, List<ModelThread> threads, String sourceDigest) {
         if (initialState == null) throw new IllegalArgumentException("initialState must not be null");
         if (threads == null || threads.isEmpty()) throw new IllegalArgumentException("threads must not be empty");
         this.initialState = initialState.deepCopy();
         this.threads = List.copyOf(threads);
+        if (sourceDigest != null && !sourceDigest.matches("[0-9a-f]{64}")) {
+            throw new IllegalArgumentException("Invalid source digest");
+        }
+        this.sourceDigest = sourceDigest;
     }
+
+    /** Returns source fingerprint, or null for a legacy Java/JSON model.
+     * @return source fingerprint, or null for a legacy Java/JSON model
+     */
+    public String sourceDigest() { return sourceDigest; }
+
+    /** Returns whether source execution/reporting semantics apply.
+     * @return whether source execution/reporting semantics apply
+     */
+    public boolean isSource() { return sourceDigest != null; }
 
     /**
      * Returns the starting configuration, with every thread's program counter at zero.

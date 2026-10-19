@@ -109,3 +109,7 @@ public source entry only after reporting, reduction and replay support are integ
 - Enabled-but-BLOCKED legacy CBS fixture retains its scheduling positions and cost behavior.
 - Detailed driver halts on the first source failure/cutoff and classifies prefixes/terminal states;
   the existing source-call wrapper exposes terminal evidence through SourceExecutionException.
+
+## Implementation evidence
+
+`TransitionExecutor` is shared by search, source fixed schedules/replay and interference probes. `SourceBoundaryTest` checks errors after committed writes; `SourceAcceptanceTest` checks once-only prepared cutoff execution and private transient states. Legacy regression tests remain unchanged. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.

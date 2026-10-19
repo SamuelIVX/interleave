@@ -39,7 +39,19 @@ jobs:
       - name: Install Playwright browsers
         run: npx --prefix docs playwright install --with-deps chromium
 
+      - name: Setup Java for source report integration
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: "26"
+          cache: gradle
+
+      - name: Generate and validate fresh source report
+        run: ./gradlew test --tests dev.samhb.interleave.format.SourceProgramLoaderTest --no-daemon
+
       - name: Run visualizer test suite
+        env:
+          SOURCE_TRACE_JSON: build/source-visualizer.json
         run: npm test --prefix docs
 
   build:

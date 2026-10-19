@@ -1,0 +1,7 @@
+program atomic_runtime_error {
+  shared int counter = 0;
+  thread 0 { atomic { counter = 9; counter = 1 % (counter - 9); } }
+  // Runtime VIOLATION with counter = 0, even though this predicate holds.
+  invariant always (counter == 0);
+  expected VIOLATION;
+}

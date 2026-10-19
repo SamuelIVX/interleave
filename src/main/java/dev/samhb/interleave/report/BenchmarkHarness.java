@@ -176,7 +176,8 @@ public final class BenchmarkHarness {
             DfsResultWithTiming dfsResult = runExplorer(() -> dfsExplorer.explore(program.program(), invariant, dfsStore, null));
             String dfsVerdict = actualVerdict(dfsResult.result());
             String expectedVerdict = program.expectedVerdict();
-            if (expectedVerdict != null && storeType == StoreType.EXACT && !expectedVerdict.equals(dfsVerdict)) {
+            if (expectedVerdict != null && storeType == StoreType.EXACT && !expectedVerdict.equals(dfsVerdict)
+                    && !(program.program().isSource() && dfsVerdict.equals("INCOMPLETE"))) {
                 throw new IllegalStateException("Expected verdict " + expectedVerdict +
                     " for " + program.name() + " but got " + dfsVerdict);
             }
@@ -286,7 +287,7 @@ public final class BenchmarkHarness {
             // -- but the corpus runs dozens of CBS rows, and the redundant bounds are the bulk
             // of that time.
             boolean pruned = result.result().traces().stream()
-                .anyMatch(t -> t.outcome() == TraceOutcome.INCOMPLETE);
+                .anyMatch(t -> t.cutoff() != null && t.cutoff().reason() == dev.samhb.interleave.core.CutoffEvidence.Reason.PREEMPTION_BOUND);
             if (!pruned) {
                 return last; // exhaustive at k; deeper bounds are redundant
             }
@@ -333,11 +334,11 @@ public final class BenchmarkHarness {
             return new BenchmarkResult(strategy, bugName, result.result().statesExplored(),
                 result.wallTimeMs(), result.heapDeltaBytes(), verdict,
                 failingTrace, storeType,
-                bs.estimatedFalsePositiveRate(), bs.bitCount(), bs.bitDensity(), preemptionsUsed, states);
+                bs.estimatedFalsePositiveRate(), bs.bitCount(), bs.bitDensity(), preemptionsUsed, states).withExploration(program, result.result());
         }
         return new BenchmarkResult(strategy, bugName, result.result().statesExplored(),
             result.wallTimeMs(), result.heapDeltaBytes(), verdict,
-            failingTrace, storeType, 0.0, 0, 0.0, preemptionsUsed, states);
+            failingTrace, storeType, 0.0, 0, 0.0, preemptionsUsed, states).withExploration(program, result.result());
     }
 
     /**
@@ -377,6 +378,7 @@ public final class BenchmarkHarness {
 
         if (hasViolation) return "VIOLATION";
         if (hasDeadlock) return "DEADLOCK";
+        if (result.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.INCOMPLETE)) return "INCOMPLETE";
         return "PASS";
     }
 

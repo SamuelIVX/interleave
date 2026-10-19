@@ -1,0 +1,10 @@
+program atomic_cutoff {
+  shared int counter = 0;
+  thread 0 {
+    atomic {
+      counter = 9;
+      if (counter == 9) { while (true) limit 1 { counter = counter + 1; } }
+    }
+  }
+  // The private writes never commit; the cutoff prefix has counter = 0.
+}

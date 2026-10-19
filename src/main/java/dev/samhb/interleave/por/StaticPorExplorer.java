@@ -86,7 +86,8 @@ public final class StaticPorExplorer {
         List<Trace> traces = new ArrayList<>();
         long[] statesExplored = new long[1];
 
-        PropertyPersistentSetComputer propertySets = invariant == null ? null
+        PropertyPersistentSetComputer propertySets = invariant == null ? (program.isSource()
+            ? new PropertyPersistentSetComputer(program.threads(), Set.of(), relation) : null)
             : invariant.observedLocations()
                 .map(locations -> new PropertyPersistentSetComputer(program.threads(), locations, relation))
                 .orElse(null);
@@ -134,7 +135,7 @@ public final class StaticPorExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -143,7 +144,7 @@ public final class StaticPorExplorer {
         }
 
         if (config.allTerminated()) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -152,17 +153,16 @@ public final class StaticPorExplorer {
         }
 
         List<Integer> enabled = config.enabledThreadIds();
-        List<Integer> branchSet = invariant == null
-            ? persistentSetComputer.computePersistentSet(config, program.threads())
-            : propertySets == null ? enabled : propertySets.compute(config);
+        List<Integer> branchSet = propertySets != null ? propertySets.compute(config)
+            : invariant == null ? persistentSetComputer.computePersistentSet(config, program.threads()) : enabled;
 
         // Footprints prove invisibility and persistence, not progress. Execute candidates once on
         // isolated copies and reuse them, even if a blocked/assertion result requires full fallback.
-        Map<Integer, PreparedTransition> prepared = new HashMap<>();
+        Map<Integer, StepTransition> prepared = new HashMap<>();
         if (propertySets != null && branchSet.size() < enabled.size()) {
             boolean progresses = true;
             for (int id : branchSet) {
-                PreparedTransition transition = prepare(program, config, id);
+                StepTransition transition = prepare(program, config, id);
                 prepared.put(id, transition);
                 if (transition.outcome() != StepOutcome.ADVANCED
                         && transition.outcome() != StepOutcome.TERMINATED) progresses = false;
@@ -176,9 +176,17 @@ public final class StaticPorExplorer {
             Step step = thread.steps().get(pc);
             if (step == null) continue;
 
-            PreparedTransition transition = prepared.get(threadId);
+            StepTransition transition = prepared.get(threadId);
             if (transition == null) transition = prepare(program, config, threadId);
-            SharedState nextState = transition.state();
+            CutoffEvidence evidence = transition.cutoff();
+            if (evidence != null) {
+                if (traces.stream().noneMatch(t -> evidence.equals(t.cutoff()))) {
+                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, evidence);
+                    traces.add(cutoff);
+                    if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
+                }
+                continue;
+            }
             StepOutcome outcome = transition.outcome();
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
@@ -188,7 +196,7 @@ public final class StaticPorExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -196,7 +204,7 @@ public final class StaticPorExplorer {
                 continue;
             }
 
-            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
+            Configuration nextConfig = transition.successor();
 
             porDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                    visitedStates, traces, invariant, statesExplored, stateStore, stateVisitor, propertySets);
@@ -205,13 +213,13 @@ public final class StaticPorExplorer {
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
             // Check invariant before reporting deadlock
             if (invariant != null && !invariant.holds(config.state(), config)) {
-                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
                 }
             } else {
-                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK);
+                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -227,17 +235,9 @@ public final class StaticPorExplorer {
      * @param threadId selected thread
      * @return the outcome and isolated successor state, reused by traversal
      */
-    private PreparedTransition prepare(Program program, Configuration config, int threadId) {
-        Step step = program.threads().get(threadId).steps().get(config.programCounters().get(threadId));
-        SharedState next = config.state().deepCopy();
-        return new PreparedTransition(step.execute(next), next);
+    private StepTransition prepare(Program program, Configuration config, int threadId) {
+        return TransitionExecutor.execute(program, config, threadId);
     }
 
-    /**
-     * Executed candidate snapshot reused if reduction falls back to exhaustive branching.
-     * @param outcome execution outcome being recorded
-     * @param state shared state to inspect or mutate according to this operation
-     */
-    private record PreparedTransition(StepOutcome outcome, SharedState state) {}
 
 }

@@ -44,5 +44,19 @@ check('existing peterson fixture', JSON.parse(read('examples/traces/peterson.jso
 check('existing lost-update fixture', JSON.parse(read('examples/traces/lost-update.json','utf8')), 'VIOLATION');
 check('existing bounded-buffer fixture', JSON.parse(read('examples/traces/bounded-buffer-declarative.json','utf8')), 'PASS');
 check('legacy shape (no incompleteTraces) still recognized', {failingTraces:[{threadIds:[0],outcome:'VIOLATION'}],hasViolation:true,limitExceeded:false}, 'VIOLATION');
+check('source loop report', {benchmarks:[{bug:'bounded',verdict:'INCOMPLETE',incompleteTrace:{threads:[],outcome:'INCOMPLETE',cutoff:{reason:'LOOP_LIMIT',threadId:0,instructionIndex:0,limit:0,iterations:0}}}]}, 'INCOMPLETE');
+check('source resource limit', {programKind:'SOURCE',completedTraces:[],incompleteTraces:[],limitExceeded:true,hasViolation:false}, 'INCOMPLETE');
+check('approximate source absence with no trace', {programKind:'SOURCE',storeType:'BITSTATE',completedTraces:[],hasViolation:false}, 'APPROXIMATE_PASS');
+check('source with unknown store has no absence claim', {programKind:'SOURCE',completedTraces:[],hasViolation:false}, 'UNKNOWN');
+check('unknown source store cannot imply exact pass', {programKind:'SOURCE',storeType:'UNRECOGNIZED',completedTraces:[{threads:[],outcome:'COMPLETED'}],hasViolation:false}, 'COMPLETED');
+check('approximate source completion', {programKind:'SOURCE',storeType:'BITSTATE',completedTraces:[{threads:[],outcome:'COMPLETED'}],hasViolation:false}, 'APPROXIMATE_PASS');
+const sourceStep = {instructionIndex:2,source:{file:'sample.ilv',line:3,column:1,endLine:3,endColumn:9},label:'atomic {}',expansionPath:[]};
+const sourceTrace = {threads:[0],outcomes:['ADVANCED'],outcome:'COMPLETED',sourceDigest:'a'.repeat(64),executedSteps:[sourceStep]};
+if(normalize(sourceTrace).trace.executedSteps?.[0]?.instructionIndex !== 2){ fails++; console.log('FAIL source instruction identity'); }
+try { normalize({...sourceTrace,executedSteps:[]}); fails++; console.log('FAIL misaligned source metadata accepted'); } catch { /* Expected boundary rejection. */ }
+for(const malformed of [{failure:{kind:'INVARIANT',phase:'STEP'}}, {failure:{kind:'RUNTIME_ERROR',phase:'STEP'}},
+  {cutoff:{reason:'LOOP_LIMIT',threadId:0,instructionIndex:0,limit:0,iterations:0,expansionPath:[{sourceOffset:-1,iteration:0}]}}]){
+  try { normalize({...sourceTrace,...malformed}); fails++; console.log('FAIL malformed terminal evidence accepted'); } catch { /* Expected boundary rejection. */ }
+}
 console.log(fails === 0 ? '\nall checks passed' : `\n${fails} FAILED`);
 process.exit(fails === 0 ? 0 : 1);

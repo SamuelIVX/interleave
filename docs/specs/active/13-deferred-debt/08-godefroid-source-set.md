@@ -172,3 +172,13 @@ The precise claim is **`P_current(c) ∪ source_pair(c) = P_current(c)`**:
 Notice that `source_pair ∪ dep_pair` alone is empty in the last case and does **not** describe the
 computed set. The proof retains both implementation fallbacks. It rejects this particular local
 patch; it neither proves nor disproves a future reduction based on different information.
+
+## Forward source-model applicability
+
+Spec 16 adds bounded source control flow with strictly forward targets and transactional atomic
+interiors. The original linear-thread measurements above remain historical. For source models,
+replace exact PC+1 progress with strict forward progress; lexical suffixes still contain every
+reachable continuation. Terminal cutoffs require existence preservation alongside safety outcomes.
+The extension, complete footprint argument and source-only DPOR sleep-set subsumption rule are
+recorded in [16.05](../16-concurrent-program-parser/05-por-and-dpor-soundness.md#implementation-preservation-argument).
+This does not extend the checker to backward edges or unbounded loops.

@@ -2,6 +2,11 @@
 package dev.samhb.interleave.report;
 
 import dev.samhb.interleave.core.StateSnapshot;
+import dev.samhb.interleave.core.Program;
+import dev.samhb.interleave.core.CutoffEvidence;
+import dev.samhb.interleave.search.DfsResult;
+import dev.samhb.interleave.search.TraceOutcome;
+import dev.samhb.interleave.search.TraceReplayer;
 import dev.samhb.interleave.search.Trace;
 import java.util.List;
 import java.util.Optional;
@@ -36,6 +41,12 @@ public final class BenchmarkResult {
     private final Integer preemptionsUsed;
     /** State snapshots. */
     private final List<StateSnapshot> states;
+    /** Additional incomplete evidence; empty for legacy constructor calls. */
+    private final List<Trace> incompleteTraces;
+    /** Source-model reporting marker. */
+    private final boolean sourceModel;
+    /** Snapshots for the representative incomplete prefix. */
+    private final List<StateSnapshot> incompleteStates;
 
     /**
      * Creates a result with the exact store type (backward compatible).
@@ -191,6 +202,54 @@ public final class BenchmarkResult {
         this.bitstateBitDensity = bitstateBitDensity;
         this.preemptionsUsed = preemptionsUsed;
         this.states = states == null ? List.of() : List.copyOf(states);
+        this.incompleteTraces = List.of();
+        this.incompleteStates = List.of();
+        this.sourceModel = false;
+    }
+
+    /** Copies an existing immutable row and retains its exploration completeness evidence. */
+    private BenchmarkResult(BenchmarkResult row, Program program, DfsResult result) {
+        this.strategy = row.strategy; this.bugName = row.bugName; this.statesExplored = row.statesExplored;
+        this.wallTimeMs = row.wallTimeMs; this.heapDeltaBytes = row.heapDeltaBytes;
+        this.verdict = program.isSource() && row.verdict.equals("PASS") && row.storeType == StoreType.BITSTATE
+            ? "APPROXIMATE_PASS" : row.verdict;
+        this.failingTrace = row.failingTrace; this.storeType = row.storeType;
+        this.estimatedFalsePositiveRate = row.estimatedFalsePositiveRate; this.bitstateBitCount = row.bitstateBitCount;
+        this.bitstateBitDensity = row.bitstateBitDensity; this.preemptionsUsed = row.preemptionsUsed; this.states = row.states;
+        this.sourceModel = program.isSource();
+        this.incompleteTraces = result.traces().stream().filter(t -> t.outcome() == TraceOutcome.INCOMPLETE).toList();
+        this.incompleteStates = sourceModel && !incompleteTraces.isEmpty()
+            ? new TraceReplayer().captureSnapshots(program, incompleteTraces.getFirst()) : List.of();
+    }
+
+    /**
+     * Attaches run evidence without altering legacy public constructor contracts.
+     * @param program executed model
+     * @param result actual exploration evidence
+     * @return a new row preserving all counts and diagnostics
+     */
+    public BenchmarkResult withExploration(Program program, DfsResult result) {
+        return new BenchmarkResult(this, program, result);
+    }
+
+    /** Returns immutable bounded prefixes.
+     * @return immutable bounded prefixes
+     */
+    public List<Trace> incompleteTraces() { return incompleteTraces; }
+    /** Returns representative incomplete prefix snapshots.
+     * @return representative incomplete prefix snapshots
+     */
+    public List<StateSnapshot> incompleteStates() { return incompleteStates; }
+    /** Returns whether source-specific guarantees apply.
+     * @return whether source-specific guarantees apply
+     */
+    public boolean sourceModel() { return sourceModel; }
+    /** Returns distinct cutoff reasons in stable enum order.
+     * @return distinct cutoff reasons in stable enum order
+     */
+    public List<CutoffEvidence.Reason> incompletenessReasons() {
+        return incompleteTraces.stream().map(Trace::cutoff).filter(java.util.Objects::nonNull)
+            .map(CutoffEvidence::reason).distinct().sorted().toList();
     }
 
     /**

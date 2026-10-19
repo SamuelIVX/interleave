@@ -182,7 +182,17 @@ public final class VerificationResult implements Serializable {
         }
 
         return new TestResult(strategy, statesExplored, wallTimeMs, heapDeltaBytes,
-                              failingTraces, deadlockedTraces, completedTraces, incompleteTraces, false);
+                              failingTraces, deadlockedTraces, completedTraces, incompleteTraces, false)
+            .withRunMetadata(java.util.stream.Stream.of(failingTraces, deadlockedTraces, completedTraces, incompleteTraces)
+                .flatMap(List::stream).anyMatch(r -> r.evidence() != null && r.evidence().sourceDigest() != null), null);
+    }
+
+    /** Returns distinct model/scheduling bound reasons in stable enum order.
+     * @return recorded cutoff causes
+     */
+    public List<dev.samhb.interleave.core.CutoffEvidence.Reason> incompletenessReasons() {
+        return incompleteTraces.stream().map(Trace::cutoff).filter(java.util.Objects::nonNull)
+            .map(dev.samhb.interleave.core.CutoffEvidence::reason).distinct().sorted().toList();
     }
 
     /**
@@ -196,6 +206,8 @@ public final class VerificationResult implements Serializable {
         sb.append("  \"statesExplored\": ").append(statesExplored).append(",\n");
         sb.append("  \"wallTimeMs\": ").append(wallTimeMs).append(",\n");
         sb.append("  \"heapDeltaBytes\": ").append(heapDeltaBytes).append(",\n");
+        if (!incompletenessReasons().isEmpty()) sb.append("  \"incompletenessReasons\": ")
+            .append(new com.google.gson.Gson().toJson(incompletenessReasons())).append(",\n");
         sb.append("  \"hasViolation\": ").append(hasViolation()).append(",\n");
         sb.append("  \"failingTraces\": ").append(jsonTraces(failingTraces)).append(",\n");
         sb.append("  \"deadlockedTraces\": ").append(jsonTraces(deadlockedTraces)).append(",\n");
@@ -219,6 +231,12 @@ public final class VerificationResult implements Serializable {
         sb.append("[\n");
         for (int i = 0; i < traces.size(); i++) {
             Trace trace = traces.get(i);
+            if (trace.evidence() != null) {
+                sb.append(trace.toRecord().toJson());
+                if (i < traces.size() - 1) sb.append(",");
+                sb.append("\n");
+                continue;
+            }
             sb.append("    {\"threads\": [");
             for (int j = 0; j < trace.threadIds().size(); j++) {
                 if (j > 0) sb.append(", ");

@@ -1,0 +1,9 @@
+program bounded_loops {
+  shared int counter = 0;
+  thread 0 {
+    repeat 2 { while (counter < 2) limit 2 { atomic { counter = counter + 1; } } }
+    while (false) limit 0 {}
+    // The final check remains true: INCOMPLETE, with counter still 2.
+    while (true) limit 0 {}
+  }
+}

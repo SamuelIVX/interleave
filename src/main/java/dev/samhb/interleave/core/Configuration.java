@@ -304,10 +304,29 @@ public final class Configuration {
      * @return next position with counters and enabled-thread metadata derived from the outcome
      */
     public Configuration successor(int threadId, StepOutcome outcome, List<ModelThread> threads, SharedState nextState) {
-        List<Integer> nextPcs = new ArrayList<>(this.programCounters);
-        if (outcome != StepOutcome.BLOCKED) {
-            nextPcs.set(threadId, nextPcs.get(threadId) + 1);
+        int nextPc = programCounters.get(threadId) + (outcome == StepOutcome.BLOCKED ? 0 : 1);
+        return successorAt(threadId, outcome, threads, nextState, nextPc);
+    }
+
+    /**
+     * Builds a forward source successor while preserving the legacy blocked identity edge.
+     * @param threadId scheduled owner
+     * @param outcome successful or blocked step result
+     * @param threads immutable definitions
+     * @param nextState isolated committed state
+     * @param nextPc forward target, or current PC for BLOCKED
+     * @return derived successor
+     * @throws IllegalArgumentException for invalid or backward targets
+     */
+    public Configuration successorAt(int threadId, StepOutcome outcome, List<ModelThread> threads,
+                                     SharedState nextState, int nextPc) {
+        int current = programCounters.get(threadId);
+        if (nextPc > threads.get(threadId).steps().size()
+                || (outcome == StepOutcome.BLOCKED ? nextPc != current : nextPc <= current)) {
+            throw new IllegalArgumentException("Invalid forward successor");
         }
+        List<Integer> nextPcs = new ArrayList<>(this.programCounters);
+        nextPcs.set(threadId, nextPc);
 
         Derived derived = derive(threads, nextPcs, nextState);
 

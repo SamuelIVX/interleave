@@ -90,3 +90,7 @@ Update this set's status, roadmap #9 and project context only to the achieved st
 claims documentation validation, not successful implementation commands. Implemented status requires
 the whole matrix, green CI and final review evidence. Item #8 and the unrelated roadmap candidates
 remain outside implementation scope.
+
+## Implementation evidence
+
+`MainTest` runs real CLI processes for `--source`, invalid input and conflicting selectors. `SourceAcceptanceTest` loads all seven teaching fixtures from disk and checks reports/attestation across strategies/stores. The viewer CI job generates its source trace with Java before running Playwright; CI Gradle parallelism remains unchanged. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.

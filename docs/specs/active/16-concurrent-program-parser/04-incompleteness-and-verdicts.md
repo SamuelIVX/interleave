@@ -110,3 +110,15 @@ the recorded prefix and reproduce LOOP_LIMIT on scratch without committing it. F
 reconstruct last-thread/enabledness/cost from prefix replay and prove the attempted enabled choice
 exceeds K without executing it. Include a true invariant with atomic writes followed by a runtime
 error: attestation must accept the reproduced error after rollback.
+
+## Implementation evidence
+
+`SourceCompletenessTest` validates source preemption PCs/spans/ancestry, loop witness deduplication/visitor callbacks, and both bound reasons retained alongside a runtime violation. `SourceBoundaryTest` checks resource-stop retention and loop-only deepening. All four strategies and both stores are exercised through reports. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.
+
+Source scheduling witnesses are notified immediately at the first prune site so a later visitor
+resource interruption cannot erase them. Iterative deepening keeps a separate, deduplicated source
+cutoff history only for resource-interrupted partial results; successful completed deeper runs use
+only their current-bound result. `SourceCompletenessTest` first demonstrated both evidence-loss
+cases failing, then verifies the fix, including replay of retained earlier-bound witnesses.
+Library source JSON includes actual known store identity; older result conversions with no store
+information do not invent an exact absence guarantee in the viewer.

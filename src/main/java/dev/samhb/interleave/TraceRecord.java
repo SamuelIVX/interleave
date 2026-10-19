@@ -5,6 +5,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import dev.samhb.interleave.core.StateSnapshot;
 import dev.samhb.interleave.core.StepOutcome;
+import dev.samhb.interleave.core.TraceEvidence;
 import dev.samhb.interleave.search.TraceOutcome;
 import java.io.Serializable;
 import java.util.List;
@@ -23,6 +24,8 @@ public final class TraceRecord implements Serializable {
     private final String programHash;
     /** State snapshots. */
     private final List<StateSnapshot> states;
+    /** Optional immutable source diagnostics. */
+    private final TraceEvidence evidence;
 
     /**
      * Creates trace record from the supplied values.
@@ -44,12 +47,34 @@ public final class TraceRecord implements Serializable {
      * @param states ordered state snapshots along the execution path
      */
     public TraceRecord(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome, String programHash, List<StateSnapshot> states) {
+        this(threadIds, outcomes, outcome, programHash, states, null);
+    }
+
+    /**
+     * Creates an aligned trace with optional source diagnostics.
+     * @param threadIds recorded choices
+     * @param outcomes recorded outcomes
+     * @param outcome terminal verdict
+     * @param programHash legacy fingerprint
+     * @param states snapshots
+     * @param evidence source metadata
+     */
+    public TraceRecord(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome, String programHash,
+                       List<StateSnapshot> states, TraceEvidence evidence) {
         this.threadIds = List.copyOf(threadIds);
         this.outcomes = List.copyOf(outcomes);
         this.outcome = outcome;
         this.programHash = programHash;
         this.states = states == null ? List.of() : List.copyOf(states);
+        if (threadIds.size() != outcomes.size() || (evidence != null && evidence.sourceDigest() != null
+                && evidence.executedSteps().size() != threadIds.size())) throw new IllegalArgumentException("Misaligned trace");
+        this.evidence = evidence;
     }
+
+    /** Returns source diagnostics, or null for legacy records.
+     * @return source diagnostics, or null for legacy records
+     */
+    public TraceEvidence evidence() { return evidence; }
 
     /**
      * Returns thread ids for this trace record.
@@ -97,7 +122,7 @@ public final class TraceRecord implements Serializable {
      * @return enriched trace record
      */
     public TraceRecord withStates(List<StateSnapshot> states) {
-        return new TraceRecord(this.threadIds, this.outcomes, this.outcome, this.programHash, states);
+        return new TraceRecord(this.threadIds, this.outcomes, this.outcome, this.programHash, states, evidence);
     }
 
     /**
@@ -124,6 +149,14 @@ public final class TraceRecord implements Serializable {
         sb.append("  \"programHash\": ").append(GSON.toJson(programHash));
         if (!states.isEmpty()) {
             sb.append(",\n  \"states\": ").append(GSON.toJson(states));
+        }
+        if (evidence != null) {
+            if (evidence.sourceDigest() != null) {
+                sb.append(",\n  \"sourceDigest\": ").append(GSON.toJson(evidence.sourceDigest()));
+                sb.append(",\n  \"executedSteps\": ").append(GSON.toJson(evidence.executedSteps()));
+            }
+            if (evidence.failure() != null) sb.append(",\n  \"failure\": ").append(GSON.toJson(evidence.failure()));
+            if (evidence.cutoff() != null) sb.append(",\n  \"cutoff\": ").append(GSON.toJson(evidence.cutoff()));
         }
         sb.append("\n}");
         return sb.toString();

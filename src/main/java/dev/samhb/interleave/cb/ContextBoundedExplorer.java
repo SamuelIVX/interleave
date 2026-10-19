@@ -46,6 +46,8 @@ public final class ContextBoundedExplorer {
     private List<Integer> incompleteThreadIds;
     /** Incomplete outcomes. */
     private List<StepOutcome> incompleteOutcomes;
+    /** First omitted scheduling choice, distinct from source loop cutoffs. */
+    private CutoffEvidence incompleteEvidence;
 
     /**
      * Explores with the default preemption bound.
@@ -115,11 +117,12 @@ public final class ContextBoundedExplorer {
         budgetExceeded = false;
         incompleteThreadIds = null;
         incompleteOutcomes = null;
+        incompleteEvidence = null;
 
         dfs(program, program.initialConfiguration(), new ArrayList<>(), new ArrayList<>(),
             -1, 0, maxPreemptions, invariant, store, stateVisitor);
 
-        emitIncompleteTraceIfNeeded(stateVisitor);
+        emitIncompleteTraceIfNeeded(program, stateVisitor);
 
         return new DfsResult(visitedStates, traces, statesExplored);
     }
@@ -155,14 +158,12 @@ public final class ContextBoundedExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            addTrace(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes),
-                TraceOutcome.VIOLATION), stateVisitor);
+            addTrace(Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant), stateVisitor);
             return;
         }
 
         if (config.allTerminated()) {
-            addTrace(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes),
-                TraceOutcome.COMPLETED), stateVisitor);
+            addTrace(Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant), stateVisitor);
             return;
         }
 
@@ -193,16 +194,29 @@ public final class ContextBoundedExplorer {
                     budgetExceeded = true;
                     incompleteThreadIds = List.copyOf(currentThreadIds);
                     incompleteOutcomes = List.copyOf(currentOutcomes);
+                    int pc = config.programCounters().get(threadId);
+                    ExecutedStep source = program.isSource()
+                        ? ((SourceStep) program.threads().get(threadId).steps().get(pc)).metadata(pc) : null;
+                    incompleteEvidence = new CutoffEvidence(CutoffEvidence.Reason.PREEMPTION_BOUND,
+                        threadId, pc, maxPreemptions, null, source == null ? null : source.source(),
+                        source == null ? List.of() : source.expansionPath());
+                    // Source partial results must retain this witness even if a later visit interrupts DFS.
+                    if (program.isSource()) addTrace(Trace.create(program, incompleteThreadIds, incompleteOutcomes,
+                        TraceOutcome.INCOMPLETE, null, incompleteEvidence), stateVisitor);
                 }
                 continue;
             }
 
-            ModelThread thread = program.threads().get(threadId);
-            int pc = config.programCounters().get(threadId);
-            Step step = thread.steps().get(pc);
-
-            SharedState nextState = config.state().deepCopy();
-            StepOutcome outcome = step.execute(nextState);
+            StepTransition execution = TransitionExecutor.execute(program, config, threadId);
+            if (execution.cutoff() != null) {
+                if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                    traces.add(cutoff);
+                    if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
+                }
+                continue;
+            }
+            StepOutcome outcome = execution.outcome();
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -210,31 +224,29 @@ public final class ContextBoundedExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                addTrace(Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes),
-                    TraceOutcome.VIOLATION), stateVisitor);
+                addTrace(Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant), stateVisitor);
                 continue;
             }
 
-            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
+            Configuration nextConfig = execution.successor();
 
             dfs(program, nextConfig, nextThreadIds, nextOutcomes,
                 threadId, nextPreemptions, maxPreemptions, invariant, stateStore, stateVisitor);
         }
 
         if (config.isDeadlockCandidate()) {
-            addTrace(Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes),
-                TraceOutcome.DEADLOCK), stateVisitor);
+            addTrace(Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant), stateVisitor);
         }
     }
 
     /**
-     * Emits at most one INCOMPLETE trace per search, and only when the budget was actually the
-     * reason the search stopped. A run that found a violation reports the violation: the pruned
-     * region is irrelevant once there is something to reproduce.
+     * Emits deferred legacy scheduling evidence unless a conclusive failure supersedes it.
+     * Source scheduling evidence is emitted immediately at the prune site for interruption safety.
+     * @param program immutable model controlling source versus legacy reporting
      * @param stateVisitor optional observer of visited states and emitted traces
      */
-    private void emitIncompleteTraceIfNeeded(StateVisitor stateVisitor) {
-        if (!budgetExceeded || incompleteThreadIds == null) {
+    private void emitIncompleteTraceIfNeeded(Program program, StateVisitor stateVisitor) {
+        if (!budgetExceeded || incompleteThreadIds == null || program.isSource()) {
             return;
         }
         boolean foundFailure = traces.stream()
@@ -243,7 +255,8 @@ public final class ContextBoundedExplorer {
         if (foundFailure) {
             return;
         }
-        addTrace(Trace.incomplete(incompleteThreadIds, incompleteOutcomes), stateVisitor);
+        addTrace(Trace.create(program, incompleteThreadIds, incompleteOutcomes, TraceOutcome.INCOMPLETE,
+            null, incompleteEvidence), stateVisitor);
     }
 
     /**

@@ -26,14 +26,14 @@ public final class DeltaDebugger {
      * @throws IllegalArgumentException if {@code expectedOutcome} is {@link TraceOutcome#INCOMPLETE}
      */
     public Trace minimize(Program program, Trace failingTrace, TraceOutcome expectedOutcome, Invariant invariant) {
-        // INCOMPLETE is a property of the search that hit its preemption bound, not of a
-        // schedule, so there is nothing for ddmin to reduce: every reduction "reproduces" it by
-        // construction. Rejecting it here is clearer than silently returning the input trace.
+        // Bound evidence describes unexplored work, rather than a failure schedule to minimize.
         if (expectedOutcome == TraceOutcome.INCOMPLETE) {
             throw new IllegalArgumentException(
-                "Cannot minimize an INCOMPLETE trace: it records that a context-bounded search "
-                + "exhausted its preemption budget, not a schedule that can be reproduced");
+                "Cannot minimize an INCOMPLETE trace: it records exhausted loop or scheduling bounds, "
+                + "rather than a reproducible failure");
         }
+
+        if (program.isSource()) return minimizeSource(program, failingTrace, expectedOutcome, invariant);
 
         List<Integer> threadIds = new ArrayList<>(failingTrace.threadIds());
         List<StepOutcome> outcomes = new ArrayList<>(failingTrace.outcomes());
@@ -69,6 +69,42 @@ public final class DeltaDebugger {
         }
 
         return Trace.of(threadIds, outcomes, expectedOutcome);
+    }
+
+    /** Removes schedule chunks while rebuilding actual source outcomes and branch identities.
+     * @param program immutable compiled source model
+     * @param trace original thread-choice schedule
+     * @param expected required real terminal outcome, never INCOMPLETE
+     * @param invariant timed property required for predicate-failure reproduction, or null
+     * @return accepted smaller schedule with regenerated outcomes/source identities
+     * @throws IllegalArgumentException if the original schedule does not reproduce the outcome
+     */
+    private Trace minimizeSource(Program program, Trace trace, TraceOutcome expected, Invariant invariant) {
+        dev.samhb.interleave.core.ScheduleExecution initial = new ExecutionDriver().runDetailed(
+            program, new Schedule(trace.threadIds()), invariant);
+        if (initial.trace() == null || initial.trace().outcome() != expected) {
+            throw new IllegalArgumentException("Source trace does not reproduce requested outcome");
+        }
+        trace = initial.trace();
+        int n = trace.length();
+        for (int chunks = 2; chunks <= n; chunks = Math.min(n, chunks * 2)) {
+            for (int chunk = 0; chunk < chunks; chunk++) {
+                int start = (int) ((long) chunk * n / chunks), end = (int) ((long) (chunk + 1) * n / chunks);
+                List<Integer> choices = new ArrayList<>(trace.threadIds());
+                choices.subList(start, end).clear();
+                try {
+                    var candidate = new ExecutionDriver().runDetailed(program, new Schedule(choices), invariant);
+                    if (candidate.trace() != null && candidate.trace().outcome() == expected) {
+                        return minimizeSource(program, candidate.trace(), expected, invariant);
+                    }
+                } catch (IllegalScheduleException ignored) {
+                    // Removing a chunk can select a disabled or already terminated thread.
+                }
+            }
+            if (chunks == n) break;
+        }
+        new dev.samhb.interleave.search.TraceReplayer().replay(program, trace, invariant);
+        return trace;
     }
 
     /**

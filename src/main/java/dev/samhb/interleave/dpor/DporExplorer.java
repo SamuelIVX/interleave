@@ -84,17 +84,18 @@ public final class DporExplorer {
         Map<String, Configuration> visitedStates = new LinkedHashMap<>();
         List<Trace> traces = new ArrayList<>();
         long[] statesExplored = new long[1];
+        Map<String, List<SleepSet>> sleepCoverage = new HashMap<>();
 
         Configuration initial = program.initialConfiguration();
         Optional<Set<MemoryLocation>> maybeObs = invariant != null ? invariant.observedLocations() : Optional.empty();
         if (invariant == null) {
             dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                     visitedStates, traces, invariant, statesExplored,
-                    new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, null);
+                    new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, null, sleepCoverage);
         } else if (maybeObs.isPresent()) {
             dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                     visitedStates, traces, invariant, statesExplored,
-                    new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, maybeObs.get());
+                    new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, maybeObs.get(), sleepCoverage);
         } else {
             dfsDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
                     visitedStates, traces, invariant, statesExplored, effectiveStateStore, stateVisitor);
@@ -117,6 +118,7 @@ public final class DporExplorer {
      * @param happensBefore ordering information for the current execution prefix
      * @param stateStore visited-position store used for pruning
      * @param stateVisitor optional observer of visited states and emitted traces
+     * @param sleepCoverage source-only antichains of previously explored sleeping transitions
      * @param observations known state-observation locations, or null when exploring without an observed property
      */
     private void dporDfs(Program program, Configuration config,
@@ -130,8 +132,27 @@ public final class DporExplorer {
                          HappensBefore happensBefore,
                          StateStore stateStore,
                          StateVisitor stateVisitor,
-                         Set<MemoryLocation> observations) {
-        if (stateStore.isVisited(config)) {
+                         Set<MemoryLocation> observations,
+                         Map<String, List<SleepSet>> sleepCoverage) {
+        boolean seen = stateStore.isVisited(config);
+        if (program.isSource()) {
+            List<Integer> enabledHere = config.enabledThreadIds();
+            boolean allSleeping = !enabledHere.isEmpty();
+            for (int id : enabledHere) {
+                Step action = program.threads().get(id).steps().get(config.programCounters().get(id));
+                if (!sleepSet.contains(id, action)) allSleeping = false;
+            }
+            // Normalize the exhaustive all-asleep fallback before comparing coverage contexts.
+            if (allSleeping) sleepSet = new SleepSet();
+            String key = encoder.configurationKey(config);
+            // Preserve approximate-store collision pruning; exact revisits require sleep-set coverage.
+            if (seen && !sleepCoverage.containsKey(key)) return;
+            List<SleepSet> covered = sleepCoverage.computeIfAbsent(key, ignored -> new ArrayList<>());
+            Set<Map.Entry<Integer, Step>> incoming = sleepSet.entries();
+            if (covered.stream().anyMatch(previous -> incoming.containsAll(previous.entries()))) return;
+            covered.removeIf(previous -> previous.entries().containsAll(incoming));
+            covered.add(sleepSet.copy());
+        } else if (seen) {
             return;
         }
 
@@ -144,7 +165,7 @@ public final class DporExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -153,7 +174,7 @@ public final class DporExplorer {
         }
 
         if (config.allTerminated()) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -165,13 +186,13 @@ public final class DporExplorer {
         if (enabled.isEmpty()) {
             // Check invariant before reporting deadlock
             if (invariant != null && !invariant.holds(config.state(), config)) {
-                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
                 }
             } else {
-                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK);
+                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -190,8 +211,16 @@ public final class DporExplorer {
             }
             explored = true;
 
-            SharedState nextState = config.state().deepCopy();
-            StepOutcome outcome = step.execute(nextState);
+            StepTransition execution = TransitionExecutor.execute(program, config, threadId);
+            if (execution.cutoff() != null) {
+                if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                    traces.add(cutoff);
+                    if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
+                }
+                continue;
+            }
+            StepOutcome outcome = execution.outcome();
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -200,7 +229,7 @@ public final class DporExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -208,7 +237,7 @@ public final class DporExplorer {
                 continue;
             }
 
-            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
+            Configuration nextConfig = execution.successor();
 
             HappensBefore nextHappensBefore = happensBefore.copy();
             for (int otherId : enabled) {
@@ -248,7 +277,7 @@ public final class DporExplorer {
 
             dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                     visitedStates, traces, invariant, statesExplored,
-                    nextSleepSet, nextHappensBefore, stateStore, stateVisitor, observations);
+                    nextSleepSet, nextHappensBefore, stateStore, stateVisitor, observations, sleepCoverage);
         }
 
         if (!explored) {
@@ -258,8 +287,16 @@ public final class DporExplorer {
                 Step step = thread.steps().get(pc);
                 if (step == null) continue;
 
-                SharedState nextState = config.state().deepCopy();
-                StepOutcome outcome = step.execute(nextState);
+                StepTransition execution = TransitionExecutor.execute(program, config, threadId);
+                if (execution.cutoff() != null) {
+                    if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                        Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                        traces.add(cutoff);
+                        if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
+                    }
+                    continue;
+                }
+                StepOutcome outcome = execution.outcome();
 
                 List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
                 nextThreadIds.add(threadId);
@@ -268,7 +305,7 @@ public final class DporExplorer {
                 nextOutcomes.add(outcome);
 
                 if (outcome == StepOutcome.ASSERTION_FAILED) {
-                    Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                    Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
                     traces.add(trace);
                     if (stateVisitor != null) {
                         stateVisitor.onTraceCreated(trace);
@@ -276,11 +313,11 @@ public final class DporExplorer {
                     continue;
                 }
 
-                Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
+                Configuration nextConfig = execution.successor();
 
                 dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                         visitedStates, traces, invariant, statesExplored,
-                        new SleepSet(), new HappensBefore(), stateStore, stateVisitor, observations);
+                        new SleepSet(), new HappensBefore(), stateStore, stateVisitor, observations, sleepCoverage);
             }
         }
     }
@@ -320,7 +357,7 @@ public final class DporExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -329,7 +366,7 @@ public final class DporExplorer {
         }
 
         if (config.allTerminated()) {
-            Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED);
+            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -341,13 +378,13 @@ public final class DporExplorer {
         if (enabled.isEmpty()) {
             // Check invariant before reporting deadlock
             if (invariant != null && !invariant.holds(config.state(), config)) {
-                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION);
+                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
                 }
             } else {
-                Trace trace = Trace.of(List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK);
+                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -362,8 +399,16 @@ public final class DporExplorer {
             Step step = thread.steps().get(pc);
             if (step == null) continue;
 
-            SharedState nextState = config.state().deepCopy();
-            StepOutcome outcome = step.execute(nextState);
+            StepTransition execution = TransitionExecutor.execute(program, config, threadId);
+            if (execution.cutoff() != null) {
+                if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                    traces.add(cutoff);
+                    if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
+                }
+                continue;
+            }
+            StepOutcome outcome = execution.outcome();
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -372,7 +417,7 @@ public final class DporExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                Trace trace = Trace.of(List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION);
+                Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -380,7 +425,7 @@ public final class DporExplorer {
                 continue;
             }
 
-            Configuration nextConfig = config.successor(threadId, outcome, program.threads(), nextState);
+            Configuration nextConfig = execution.successor();
 
             dfsDfs(program, nextConfig, nextThreadIds, nextOutcomes,
                    visitedStates, traces, invariant, statesExplored, stateStore, stateVisitor);
