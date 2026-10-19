@@ -151,10 +151,7 @@ final class SourceInstruction implements SourceStep {
      * @return private exception retaining only classified artifact-safe evidence
      */
     private EvaluationFailure evaluationFailure(RuntimeException error, Node node, FailureEvidence.Phase phase) {
-        String message = error.getMessage() == null ? "" : error.getMessage();
-        FailureEvidence.Category category = message.startsWith("% by zero") ? FailureEvidence.Category.MODULO_BY_ZERO
-            : error instanceof IndexOutOfBoundsException || message.startsWith("Array index out of bounds")
-                ? FailureEvidence.Category.ARRAY_BOUNDS : FailureEvidence.Category.OTHER_EVALUATION_ERROR;
+        FailureEvidence.Category category = Evaluator.failureCategory(error);
         return new EvaluationFailure(new FailureEvidence(FailureEvidence.Kind.RUNTIME_ERROR, phase,
             text.location(node.start(), node.end()), category));
     }

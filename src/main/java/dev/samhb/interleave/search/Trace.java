@@ -73,6 +73,9 @@ public final class Trace implements Serializable {
      * @param outcome terminal verdict
      * @param invariant property, when supplied
      * @return source-aware trace or unchanged legacy representation
+     * @throws IllegalArgumentException if choices and outcomes are misaligned, a source choice
+     *        reaches a cutoff, or a source step fails before the final recorded choice
+     * @throws IndexOutOfBoundsException if a recorded thread or instruction index is invalid
      */
     public static Trace create(Program program, List<Integer> threadIds, List<StepOutcome> outcomes,
                                TraceOutcome outcome, Invariant invariant) {
@@ -88,6 +91,9 @@ public final class Trace implements Serializable {
      * @param invariant optional property
      * @param cutoff omitted bound witness
      * @return immutable trace
+     * @throws IllegalArgumentException if choices and outcomes are misaligned, a source choice
+     *        reaches a cutoff, or a source step fails before the final recorded choice
+     * @throws IndexOutOfBoundsException if a recorded thread or instruction index is invalid
      */
     public static Trace create(Program program, List<Integer> threadIds, List<StepOutcome> outcomes,
                                TraceOutcome outcome, Invariant invariant, CutoffEvidence cutoff) {

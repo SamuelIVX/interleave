@@ -23,7 +23,10 @@ public final class DeltaDebugger {
      * @param expectedOutcome the expected trace outcome (VIOLATION, DEADLOCK, or COMPLETED)
      * @param invariant the invariant to check for VIOLATION outcomes; may be null
      * @return a minimal subsequence of the original trace that still reproduces the failure
-     * @throws IllegalArgumentException if {@code expectedOutcome} is {@link TraceOutcome#INCOMPLETE}
+     * @throws IllegalArgumentException if {@code expectedOutcome} is {@link TraceOutcome#INCOMPLETE},
+     *        or a source schedule does not reproduce the expected outcome (including a property
+     *        violation when its required invariant is absent)
+     * @throws CorruptedTraceException if final source replay rejects regenerated execution evidence
      */
     public Trace minimize(Program program, Trace failingTrace, TraceOutcome expectedOutcome, Invariant invariant) {
         // Bound evidence describes unexplored work, rather than a failure schedule to minimize.

@@ -84,6 +84,7 @@ public final class StaticPorExplorer {
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues
         Map<String, Configuration> visitedStates = new LinkedHashMap<>();
         List<Trace> traces = new ArrayList<>();
+        Set<CutoffEvidence> emittedCutoffs = new HashSet<>();
         long[] statesExplored = new long[1];
 
         PropertyPersistentSetComputer propertySets = invariant == null ? (program.isSource()
@@ -93,7 +94,7 @@ public final class StaticPorExplorer {
                 .orElse(null);
         Configuration initial = program.initialConfiguration();
         porDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
-               visitedStates, traces, invariant, statesExplored, effectiveStateStore, stateVisitor, propertySets);
+               visitedStates, traces, emittedCutoffs, invariant, statesExplored, effectiveStateStore, stateVisitor, propertySets);
 
         return new DfsResult(visitedStates, traces, statesExplored[0]);
     }
@@ -105,6 +106,7 @@ public final class StaticPorExplorer {
      * @param currentThreadIds schedule prefix
      * @param currentOutcomes executed-outcome prefix
      * @param visitedStates value-keyed explored positions
+     * @param emittedCutoffs run-local loop witnesses already emitted, preserving the first prefix
      * @param traces emitted evidence
      * @param invariant safety predicate, or null
      * @param statesExplored mutable visit-event counter
@@ -117,6 +119,7 @@ public final class StaticPorExplorer {
                         List<StepOutcome> currentOutcomes,
                         Map<String, Configuration> visitedStates,
                         List<Trace> traces,
+                        Set<CutoffEvidence> emittedCutoffs,
                         Invariant invariant,
                         long[] statesExplored,
                         StateStore stateStore,
@@ -180,7 +183,7 @@ public final class StaticPorExplorer {
             if (transition == null) transition = prepare(program, config, threadId);
             CutoffEvidence evidence = transition.cutoff();
             if (evidence != null) {
-                if (traces.stream().noneMatch(t -> evidence.equals(t.cutoff()))) {
+                if (emittedCutoffs.add(evidence)) {
                     Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, evidence);
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
@@ -207,7 +210,7 @@ public final class StaticPorExplorer {
             Configuration nextConfig = transition.successor();
 
             porDfs(program, nextConfig, nextThreadIds, nextOutcomes,
-                   visitedStates, traces, invariant, statesExplored, stateStore, stateVisitor, propertySets);
+                   visitedStates, traces, emittedCutoffs, invariant, statesExplored, stateStore, stateVisitor, propertySets);
         }
 
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {

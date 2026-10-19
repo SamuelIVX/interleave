@@ -39,15 +39,41 @@ class SourceEvidenceTest {
         Trace trace = new ContextBoundedExplorer().explore(model.program(), null, null, null, 0).traces().stream()
             .filter(t -> t.cutoff() != null).findFirst().orElseThrow();
         CutoffEvidence actual = trace.cutoff();
+        List<CutoffEvidence> wrongIdentities = List.of(
+            new CutoffEvidence(actual.reason(), actual.threadId(), actual.instructionIndex(), actual.limit(), null,
+                new SourceLocation("wrong.ilv", 1, 1, 1, 2), actual.expansionPath()),
+            new CutoffEvidence(actual.reason(), actual.threadId(), actual.instructionIndex(), actual.limit(), null,
+                actual.source(), List.of(new ExecutedStep.Expansion(0, 1))),
+            new CutoffEvidence(actual.reason(), actual.threadId(), actual.instructionIndex(), actual.limit(), 0,
+                actual.source(), actual.expansionPath()));
+        for (CutoffEvidence wrongIdentity : wrongIdentities) {
+            Trace wrong = new Trace(trace.threadIds(), trace.outcomes(), trace.outcome(),
+                new TraceEvidence(model.program().sourceDigest(), trace.evidence().executedSteps(), null, wrongIdentity));
+            assertThrows(CorruptedTraceException.class, () -> new TraceReplayer().replay(model.program(), wrong));
+        }
+        new TraceReplayer().replay(model.program(), trace);
         CutoffEvidence higher = new CutoffEvidence(actual.reason(), actual.threadId(), actual.instructionIndex(), 1, null,
             actual.source(), actual.expansionPath());
         Trace wrongCost = new Trace(trace.threadIds(), trace.outcomes(), trace.outcome(),
             new TraceEvidence(model.program().sourceDigest(), trace.evidence().executedSteps(), null, higher));
         assertThrows(CorruptedTraceException.class, () -> new TraceReplayer().replay(model.program(), wrongCost));
-        CutoffEvidence over = new CutoffEvidence(CutoffEvidence.Reason.PREEMPTION_BOUND, 1, 1, 0, null, null, List.of());
+        ExecutedStep omitted = ((SourceStep) model.program().threads().get(1).steps().get(1)).metadata(1);
+        CutoffEvidence over = new CutoffEvidence(CutoffEvidence.Reason.PREEMPTION_BOUND, 1, 1, 0, null,
+            omitted.source(), omitted.expansionPath());
         Trace overPrefix = Trace.create(model.program(), List.of(0, 1, 0), Collections.nCopies(3, StepOutcome.ADVANCED),
             TraceOutcome.INCOMPLETE, null, over);
         assertThrows(CorruptedTraceException.class, () -> new TraceReplayer().replay(model.program(), overPrefix));
+    }
+
+    /** Two voluntary prefix switches cost two; an enabled omitted switch would cost three. */
+    @Test void schedulingWitnessAcceptsAnInBoundPrefixWithActualPreemptions() {
+        var model = loader.load("program switches { shared int x = 0; thread 0 { atomic {} atomic {} atomic {} } thread 1 { atomic {} atomic {} atomic {} } }");
+        ExecutedStep omitted = ((SourceStep) model.program().threads().get(1).steps().get(1)).metadata(1);
+        CutoffEvidence cutoff = new CutoffEvidence(CutoffEvidence.Reason.PREEMPTION_BOUND, 1, 1, 2, null,
+            omitted.source(), omitted.expansionPath());
+        Trace trace = Trace.create(model.program(), List.of(0, 1, 0), Collections.nCopies(3, StepOutcome.ADVANCED),
+            TraceOutcome.INCOMPLETE, null, cutoff);
+        assertEquals(List.of(2, 1), new TraceReplayer().replay(model.program(), trace).programCounters());
     }
 
     /** Error categories depend on evaluator prefixes rather than user-chosen array identifiers. */

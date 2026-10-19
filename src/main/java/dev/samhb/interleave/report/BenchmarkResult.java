@@ -207,24 +207,38 @@ public final class BenchmarkResult {
         this.sourceModel = false;
     }
 
-    /** Copies an existing immutable row and retains its exploration completeness evidence. */
+    /** Copies a row, adjusts source bitstate PASS to APPROXIMATE_PASS, and retains incomplete prefixes.
+     * Snapshot capture for the first incomplete source prefix is best-effort, matching the failing
+     * snapshot policy in BenchmarkHarness; replay failures leave snapshots empty and retain evidence.
+     * @param row immutable benchmark row whose counts and existing failure snapshots are preserved
+     * @param program executed model, or null when no source identity or replay context is available
+     * @param result exploration evidence whose INCOMPLETE traces are retained in encounter order
+     */
     private BenchmarkResult(BenchmarkResult row, Program program, DfsResult result) {
         this.strategy = row.strategy; this.bugName = row.bugName; this.statesExplored = row.statesExplored;
         this.wallTimeMs = row.wallTimeMs; this.heapDeltaBytes = row.heapDeltaBytes;
-        this.verdict = program.isSource() && row.verdict.equals("PASS") && row.storeType == StoreType.BITSTATE
+        this.sourceModel = program != null && program.isSource();
+        this.verdict = sourceModel && row.verdict.equals("PASS") && row.storeType == StoreType.BITSTATE
             ? "APPROXIMATE_PASS" : row.verdict;
         this.failingTrace = row.failingTrace; this.storeType = row.storeType;
         this.estimatedFalsePositiveRate = row.estimatedFalsePositiveRate; this.bitstateBitCount = row.bitstateBitCount;
         this.bitstateBitDensity = row.bitstateBitDensity; this.preemptionsUsed = row.preemptionsUsed; this.states = row.states;
-        this.sourceModel = program.isSource();
         this.incompleteTraces = result.traces().stream().filter(t -> t.outcome() == TraceOutcome.INCOMPLETE).toList();
-        this.incompleteStates = sourceModel && !incompleteTraces.isEmpty()
-            ? new TraceReplayer().captureSnapshots(program, incompleteTraces.getFirst()) : List.of();
+        List<StateSnapshot> snapshots = List.of();
+        if (sourceModel && !incompleteTraces.isEmpty()) {
+            try {
+                snapshots = new TraceReplayer().captureSnapshots(program, incompleteTraces.getFirst());
+            } catch (RuntimeException e) {
+                // Optional display snapshots must not discard the exploration row or its evidence.
+                snapshots = List.of();
+            }
+        }
+        this.incompleteStates = snapshots;
     }
 
     /**
      * Attaches run evidence without altering legacy public constructor contracts.
-     * @param program executed model
+     * @param program executed model, or null when no replay context is available
      * @param result actual exploration evidence
      * @return a new row preserving all counts and diagnostics
      */

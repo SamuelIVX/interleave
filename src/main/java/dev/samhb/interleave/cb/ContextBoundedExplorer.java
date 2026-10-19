@@ -36,6 +36,8 @@ public final class ContextBoundedExplorer {
     private final CanonicalEncoder encoder = new CanonicalEncoder();
     /** Traces. */
     private final List<Trace> traces = new ArrayList<>();
+    /** Loop cutoff witnesses already emitted by the current search. */
+    private final Set<CutoffEvidence> emittedCutoffs = new HashSet<>();
     /** States explored. */
     private long statesExplored;
 
@@ -113,6 +115,7 @@ public final class ContextBoundedExplorer {
         store.clear();
         visitedStates.clear();
         traces.clear();
+        emittedCutoffs.clear();
         statesExplored = 0;
         budgetExceeded = false;
         incompleteThreadIds = null;
@@ -209,7 +212,7 @@ public final class ContextBoundedExplorer {
 
             StepTransition execution = TransitionExecutor.execute(program, config, threadId);
             if (execution.cutoff() != null) {
-                if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                if (emittedCutoffs.add(execution.cutoff())) {
                     Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);

@@ -21,6 +21,8 @@ public final class ExecutionDriver {
      * @param schedule thread choices to execute in order
      * @return configuration after the executed prefix
      * @throws IllegalScheduleException if a scheduled thread is not enabled
+     * @throws SourceExecutionException if source execution reaches VIOLATION or INCOMPLETE;
+     *        {@link SourceExecutionException#result()} retains the execution evidence
      */
     public Configuration run(Program program, Schedule schedule) {
         if (program.isSource()) {

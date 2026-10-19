@@ -244,7 +244,8 @@ async function runTests() {
       assert((await sourceRows.nth(0).textContent()).includes('if (false)'), 'First source action shows its decision');
       assert((await page.locator('#meta').textContent()).includes('<source>:'), 'Cutoff source location is visible');
       assert((await page.locator('#meta').textContent()).includes(sourceTrace.sourceDigest), 'Exact source digest is visible');
-      assert((await page.locator('#stateStrip').textContent()).includes('2'), 'State strip shows the final committed counter');
+      const counterRow = page.locator('#stateStrip tbody tr').filter({has:page.locator('td:nth-child(2) code', {hasText:/^counter$/})});
+      assert((await counterRow.locator('td').nth(2).textContent()).trim()==='2', 'State strip shows the final committed counter');
       const unsafe = structuredClone(raw);
       unsafe.benchmarks[0].incompleteTrace.executedSteps[1].label = '<img src=x onerror=alert(1)>';
       await page.locator('#paste').fill(JSON.stringify(unsafe));

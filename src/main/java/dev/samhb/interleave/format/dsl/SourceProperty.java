@@ -21,23 +21,24 @@ final class SourceProperty implements DiagnosticInvariant {
         this.expression = expression; this.always = always; this.span = span; this.reads = Set.copyOf(reads);
     }
     /** Returns detailed false-predicate or runtime error evidence only at observation points.
+     * @param state dynamic shared state at the observation boundary
+     * @param config matching configuration used to determine whether all threads terminated
      * @return detailed false-predicate or runtime error evidence only at observation points
      */
+    @Override
     public FailureEvidence failure(SharedState state, Configuration config) {
         if (!always && !config.allTerminated()) return null;
         try {
             return Evaluator.eval(expression, (DynamicState) state, 0).asBool() ? null
                 : new FailureEvidence(FailureEvidence.Kind.INVARIANT, FailureEvidence.Phase.PROPERTY, span, null);
         } catch (Evaluator.EvalException | IndexOutOfBoundsException e) {
-            String message = e.getMessage() == null ? "" : e.getMessage();
-            FailureEvidence.Category category = message.startsWith("% by zero") ? FailureEvidence.Category.MODULO_BY_ZERO
-                : e instanceof IndexOutOfBoundsException || message.startsWith("Array index out of bounds")
-                    ? FailureEvidence.Category.ARRAY_BOUNDS : FailureEvidence.Category.OTHER_EVALUATION_ERROR;
+            FailureEvidence.Category category = Evaluator.failureCategory(e);
             return new FailureEvidence(FailureEvidence.Kind.RUNTIME_ERROR, FailureEvidence.Phase.PROPERTY, span, category);
         }
     }
     /** Returns complete observations for always properties, unknown for termination-dependent ones.
      * @return complete observations for always properties, unknown for termination-dependent ones
      */
+    @Override
     public Optional<Set<MemoryLocation>> observedLocations() { return always ? Optional.of(reads) : Optional.empty(); }
 }

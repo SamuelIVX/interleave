@@ -83,6 +83,7 @@ public final class DporExplorer {
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues
         Map<String, Configuration> visitedStates = new LinkedHashMap<>();
         List<Trace> traces = new ArrayList<>();
+        Set<CutoffEvidence> emittedCutoffs = new HashSet<>();
         long[] statesExplored = new long[1];
         Map<String, List<SleepSet>> sleepCoverage = new HashMap<>();
 
@@ -90,15 +91,15 @@ public final class DporExplorer {
         Optional<Set<MemoryLocation>> maybeObs = invariant != null ? invariant.observedLocations() : Optional.empty();
         if (invariant == null) {
             dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
-                    visitedStates, traces, invariant, statesExplored,
+                    visitedStates, traces, emittedCutoffs, invariant, statesExplored,
                     new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, null, sleepCoverage);
         } else if (maybeObs.isPresent()) {
             dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
-                    visitedStates, traces, invariant, statesExplored,
+                    visitedStates, traces, emittedCutoffs, invariant, statesExplored,
                     new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, maybeObs.get(), sleepCoverage);
         } else {
             dfsDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
-                    visitedStates, traces, invariant, statesExplored, effectiveStateStore, stateVisitor);
+                    visitedStates, traces, emittedCutoffs, invariant, statesExplored, effectiveStateStore, stateVisitor);
         }
 
         return new DfsResult(visitedStates, traces, statesExplored[0]);
@@ -111,6 +112,7 @@ public final class DporExplorer {
      * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
      * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
      * @param visitedStates configurations indexed by canonical value key
+     * @param emittedCutoffs run-local loop witnesses already emitted, preserving the first prefix
      * @param traces recorded executions
      * @param invariant property to check, or null when no property is supplied
      * @param statesExplored number of explored configurations
@@ -126,6 +128,7 @@ public final class DporExplorer {
                          List<StepOutcome> currentOutcomes,
                          Map<String, Configuration> visitedStates,
                          List<Trace> traces,
+                        Set<CutoffEvidence> emittedCutoffs,
                          Invariant invariant,
                          long[] statesExplored,
                          SleepSet sleepSet,
@@ -213,7 +216,7 @@ public final class DporExplorer {
 
             StepTransition execution = TransitionExecutor.execute(program, config, threadId);
             if (execution.cutoff() != null) {
-                if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                if (emittedCutoffs.add(execution.cutoff())) {
                     Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
@@ -276,7 +279,7 @@ public final class DporExplorer {
             }
 
             dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
-                    visitedStates, traces, invariant, statesExplored,
+                    visitedStates, traces, emittedCutoffs, invariant, statesExplored,
                     nextSleepSet, nextHappensBefore, stateStore, stateVisitor, observations, sleepCoverage);
         }
 
@@ -289,7 +292,7 @@ public final class DporExplorer {
 
                 StepTransition execution = TransitionExecutor.execute(program, config, threadId);
                 if (execution.cutoff() != null) {
-                    if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                    if (emittedCutoffs.add(execution.cutoff())) {
                         Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
                         traces.add(cutoff);
                         if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
@@ -316,7 +319,7 @@ public final class DporExplorer {
                 Configuration nextConfig = execution.successor();
 
                 dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
-                        visitedStates, traces, invariant, statesExplored,
+                        visitedStates, traces, emittedCutoffs, invariant, statesExplored,
                         new SleepSet(), new HappensBefore(), stateStore, stateVisitor, observations, sleepCoverage);
             }
         }
@@ -329,6 +332,7 @@ public final class DporExplorer {
      * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
      * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
      * @param visitedStates configurations indexed by canonical value key
+     * @param emittedCutoffs run-local loop witnesses already emitted, preserving the first prefix
      * @param traces recorded executions
      * @param invariant property to check, or null when no property is supplied
      * @param statesExplored number of explored configurations
@@ -340,6 +344,7 @@ public final class DporExplorer {
                         List<StepOutcome> currentOutcomes,
                         Map<String, Configuration> visitedStates,
                         List<Trace> traces,
+                        Set<CutoffEvidence> emittedCutoffs,
                         Invariant invariant,
                         long[] statesExplored,
                         StateStore stateStore,
@@ -401,7 +406,7 @@ public final class DporExplorer {
 
             StepTransition execution = TransitionExecutor.execute(program, config, threadId);
             if (execution.cutoff() != null) {
-                if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                if (emittedCutoffs.add(execution.cutoff())) {
                     Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
@@ -428,7 +433,7 @@ public final class DporExplorer {
             Configuration nextConfig = execution.successor();
 
             dfsDfs(program, nextConfig, nextThreadIds, nextOutcomes,
-                   visitedStates, traces, invariant, statesExplored, stateStore, stateVisitor);
+                   visitedStates, traces, emittedCutoffs, invariant, statesExplored, stateStore, stateVisitor);
         }
     }
 }

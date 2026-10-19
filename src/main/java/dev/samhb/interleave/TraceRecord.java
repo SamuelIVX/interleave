@@ -33,6 +33,7 @@ public final class TraceRecord implements Serializable {
      * @param outcomes outcome of each recorded step
      * @param outcome execution outcome being recorded
      * @param programHash diagnostic program fingerprint, if available
+     * @throws IllegalArgumentException if thread choices and outcomes differ in length
      */
     public TraceRecord(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome, String programHash) {
         this(threadIds, outcomes, outcome, programHash, List.of());
@@ -45,6 +46,7 @@ public final class TraceRecord implements Serializable {
      * @param outcome execution outcome being recorded
      * @param programHash diagnostic program fingerprint, if available
      * @param states ordered state snapshots along the execution path
+     * @throws IllegalArgumentException if thread choices and outcomes differ in length
      */
     public TraceRecord(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome, String programHash, List<StateSnapshot> states) {
         this(threadIds, outcomes, outcome, programHash, states, null);
@@ -58,6 +60,8 @@ public final class TraceRecord implements Serializable {
      * @param programHash legacy fingerprint
      * @param states snapshots
      * @param evidence source metadata
+     * @throws IllegalArgumentException if thread choices and outcomes differ in length, or
+     *        evidence has a source digest but its executed steps do not align with the choices
      */
     public TraceRecord(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome, String programHash,
                        List<StateSnapshot> states, TraceEvidence evidence) {

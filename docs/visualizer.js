@@ -189,7 +189,8 @@ function normalize(raw){
     if(ft){
       const threads = ft.threads || ft.threadIds;
       if(!Array.isArray(threads)) throw new Error('benchmarks[].failingTrace missing threads/threadIds');
-      return { trace: { ...diagnostics(ft, threads), threads, outcomes: ft.outcomes, outcome: entry.verdict || 'VIOLATION', programHash: entry.bug, states: ft.states }, meta: { ...runDiagnostics(entry), verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
+      const outcome = entry.verdict || ft.outcome || (entry.failingTrace ? 'VIOLATION' : 'INCOMPLETE');
+      return { trace: { ...diagnostics(ft, threads), threads, outcomes: ft.outcomes, outcome, programHash: entry.bug, states: ft.states }, meta: { ...runDiagnostics(entry), verdict: outcome, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
     }
     return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { ...runDiagnostics(entry), verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
   }

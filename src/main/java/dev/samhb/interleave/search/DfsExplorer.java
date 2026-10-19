@@ -50,6 +50,8 @@ public final class DfsExplorer {
     private final Map<String, Configuration> visitedStates;
     /** Traces. */
     private final List<Trace> traces;
+    /** Loop cutoff witnesses already emitted by the current search. */
+    private final Set<CutoffEvidence> emittedCutoffs = new HashSet<>();
     /** States explored. */
     private long statesExplored;
     /** State store. */
@@ -130,6 +132,7 @@ public final class DfsExplorer {
         this.stateStore.clear();
         visitedStates.clear();
         traces.clear();
+        emittedCutoffs.clear();
         statesExplored = 0;
 
         Configuration initial = program.initialConfiguration();
@@ -185,7 +188,7 @@ public final class DfsExplorer {
             if (statesExplored >= maxStatesBudget) return;
             StepTransition execution = TransitionExecutor.execute(program, config, threadId);
             if (execution.cutoff() != null) {
-                if (traces.stream().noneMatch(t -> execution.cutoff().equals(t.cutoff()))) {
+                if (emittedCutoffs.add(execution.cutoff())) {
                     Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);

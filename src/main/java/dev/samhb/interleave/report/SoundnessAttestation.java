@@ -180,7 +180,9 @@ if (program != null) {
         sb.append("## Soundness Attestation\n\n");
 
         if (sound) {
-            sb.append("All EXACT programs produced expected verdicts under DFS. ");
+            sb.append("All checked EXACT DFS verdicts matched their supplied expectations. ");
+            sb.append("Source DFS results that were INCOMPLETE or APPROXIMATE_PASS were accepted as ");
+            sb.append("inconclusive, not matched verdicts; programs without expectations were not expectation-checked. ");
             sb.append("All failing traces (including bitstate and context-bounded) replayed to genuine violations. ");
             sb.append("Inconclusive results (INCOMPLETE or APPROXIMATE_PASS) are excluded ");
             sb.append("from the cross-strategy verdict agreement above, since they assert nothing about ");

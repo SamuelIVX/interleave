@@ -50,6 +50,18 @@ check('approximate source absence with no trace', {programKind:'SOURCE',storeTyp
 check('source with unknown store has no absence claim', {programKind:'SOURCE',completedTraces:[],hasViolation:false}, 'UNKNOWN');
 check('unknown source store cannot imply exact pass', {programKind:'SOURCE',storeType:'UNRECOGNIZED',completedTraces:[{threads:[],outcome:'COMPLETED'}],hasViolation:false}, 'COMPLETED');
 check('approximate source completion', {programKind:'SOURCE',storeType:'BITSTATE',completedTraces:[{threads:[],outcome:'COMPLETED'}],hasViolation:false}, 'APPROXIMATE_PASS');
+for(const [name, trace, expected] of [
+  ['incomplete trace outcome', {outcome:'INCOMPLETE'}, 'INCOMPLETE'],
+  ['incomplete trace default', {}, 'INCOMPLETE'],
+  ['selected trace outcome', {outcome:'DEADLOCK'}, 'DEADLOCK']
+]){
+  const normalized = normalize({benchmarks:[{incompleteTrace:{threads:[],...trace}}]});
+  if(normalized.trace.outcome !== expected || normalized.meta.verdict !== expected){
+    fails++; console.log(`FAIL ${name}: trace and meta must both report ${expected}`);
+  }
+}
+check('explicit benchmark verdict wins', {benchmarks:[{verdict:'VIOLATION',incompleteTrace:{threads:[],outcome:'INCOMPLETE'}}]}, 'VIOLATION');
+check('legacy failing trace default', {benchmarks:[{failingTrace:{threads:[]}}]}, 'VIOLATION');
 const sourceStep = {instructionIndex:2,source:{file:'sample.ilv',line:3,column:1,endLine:3,endColumn:9},label:'atomic {}',expansionPath:[]};
 const sourceTrace = {threads:[0],outcomes:['ADVANCED'],outcome:'COMPLETED',sourceDigest:'a'.repeat(64),executedSteps:[sourceStep]};
 if(normalize(sourceTrace).trace.executedSteps?.[0]?.instructionIndex !== 2){ fails++; console.log('FAIL source instruction identity'); }

@@ -2,6 +2,7 @@
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.format.registry.RegistryException;
+import dev.samhb.interleave.core.FailureEvidence;
 
 /**
  * Evaluates declarative expressions against a {@link DynamicState}.
@@ -10,6 +11,17 @@ public final class Evaluator {
 
     /** Prevents instantiation of this utility class. */
     private Evaluator() {}
+
+    /** Classifies evaluator failures consistently at step and property observation boundaries.
+     * @param error non-null modeled evaluation failure; arbitrary messages are never exposed
+     * @return stable category based on the exception type and evaluator-owned message prefixes
+     */
+    static FailureEvidence.Category failureCategory(RuntimeException error) {
+        String message = error.getMessage() == null ? "" : error.getMessage();
+        return message.startsWith("% by zero") ? FailureEvidence.Category.MODULO_BY_ZERO
+            : error instanceof IndexOutOfBoundsException || message.startsWith("Array index out of bounds")
+                ? FailureEvidence.Category.ARRAY_BOUNDS : FailureEvidence.Category.OTHER_EVALUATION_ERROR;
+    }
 
     /**
      * Applies one type-checked assignment with the same RHS-before-index order as declarative steps.

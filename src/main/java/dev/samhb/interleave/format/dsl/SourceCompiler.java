@@ -450,16 +450,26 @@ public final class SourceCompiler {
      * @return last consumed token
      */
     private Token previous() { return tokens.get(position - 1); }
-    /** Returns whether current token matches.
+    /** Returns whether current token matches without consuming it.
+     * @param text exact token spelling to compare
      * @return whether current token matches
      */
     private boolean peek(String text) { return current().text().equals(text); }
-    /** Consumes a matching token. @return whether matched */
+    /** Consumes the current token only when it matches.
+     * @param text exact token spelling to consume
+     * @return true if the token matched and the parser advanced
+     */
     private boolean take(String text) { if (!peek(text)) return false; position++; return true; }
-    /** Requires a token or raises a source diagnostic. */
+    /** Requires and consumes a token or raises a source diagnostic.
+     * @param text required token spelling, or an empty string for end of input
+     * @throws RegistryException with a syntax diagnostic if the current token does not match
+     */
     private void expect(String text) { if (!take(text)) throw error(current().start(), "syntax", "Expected '" + (text.isEmpty() ? "EOF" : text) + "'"); }
 
-    /** Masks comments without changing offsets, preserving CR/LF for diagnostics. */
+    /** Masks comments without changing offsets, preserving CR/LF for diagnostics.
+     * @return source text with each non-newline comment character replaced by a space
+     * @throws RegistryException with a syntax diagnostic if a block comment is unterminated
+     */
     private String maskComments() {
         char[] chars = source.toCharArray();
         for (int i = 0; i + 1 < chars.length; i++) {
@@ -478,7 +488,9 @@ public final class SourceCompiler {
         return new String(chars);
     }
 
-    /** Tokenizes source punctuation and expression operators while retaining original offsets. */
+    /** Tokenizes source punctuation and expression operators while retaining original offsets.
+     * @return immutable tokens followed by an empty end-of-input token
+     */
     private List<Token> tokenize() {
         List<Token> result = new ArrayList<>();
         for (int i = 0; i < clean.length();) {
@@ -493,10 +505,15 @@ public final class SourceCompiler {
     }
 
     /** Returns source span with one-based UTF-16 columns and CRLF counted once.
+     * @param start inclusive original-source UTF-16 offset
+     * @param end exclusive original-source UTF-16 offset
      * @return source span with one-based UTF-16 columns and CRLF counted once
      */
     private SourceLocation location(int start, int end) { return sourceText.location(start, end); }
     /** Returns a stable categorized diagnostic at an original source offset.
+     * @param offset original-source UTF-16 position of the failure
+     * @param category stable diagnostic category
+     * @param message explanation of the invalid source
      * @return a stable categorized diagnostic at an original source offset
      */
     private RegistryException error(int offset, String category, String message) {
@@ -504,7 +521,15 @@ public final class SourceCompiler {
         return new RegistryException(name + ":" + span.line() + ":" + span.column() + ": " + category + ": " + message);
     }
 
-    /** Preserves source-boundary categories and maps expression parser offsets to the original text. */
+    /** Preserves source-boundary categories and maps expression parser offsets to the original text.
+     * Messages already prefixed with this source name are returned unchanged. Otherwise name,
+     * limit and syntax message markers override the fallback category. A parser's {@code pos N}
+     * or {@code position N} marker is relative to the supplied offset and is capped at source end.
+     * @param offset original-source UTF-16 start of the fragment parsed by the failing helper
+     * @param fallback category to use when no recognized message marker applies
+     * @param exception non-null helper diagnostic with a non-null message
+     * @return original source diagnostic or a diagnostic remapped to the original source
+     */
     private RegistryException diagnostic(int offset, String fallback, RegistryException exception) {
         String message = exception.getMessage();
         if (message.startsWith(name + ":")) return exception;

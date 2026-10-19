@@ -50,6 +50,52 @@ class SourceCompletenessTest {
         new TraceReplayer().replay(model.program(), incomplete.getFirst());
     }
 
+    /** Reusing an explorer must reset cutoff indexes and preserve callbacks for every new run. */
+    @Test void loopDeduplicationResetsAcrossAllExplorerRuns() {
+        var model = loader.load("program dedup { shared int x = 0; thread 0 { atomic { x = 1; } atomic { x = 2; } } thread 1 { atomic {} while (true) limit 0 {} } }");
+        var dfs = new DfsExplorer();
+        var por = new dev.samhb.interleave.por.StaticPorExplorer();
+        var dpor = new dev.samhb.interleave.dpor.DporExplorer();
+        var cb = new ContextBoundedExplorer();
+        List<java.util.function.Function<StateVisitor,DfsResult>> searches = List.of(
+            visitor -> dfs.explore(model.program(), null, null, visitor),
+            visitor -> por.explore(model.program(), null, null, visitor),
+            visitor -> dpor.explore(model.program(), null, null, visitor),
+            visitor -> cb.explore(model.program(), null, null, visitor, 10));
+        for (var search : searches) for (int run = 0; run < 2; run++) {
+            List<Trace> seen = new ArrayList<>();
+            StateVisitor observer = new StateVisitor() {
+                /** Observes without changing modeled state. */
+                @Override public void onStateVisited(Configuration configuration) {}
+                /** Collects each emitted witness callback. */
+                @Override public void onTraceCreated(Trace trace) { seen.add(trace); }
+            };
+            List<Trace> incomplete = search.apply(observer).traces().stream()
+                .filter(t -> t.outcome() == TraceOutcome.INCOMPLETE).toList();
+            assertEquals(1, incomplete.size());
+            assertEquals(incomplete, seen.stream().filter(t -> t.outcome() == TraceOutcome.INCOMPLETE).toList());
+            new TraceReplayer().replay(model.program(), incomplete.getFirst());
+        }
+    }
+
+    /** Distinct loop occurrences must never share a deduplication key. */
+    @Test void distinctLoopWitnessesSurviveEveryExplorer() {
+        var model = loader.load("program distinct { shared int x = 0; thread 0 { while (true) limit 0 {} } thread 1 { while (true) limit 0 {} } }");
+        List<DfsResult> results = List.of(
+            new DfsExplorer().explore(model.program()),
+            new dev.samhb.interleave.por.StaticPorExplorer().explore(model.program()),
+            new dev.samhb.interleave.dpor.DporExplorer().explore(model.program()),
+            new ContextBoundedExplorer().explore(model.program(), null, null, null, 10));
+        for (DfsResult result : results) {
+            List<Trace> incomplete = result.traces().stream()
+                .filter(t -> t.outcome() == TraceOutcome.INCOMPLETE).toList();
+            assertEquals(2, incomplete.size());
+            assertEquals(Set.of(0, 1), incomplete.stream().map(t -> t.cutoff().threadId())
+                .collect(java.util.stream.Collectors.toSet()));
+            for (Trace trace : incomplete) new TraceReplayer().replay(model.program(), trace);
+        }
+    }
+
     /** A real bug does not erase source scheduling or loop incompleteness categories. */
     @Test void failuresRetainBothKindsOfBoundEvidence() {
         var model = loader.load("program reasons { shared int x = 0; thread 0 { atomic { x = 1; } atomic { x = 1 % 0; } } thread 1 { while (true) limit 0 {} } }");
