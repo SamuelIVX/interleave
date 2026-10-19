@@ -14,17 +14,29 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
 | 6 | Web UI / visualizer — Tier 1 (static trace renderer) | ✅ Done — `docs/visualizer.html`, `examples/traces/*.json`, pure HTML/CSS/JS, no build, loads all `--json` shapes |
 | 7 | Context-bounding / CHESS-style | ✅ Done — Spec 11; preemption-bounded exploration, CLI, reporting, and visualizer integration |
 
-## In Progress & Remaining Items — Ranked by LOE
+## Active Specification
+
+**#9 — Concurrent-program parser:** [Spec 16](../specs/active/16-concurrent-program-parser/README.md)
+defines a bounded `.ilv` modeling language with explicit atomic blocks, branching, fixed repetition,
+bounded while loops and POR/DPOR support. Specification authored; parser implementation not started.
+
+## Remaining Candidates — Ranked by LOE
 
 | # | Item | LOE | Spec Needed? | Why |
 |---|---|---|---|---|
-| 8 | Web UI / visualizer — Tier 2 (state-space DAG) | Medium | Yes | `--emit-graph` schema, budget, truncation, layout policy, attestation re-run |
-| 9 | Concurrent-program parser | High | Yes | Language design + parser + semantic mapping — full spec needed |
 | 10 | Symmetry reduction | High | Yes | Canonicalization is subtle; soundness must be proven |
 | 11 | Relaxed memory models | Very High | Yes | Fundamental semantics change — needs formal spec |
 | 12 | Real Java bytecode instrumentation | Very High | Yes | Entirely new subsystem with external deps (ASM/Javassist) |
 
-### Item Details
+## Deferred
+
+**#8 — Web UI / visualizer, Tier 2 (state-space DAG): deferred indefinitely.**
+The existing trace viewer provides state snapshots and change highlighting. Full graph capture,
+cross-strategy semantics, and rendering add more implementation and maintenance cost than the
+currently demonstrated value warrants. No graph-export spike or reduced-scope implementation is
+planned. Revisit only if a concrete need emerges that the trace viewer and reduction table cannot meet.
+
+## Item Details
 
 3. **Bitstate / supertrace mode** — ✅ Done. Replaces exact visited sets with a bloom-filter approximation (`BitstateStore` with `k` hash functions) to trade completeness for memory. Wired into `DfsExplorer`/`DporExplorer` via `StateStore`, `BenchmarkHarness` (`--store`/`--bitstate-*`), `ReportWriter`, and `Main` CLI (PR #18).
 
@@ -44,9 +56,9 @@ These are explicitly out of scope for the 7-spec deliverable, but are natural ex
    *Remaining observation:* CBS explores *more* configurations than DFS on this corpus, so the
    reduction table shows bare counts rather than percentages for those rows.
 
-8. **Web UI / visualizer — Tier 2 (state-space DAG)** — Full DAG visualization of the explored state space. Requires `--emit-graph` flag in explorers to emit nodes/edges (config → step → config) with budget/truncation, graph layout algorithm, and `SoundnessAttestation` re-run when enabled. Spec `12-state-graph-emission.md` needed.
+8. **Web UI / visualizer — Tier 2 (state-space DAG)** — Deferred indefinitely; see the decision above. The earlier graph-emission proposal is not scheduled work.
 
-9. **Concurrent-program parser** — parse a small imperative language with threads, shared variables, and atomic sections into the checker's internal model. Requires designing a small language, lexer/parser, and semantic mapping to `Step`/`SharedState`.
+9. **Concurrent-program parser** — Specification authored in [Spec 16](../specs/active/16-concurrent-program-parser/README.md); implementation not started. Readable source models compile into finite forward control flow with atomic interiors, explicit loop cutoffs and shared execution/reduction machinery. Actual Java project ingestion remains item #12.
 
 10. **Symmetry reduction** — exploit thread-identity symmetry to collapse equivalent states that differ only by which thread has which ID. Subtle correctness concerns; needs careful canonicalization and proof of soundness.
 
