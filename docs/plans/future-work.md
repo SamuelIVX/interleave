@@ -49,7 +49,7 @@ LOE is a rough estimate including verification: **S** = hours–2 days, **M** = 
 document; a **spec-set** separates interacting behavior, correctness and integration contracts.
 Recommendations below are advisory; selecting an item precedes writing its specification.
 
-Unless explicitly attributed to Spec 17, mutation figures are recorded measurements from PR #57,
+Unless explicitly attributed to Specs 17–18, mutation figures are recorded measurements from PR #57,
 merged as `a0658a2`, rather than a live census. The scopes overlap and must not be added together.
 The PR #57 replay-only run followed the expanded run, so its later result applies only to replay.
 Remeasure current main before hardening.
@@ -62,8 +62,8 @@ focused test-hardening spec, executed in small batches without promising 100% mu
 
 | ID | Gap and proposed work | Benefit | Cost / risk | LOE | Spec | Recommendation | PR grouping / boundary |
 |---|---|---|---|---|---|---|---|
-| 9-H1 | Replay hardening implemented in [Spec 17](../specs/active/17-replay-hardening.md): 202/203 kills, one scope-limited metadata survivor, no uncovered mutations. | Protects snapshots, source enrichment, failure evidence and invariant-aware replay. | The retained survivor's equivalence argument applies to compiler-produced instructions only. | S–M | Simple hardening spec | Implemented; PR review pending. | Replay bundle includes invariant-aware replay tests and matching 9-V1 replay gaps; no separate replay-hardening PR is needed for those same cases. |
-| 9-H2 | Default scope: triage 14 survivors, including 13 inherited state-package survivors and one CBS source/legacy emission survivor. | Protects foundational state/search contracts. | Investigate before changing code; record equivalent cases only with evidence. | S–M | Same hardening spec | Worth doing selectively. | State/CBS bundle: one PR per class or contract, including only matching 9-V1 gaps; keep unrelated state and CBS fixes separate. |
+| 9-H1 | Replay hardening implemented in [Spec 17](../specs/active/17-replay-hardening.md): 202/203 kills, one scope-limited metadata survivor, no uncovered mutations. | Protects snapshots, source enrichment, failure evidence and invariant-aware replay. | The retained survivor's equivalence argument applies to compiler-produced instructions only. | S–M | Simple hardening spec | Merged in PR #58. | Replay bundle includes invariant-aware replay tests and matching 9-V1 replay gaps; no separate replay-hardening PR is needed for those same cases. |
+| 9-H2 | CBS source/legacy emission is hardened in [Spec 18](../specs/active/18-cbs-cutoff-hardening.md): 123/123 scoped kills. The 13 inherited state-package survivors remain separate work. | Protects foundational state/search contracts and single-emission source witnesses. | Investigate remaining state mutations before changing code; record equivalent cases only with evidence. | S–M | Focused hardening specs | CBS slice implemented; PR review pending. Continue with scoped state-store batches afterward. | One PR per class or contract; only bundle matching 9-V1 gaps. CBS emission and unrelated state fixes remain separate. |
 
 ### Larger verification and performance work
 
