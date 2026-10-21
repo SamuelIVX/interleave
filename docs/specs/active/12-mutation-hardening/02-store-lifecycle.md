@@ -86,9 +86,12 @@ measurement below; kept so the delta is checkable.
 **After: 61 mutants, 52 killed (85.2%), 9 survived, 0 no coverage.** Every high- and medium-priority
 target is closed.
 
-### R6 adjudication — the 9 remaining survivors [verified]
+### R6 adjudication — historical nine survivors, revised by Spec 19
 
-All nine are **equivalent**, and the argument is a proof rather than an observation:
+The original run classified all nine as equivalent. [Spec 19](../19-exact-store-byte-domain.md)
+rechecks that claim: two division mutants can throw for valid canonical states, before exact
+confirmation runs. The prefilter proof applies only to the seven total replacement functions.
+The earlier measurement tables above remain historical; Spec 19 owns the current semantic ledger.
 
 `hashCode(Configuration)` and `preemptionHash(Configuration, int)` feed only the two prefilter sets.
 No public method exposes a hash — `size()` reads `visitedStates`, `preemptionEntryCount()` reads
@@ -96,24 +99,22 @@ No public method exposes a hash — `size()` reads `visitedStates`, `preemptionE
 and `minPreemptions`) after consulting the prefilter. The prefilter therefore decides *whether* the
 exact check runs, never *what it answers*.
 
-Substituting a different hash function — which is what each of these mutants does — cannot change the
-answer to any public method. A degenerate hash that made every configuration collide would still return
+Substituting a different total deterministic hash function cannot change exact membership for
+valid, successfully encodable states. A degenerate hash that made every configuration collide would still return
 correct answers; it would only cost the optimisation. Correctness does not depend on the hash being
 injective, or being any particular function.
 
-Per-mutant verdict, all *equivalent — the hash feeds only the prefilter; the exact check is
-authoritative*:
+Revised dispositions (historical line groups retained for comparison with the original table):
 
 | line | count | verdict |
 |---|---|---|
 | L102 | 1 | equivalent |
-| L103 | 3 | equivalent |
+| L103 | 3 | two equivalent; division tested — `ordinaryVisitationAcceptsEveryCanonicalByte` (Spec 19) |
 | L104 | 1 | equivalent |
-| L114 | 4 | equivalent |
+| L114 | 4 | three equivalent; division tested — `boundedVisitationAcceptsEveryCanonicalByte` (Spec 19) |
 
-No suppression was recorded in the PIT config. These nine are left as `SURVIVED` deliberately: the
-ratchet in Spec 12.06 must see them as a known floor rather than have them quietly vanish from the
-denominator.
+No suppression was recorded in the PIT config. The original run retained all nine in the denominator.
+Spec 19 retains the seven equivalent survivors, tests the two division boundaries and adds no exclusions.
 
 ### Two findings that contradict earlier reasoning [verified]
 
@@ -227,7 +228,8 @@ not. R6 covers all 9 of these low-priority survivors.
 - [x] `preemptionEntryCount()` tests cover 0, 1, N, and the merge case (R5).
       `preemptionEntryCount_countsDistinctConfigThreadPairs`.
 - [x] §Current State carries a verdict row for all 9 low-priority survivors, each marked
-      `equivalent — <reason>` or `tested — <test name>` (R6). All 9 equivalent; see §R6 adjudication.
+      `equivalent — <reason>` or `tested — <test name>` (R6). Spec 19 revises the original nine-equivalent
+      verdict to seven equivalent and two tested; see §R6 adjudication.
 - [x] A repo-wide grep confirms no test asserts a literal hash value (R7). The single assertion that
       mentions `hashCode()` compares two *computed* values — `[0,31]` against `[1,0]` — to prove the R4
       fixture genuinely collides. It hardcodes no hash number, so it survives any change to the store's
@@ -270,6 +272,8 @@ For each surviving hash-arithmetic mutant, in order:
 1. **State the mechanism.** What does the mutation change? (e.g. "L114 drops the `lastThreadId`
    term, making the preemption key independent of the last scheduled thread.")
 2. **Determine observability class:**
+   - *Execution-observable* — a mutation can throw before the exact check, even if any returned
+     hash would be safe. **Not equivalent.** Check arithmetic domains before applying the prefilter proof.
    - *Verdict-observable* — the mutation can change which states collide, which can prune a branch
      that mattered. **Not equivalent.** Requires a test.
    - *Diagnostic-observable* — the mutation only changes selectivity/FPR metrics a user reads, never
@@ -282,11 +286,11 @@ For each surviving hash-arithmetic mutant, in order:
    false-positive membership and therefore pruning behaviour, so "only affects selectivity" has to be
    argued from the contract, not asserted. Where the argument cannot be closed, the mutant is
    verdict-observable by default and requires a test.
-4. **Record:** `L114 NON_VOID_METHOD_CALLS — equivalent: the dropped value is read only by
-   `preemptionHashIndices`, whose output feeds bit selection; a wrong index degrades selectivity,
-   never correctness. Verified by tracing all readers of `preemptionHashIndices`, which reach only
-   `BitSet.get`/`set` and the FPR counter — none of which can turn an unvisited configuration into a
-   reported visited one without a coincidental collision.`
+4. **Record the actual readers and arithmetic domain.** For example, a constant replacement for
+   `HashingStateStore.preemptionHash` still returns a bucket for every valid input. Its readers are
+   the bounded mark/query prefilter, followed by authoritative canonical-key and cost checks.
+   It changes bucket selectivity, not the public membership result. A division replacement does
+   not satisfy this argument unless its divisor is proven nonzero for every supported state.
 5. **Then** either suppress with that reason or write the test.
 
 The example in step 4 is written to the shape it must take, not as a pre-answered verdict: the
@@ -297,10 +301,9 @@ The ordering matters. The earlier working claim that these mutants were equivale
 **assumed, not verified** — and when a spec is handed to a reviewer, an assumed equivalence is
 indistinguishable from a hidden defect. Step 3 is what separates them.
 
-Note also that `preemptionHash`/`preemptionHashIndices` feed **bit selection in
-`BitstateStore`**, so the readers for several of these cross into that class. Where the reader set
-spans both classes, adjudicate once, in this spec, and have Spec 12.03 cite the verdict rather than
-re-deriving it (DRY — one authoritative representation per fact).
+`HashingStateStore.preemptionHash` is private to the exact store. `BitstateStore` has its own
+hashing methods feeding bit selection without exact confirmation, so the exact-store proof does
+not transfer to it; Spec 12.03 records that separate adjudication.
 
 ## Tests
 

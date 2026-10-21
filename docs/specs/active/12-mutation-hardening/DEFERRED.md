@@ -581,10 +581,12 @@ file restored byte-identical. The 4 survivors left by this entry were covered by
 has since been closed: one was killed at the observation level and 3 remain as a measured floor.
 
 ### G4
-`HashingStateStore`'s 9 survivors — **adjudicated equivalent, deliberately left `SURVIVED`**
+`HashingStateStore`'s historical 9 survivors — **revised by Spec 19: seven equivalent, two tested**
 {: #g4}
 
-Proven equivalent with a written enumeration of readers: the hash feeds only the prefilter, and both
-`isVisited` overloads confirm against the exact encoding. Left `SURVIVED` on purpose so 12.06's ratchet
-sees them as a known floor rather than losing them from the denominator. No action needed beyond
-12.06 recording the number.
+The original reader proof correctly describes total deterministic replacement hashes: both
+`isVisited` overloads confirm against the exact encoding. It omitted arithmetic failures before
+that confirmation. [Spec 19](../19-exact-store-byte-domain.md) tests two division mutants on valid
+canonical byte states and retains the seven total-function survivors without exclusions. See the
+revised [12.02 adjudication](02-store-lifecycle.md#r6-adjudication--historical-nine-survivors-revised-by-spec-19)
+for the proof's domain; the original nine-survivor count is historical.
