@@ -11,6 +11,67 @@ import static org.junit.jupiter.api.Assertions.*;
 class SourceEvidenceTest {
     private final SourceProgramLoader loader = new SourceProgramLoader();
 
+    /** Enrichment validates supplied source identity before attaching committed snapshots. */
+    @Test void enrichmentRejectsStaleSourceEvidence() {
+        var model = loader.load("program enrich { shared int x = 0; thread 0 { atomic { x = 1; } } }");
+        Trace trace = new DfsExplorer().explore(model.program()).traces().getFirst();
+        TraceReplayer replayer = new TraceReplayer();
+        var enriched = replayer.enrich(model.program(), trace.toRecord());
+        assertEquals(trace.evidence(), enriched.evidence());
+        assertEquals(List.of(0, 1), enriched.states().stream().map(s -> s.fields().get("x")).toList());
+
+        var other = loader.load("program enrich { shared int x = 0; thread 0 { atomic { x = 2; } } }");
+        Trace stale = new Trace(trace.threadIds(), trace.outcomes(), trace.outcome(),
+            new TraceEvidence(other.program().sourceDigest(), trace.evidence().executedSteps(), null, null));
+        assertThrows(CorruptedTraceException.class, () -> replayer.enrich(model.program(), stale.toRecord()));
+    }
+
+    /** Step-failure categories are checked even when no invariant is supplied to replay. */
+    @Test void plainReplayRejectsForgedStepFailureCategory() {
+        var model = loader.load("program failure { shared int x = 0; thread 0 { atomic { x = 7; } atomic { x = 9; x = 1 % 0; } } }");
+        Trace trace = new DfsExplorer().explore(model.program()).traces().getFirst();
+        assertEquals(List.of(StepOutcome.ADVANCED, StepOutcome.ASSERTION_FAILED), trace.outcomes());
+        assertEquals(FailureEvidence.Phase.STEP, trace.failure().phase());
+        assertEquals(FailureEvidence.Category.MODULO_BY_ZERO, trace.failure().category());
+        assertEquals(7, ((dev.samhb.interleave.format.dsl.DynamicState)
+            new TraceReplayer().replay(model.program(), trace).state()).getInt("x"));
+
+        FailureEvidence forged = new FailureEvidence(trace.failure().kind(), trace.failure().phase(),
+            trace.failure().source(), FailureEvidence.Category.ARRAY_BOUNDS);
+        Trace wrong = new Trace(trace.threadIds(), trace.outcomes(), trace.outcome(),
+            new TraceEvidence(trace.evidence().sourceDigest(), trace.evidence().executedSteps(), forged, null));
+        assertThrows(CorruptedTraceException.class, () -> new TraceReplayer().replay(model.program(), wrong));
+    }
+
+    /** Omitted action identity comes from its advanced PC, including a nonempty expansion path. */
+    @Test void schedulingWitnessUsesAdvancedInstructionMetadataWithInvariant() {
+        var model = loader.load("program scheduling { shared int x = 0; thread 0 { repeat 1 { atomic { x = 1; } atomic when (x == 0) { x = 2; } } } thread 1 { atomic { x = 0; } atomic { x = 3; } } invariant always (true); }");
+        Invariant property = model.invariant().orElseThrow();
+        Trace trace = new ContextBoundedExplorer().explore(model.program(), property, null, null, 0).traces().stream()
+            .filter(t -> t.cutoff() != null).findFirst().orElseThrow();
+        assertEquals(List.of(0, 1), trace.threadIds());
+        assertEquals(1, trace.cutoff().instructionIndex());
+        assertFalse(trace.cutoff().expansionPath().isEmpty());
+
+        Configuration end = new TraceReplayer().replay(model.program(), trace, property);
+        assertEquals(List.of(1, 1), end.programCounters());
+        assertEquals(0, ((dev.samhb.interleave.format.dsl.DynamicState) end.state()).getInt("x"));
+    }
+
+    /** Plain replay validates execution; only the invariant-aware overload checks terminal verdicts. */
+    @Test void terminalVerdictValidationRequiresTheInvariant() {
+        var model = loader.load("program property { shared int x = 0; thread 0 { atomic { x = 1; } } invariant final (x == 1); }");
+        Invariant property = model.invariant().orElseThrow();
+        Trace actual = new DfsExplorer().explore(model.program(), property).traces().getFirst();
+        assertEquals(TraceOutcome.COMPLETED, actual.outcome());
+        Trace wrong = new Trace(actual.threadIds(), actual.outcomes(), TraceOutcome.DEADLOCK, actual.evidence());
+        TraceReplayer replayer = new TraceReplayer();
+
+        assertTrue(replayer.replay(model.program(), actual, property).allTerminated());
+        assertTrue(replayer.replay(model.program(), wrong).allTerminated());
+        assertThrows(CorruptedTraceException.class, () -> replayer.replay(model.program(), wrong, property));
+    }
+
     /** Supplied cutoff reason/limit/PC must reproduce, and cannot invent terminal completion. */
     @Test void loopWitnessValidationRejectsForgedLimitAndTerminalKind() {
         var model = loader.load("program evidence { shared int x = 0; thread 0 { while (true) limit 1 { atomic { x = x + 1; } } } invariant always (true); }");

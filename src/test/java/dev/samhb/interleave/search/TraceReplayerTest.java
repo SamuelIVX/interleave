@@ -93,4 +93,35 @@ class TraceReplayerTest {
         assertEquals(0, enriched.states().get(0).fields().get("counter"));
         assertEquals(1, enriched.states().get(1).fields().get("counter"));
     }
+
+    /** Snapshots follow the recorded thread and its current instruction across both threads. */
+    @Test
+    void captureSnapshots_usesRecordedThread() {
+        Program program = new Program(CounterState.of(0), List.of(
+            new ModelThread(0, List.of(new WriteCounterStep(0), new ReadCounterStep(0))),
+            new ModelThread(1, List.of(new ReadCounterStep(1), new WriteCounterStep(1)))
+        ));
+        Trace trace = Trace.of(List.of(1, 1, 0, 0),
+            java.util.Collections.nCopies(4, StepOutcome.ADVANCED), TraceOutcome.COMPLETED);
+
+        List<StateSnapshot> snapshots = new TraceReplayer().captureSnapshots(program, trace);
+
+        assertEquals(List.of(0, 0, 1, 1, 1), snapshots.stream().map(s -> s.fields().get("counter")).toList());
+        assertEquals(1, snapshots.getLast().locals().get("0").get("register"));
+        assertEquals(0, snapshots.getLast().locals().get("1").get("register"));
+    }
+
+    /** Snapshot replay rejects corrupt outcomes and identifies both the recorded and actual result. */
+    @Test
+    void captureSnapshots_divergentOutcome_reportsMismatch() {
+        Program program = new Program(CounterState.of(0), List.of(
+            new ModelThread(0, List.of(new WriteCounterStep(0)))
+        ));
+        Trace corrupted = Trace.of(List.of(0), List.of(StepOutcome.BLOCKED), TraceOutcome.VIOLATION);
+
+        CorruptedTraceException error = assertThrows(CorruptedTraceException.class,
+            () -> new TraceReplayer().captureSnapshots(program, corrupted));
+
+        assertTrue(error.getMessage().contains("recorded BLOCKED but execution produced ADVANCED"));
+    }
 }
