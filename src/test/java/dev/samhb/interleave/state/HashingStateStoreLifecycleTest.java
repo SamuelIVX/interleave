@@ -1,3 +1,4 @@
+/** Exact-store lifecycle, collision and canonical byte-domain visitation contracts. */
 package dev.samhb.interleave.state;
 
 import dev.samhb.interleave.bugs.BugCorpus;
@@ -10,6 +11,8 @@ import dev.samhb.interleave.core.StepOutcome;
 import dev.samhb.interleave.search.StateStore;
 import org.junit.jupiter.api.Test;
 
+import java.io.DataOutput;
+import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -21,7 +24,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Lifecycle and reporting contracts for {@link HashingStateStore}. Spec 12.02.
+ * Lifecycle, reporting and canonical byte-domain contracts for {@link HashingStateStore}. Specs 12.02 and 19.
  *
  * <p>This store is the differential oracle for {@link BitstateStore}. If it reports a configuration as
  * visited that it has not seen, every verdict-level conclusion drawn by comparing the two stores is
@@ -42,6 +45,44 @@ import static org.junit.jupiter.api.Assertions.*;
  * asserting on internal key strings or hash values, and nothing here does.
  */
 class HashingStateStoreLifecycleTest {
+
+    /** Every one-byte canonical state supports ordinary membership without arithmetic failures. */
+    @Test
+    void ordinaryVisitationAcceptsEveryCanonicalByte() {
+        HashingStateStore store = new HashingStateStore();
+        List<ModelThread> threads = List.of(new ModelThread(0, List.of()));
+        for (int value = Byte.MIN_VALUE; value <= Byte.MAX_VALUE; value++) {
+            ByteState state = new ByteState((byte) value);
+            Configuration config = Configuration.initial(state, threads);
+            assertDoesNotThrow(() -> {
+                assertFalse(store.isVisited(config));
+                store.markVisited(config);
+                assertTrue(store.isVisited(Configuration.initial(state.deepCopy(), threads)));
+            }, "ordinary canonical byte " + value);
+        }
+        assertEquals(256, store.size());
+    }
+
+    /** Every one-byte state supports bounded membership, cost dominance and last-thread separation. */
+    @Test
+    void boundedVisitationAcceptsEveryCanonicalByte() {
+        HashingStateStore store = new HashingStateStore();
+        List<ModelThread> threads = List.of(new ModelThread(0, List.of()));
+        for (int value = Byte.MIN_VALUE; value <= Byte.MAX_VALUE; value++) {
+            Configuration config = Configuration.initial(new ByteState((byte) value), threads);
+            assertDoesNotThrow(() -> {
+                assertFalse(store.isVisited(config, 0, 2));
+                store.markVisited(config, 0, 2);
+                assertTrue(store.isVisited(Configuration.initial(config.state().deepCopy(), threads), 0, 2));
+                assertTrue(store.isVisited(config, 0, 3));
+                assertFalse(store.isVisited(config, 0, 1));
+                assertFalse(store.isVisited(config, -1, 2));
+                store.markVisited(config, 0, 1);
+                assertTrue(store.isVisited(config, 0, 1));
+            }, "bounded canonical byte " + value);
+        }
+        assertEquals(256, store.preemptionEntryCount());
+    }
 
     // ---------------------------------------------------------------- R1, R2 — clear()
 
@@ -345,6 +386,23 @@ class HashingStateStoreLifecycleTest {
         assertFalse(store.isVisited(config, 0, 1), "1 is below the new minimum");
 
         assertEquals(1, store.preemptionEntryCount(), "lowering the budget must not add an entry");
+    }
+
+    /**
+     * Immutable value state whose complete canonical encoding is one signed byte.
+     * @param value modeled value, encoded without loss
+     */
+    private record ByteState(byte value) implements SharedState {
+        /** Returns an equal independent value state.
+         * @return a fresh state with the same modeled byte
+         */
+        @Override public SharedState deepCopy() { return new ByteState(value); }
+
+        /** Writes the complete modeled value.
+         * @param out canonical byte sink
+         * @throws IOException if the sink cannot accept the byte
+         */
+        @Override public void encodeTo(DataOutput out) throws IOException { out.writeByte(value); }
     }
 
     // ---------------------------------------------------------------- helpers
