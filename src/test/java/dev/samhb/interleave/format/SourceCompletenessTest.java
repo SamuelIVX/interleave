@@ -13,6 +13,39 @@ import static org.junit.jupiter.api.Assertions.*;
 class SourceCompletenessTest {
     private final SourceProgramLoader loader = new SourceProgramLoader();
 
+    /** Deferred legacy reporting must not duplicate a source witness or its visitor notification. */
+    @Test void sourceSchedulingWitnessIsEmittedOnceAfterSuccessfulSearch() {
+        var model = loader.load("program scheduling { shared int x = 0; thread 0 { atomic { x = x + 1; } atomic { x = x + 1; } } thread 1 { atomic { x = x + 1; } atomic { x = x + 1; } } invariant always (true); }");
+        Invariant property = model.invariant().orElseThrow();
+        List<Trace> seen = new ArrayList<>();
+        StateVisitor observer = new StateVisitor() {
+            /** Observes committed configurations without affecting modeled execution. */
+            @Override public void onStateVisited(Configuration configuration) {}
+            /** Retains each trace notification, including duplicate emissions. */
+            @Override public void onTraceCreated(Trace trace) { seen.add(trace); }
+        };
+
+        DfsResult result = new ContextBoundedExplorer().explore(model.program(), property, null, observer, 0);
+
+        assertTrue(result.traces().stream().anyMatch(t -> t.outcome() == TraceOutcome.COMPLETED));
+        assertTrue(result.traces().stream().allMatch(t -> t.outcome() == TraceOutcome.COMPLETED
+            || t.outcome() == TraceOutcome.INCOMPLETE));
+        List<Trace> incomplete = result.traces().stream()
+            .filter(t -> t.outcome() == TraceOutcome.INCOMPLETE).toList();
+        assertEquals(1, incomplete.size());
+        assertEquals(result.traces(), seen);
+        assertEquals(1, seen.stream().filter(t -> t.outcome() == TraceOutcome.INCOMPLETE).count());
+        Trace witness = incomplete.getFirst();
+        assertEquals(List.of(0), witness.threadIds());
+        assertEquals(CutoffEvidence.Reason.PREEMPTION_BOUND, witness.cutoff().reason());
+        assertEquals(1, witness.cutoff().threadId());
+        assertEquals(0, witness.cutoff().instructionIndex());
+        assertEquals(0, witness.cutoff().limit());
+        Configuration prefix = new TraceReplayer().replay(model.program(), witness, property);
+        assertEquals(List.of(1, 0), prefix.programCounters());
+        assertEquals(1, ((dev.samhb.interleave.format.dsl.DynamicState) prefix.state()).getInt("x"));
+    }
+
     /** First preemption cutoff follows a forced switch and targets an already advanced source PC. */
     @Test void preemptionWitnessRetainsActualPcLocationAndExpansionIdentity() {
         var model = loader.load("program scheduling { shared int x = 0; thread 0 { repeat 1 { atomic { x = 1; } atomic when (x == 0) { x = 2; } } } thread 1 { atomic { x = 0; } atomic { x = 3; } } }");
