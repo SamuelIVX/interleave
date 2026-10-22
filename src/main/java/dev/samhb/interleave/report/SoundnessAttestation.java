@@ -24,11 +24,12 @@ import java.util.*;
  *       models; legacy DFS expectation matching retains its strict behavior.
  *   <li><strong>Trace replay validation</strong> (all results):
  *       For every reported VIOLATION (including bitstate and context-bounded),
- *       replays the failing trace and verifies that the invariant is genuinely
- *       violated at the final configuration. This ensures no false alarms are
- *       reported. This is a positive check, not an exclusion: a bounded search
- *       that reports a violation has found a real schedule, and that schedule
- *       must hold up under replay.
+ *       requires a failing trace and registered program, then replays the recorded execution.
+ *       When an invariant is supplied, the final configuration must violate it unless replay
+ *       authenticates a source runtime error (whose atomic rollback may leave the invariant true).
+ *       Without an invariant, replay checks execution and supplied source step evidence only;
+ *       success does not establish a property violation. Replay exceptions propagate to the caller.
+ *       This positive replay obligation applies to bounded and approximate reports as well.
  * </ol>
  */
 public final class SoundnessAttestation {
