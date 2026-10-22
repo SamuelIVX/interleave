@@ -22,11 +22,12 @@ import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import static org.junit.jupiter.api.Assertions.*;
 
 class SoundnessReplayTest {
-    /** Every strategy/store combination must supply a trace and retain both diagnostic fields.
+    /** After verdict validation succeeds, every strategy/store pair must supply a trace and retain both fields.
      * @param strategy reporting strategy
      * @param store reported storage mode
      */
@@ -38,6 +39,20 @@ class SoundnessReplayTest {
         assertFalse(attestation.isSound());
         assertEquals("Missing failing trace for subject under " + strategy + " (" + store + ")",
             attestation.failureReason());
+    }
+
+    /** Exact DFS expectation mismatches precede replay diagnostics; bitstate skips verdict matching.
+     * @param store storage mode controlling participation in exact verdict validation
+     * @param expectedReason literal diagnostic for a missing-trace violation with a PASS expectation
+     */
+    @ParameterizedTest
+    @CsvSource({"EXACT, DFS verdict mismatch for subject: expected PASS but got VIOLATION",
+        "BITSTATE, Missing failing trace for subject under DFS (BITSTATE)"})
+    void missingTraceDiagnosticRespectsVerdictPrecedence(StoreType store, String expectedReason) {
+        var model = new BenchmarkProgram("subject", legacy(null).program(), "PASS");
+        var attestation = new SoundnessAttestation(List.of(row("DFS", store, null)), List.of(model));
+        assertFalse(attestation.isSound());
+        assertEquals(expectedReason, attestation.failureReason());
     }
 
     /** A present trace still requires a registered model, including outside exact verdict checks.

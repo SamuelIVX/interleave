@@ -22,6 +22,9 @@ does not assert that an execution-only attestation establishes a property violat
 
 ## Invariants
 
+- Exact verdict validation precedes the replay phase; a verdict failure stops the attestation before
+  replay diagnostics. Replay requirements below assume verdict validation succeeds unless explicitly
+  testing that precedence.
 - A reported violation is a positive replay obligation, even with bitstate storage or bounded search.
 - Supplied invariants are evaluated against the replayed state, not the initial configuration.
 - Authentic source runtime failures can leave the invariant true because atomic writes roll back.
@@ -33,8 +36,10 @@ does not assert that an execution-only attestation establishes a property violat
 
 ## Requirements
 
-1. Every reporting strategy/store pair SHALL reject a VIOLATION without a failing trace, naming
-   the subject, strategy and store in the complete diagnostic.
+1. After the exact-verdict phase succeeds, every reporting strategy/store pair SHALL reject a
+   VIOLATION without a failing trace, naming the subject, strategy and store in the complete
+   diagnostic. Exact DFS expectation and cross-strategy mismatches take precedence over missing-trace
+   diagnostics. A bitstate DFS row skips verdict matching and reaches the missing-trace check.
 2. A VIOLATION with a trace but no registered program SHALL fail with the unknown-subject reason,
    including bitstate rows excluded from verdict matching.
 3. A genuine legacy trace SHALL pass with no failure reason when the property holds initially
@@ -61,6 +66,7 @@ or failure category. Expected diagnostic strings are literal templates independe
 | Requirement | Regression | Cases |
 |---|---|---|
 | R1 | `missingTraceReportsSubjectStrategyAndStore` | Eight strategy/store pairs |
+| R1 | `missingTraceDiagnosticRespectsVerdictPrecedence` | Exact/bitstate DFS VIOLATION without a trace, registered expectation PASS |
 | R2 | `unknownProgramReportsSubject` | Both stores |
 | R3 | `genuineLegacyViolationPasses` | Eight strategy/store pairs |
 | R3 | `replayedNonViolationReportsSubjectStrategyAndStore` | Eight strategy/store pairs |
@@ -74,7 +80,7 @@ or failure category. Expected diagnostic strings are literal templates independe
 
 ## Acceptance Criteria
 
-- All 40 new invocations and the full existing suite pass; build and strict Javadoc pass.
+- All 42 new invocations (40 initial plus two precedence cases) and the full existing suite pass; build and strict Javadoc pass.
 - Fresh scoped PIT accounts for all replay/diagnostic identities and retains existing kills.
 - Default PIT gate and visualizer normalization pass, with their scope stated separately.
 - CodeRabbit CLI completes the four-file review; independently evaluate and address feedback.
@@ -90,6 +96,8 @@ class/method/descriptor/mutator/instruction indices/blocks rather than source li
 Gradle command uses `--max-workers=1 -PpitestThreads=1`.
 
 ## Verification
+
+### Initial bundle
 
 All 40 new invocations and the full suite pass (850 total), zero failures/errors/skips. Scoped PIT
 improves **85/112 → 100/112 assertion-confirmed kills**: six survivors and nine uncovered replay/
@@ -124,3 +132,17 @@ matching populations were verified rather than inferred from the denominator.
 The 12 retained identities are 11 rendering gaps plus one scoped bookkeeping disposition.
 Rendering gaps are not equivalence claims. No production cleanup, private-call assertions,
 mutation exclusions or gate changes force 100%.
+
+### PR feedback: diagnostic precedence
+
+CodeRabbit's minor comment correctly identified an unqualified R1: an exact DFS VIOLATION
+without a trace can fail its PASS expectation before the replay phase. Preserve the existing
+diagnostic order and explicitly qualify the requirement. Two literal cases assert the exact DFS
+mismatch and the bitstate missing-trace reason for the same reported violation/expectation pair.
+The original eight missing-trace cases retain their VIOLATION expectation to reach replay checks.
+Post-patch `clean build javadoc pitest` (scoped to SoundnessAttestation) passes all 852 tests,
+zero failures/errors/skips, and strict Javadoc. Scoped PIT remains 100/112 with identical semantic
+identities/statuses to the initial bundle. The two-file patch CLI review completed with zero
+findings; only measured verification prose was finalized afterward. Default PIT and normalization
+were not rerun after this two-case patch; their initial 850-test-bundle measurements above remain
+historical. Browser integration was not rerun; no executable production changes were made.
