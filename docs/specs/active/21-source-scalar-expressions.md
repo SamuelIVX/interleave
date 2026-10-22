@@ -98,7 +98,7 @@ below belong to `dev.samhb.interleave.format.dsl.Evaluator`; indices identify by
 | SURVIVED (2) | `eval` / 278, 367 | Remove array-name call in bounds diagnostics | Separate array diagnostics; unchanged selected outcomes do not prove diagnostic equivalence. |
 | SURVIVED (1) | `failureCategory` / 28 | Negate classifier conditional | Separate classifier type/message/null cases; current modulo evidence does not exhaust classification. |
 | NO_COVERAGE (6) | `eval` / 67, 107, 109, 137, 179, 181 | Remove shared/local name calls in unknown-name or array-as-scalar diagnostics | Loader typing rejects these before execution. Direct malformed AST contracts require their own tests. |
-| NO_COVERAGE (1) | `eval` / 317 | Remove name call in invalid local-array diagnostic | Array validation/defensive AST follow-up. |
+| NO_COVERAGE (1) | `eval` / 317 | Remove name call in invalid shared-array diagnostic | Array validation/defensive AST follow-up. |
 | NO_COVERAGE (4) | `eval` / 489, 536, 593, 1159 | Remove operator calls in unknown unary/binary or boolean type-error diagnostics | Loaded operators and operand types are validated; defensive AST follow-up. |
 | NO_COVERAGE (1) | `eval` / 42 | Replace `tid` result with null | Valid-language gap remains; cover thread identity with the next local/array ownership batch. |
 
