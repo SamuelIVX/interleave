@@ -45,12 +45,13 @@ Class Javadoc now distinguishes source-only DFS exemptions from general cross-st
 | R1, R5 | `validatesExactDfsExpectations` | 13 source/legacy, matched/mismatched, inconclusive and absent-expectation cases |
 | R2, R5 | `checksAgreementOnlyForKnownNonViolationExpectations` | Seven source/legacy agreement/disagreement/expected-VIOLATION/unknown-expectation cases |
 | R3, R5 | `inconclusiveRowsDoNotSeedOrConflict` | Four label/order cases |
+| R3, R5 | `inconclusiveRowsDoNotClearEarlierConclusiveVerdict` | Two intervening-label cases preserve the earlier verdict and detect the later disagreement |
 | R4, R5 | `bitstateDfsIsExcludedFromExpectationMatching` | Two deliberately differing bitstate DFS expectations |
 | R4, R5 | `bitstateRowsDoNotSeedOrConflict` | Two approximate/exact encounter orders |
 
 ## Acceptance Criteria
 
-- All 28 new invocations and the full existing suite pass without executable production changes.
+- All 30 new invocations and the full existing suite pass without executable production changes.
 - Compare fresh merged-main/final semantic mutation populations; retain every baseline kill and
   explicitly classify residual replay/rendering/bookkeeping identities rather than force 100%.
 - Full build/tests/Javadoc, unchanged default mutation gate and normalization pass.
@@ -65,7 +66,7 @@ default state/CBS gates. Local Gradle always uses `--max-workers=1 -PpitestThrea
 
 ## Verification
 
-All **808 tests** pass (28 new invocations), zero failures/errors/skips. Outer-SoundnessAttestation
+All **810 tests** pass (30 new invocations), zero failures/errors/skips. Outer-SoundnessAttestation
 PIT improves **64/112 → 85/112 assertion-confirmed kills**: 15 survivors and six uncovered mutations
 become killed. Fifteen survivors and 12 uncovered remain, zero timeout/error detections. All 112
 semantic identities match and all 64 baseline kills remain killed. Comparison uses class/method/
@@ -97,7 +98,7 @@ allocation/work/performance equivalence are not claimed. Production bookkeeping 
 no private-call assertions, exclusions or score-floor changes force a kill.
 
 All other retained identities are explicit follow-up gaps, not equivalence declarations.
-Post-feedback `clean build javadoc pitest` passes all 808 tests and Javadoc. The unchanged default
+Before the PR-comment patch, `clean build javadoc pitest` passed all 808 tests and Javadoc. The unchanged default
 mutation gate passes at **281/291**, with the same semantic identities and statuses as merged main.
 All 18 normalization checks pass. Browser integration was not rerun because no executable output
 or browser behavior changed; CI is unverified at publication.
@@ -111,3 +112,18 @@ PASS-versus-DEADLOCK disagreement with the same explicit expected diagnostic. Th
 accidentally excluding all source rows rather than only their inconclusive verdicts. The follow-up
 four-file CLI review completed with zero findings. All checks above were rerun after the test fix;
 only measured verification prose was finalized after that review.
+
+### PR feedback
+
+CodeRabbit's one trivial PR comment identified a distinct three-row gap: an inconclusive row
+could clear a previously stored conclusive verdict without failing the existing two-row cases.
+Added PASS → INCOMPLETE/APPROXIMATE_PASS → DEADLOCK cases with the full expected disagreement
+diagnostic, retaining all existing encounter-order cases. Post-patch `clean build javadoc pitest`
+(scoped to SoundnessAttestation) passes all 810 tests and Javadoc; scoped PIT remains 85/112,
+with identical semantic identities/statuses to the pre-patch run. The default 281/291 and
+normalization results above were measured before this test-only patch and were not rerun.
+
+The two-file patch CLI review reported one minor documentation timing issue: counts had been
+updated while validation was still running. The completed run now confirms the 810-test result;
+this section separates its scope from the earlier default-gate run. No code findings were reported.
+Only measured validation prose was finalized after review.

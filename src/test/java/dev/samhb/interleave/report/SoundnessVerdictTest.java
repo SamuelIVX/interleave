@@ -75,6 +75,21 @@ class SoundnessVerdictTest {
         assertNull(attestation.failureReason());
     }
 
+    /** An intervening inconclusive row must preserve an earlier conclusive agreement verdict.
+     * @param verdict supported inconclusive label between disagreeing exact rows
+     */
+    @ParameterizedTest
+    @ValueSource(strings = {"INCOMPLETE", "APPROXIMATE_PASS"})
+    void inconclusiveRowsDoNotClearEarlierConclusiveVerdict(String verdict) {
+        var attestation = new SoundnessAttestation(List.of(
+            row("DFS", "PASS", StoreType.EXACT),
+            row("CONTEXT_BOUNDED", verdict, StoreType.EXACT),
+            row("DPOR", "DEADLOCK", StoreType.EXACT)), List.of(program(false, "PASS")));
+        assertFalse(attestation.isSound());
+        assertEquals("Verdict mismatch for correct program subject under DPOR: PASS vs DEADLOCK",
+            attestation.failureReason());
+    }
+
     /** Approximate storage cannot supply an absence-of-bug check against the registered expectation.
      * @param expected registered conclusive expectation
      * @param actual deliberately different bitstate DFS verdict
