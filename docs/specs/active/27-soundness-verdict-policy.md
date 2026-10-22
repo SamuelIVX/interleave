@@ -110,8 +110,11 @@ The first four-file CodeRabbit review completed with one trivial finding: negati
 cross-strategy cases used only legacy programs. Independently verified; add a source-program
 PASS-versus-DEADLOCK disagreement with the same explicit expected diagnostic. This guards against
 accidentally excluding all source rows rather than only their inconclusive verdicts. The follow-up
-four-file CLI review completed with zero findings. All checks above were rerun after the test fix;
-only measured verification prose was finalized after that review.
+four-file CLI review completed with zero findings. After that source-program test fix, the full
+808-test suite, build, Javadoc, scoped SoundnessAttestation PIT, default PIT and normalization checks
+passed. This predates the separate three-row PR-comment patch below; after that patch only the
+810-test suite, build, Javadoc and scoped PIT were rerun. Default PIT and normalization were not
+rerun after the PR-comment patch. Only measured verification prose was finalized after CLI review.
 
 ### PR feedback
 
