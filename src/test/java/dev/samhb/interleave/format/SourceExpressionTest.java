@@ -17,7 +17,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class SourceExpressionTest {
     private final SourceProgramLoader loader = new SourceProgramLoader();
 
-    /** Arithmetic uses signed Java-int values, including wraparound and signed remainder. */
+    /** Arithmetic uses signed Java-int values, including wraparound and signed remainder.
+     * @param expression arithmetic expression under test
+     * @param left initialized left operand
+     * @param right initialized right operand, unused for unary expressions
+     * @param expected literal committed integer result
+     */
     @ParameterizedTest
     @CsvSource(delimiter = ';', textBlock = """
         left + right;       7;           3;  10
@@ -42,7 +47,12 @@ class SourceExpressionTest {
         assertEquals(expected, ((DynamicState) end.state()).getInt("answer"));
     }
 
-    /** Each relation is checked below, at and above equality so boundaries cannot be interchanged. */
+    /** Each relation is checked below, at and above equality so boundaries cannot be interchanged.
+     * @param expression integer comparison under test
+     * @param left initialized left operand
+     * @param right initialized right operand
+     * @param expected literal committed boolean result
+     */
     @ParameterizedTest
     @CsvSource(delimiter = ';', textBlock = """
         left == right; 2; 3; false
@@ -66,11 +76,16 @@ class SourceExpressionTest {
         """)
     void comparisonsProduceLiteralResults(String expression, int left, int right, boolean expected) {
         Configuration end = execute("shared int left = " + left + "; shared int right = " + right
-            + "; shared bool answer = false;", "answer = " + expression + ";");
+            + "; shared bool answer = " + !expected + ";", "answer = " + expression + ";");
         assertEquals(expected, ((DynamicState) end.state()).getBool("answer"));
     }
 
-    /** Boolean operators preserve their full truth tables, including the evaluated right operand. */
+    /** Boolean operators preserve their full truth tables, including the evaluated right operand.
+     * @param expression boolean expression under test
+     * @param left initialized left operand
+     * @param right initialized right operand, unused for unary expressions
+     * @param expected literal committed boolean result
+     */
     @ParameterizedTest
     @CsvSource(delimiter = ';', textBlock = """
         left && right; false; false; false
@@ -94,11 +109,15 @@ class SourceExpressionTest {
         """)
     void booleansProduceLiteralResults(String expression, boolean left, boolean right, boolean expected) {
         Configuration end = execute("shared bool left = " + left + "; shared bool right = " + right
-            + "; shared bool answer = false;", "answer = " + expression + ";");
+            + "; shared bool answer = " + !expected + ";", "answer = " + expression + ";");
         assertEquals(expected, ((DynamicState) end.state()).getBool("answer"));
     }
 
-    /** A skipped RHS cannot fail; a required RHS must fail and roll back earlier tentative writes. */
+    /** A skipped RHS cannot fail; a required RHS must fail and roll back earlier tentative writes.
+     * @param expression short-circuit expression with a failing right operand
+     * @param fails whether evaluation must reach the failing right operand
+     * @param expected committed answer, retaining its initial false value on failure
+     */
     @ParameterizedTest
     @CsvSource(delimiter = ';', textBlock = """
         false && (1 % 0 == 0); false; false

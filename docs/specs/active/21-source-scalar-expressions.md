@@ -42,7 +42,10 @@ Exercise the public `SourceProgramLoader` and fixed-schedule `ExecutionDriver`, 
 `DynamicState` fields. Do not call the evaluator to compute expectations. Source loading also
 ensures these expressions are reachable through the supported language rather than only synthetic
 invalid ASTs. Use initialized shared operands so arithmetic results are observable independently
-of a global property that could share the same evaluator defect.
+of a global property that could share the same evaluator defect. Comparison and boolean truth-table
+fixtures initialize `answer` opposite to the literal expected result, so even a missing false-valued
+assignment cannot preserve a passing initial value. Failure/rollback cases keep their own explicit
+initial state so rollback remains distinguishable from successful execution.
 
 | Requirement | Regression | Cases / independent oracle |
 |---|---|---|
@@ -118,3 +121,19 @@ pass. No new dependencies or production/public-API changes.
 
 Roadmap 9-V1 remains open. Next focused batch: shared/local array edges and `tid` ownership;
 defensive AST/classifier diagnostics and transition/reduction/reporting contracts remain separate.
+
+### PR feedback patch
+
+Both minor CodeRabbit PR findings were independently verified: parameterized test input Javadoc
+was incomplete, and false-result comparison/boolean rows could retain their initial false answer
+if a write was omitted. The patch documents all four parameterized signatures and starts each
+comparison/truth-table answer opposite to its expected literal. Assertion literals, expressions,
+failure/rollback initialization, test population and production code are unchanged.
+
+Post-patch `build javadoc test` passes all 711 cases, zero failures/errors/skips. Evaluator PIT
+remains 262/282 (eight survivors, 12 uncovered); default PIT remains 281/291 (ten survivors,
+zero uncovered). Both reports have identical semantic mutation identities/statuses to the
+pre-patch evidence, with zero timeout/error detections. Follow-up CodeRabbit CLI reviewed both
+changed files and completed with zero findings; only this measured result prose was finalized
+afterward. No browser or normalization rerun for this test-fixture/Javadoc patch; no output changes.
+GitHub CI remains unverified.
