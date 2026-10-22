@@ -312,9 +312,9 @@ public final class BenchmarkResult {
     }
 
     /**
-     * Returns the verdict.
+     * Returns the reported verdict, including source-model qualification.
      *
-     * @return "PASS", "VIOLATION", or "DEADLOCK"
+     * @return stored verdict; source rows may include {@code APPROXIMATE_PASS} or {@code INCOMPLETE}
      */
     public String verdict() {
         return verdict;
