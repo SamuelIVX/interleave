@@ -1,3 +1,4 @@
+/** Public Bloom occupancy, diagnostics and constructor-boundary contracts. */
 package dev.samhb.interleave.state;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -39,6 +40,49 @@ import org.junit.jupiter.api.Test;
  * that makes the multiplier observable.
  */
 class BitstateStoreDiagnosticsTest {
+
+    /** At low load, additional probes must populate additional bits, not just change the estimate. */
+    @Test
+    void fourProbesPopulateMoreBitsThanOneForPlainWorkload() {
+        BitstateStore one = new BitstateStore(1_000_003, 1);
+        BitstateStore four = new BitstateStore(1_000_003, 4);
+        markPlain(one, 32);
+        markPlain(four, 32);
+
+        assertEquals(32, one.statesMarked());
+        assertEquals(32, four.statesMarked());
+        assertTrue(four.bitCount() > one.bitCount(), "four probes must do more work than a single probe");
+        for (int value = 1; value <= 32; value++) {
+            Configuration config = configurationWithCounter(value, 0, 0);
+            assertTrue(one.isVisited(config));
+            assertTrue(four.isVisited(config));
+        }
+    }
+
+    /** Additional probes also populate the bounded vectors while retaining marked contexts. */
+    @Test
+    void fourProbesPopulateMoreBitsThanOneForBoundedWorkload() {
+        BitstateStore one = new BitstateStore(1_000_003, 1, 1);
+        BitstateStore four = new BitstateStore(1_000_003, 4, 1);
+        for (int level = 0; level <= 1; level++) {
+            int oneBefore = one.bitCount();
+            int fourBefore = four.bitCount();
+            markPreemption(one, level, 32);
+            markPreemption(four, level, 32);
+            assertTrue(four.bitCount() - fourBefore > one.bitCount() - oneBefore,
+                "four probes must populate more bits at preemption level " + level);
+        }
+
+        assertEquals(64, one.preemptionStatesMarked());
+        assertEquals(64, four.preemptionStatesMarked());
+        for (int level = 0; level <= 1; level++) {
+            for (int value = 1; value <= 32; value++) {
+                Configuration config = configurationWithCounter(value, 0, 0);
+                assertTrue(one.isVisited(config, level, level));
+                assertTrue(four.isVisited(config, level, level));
+            }
+        }
+    }
 
     // ---------------------------------------------------------------- R1 — the empty store
 

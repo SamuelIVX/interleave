@@ -49,7 +49,7 @@ LOE is a rough estimate including verification: **S** = hours–2 days, **M** = 
 document; a **spec-set** separates interacting behavior, correctness and integration contracts.
 Recommendations below are advisory; selecting an item precedes writing its specification.
 
-Unless explicitly attributed to Specs 17–19, mutation figures are recorded measurements from PR #57,
+Unless explicitly attributed to Specs 17–20, mutation figures are recorded measurements from PR #57,
 merged as `a0658a2`, rather than a live census. The scopes overlap and must not be added together.
 The PR #57 replay-only run followed the expanded run, so its later result applies only to replay.
 Remeasure current main before hardening.
@@ -63,7 +63,7 @@ focused test-hardening spec, executed in small batches without promising 100% mu
 | ID | Gap and proposed work | Benefit | Cost / risk | LOE | Spec | Recommendation | PR grouping / boundary |
 |---|---|---|---|---|---|---|---|
 | 9-H1 | Replay hardening implemented in [Spec 17](../specs/active/17-replay-hardening.md): 202/203 kills, one scope-limited metadata survivor, no uncovered mutations. | Protects snapshots, source enrichment, failure evidence and invariant-aware replay. | The retained survivor's equivalence argument applies to compiler-produced instructions only. | S–M | Simple hardening spec | Merged in PR #58. | Replay bundle includes invariant-aware replay tests and matching 9-V1 replay gaps; no separate replay-hardening PR is needed for those same cases. |
-| 9-H2 | CBS single-emission hardening shipped in [Spec 18](../specs/active/18-cbs-cutoff-hardening.md) / PR #59 (123/123 scoped kills). [Spec 19](../specs/active/19-exact-store-byte-domain.md) tests two exact-store division boundaries (45/52 scoped kills) and adjudicates its seven total-function survivors. Three bitstate and one encoder survivor remain separate dispositions. | Protects scheduling witnesses and exact-store membership across valid canonical byte states. | The old nine-equivalent verdict omitted division-by-zero failures; the retained seven have a total-prefilter proof limited to valid deterministic states. | S–M | Focused hardening specs | Exact-store slice implemented; PR review pending. Recheck remaining bitstate/encoder dispositions separately. | One PR per class or contract; only bundle matching 9-V1 gaps. Exact-store tests and their corrected equivalence notes share this PR. |
+| 9-H2 | CBS single-emission hardening shipped in [Spec 18](../specs/active/18-cbs-cutoff-hardening.md) / PR #59 (123/123 scoped kills). [Spec 19](../specs/active/19-exact-store-byte-domain.md) / PR #60 covers exact-store division boundaries (45/52). [Spec 20](../specs/active/20-bitstate-probe-coverage.md) covers actual probe occupancy (95/97 bitstate; 281/291 default). Ten retained mutations have explicit dispositions: seven exact-store, two approximate-mapping and one encoder-flush. | Protects scheduling witnesses, exact-store byte-domain membership and actual Bloom probe use. | Exact-store equivalence requires total hashing. Approximate sign-change mappings are retained without claiming equivalence or universal verdict preservation. | S–M | Focused hardening specs | Triage and selective hardening complete; Spec 20 PR review pending. Continue with scoped 9-V1 work after merge. | Each class/contract has its own PR. Bitstate occupancy checks and corrected bitstate disposition notes share this final H2 PR; no unrelated compiler/replay work is bundled. |
 
 ### Larger verification and performance work
 
