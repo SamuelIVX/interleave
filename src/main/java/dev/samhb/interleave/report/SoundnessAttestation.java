@@ -17,10 +17,11 @@ import java.util.*;
  *   <li><strong>Verdict validation</strong> (EXACT results only):
  *       Verifies that DFS verdicts match expected outcomes for all programs,
  *       and that correct (non-VIOLATION) programs produce consistent verdicts
- *       across all strategies. Bitstate results are excluded because they are
- *       incomplete by design and may miss violations, as are results whose
- *       verdict is {@code INCOMPLETE} or {@code APPROXIMATE_PASS}, since those
- *       assert nothing about the absence of a bug.
+ *       across all strategies. Bitstate results are excluded from both verdict checks because
+ *       approximate storage may miss violations. Exact {@code INCOMPLETE} and
+ *       {@code APPROXIMATE_PASS} rows never seed or conflict with cross-strategy agreement.
+ *       For DFS expectation matching, those labels are accepted as inconclusive only for source
+ *       models; legacy DFS expectation matching retains its strict behavior.
  *   <li><strong>Trace replay validation</strong> (all results):
  *       For every reported VIOLATION (including bitstate and context-bounded),
  *       replays the failing trace and verifies that the invariant is genuinely
