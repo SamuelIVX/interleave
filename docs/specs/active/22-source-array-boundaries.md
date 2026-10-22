@@ -85,7 +85,7 @@ instructions; production bytecode is unchanged. No exclusion or equivalence decl
 | SURVIVED (1) | `assign` / 14 | Removed generated `Objects.requireNonNull` before LHS switch; manual null-effect defense remains a separate batch. |
 | SURVIVED (1) | `failureCategory` / 28 | Negated classification condition; type/message/null classifier follow-up remains separate. |
 | NO_COVERAGE (6) | `eval` / 67, 107, 109, 137, 179, 181 | Unknown-field/local or array-as-scalar diagnostic name calls; validated source loading rejects these paths. Defensive AST follow-up. |
-| NO_COVERAGE (1) | `eval` / 317 | Invalid local-array diagnostic name call; defensive AST follow-up. |
+| NO_COVERAGE (1) | `eval` / 317 | Invalid shared-array diagnostic name call; defensive AST follow-up. |
 | NO_COVERAGE (4) | `eval` / 489, 536, 593, 1159 | Unknown unary/binary operator or invalid boolean operand diagnostic calls; defensive AST follow-up. |
 
 The retained totals sum to two survivors and 11 uncovered, not 13 equivalent mutations. Default
