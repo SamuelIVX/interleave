@@ -253,13 +253,18 @@ with itself is not.
 
 ### R6 — adjudication of the 3 remaining survivors
 
+This section records the historical Spec 12.03 run. [Spec 20](../20-bitstate-probe-coverage.md)
+adds public occupancy checks, kills one of these three and retains two without claiming equivalence.
+Its fresh scoped result is 95/97; the measurements below remain historical.
+
 `L333`, `L343` (×2) and `L357` survived this spec's implementation run. **They are not equivalent,
 and the 12.02 verdict does not transfer.** That distinction still matters, so it is stated rather
 than glossed:
 
-- 12.02 adjudicated nine `HashingStateStore` survivors *equivalent* because a hash change provably
-  cannot alter any answer — the prefilter decides only whether an exact check runs, and the exact
-  check decides the answer.
+- The original 12.02 run adjudicated nine `HashingStateStore` survivors equivalent. Spec 19 later
+  kills two division mutants that fail before confirmation; its proof covers the seven total
+  deterministic replacements on valid successfully encodable states. The prefilter controls whether
+  exact confirmation runs, and that confirmation decides membership if hashing returns normally.
 - `BitstateStore` has **no exact confirmation layer at all**. `grep` finds no `contains` and no
   `encode` outside the hashing itself: the bitset *is* the store's answer. A different hash
   genuinely produces different answers, because it produces different collisions.
@@ -292,31 +297,25 @@ agreement. So 93/97 → 94/97 is **one** kill, not two. Recording both rows here
 PIT confirms this independently: running the scoped report at base `52fd0fe` and again on this branch
 gives survivor sets that differ in exactly one member — `L357`.
 
-**The remaining three are unobservable, not forbidden.** Measured across **1,080 configurations** —
-all 7 corpus programs × 10 array sizes × 6 hash counts × 2 context bounds — the two `L343` index
-mutants and `L333`'s `+ lastThreadId` sign flip change **no reported verdict anywhere**: zero cells
-lose a bug, and the only cells they move at all differ in whether a `COMPLETED` partial trace is also
-emitted, never in whether a bug is reported. PIT agrees independently, having run 82 covering tests
-against each and leaving all three `SURVIVED`.
+**The historical verdict-sweep size is unverified.** The notes and commit `b43032a` report 1,080
+configurations but list 7 programs × 10 sizes × 6 hash counts × 2 bounds, which yields **840**, not
+1,080. No raw sweep record or driver is retained here to establish the executed population, so
+840 is an arithmetic check of the stated factors, not a corrected measured total. The old report
+claims unchanged bug verdicts and some changed partial `COMPLETED` traces; those claims are not
+used as current verification or as evidence of metric equivalence or universal verdict preservation.
 
-The reason is structural, and worth stating because it generalises: **the hash only matters in the
-over-pruned regime, and that regime is precisely where the tool has already stopped finding bugs.**
-Configurations large enough for correct code to find a bug are too collision-free for the hash to
-matter; configurations small enough for the hash to matter are too over-pruned for the bug to be
-found. No setting in between exists on this corpus.
+Spec 20 demonstrates a meaningful public observation outside that sweep: replacing multiplication
+with division collapses additional probes on its low-load workload. Four configured probes then
+populate no more bits than one, even though the estimated-FPR formula still uses k=4. Actual
+`bitCount()` comparisons kill this mutation without pinning hash values or bit positions.
 
-So the resolution is **not** a narrow hash-structure exception, and R7 stands unamended. The three
-stay `SURVIVED` deliberately so 12.06's ratchet records them as a measured floor for this class
-rather than losing them from the denominator. Two ways to close them were considered and rejected
-deliberately:
+R7 remains unchanged. The two sign-change mutations remain SURVIVED with explicit approximate-mapping
+dispositions, not equivalence claims. Their possible false-positive changes are permitted; no violation
+of the marked-membership or workload probe-coverage contracts is demonstrated. They stay in the
+denominator. Previously rejected hash-value and incidental partial-trace assertions remain out of scope.
 
-- Asserting on `COMPLETED`-trace emission. It would kill them, but partial-trace emission is Spec
-  12.04's subject, not 12.03's, and the assertion would be incidental — it would break on
-  unrelated changes while pinning nothing about hash quality.
-- Asserting a hash value. Forbidden by R7, correctly, and unnecessary: the kill above proves the
-  observation level suffices wherever the behaviour is observable at all.
-
-`BitstateStore` closes at **94/97 (96.9%)**, `NO_COVERAGE` 0, three documented survivors.
+The original Spec 12.03 closeout was **94/97**, zero uncovered and three survivors. Spec 20 records
+the current **95/97**, zero uncovered and two survivors, without exclusions or gate changes.
 
 ## Design
 

@@ -226,11 +226,13 @@ appears anywhere in it. The store simply has to be exercised at a size where col
 occur; 64 bits does that, and the 1,000,003-bit default never does on a corpus this small, which is
 why every earlier attempt failed. Option 2 below was therefore never needed.
 
-The three still `SURVIVED` are a different problem, and an easier one: across **1,080 measured
-configurations** (7 corpus programs × 10 sizes × 6 hash counts × 2 bounds) they change **no reported
-verdict at all**. They are unobservable, not forbidden. PIT agrees independently at 82 covering tests
-each. They stay in the denominator as a measured floor; 12.03 §R6 records why, including the two ways
-of closing them that were considered and rejected on purpose.
+Three mutations remained SURVIVED in that run. Its claimed 1,080-case sweep conflicts with the
+listed 7 programs × 10 sizes × 6 hash counts × 2 bounds (**840 combinations**). Without the raw
+execution record, its actual population and verdict comparison remain unverified; do not treat
+840 as a replacement measurement or the old verdict claim as proof of unobservability.
+[Spec 20](../20-bitstate-probe-coverage.md) later kills the multiplication-to-division mutation
+using actual probe occupancy; two sign-change mappings remain without an equivalence claim.
+R7 still needs no exception, and all mutants remain in PIT.
 
 **No decision is needed from 12.06 or Sam.** R7 stands unamended. The record below is kept because the
 wrong reasoning is more dangerous than no reasoning — it invited a permanent "rule conflict" that would
@@ -577,8 +579,9 @@ See [E2](#e2). Verified: `BitstateStoreDiagnosticsTest` uses `CounterState` only
 
 84/97 (86.6%) → 93/97 (95.9%), `NO_COVERAGE` 2 → 0. All seven lines fully killed; the nine mutants
 killed are exactly the nine the spec named. Falsification demonstrated per mutant with the production
-file restored byte-identical. The 4 survivors left by this entry were covered by [C1](#c1), which
-has since been closed: one was killed at the observation level and 3 remain as a measured floor.
+file restored byte-identical. Of the four survivors discussed under [C1](#c1), one was killed by the
+original verdict-level regression and one later by Spec 20's occupancy checks. Two approximate-mapping
+survivors remain with explicit dispositions, not equivalence claims.
 
 ### G4
 `HashingStateStore`'s historical 9 survivors — **revised by Spec 19: seven equivalent, two tested**

@@ -55,24 +55,25 @@ is the aggregate rather than a per-class figure. 12.06 derived the floor from it
 rounded 95 PIT prints.
 
 **12.02 closed all six of its named targets** — L39, L52, L54, L98 ×2, L123 — taking the class from
-46/61 (75.4%) to 52/61 (85.2%). Its 9 remaining survivors are adjudicated **equivalent**, with a proof
-rather than an observation: the hash feeds only the prefilter, and both `isVisited` overloads confirm
-against the exact encoding, so no change to the hash can alter any answer. They are left `SURVIVED`
-deliberately, so 12.06's ratchet sees them as a known floor rather than losing them from the
-denominator.
+46/61 (75.4%) to 52/61 (85.2%). That historical run classified nine survivors as equivalent.
+[Spec 19](../19-exact-store-byte-domain.md) later kills two division mutants that can fail before
+exact confirmation, and retains seven total deterministic replacements with a proof limited to
+valid successfully encodable states. They remain in PIT; the original counts above are historical.
 
 **12.03 closed all seven of its named lines** — L68, L71, L201, L210, L298, L300, L301 — taking the
 class from 84/97 (86.6%) to 93/97 (95.9%) and `NO_COVERAGE` from 2 to 0. The nine mutants killed are
 exactly the nine it named; nothing else moved. A later §R6 pass took it to **94/97 (96.9%)**.
 
-Its survivors are hash arithmetic and are **not** equivalent, unlike 12.02's nine: `BitstateStore`
+Its survivors are hash arithmetic and are **not** equivalent to the original mapping: `BitstateStore`
 has no exact confirmation layer, so a different hash genuinely changes answers. They are also **not**
 a rule conflict, which is what an earlier draft of §R6 claimed. Exercising the store at 64 bits —
 small enough that collisions actually occur, which the 1,000,003-bit default never permits on a
 corpus this small — kills `L357` and one `L333` variant through the public seam with no hash value
-anywhere in the assertion, so **R7 stands unamended**. The surviving three (`L333` ×1, `L343` ×2)
-change no reported verdict across 1,080 measured configurations, which is why they stay `SURVIVED`: see
-§R6.
+anywhere in the assertion, so **R7 stands unamended**. The old verdict sweep's claimed 1,080 cases
+conflict with its listed factors (840 combinations); its actual population is unverified without
+the raw record. [Spec 20](../20-bitstate-probe-coverage.md) adds actual probe-occupancy checks,
+kills one of the three remaining mutants and retains two sign-change mappings without claiming
+equivalence or universal verdict preservation. Its current scoped count is 95/97, without exclusions.
 
 **12.04 closed all ten of its mutant variants across its five named locations** — `L41` ×2, `L176`
 ×4, `L203` ×2, `L204`, `L214` — taking the class from 94/105 (89.5%) to **104/105 (99.0%)** and
