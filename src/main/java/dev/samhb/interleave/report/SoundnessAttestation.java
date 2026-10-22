@@ -173,9 +173,12 @@ if (program != null) {
     }
 
     /**
-     * Formats the attestation as Markdown.
+     * Formats the checks performed and their limits, or the first failure diagnostic, as Markdown.
+     * Success describes this attestation's checks, not a proof of whole-checker soundness.
+     * Replay without an invariant establishes execution only; authenticated source runtime failures
+     * need not leave a false invariant at the replayed configuration.
      *
-     * @return a Markdown string describing the soundness result
+     * @return a Markdown section with a qualified success summary or warning and failure reason
      */
     public String formatMarkdown() {
         StringBuilder sb = new StringBuilder();
@@ -185,11 +188,13 @@ if (program != null) {
             sb.append("All checked EXACT DFS verdicts matched their supplied expectations. ");
             sb.append("Source DFS results that were INCOMPLETE or APPROXIMATE_PASS were accepted as ");
             sb.append("inconclusive, not matched verdicts; programs without expectations were not expectation-checked. ");
-            sb.append("All failing traces (including bitstate and context-bounded) replayed to genuine violations. ");
+            sb.append("Reported VIOLATION traces (including bitstate and context-bounded) passed execution replay. ");
+            sb.append("Supplied invariants failed at the replayed configuration, or source runtime failures were authenticated. ");
+            sb.append("Without an invariant, successful replay does not establish a property violation. ");
             sb.append("Inconclusive results (INCOMPLETE or APPROXIMATE_PASS) are excluded ");
             sb.append("from the cross-strategy verdict agreement above, since they assert nothing about ");
             sb.append("the absence of a bug. ");
-            sb.append("The model checker is sound.\n");
+            sb.append("No soundness failures were detected by these checks.\n");
         } else {
             sb.append("WARNING: ");
             sb.append(failureReason);
