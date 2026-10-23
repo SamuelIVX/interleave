@@ -21,7 +21,9 @@ import java.util.*;
  * promise the shortest counterexample. Bitstate stores retain their independent false-positive risk.
  * The finite linear-thread proof and its assumptions are recorded in spec 13.08.
  *
- * <p>No invariant uses the existing current-step selector. DPOR's invariant fallback is separate.
+ * <p>Without an invariant, source models still use remaining-thread dependency closure with no
+ * property observations; legacy models use the current-step selector. DPOR's invariant fallback
+ * is separate.
  * A caller requiring full configuration enumeration must use DFS without an invariant; DFS with
  * an invariant still stops each path at its first violation.
  */
