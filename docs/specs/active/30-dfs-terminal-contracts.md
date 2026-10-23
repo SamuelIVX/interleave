@@ -46,7 +46,9 @@ Five one-path models use the real source compiler: one committing write, one wri
 property, one atomic modulo-by-zero failure, one disabled guard and one loop with limit zero.
 Expected state values, callback order, counts, choices and outcomes are literal fixture data.
 A small observer captures value snapshots of public events without mutating modeled execution.
-Every terminal witness is also replayed through the real invariant-aware replay entry point.
+Every terminal witness is also replayed with terminal validation enabled: use the model's supplied
+invariant when present and an always-true fallback otherwise. The fallback applies only to replay;
+the explorer still receives the original optional invariant.
 
 The budget model fails its first instruction, so it distinguishes a visited configuration from
 an edge failure without a successor. Reuse changes the initial shared value from zero to nine,
@@ -103,6 +105,8 @@ the mutation and guard without exclusions or production cleanup to force a score
 
 ## Verification
 
+### Initial bundle
+
 All **873 tests** pass, including the ten new invocations, with zero failures/errors/skips.
 Outer-DfsExplorer PIT improves **74/83 → 82/83 KILLED**: five survivors and three uncovered become
 killed, with zero uncovered/timeout/error detections remaining. All 83 semantic identities match
@@ -126,3 +130,15 @@ CodeRabbit CLI completed the entire three-file review with zero findings (`revie
 skipped). Only measured verification/status prose was finalized afterward. Browser integration was
 not rerun because executable production and report output are unchanged; CI is unverified at
 publication. Broader explorer/reduction verification remains open.
+
+### PR feedback: invariant-free terminal validation
+
+The trivial PR comment correctly identified that passing a null invariant to replay checks
+execution/step evidence but skips terminal-verdict comparison. The four invariant-free fixtures
+now pass an always-true invariant only to replay; the property fixture retains its real invariant.
+Exploration inputs and literal callback/prefix/outcome assertions remain unchanged.
+Post-patch full tests and scoped DFS PIT pass: all 873 invocations pass with zero failures/errors/
+skips; DFS remains 82/83 with identical semantic identities/statuses to the initial bundle.
+The initial clean build/Javadoc/default-PIT/normalization results above predate this replay-check-only
+patch and were not rerun; browser integration was not rerun. No extra CodeRabbit CLI review was run
+for trivial feedback, per Sam's explicit instruction.

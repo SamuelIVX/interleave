@@ -36,7 +36,8 @@ class DfsExplorerContractTest {
         assertEquals(events, observer.events);
         assertEquals(List.of(terminal), observer.witnesses);
         assertEquals(List.of(terminal), result.traces().stream().map(DfsExplorerContractTest::witness).toList());
-        new TraceReplayer().replay(model.program(), result.traces().getFirst(), invariant);
+        new TraceReplayer().replay(model.program(), result.traces().getFirst(),
+            invariant != null ? invariant : (state, config) -> true);
     }
 
     /** A failure edge creates no successor, so an exhausted budget must stop before executing it.
