@@ -115,7 +115,10 @@ Bytecode indices identify mutations, not source lines.
 ## Acceptance
 
 - Three new cases and the full suite pass; build and strict Javadoc pass.
-- Fresh scoped baseline/final semantic populations match and all old kills remain killed.
+- Fresh scoped baseline and historical pre-strengthening semantic populations match; all old
+  kills remained killed in that measurement. Scoped PIT was not rerun after the source-span
+  assertion strengthening; current validation consists of the focused cases and integrated checks
+  listed below.
 - Record measured changed identities, the scoped probe disposition and remaining audits once;
   no exclusions, adjusted scores or whole-checker closure claims.
 - Default PIT, normalization and the substantive three-file CodeRabbit CLI review complete.
@@ -125,12 +128,14 @@ Bytecode indices identify mutations, not source lines.
 
 Merged PR #78 is `b6ad6ec`. Fresh baseline: all 940 tests pass, zero failures/errors/skips;
 outer-DporExplorer262/289 KILLED,15 SURVIVED,12 NO_COVERAGE, zero timeout/error statuses.
-All 943 full-suite tests pass, zero failures/errors/skips. Scoped final: 265/289 KILLED,
+All 943 full-suite tests pass, zero failures/errors/skips. Historical scoped measurement before
+the source-span assertion strengthening: 265/289 KILLED,
 12 SURVIVED,12 NO_COVERAGE, zero timeout/error statuses. Semantic identities (class, method,
 descriptor, mutator, bytecode indices and blocks) match across all 289 entries; all 262 old kills
-remain killed. Three survivors become kills, each killed by visibleWriteRetainsTheConcreteFutureReadViolation:
+remained killed in that measurement. Three survivors became kills, each killed by
+visibleWriteRetainsTheConcreteFutureReadViolation:
 
-| Method / bytecode index | Mutation | Baseline → final |
+| Method / bytecode index | Mutation | Baseline → pre-strengthening |
 |---|---|---|
 | dporDfs/569 | Removed writesOverlap call | SURVIVED → KILLED |
 | dporDfs/570 | Negated visibility conditional | SURVIVED → KILLED |
@@ -139,8 +144,8 @@ remain killed. Three survivors become kills, each killed by visibleWriteRetainsT
 The new dporDfs/663 removed-probe disposition is scoped above. Including Specs 35–37, there
 are 21 scoped dispositions (9 survivors and 12 uncovered), leaving three open happens-before
 survivors: dporDfs/540,546,554. Thus 265 kills +21 scoped dispositions +3 open =289 identities.
-Raw statuses remain 12 SURVIVED and12 NO_COVERAGE; neither dispositions nor this slice establish
-whole-class/checker closure. The historical expanded9-V1 aggregate has not been remeasured.
+The historical scoped raw statuses are 12 SURVIVED and12 NO_COVERAGE; neither dispositions nor
+this slice establish whole-class/checker closure. The historical expanded9-V1 aggregate has not been remeasured.
 
 CodeRabbit CLI0.8.1 completed its three-file review with one trivial finding: replace the source
 location's non-null check with an exact span. The local fix asserts the current guarded-construct
