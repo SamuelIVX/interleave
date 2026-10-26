@@ -79,7 +79,7 @@ public final class StateSnapshotExtractor {
 
     /**
      * Extracts fields from a Peterson state: {@code flag} boolean array, {@code turn} integer,
-     * and {@code inCriticalSection} count.
+     * and {@code inCriticalSection} owner ID (-1 when unowned).
      *
      * @param ps the Peterson state
      * @return snapshot with Peterson fields
