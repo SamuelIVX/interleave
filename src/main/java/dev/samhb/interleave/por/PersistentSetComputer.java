@@ -37,7 +37,7 @@ public final class PersistentSetComputer {
      *
      * @param config the current configuration
      * @param threads the list of model threads
-     * @return the persistent set (non-empty subset of enabled thread IDs)
+     * @return selected enabled thread IDs, empty when no thread is enabled
      */
     public List<Integer> computePersistentSet(Configuration config, List<ModelThread> threads) {
         List<Integer> enabled = config.enabledThreadIds();
