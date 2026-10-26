@@ -93,9 +93,9 @@ public final class ReportWriter {
             sb.append("      \"bug\": ").append(GSON.toJson(result.bugName())).append(",\n");
             sb.append(String.format("      \"strategy\": \"%s\",\n", result.strategy()));
             sb.append(String.format("      \"storeType\": \"%s\",\n", result.storeType()));
-            sb.append(String.format("      \"statesExplored\": %d,\n", result.statesExplored()));
-            sb.append(String.format("      \"wallTimeMs\": %d,\n", result.wallTimeMs()));
-            sb.append(String.format("      \"heapDeltaBytes\": %d,\n", result.heapDeltaBytes()));
+            sb.append(String.format(java.util.Locale.ROOT, "      \"statesExplored\": %d,\n", result.statesExplored()));
+            sb.append(String.format(java.util.Locale.ROOT, "      \"wallTimeMs\": %d,\n", result.wallTimeMs()));
+            sb.append(String.format(java.util.Locale.ROOT, "      \"heapDeltaBytes\": %d,\n", result.heapDeltaBytes()));
             // Always emitted, so a report's shape does not depend on which strategies ran.
             sb.append(String.format("      \"preemptionsUsed\": %s,\n", formatPreemptions(result)));
             if (result.sourceModel()) sb.append("      \"programKind\": \"SOURCE\",\n");
