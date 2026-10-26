@@ -99,7 +99,7 @@ public final class IndependenceRelation {
      * @param threadA action to execute on an isolated state copy
      * @param threadB action whose enabledness is compared
      * @param threads program threads indexed by ID
-     * @return whether the observed enabledness changes
+     * @return true for changed enabledness or a source attempt without a committed successor
      */
     public boolean hasEnableDisableInterference(Configuration config, int threadA, int threadB, List<ModelThread> threads) {
         if (threadA == threadB) return false;
