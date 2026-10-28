@@ -42,14 +42,15 @@ Their existing parser/compiler validation remains unchanged.
 
 PR #86 merged at093f203. Fresh clean baseline:994 tests pass, zero failures/errors/skips.
 Scoped Program has26/27 KILLED,1 SURVIVED and zero uncovered/timeout/memory/run-error statuses;
-scoped ratchet passes. The survivor is the three-argument constructor's bytecode index20
+scoped non-assertion detection checks pass; total-mutant and coverage-floor gates are skipped.
+The survivor is the three-argument constructor's bytecode index20
 NonVoidMethodCallMutator, which replaces threads.isEmpty() with false. Null threads still reject;
 empty lists are erroneously accepted. This confirms the historical26/27 gap is still present.
 
 All four new cases and the998-test full suite pass, zero failures/errors/skips. Final scoped
-Program has27/27 KILLED with zero survivors/uncovered/resource-error statuses; scoped ratchet
-passes. All27 semantic identities (class, method, descriptor, mutator, indices and blocks) match
-the baseline, and all26 prior kills remain killed. The constructor/index20 is the sole new kill,
+Program has27/27 KILLED with zero survivors/uncovered/resource-error statuses. Scoped non-assertion
+detection checks pass; total-mutant and coverage-floor gates are skipped. All27 semantic identities
+(class, method, descriptor, mutator, indices and blocks) match the baseline, and all26 prior kills remain killed. The constructor/index20 is the sole new kill,
 asserted by constructorsRejectEmptyThreadLists. All18 normalization checks pass. Final clean build, strict
 Javadoc and all998 tests pass. Default PIT281/291 KILLED,10 SURVIVED has zero uncovered/resource-
 error statuses, and all291 identities/statuses match Spec45 evidence. CodeRabbit CLI0.8.1 completed its substantive
