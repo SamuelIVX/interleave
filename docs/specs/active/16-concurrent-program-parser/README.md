@@ -256,6 +256,10 @@ one minor replay-documentation finding, which was corrected and independently va
 
 ### Expanded feedback mutation check
 
+Current follow-up census: [Spec47](../47-verification-census.md) remeasures the ten outer classes
+below after Specs17–46. The PR #57 counts here remain historical; do not use them as current
+remaining-work totals or combine them with overlapping scoped measurements.
+
 The expanded feedback scope passed its scoped ratchet at **1,013/1,299 kills**, with 130 survivors,
 156 uncovered mutations and zero timeout/error detections. This scope adds the constructor,
 evaluator, result/reporting and DFS/static-POR paths; it is different from both the default scope
