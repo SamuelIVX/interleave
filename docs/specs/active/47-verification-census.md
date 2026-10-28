@@ -125,6 +125,9 @@ in [Spec 26](26-benchmark-exploration-evidence.md). Blocks are the reported basi
 
 ## Remaining work and limits
 
+Later follow-up: [Spec48](48-selector-mutation-work-bound.md) addresses the selector work bound in
+a separate PIT-only harness. The census and open-item status below are the Spec47 snapshot.
+
 Spec 40's PropertyPersistentSetComputer component/79 NegateConditionals remains open: latest
 110 KILLED,4 SURVIVED,1 TIMED_OUT from 115 identities, scoped R6 FAILED. Its baseline had a
 MEMORY_ERROR for the same nonterminating mutant. Neither status earns a kill or disposition.

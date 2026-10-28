@@ -107,6 +107,9 @@ access/equality/error behavior inherit these arguments.
 
 ## Open resource-failing mutation
 
+Follow-up: [Spec48](48-selector-mutation-work-bound.md) introduces a PIT-only logical work-bound
+harness. The measurements below remain the historical Spec40 results, not newly credited kills.
+
 component/79 NegateConditionals reverses the seen-owner skip. A visited writing seed can then be
 compared with itself, classified dependent, and queued again forever. The changed code allocates
 pending/component entries until its PIT minion exhausts memory. This is deliberately mutated code,
