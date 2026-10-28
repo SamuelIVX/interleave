@@ -507,7 +507,7 @@ tasks.register("mutationRatchet") {
     // Deliberately NOT `dependsOn(pitest)` — see above for why that broke the finalizer.
     // Compiling is a different matter and is safe: these succeed even when `pitest` fails, and
     // they are what makes the staleness guard below content-accurate rather than mtime-naive.
-    dependsOn(tasks.named("classes"), tasks.named("testClasses"))
+    dependsOn(tasks.named("classes"), tasks.named("testClasses"), mutationHarnessJar)
 
     doLast {
         val xml = report.get().asFile
@@ -550,6 +550,7 @@ tasks.register("mutationRatchet") {
         val newestClass = listOf(
             layout.buildDirectory.dir("classes/java/main"),
             layout.buildDirectory.dir("classes/java/test"),
+            layout.buildDirectory.dir("classes/java/mutationHarness"),
         ).map { it.get().asFile }
             .filter { it.isDirectory }
             .flatMap { it.walkTopDown().filter { f -> f.isFile }.toList() }
@@ -752,6 +753,7 @@ tasks.register("mutationRatchet") {
 
 tasks.named("pitest") {
     dependsOn(mutationHarnessJar)
+    inputs.file(mutationHarnessJar.flatMap { it.archiveFile })
     finalizedBy(tasks.named("mutationRatchet"))
 }
 // `finalizedBy` DOES run `mutationRatchet` when `pitest` fails -- Gradle schedules a

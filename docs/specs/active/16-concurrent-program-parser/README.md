@@ -103,6 +103,10 @@ source-location classification errors during implementation.
 An initial expanded mutation run targeted the source frontend, execution, DPOR and replay: 1,491
 mutations, 1,113 assertion-confirmed kills, 230 survivors, 134 uncovered mutations, 13 memory errors
 and one timeout. Its ratchet failed on the timeout; resource exhaustion is not credited as a kill.
+[Spec49](../49-compiler-mutation-work-bounds.md) begins the separate9-V2 compiler-harness
+follow-up with a bounded outer-SourceCompiler census. The historical broader figures below are
+not replaced by that different population.
+
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
 The run identified real test gaps in atomic footprints, inner array-error spans and cutoff-witness
