@@ -9,6 +9,7 @@ import java.lang.constant.MethodTypeDesc;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -105,7 +106,8 @@ class SelectorBudgetAgentTest {
                 } else code.with(element);
             }));
         assertThrows(IllegalArgumentException.class, () -> SelectorBudgetAgent.instrument(removed, false));
-        assertDoesNotThrow(() -> file.parse(SelectorBudgetAgent.instrument(removed, true)));
+        byte[] instrumented = SelectorBudgetAgent.instrument(removed, true);
+        assertEquals(List.of(), file.verify(instrumented));
     }
 
     /** Reads the real compiled selector rather than duplicating its algorithm.

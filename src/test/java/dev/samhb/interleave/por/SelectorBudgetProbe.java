@@ -11,7 +11,12 @@ public final class SelectorBudgetProbe {
     private SelectorBudgetProbe() {}
 
     /** Checks a real selection or the exact injected logical-bound assertion.
-     * @param args one mode: selection or bound
+     * Prints {@code SELECTION [2]} on successful {@code selection}, or {@code BOUND_EXCEEDED}
+     * when the expected logical assertion fires in {@code bound} mode.
+     * @param args non-null command-line arguments containing one mode: selection or bound
+     * @throws IllegalArgumentException if the arguments do not contain exactly one supported mode
+     * @throws IllegalStateException if bound mode completes without exceeding the logical bound
+     * @throws AssertionError if the selection is wrong or an unexpected assertion occurs
      */
     public static void main(String[] args) {
         boolean bound = args.length == 1 && args[0].equals("bound");
