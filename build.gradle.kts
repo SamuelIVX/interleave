@@ -48,7 +48,33 @@ application {
     mainClass = "dev.samhb.interleave.cli.Main"
 }
 
+// A JDK-only agent for logical work assertions in PIT JVMs; never included in the library artifact.
+val mutationHarness = sourceSets.create("mutationHarness")
+val mutationHarnessJar = tasks.register<Jar>("mutationHarnessJar") {
+    from(mutationHarness.output)
+    archiveClassifier.set("mutation-harness")
+    manifest.attributes(
+        "Premain-Class" to "dev.samhb.mutationharness.SelectorBudgetAgent",
+        "Can-Retransform-Classes" to "true",
+    )
+}
+sourceSets.test {
+    compileClasspath += mutationHarness.output
+    runtimeClasspath += mutationHarness.output
+}
+val mutationHarnessJavadoc = tasks.register<Javadoc>("mutationHarnessJavadoc") {
+    source(mutationHarness.allJava)
+    classpath = mutationHarness.compileClasspath
+    destinationDir = layout.buildDirectory.dir("docs/mutationHarnessJavadoc").get().asFile
+}
+tasks.javadoc { dependsOn(mutationHarnessJavadoc) }
+
 tasks.test {
+    dependsOn(mutationHarnessJar)
+    doFirst {
+        systemProperty("interleave.mutationHarnessJar", mutationHarnessJar.get().archiveFile.get().asFile.absolutePath)
+        systemProperty("interleave.testRuntimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
+    }
     useJUnitPlatform()
     testLogging {
         events("passed", "failed", "skipped")
@@ -228,7 +254,8 @@ pitest {
     threads.set(pitestThreads)
     // There is no `maxMemoryInMc` on this plugin; per-minion heap is a plain JVM arg,
     // which is the more general lever since this is also where -XX flags would go.
-    jvmArgs.set(listOf("-Xmx${pitestMaxMemoryMc}m"))
+    jvmArgs.set(listOf("-Xmx${pitestMaxMemoryMc}m",
+        "-javaagent:${mutationHarnessJar.get().archiveFile.get().asFile.absolutePath}"))
 
     // Must exceed the slowest covering test's normal runtime by a clear margin.
     //
@@ -724,6 +751,7 @@ tasks.register("mutationRatchet") {
 }
 
 tasks.named("pitest") {
+    dependsOn(mutationHarnessJar)
     finalizedBy(tasks.named("mutationRatchet"))
 }
 // `finalizedBy` DOES run `mutationRatchet` when `pitest` fails -- Gradle schedules a
