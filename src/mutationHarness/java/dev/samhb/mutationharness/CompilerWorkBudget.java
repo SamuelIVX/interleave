@@ -49,6 +49,7 @@ final class CompilerWorkBudget {
                 || model.methods().stream().filter(m -> matches(m, "tokenize", TOKENIZE)).count() != 1
                 || model.fields().stream().filter(f -> f.fieldName().equalsString("clean")
                     && f.fieldType().equalsString("Ljava/lang/String;")
+                    && f.flags().has(java.lang.reflect.AccessFlag.FINAL)
                     && !f.flags().has(java.lang.reflect.AccessFlag.STATIC)).count() != 1) {
             throw new IllegalArgumentException("Unexpected compiler method/field shape");
         }

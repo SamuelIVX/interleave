@@ -105,6 +105,32 @@ class CompilerWorkBudgetTest {
             () -> CompilerWorkBudget.instrument(changed, false, getClass().getClassLoader()));
     }
 
+    /** A verifier-valid but mutable input field violates the declared immutable binding in both phases.
+     * @throws Exception if the compiler definition cannot be read
+     */
+    @Test void rejectsMutableCleanField() throws Exception {
+        int[] changedFields = {0};
+        ClassFile file = classFile();
+        byte[] changed = file.transformClass(file.parse(compiler()), (builder, element) -> {
+            if (element instanceof FieldModel field && field.fieldName().equalsString("clean")) {
+                assertTrue(field.flags().has(java.lang.reflect.AccessFlag.FINAL));
+                changedFields[0]++;
+                builder.withField(field.fieldName(), field.fieldType(), target -> {
+                    field.forEach(target::with);
+                    target.withFlags(field.flags().flagsMask() & ~java.lang.reflect.AccessFlag.FINAL.mask());
+                });
+            } else builder.with(element);
+        });
+        assertEquals(1, changedFields[0]);
+        assertFalse(file.parse(changed).fields().stream().filter(f -> f.fieldName().equalsString("clean"))
+            .findFirst().orElseThrow().flags().has(java.lang.reflect.AccessFlag.FINAL));
+        assertEquals(List.of(), file.verify(changed));
+        assertThrows(IllegalArgumentException.class,
+            () -> CompilerWorkBudget.instrument(changed, false, getClass().getClassLoader()));
+        assertThrows(IllegalArgumentException.class,
+            () -> CompilerWorkBudget.instrument(changed, true, getClass().getClassLoader()));
+    }
+
     /** Negates the first work comparison in an actual compiled method, with a checked opcode oracle.
      * @param method method owning the comparison
      * @param expected original comparison opcode

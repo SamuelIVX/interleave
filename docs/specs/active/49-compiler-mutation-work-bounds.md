@@ -12,7 +12,7 @@ Extend the existing PIT-only agent with a dedicated CompilerWorkBudget transform
 invocation-local counters cover expand and tokenize only. Keep the stable agent entry point and
 existing selector transformer; no general instrumentation framework or production hooks are added.
 
-Add nine independent harness cases and a child-JVM compiler probe, register the agent JAR as a PIT
+Add ten independent harness cases and a child-JVM compiler probe, register the agent JAR as a PIT
 task input, and include compiled harness classes in the existing report-freshness check. Keep R6
 non-assertion policy, R5 denominator, R7 floor, mutation targets/test filters/operators/exclusions,
 heap/time limits, dependencies and CI parallelism unchanged. Production source/API/output is
@@ -76,8 +76,8 @@ harness probes alter those actual compiled increments, not a copied lexer or a c
 
 ### Harness checks
 
-Nine cases come from six test methods. Seven cases launch eight child JVMs; two missing-method
-cases validate instrumentation in-process. Both agent and no-agent boundary behavior are checked.
+Ten cases come from seven test methods. Seven cases launch eight child JVMs; the two missing-
+method cases and the mutable-field case validate instrumentation in-process. Both agent and no-agent boundary behavior are checked.
 Actual compiled zero-work and instruction-cap comparisons are negated independently, and the two
 observed tokenizer increments are reversed independently. Children must report the exact logical
 assertion, not merely exit nonzero. Checkpoint-removal cases require verifier-clean redefinition
@@ -109,7 +109,7 @@ compiled mutationHarness classes. An initial freshness rejection correctly ident
 classes; an isolated agent-only diagnostic change then produced the expected stale-report rejection
 pointing to classes/java/mutationHarness. The exact source was restored before final checks.
 
-All nine new cases, five existing selector-harness cases and the full 1,012-test suite pass, zero
+The original nine new cases, five existing selector-harness cases and the full 1,012-test suite passed, zero
 failures/errors/skips. The clean build and strict application/agent Javadoc pass. Integrated
 SourceCompiler remains 589/787 KILLED,139 SURVIVED,59 NO_COVERAGE with zero resource/run errors.
 All787 identities match the first bounded census and all 587 prior kills remain; only tokenize/26
@@ -126,3 +126,14 @@ use `--max-workers=1 -PpitestThreads=1`. Browser checks are outside this test-in
 because production/report output is unchanged. Remote CI is unverified; publish a draft and stop.
 The 198 raw compiler non-kills require separate triage before broader closure; this PR does not
 claim equivalence or silently expand completed 9-V1 work.
+
+### PR review follow-up
+
+The binding now explicitly requires clean:String to be FINAL as well as non-static. A new case
+removes only FINAL from the actual compiler, verifies the changed class remains valid bytecode,
+and requires rejection for both initial definition and redefinition. It failed before the fix
+because instrumentation accepted the mutable field. Final follow-up clean build, strict application/agent Javadoc and all1,013 tests pass, zero
+failures/errors/skips. Compiler remains589/787 KILLED,139 SURVIVED,59 NO_COVERAGE with all787
+identities/statuses unchanged and zero resource/run errors. Scoped R6 passes; aggregate R5/R7
+skip. CodeRabbit CLI is not repeated for this minor feedback. The prior separate default/selector
+measurements above were not rerun for this binding-only follow-up.
