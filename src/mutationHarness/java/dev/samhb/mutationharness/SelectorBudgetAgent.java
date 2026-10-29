@@ -1,4 +1,4 @@
-/** Adds a logical owner-expansion assertion to selector code only inside mutation-test JVMs. */
+/** Entry point for PIT-only selector and compiler logical-work assertions. */
 package dev.samhb.mutationharness;
 
 import java.lang.classfile.*;
@@ -10,9 +10,9 @@ import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
 import static java.lang.constant.ConstantDescs.*;
 
-/** PIT-only instrumentation; no wall-clock limit, production hook or configurable budget. */
+/** Stable agent entry point; no wall-clock limit, production hook or configurable budget. */
 public final class SelectorBudgetAgent {
-    /** The sole application class this agent may transform. */
+    /** The application class handled by the selector transformer. */
     private static final String TARGET = "dev/samhb/interleave/por/PropertyPersistentSetComputer";
     /** Exact instance-method signature: configuration, seed and the owner-membership array. */
     private static final String COMPONENT = "(Ldev/samhb/interleave/core/Configuration;I[Z)Ljava/util/List;";
@@ -22,12 +22,13 @@ public final class SelectorBudgetAgent {
     /** Prevents construction of this JVM entry point. */
     private SelectorBudgetAgent() {}
 
-    /** Installs the narrow transformer, including when PIT redefines an already loaded class.
+    /** Installs both narrow transformers, including PIT redefinitions of already loaded classes.
      * @param arguments unused standard Java-agent argument
      * @param instrumentation JVM instrumentation service
      */
     public static void premain(String arguments, Instrumentation instrumentation) {
         instrumentation.addTransformer(new Transformer(), true);
+        CompilerWorkBudget.install(instrumentation);
     }
 
     /** Instruments one expected selector definition with an invocation-local expansion counter.
