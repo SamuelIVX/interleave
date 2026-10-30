@@ -106,6 +106,8 @@ and one timeout. Its ratchet failed on the timeout; resource exhaustion is not c
 [Spec49](../49-compiler-mutation-work-bounds.md) begins the separate9-V2 compiler-harness
 follow-up with a bounded outer-SourceCompiler census. The historical broader figures below are
 not replaced by that different population.
+[Spec50](../50-source-loader-contracts.md) records a fresh combined eight-class selector and
+focused source-loader byte-boundary/I/O contracts, separate from those historical figures.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
