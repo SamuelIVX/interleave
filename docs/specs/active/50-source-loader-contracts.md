@@ -4,7 +4,7 @@
 
 Continue roadmap 9-V2 after the compiler harness in [Spec49](49-compiler-mutation-work-bounds.md).
 Protect SourceProgramLoader's existing inclusive UTF-8 limit and path-bearing I/O failures with
-five focused entry-point tests. Production behavior, the harness, dependencies, PIT targets,
+six focused entry-point tests. Production behavior, the harness, dependencies, PIT targets,
 operators, exclusions, denominators, floors, heap/time settings and CI parallelism do not change.
 
 Only SourceLoaderContractTest, this spec, the roadmap and a Spec16 evidence pointer change.
@@ -30,6 +30,8 @@ cross-checked using Python len/UTF-8 encoding. Hence:
   the exact path/category and a CharacterCodingException cause.
 - A missing file must retain its path/category and original IOException cause. This avoids
   platform-dependent permission fixtures.
+- A unique absent relative path must remain relative in the read-failure diagnostic; absolute
+  temporary paths alone cannot distinguish the supplied path from an absolute rewrite.
 
 Assert literal fixture lengths and successful model names, then exact rejection messages. Reuse
 the existing null/Unicode/parser regressions rather than duplicating already-killed guards.
@@ -106,3 +108,15 @@ failure docs; no test logic changed. No second CLI invocation for documentation-
 Browser checks are skipped because application/report output is unchanged; remote CI is unverified.
 Compiler's 198 residuals remain untriaged. Neither this boundary bundle nor the per-frame/token
 harness claims whole-compiler resource assurance or whole-checker verification closure.
+
+
+## PR review follow-up
+
+A trivial review comment identified that absolute temporary paths cannot detect an unwanted
+absolute-path rewrite. Added a sixth case using a unique absent relative path, checking its exact
+supplied-path diagnostic and IOException cause. It fails against a temporary toAbsolutePath change
+to the read-failure diagnostic; production code is restored unchanged. Follow-up build, strict
+Javadoc and all1,019 tests pass. Focused loader remains30/31 KILLED,1 SURVIVED with every31
+identity/status unchanged and zero uncovered/resource/run errors. Scoped R6 passes; R5/R7 skip.
+Prior combined/default reports above were not rerun for this additive test. No CodeRabbit CLI
+rerun for trivial feedback.

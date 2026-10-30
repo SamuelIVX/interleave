@@ -7,6 +7,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static org.junit.jupiter.api.Assertions.*;
@@ -70,6 +71,16 @@ class SourceLoaderContractTest {
      */
     @Test void reportsUnreadableSourceWithTheSuppliedPath(@TempDir Path directory) {
         Path file = directory.resolve("missing.ilv");
+        RegistryException failure = assertThrows(RegistryException.class, () -> loader.loadFromFile(file));
+        assertEquals(file + ":1:1: io: Cannot read source", failure.getMessage());
+        assertInstanceOf(IOException.class, failure.getCause());
+    }
+
+    /** A unique absent relative file retains its supplied path rather than an absolute rewrite. */
+    @Test void reportsRelativeUnreadableSourceWithTheSuppliedPath() {
+        Path file = Path.of(".", "missing-" + UUID.randomUUID() + ".ilv");
+        assertFalse(file.isAbsolute());
+        assertFalse(Files.exists(file));
         RegistryException failure = assertThrows(RegistryException.class, () -> loader.loadFromFile(file));
         assertEquals(file + ":1:1: io: Cannot read source", failure.getMessage());
         assertInstanceOf(IOException.class, failure.getCause());
