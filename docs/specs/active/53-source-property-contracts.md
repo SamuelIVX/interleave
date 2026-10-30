@@ -15,7 +15,7 @@ remain separate follow-ups. Completed9-V1 stays closed.
 conditions and rejects property references to locals/tid at any nesting depth. [Spec16.06](16-concurrent-program-parser/06-traces-replay-and-minimization.md)
 requires original source provenance in failure evidence. Apply both contracts to always and final.
 
-The20 cases use three parameterized methods:
+The22 cases use three parameterized methods:
 
 - Cross both timings with eight type-correct private predicates: direct local/tid, unary local,
   local on either side of a binary expression, local array access, shared-array indexing by a local,
@@ -26,13 +26,15 @@ The20 cases use three parameterized methods:
 - An admitted constant-false property must produce INVARIANT/PROPERTY failure evidence with the
   whole property span, including its semicolon. Use the public DiagnosticInvariant interface and
   a real initial configuration with one already-terminated owner, so both observation modes are due.
+  The span cases also exercise DFS-emitted violation traces and indented keywords.
   Do not reflect into SourceProperty or inject malformed/private ASTs.
 
-Fixtures put the keyword at line7 column1. Manual word counts and independent Python enumeration
+Unindented fixtures put the keyword at line7 column1. Manual word counts and independent Python enumeration
 agree: always expression start is7:19 and final is7:18; the exclusive end of the constant-false
 property is7:26 and7:25 respectively. Java expectations use these literals; they do not derive
-positions from the production source mapper or source length. Failure-span equality independently
-asserts file, both lines and both columns.
+positions from the production source mapper or source length. Two leading spaces move the keyword
+to7:3 and the exclusive ends to7:28/7:27; these are independently counted literals too. Failure-span
+equality independently asserts file, both lines and both columns.
 
 ## Fresh baseline and reproduction
 
@@ -94,7 +96,7 @@ property-walker cases. All use NegateConditionalsMutator, baseline SURVIVED→fi
 
 No broader diagnostic-remapping closure is claimed; remaining diagnostic mutations stay untriaged.
 
-## Verification
+## Initial verification
 
 The clean build, strict Javadoc and **1,086 tests** pass with zero failures/errors/skips. The20 new
 cases use three parameterized methods. Final compiler is **639/787 KILLED,103 SURVIVED,45 NO_COVERAGE**,
@@ -112,3 +114,19 @@ Separate full-default281/291 KILLED,10 SURVIVED passes, zero uncovered/resource/
 all291 identities/statuses match Spec52. Full R5/R6/R7 pass. Browser checks are skipped because application/
 report output is unchanged; remote CI is unverified. No whole-compiler resource guarantee or
 whole-checker verification closure is claimed.
+
+
+## PR review follow-up
+
+Two trivial comments requested an indented-keyword span and explorer-emitted failure evidence.
+The existing span method retains its two unindented cases and adds always/final variants with two
+leading spaces, asserting literal keyword column3 and exclusive ends28/27. Every span case now
+also runs DFS and asserts VIOLATION plus the complete emitted failure source span; direct API
+classification/span assertions remain. The suite now has22 property-contract cases.
+
+The line-start mutation fails only the two indented cases; replacing Trace.create's detailed
+property branch with fallback evidence fails all four span cases with null sources. Production
+code is restored unchanged. Follow-up build, strict Javadoc and all1,088 tests pass. Compiler
+remains639/787 KILLED,103 SURVIVED,45 NO_COVERAGE; all787 identities/statuses retained, zero
+resource/run errors. Scoped R6 passes; R5/R7 skip. Prior default report was not rerun. No CodeRabbit
+CLI rerun for trivial feedback.

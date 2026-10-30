@@ -5,6 +5,8 @@ import dev.samhb.interleave.core.FailureEvidence;
 import dev.samhb.interleave.core.SourceLocation;
 import dev.samhb.interleave.format.registry.RegistryException;
 import dev.samhb.interleave.search.DiagnosticInvariant;
+import dev.samhb.interleave.search.DfsExplorer;
+import dev.samhb.interleave.search.TraceOutcome;
 import java.util.stream.Stream;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -44,14 +46,22 @@ class SourcePropertyContractTest {
     }
 
     /**
-     * An admitted false predicate retains the entire original property span in failure evidence.
+     * Direct and emitted failures retain the keyword-based span, including indented properties.
      * @param timing property observation mode
+     * @param indentation spaces before the invariant keyword
+     * @param startColumn literal keyword column on line seven
      * @param endColumn literal exclusive end after the semicolon on line seven
      */
     @ParameterizedTest
-    @CsvSource({"always, 26", "final, 25"})
-    void admittedPropertiesRetainTheirFailureSpan(String timing, int endColumn) {
-        var model = loader.load(model(timing, "false"));
+    @CsvSource(delimiter = '|', textBlock = """
+        always | ''   | 1 | 26
+        final  | ''   | 1 | 25
+        always | '  ' | 3 | 28
+        final  | '  ' | 3 | 27
+        """)
+    void admittedPropertiesRetainTheirFailureSpan(String timing, String indentation, int startColumn, int endColumn) {
+        String source = model(timing, "false").replace("\ninvariant ", "\n" + indentation + "invariant ");
+        var model = loader.load(source);
         var initial = model.program().initialConfiguration();
         assertTrue(initial.allTerminated());
         DiagnosticInvariant property = assertInstanceOf(DiagnosticInvariant.class, model.invariant().orElseThrow());
@@ -59,7 +69,12 @@ class SourcePropertyContractTest {
         assertNotNull(failure);
         assertEquals(FailureEvidence.Kind.INVARIANT, failure.kind());
         assertEquals(FailureEvidence.Phase.PROPERTY, failure.phase());
-        assertEquals(new SourceLocation("<source>", 7, 1, 7, endColumn), failure.source());
+        SourceLocation expected = new SourceLocation("<source>", 7, startColumn, 7, endColumn);
+        assertEquals(expected, failure.source());
+        var trace = new DfsExplorer().explore(model.program(), property).traces().getFirst();
+        assertEquals(TraceOutcome.VIOLATION, trace.outcome());
+        assertNotNull(trace.failure());
+        assertEquals(expected, trace.failure().source());
     }
 
     /**
