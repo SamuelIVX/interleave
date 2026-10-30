@@ -112,6 +112,8 @@ focused source-loader byte-boundary/I/O contracts, separate from those historica
 comment and token/EOF contracts; its outer-compiler population is measured separately.
 [Spec52](../52-source-literal-contracts.md) follows with literal ranges, declaration types and
 duplicate-name diagnostics; expression/work/lowering triage stays separate.
+[Spec53](../53-source-property-contracts.md) covers shared-only boolean property admission and
+original error/failure provenance for both observation modes.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
