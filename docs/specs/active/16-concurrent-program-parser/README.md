@@ -108,6 +108,8 @@ follow-up with a bounded outer-SourceCompiler census. The historical broader fig
 not replaced by that different population.
 [Spec50](../50-source-loader-contracts.md) records a fresh combined eight-class selector and
 focused source-loader byte-boundary/I/O contracts, separate from those historical figures.
+[Spec51](../51-source-lexical-contracts.md) continues9-V2 with focused compiler identifier,
+comment and token/EOF contracts; its outer-compiler population is measured separately.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
