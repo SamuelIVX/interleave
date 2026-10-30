@@ -110,6 +110,8 @@ not replaced by that different population.
 focused source-loader byte-boundary/I/O contracts, separate from those historical figures.
 [Spec51](../51-source-lexical-contracts.md) continues9-V2 with focused compiler identifier,
 comment and token/EOF contracts; its outer-compiler population is measured separately.
+[Spec52](../52-source-literal-contracts.md) follows with literal ranges, declaration types and
+duplicate-name diagnostics; expression/work/lowering triage stays separate.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
