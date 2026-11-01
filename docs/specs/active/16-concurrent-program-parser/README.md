@@ -116,6 +116,8 @@ duplicate-name diagnostics; expression/work/lowering triage stays separate.
 original error/failure provenance for both observation modes.
 [Spec54](../54-source-program-shape-contracts.md) follows with required sections, declaration/owner
 limits, sequential IDs and optional expected-verdict metadata.
+[Spec55](../55-source-expression-budget-contracts.md) covers local expression-depth/node guards
+across subtree edges, conditions and assignment targets, using bounded independent fixtures.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
