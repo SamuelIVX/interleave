@@ -40,6 +40,13 @@ enumeration of the actual lines agrees; Java never derives expectations using so
 diagnostic helpers. Empty expressions start at the closing parenthesis and empty effects at the
 semicolon. Name/type cases without parser positions retain the fragment start.
 
+Positive relative-offset coverage is limited to conditions. Effect cases above assert only
+fragment-start diagnostics. Effect RHS/index offset mapping remains open in 9-V2:
+Parser.parseEffect parses trimmed subfragments, but SourceCompiler.block passes the whole effect
+start to diagnostic. For example, four-space-indented counter = true && @; reports column13,
+although @ is at column23. Correctly rebasing RHS/index positions, including whitespace, needs
+a separate focused fix and regression tests; this spec does not claim that mapping is correct.
+
 All source delimiters are present and balanced. These fixtures do not exercise EOF inside
 SourceCompiler.until, where removing the EOF guard needs a separate logical-work harness.
 There is no reflection, synthetic exception injection, malformed private AST or huge input.
