@@ -114,6 +114,8 @@ comment and token/EOF contracts; its outer-compiler population is measured separ
 duplicate-name diagnostics; expression/work/lowering triage stays separate.
 [Spec53](../53-source-property-contracts.md) covers shared-only boolean property admission and
 original error/failure provenance for both observation modes.
+[Spec54](../54-source-program-shape-contracts.md) follows with required sections, declaration/owner
+limits, sequential IDs and optional expected-verdict metadata.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
