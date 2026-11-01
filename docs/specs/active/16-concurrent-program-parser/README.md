@@ -124,6 +124,8 @@ for raw parser fields replaced or ignored before executable nodes are emitted.
 current capped-arithmetic observer limits, using independent adjacent-boundary fixtures.
 [Spec58](../58-source-instruction-work-contracts.md) follows with global/private instruction-work
 counting and exact budget-error provenance at the64/65 boundary.
+[Spec59](../59-source-expression-diagnostic-contracts.md) adds exact expression diagnostic
+categories and positive parser offsets at condition/effect entry points.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
