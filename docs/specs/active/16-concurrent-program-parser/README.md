@@ -120,6 +120,8 @@ limits, sequential IDs and optional expected-verdict metadata.
 across subtree edges, conditions and assignment targets, using bounded independent fixtures.
 [Spec56](../56-source-block-contracts.md) covers block nesting/EOF guards and scoped dispositions
 for raw parser fields replaced or ignored before executable nodes are emitted.
+[Spec57](../57-source-expression-work-contracts.md) covers aggregate expression occurrences and
+current capped-arithmetic observer limits, using independent adjacent-boundary fixtures.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
