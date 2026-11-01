@@ -13,8 +13,8 @@ stays closed.
 
 [Spec16.03](16-concurrent-program-parser/03-parser-validation-and-lowering.md) makes source nesting
 16 inclusive, with the program body at depth1 and every braced body adding1. Source depth applies
-even when a parsed body contributes no expanded executable work. Missing delimiters retain syntax
-categories and original one-based EOF coordinates.
+even when a parsed body contributes no expanded executable work. The empty unfinished-body cases
+covered here retain their syntax categories and original one-based EOF coordinates.
 
 Six cases use two parameterized methods:
 
