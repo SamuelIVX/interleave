@@ -118,6 +118,8 @@ original error/failure provenance for both observation modes.
 limits, sequential IDs and optional expected-verdict metadata.
 [Spec55](../55-source-expression-budget-contracts.md) covers local expression-depth/node guards
 across subtree edges, conditions and assignment targets, using bounded independent fixtures.
+[Spec56](../56-source-block-contracts.md) covers block nesting/EOF guards and scoped dispositions
+for raw parser fields replaced or ignored before executable nodes are emitted.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
