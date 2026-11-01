@@ -122,6 +122,8 @@ across subtree edges, conditions and assignment targets, using bounded independe
 for raw parser fields replaced or ignored before executable nodes are emitted.
 [Spec57](../57-source-expression-work-contracts.md) covers aggregate expression occurrences and
 current capped-arithmetic observer limits, using independent adjacent-boundary fixtures.
+[Spec58](../58-source-instruction-work-contracts.md) follows with global/private instruction-work
+counting and exact budget-error provenance at the64/65 boundary.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
