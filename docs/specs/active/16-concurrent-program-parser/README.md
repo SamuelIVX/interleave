@@ -128,6 +128,8 @@ counting and exact budget-error provenance at the64/65 boundary.
 categories at condition/effect entry points and positive parser offsets for conditions only.
 [Spec60](../60-source-effect-diagnostic-offsets.md) separately fixes effect RHS/index positions
 by retaining subparser origins, including whitespace and multiline source.
+[Spec61](../61-parser-mutation-progress-bounds.md) adds PIT-only lexical-work and per-match
+cursor assertions for the four measured Parser progress failures; production parsing is unchanged.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.

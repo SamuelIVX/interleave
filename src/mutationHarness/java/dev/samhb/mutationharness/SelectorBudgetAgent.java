@@ -1,4 +1,4 @@
-/** Entry point for PIT-only selector and compiler logical-work assertions. */
+/** Entry point for PIT-only selector, compiler and parser logical-work assertions. */
 package dev.samhb.mutationharness;
 
 import java.lang.classfile.*;
@@ -22,13 +22,14 @@ public final class SelectorBudgetAgent {
     /** Prevents construction of this JVM entry point. */
     private SelectorBudgetAgent() {}
 
-    /** Installs both narrow transformers, including PIT redefinitions of already loaded classes.
+    /** Installs the narrow transformers, including PIT redefinitions of already loaded classes.
      * @param arguments unused standard Java-agent argument
      * @param instrumentation JVM instrumentation service
      */
     public static void premain(String arguments, Instrumentation instrumentation) {
         instrumentation.addTransformer(new Transformer(), true);
         CompilerWorkBudget.install(instrumentation);
+        ParserWorkBudget.install(instrumentation);
     }
 
     /** Instruments one expected selector definition with an invocation-local expansion counter.
