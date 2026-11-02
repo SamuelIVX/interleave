@@ -53,6 +53,8 @@ public final class Parser {
 
     /** Input. */
     private final String input;
+    /** Diagnostic offset of this fragment within the complete parser input. */
+    private final int origin;
     /** Pos. */
     private int pos;
     /** Nesting depth. */
@@ -64,7 +66,17 @@ public final class Parser {
      * @param input expression string
      */
     public Parser(String input) {
+        this(input, 0);
+    }
+
+    /**
+     * Parses a subfragment while retaining its origin for whole-input error positions.
+     * @param input fragment text, or complete input when origin is zero
+     * @param origin zero-based fragment start within the complete effect input
+     */
+    private Parser(String input, int origin) {
         this.input = input;
+        this.origin = origin;
         this.pos = 0;
     }
 
@@ -79,12 +91,12 @@ public final class Parser {
         if (eof()) throw new RegistryException("Empty expression");
         Expr e = parseOr();
         skipWs();
-        if (!eof()) throw new RegistryException("Unexpected trailing characters at pos " + pos + ": '" + input.substring(pos) + "'");
+        if (!eof()) throw new RegistryException("Unexpected trailing characters at pos " + (origin + pos) + ": '" + input.substring(pos) + "'");
         return e;
     }
 
     /**
-     * Parses effect lhs = rhs.
+     * Parses effect lhs = rhs, reporting positional errors relative to the complete input.
      *
      * @return effect
      * @throws RegistryException on syntax error
@@ -98,8 +110,9 @@ public final class Parser {
         String lhsStr = input.substring(0, eqIdx).trim();
         String rhsStr = input.substring(eqIdx + 1).trim();
         if (lhsStr.isEmpty() || rhsStr.isEmpty()) throw new RegistryException("Effect must be 'lhs = expr': '" + input + "'");
-        Lhs lhs = parseLhs(lhsStr);
-        Expr rhs = new Parser(rhsStr).parseExpr();
+        // trim() also removes control prefixes that the whitespace cursor does not skip.
+        Lhs lhs = parseLhs(lhsStr, origin + input.indexOf(lhsStr));
+        Expr rhs = parseFragment(input.substring(eqIdx + 1), origin + eqIdx + 1);
         return new Effect(lhs, rhs);
     }
 
@@ -129,10 +142,11 @@ public final class Parser {
      * <p>Distinguishing {@code local.x} from {@code x} here rather than at resolution time is what
      * makes a local write visible to the step that performs it.
      *
-     * @param s the text left of the {@code =}
+     * @param s trimmed text left of the {@code =}
+     * @param start zero-based LHS start within the complete parser input
      * @return the parsed assignment target
      */
-    private Lhs parseLhs(String s) {
+    private Lhs parseLhs(String s, int start) {
         s = s.trim();
         if (s.startsWith("local.")) {
             String rest = s.substring(6).trim();
@@ -141,10 +155,10 @@ public final class Parser {
                 int rb = rest.lastIndexOf(']');
                 if (rb < 0 || rb != rest.length() - 1) throw new RegistryException("Invalid local array lhs: '" + s + "'");
                 String name = rest.substring(0, lb).trim();
-                String idxStr = rest.substring(lb + 1, rb).trim();
+                String idxStr = rest.substring(lb + 1, rb);
                 validateIdent(name);
-                if (idxStr.isEmpty()) throw new RegistryException("Array index empty: '" + s + "'");
-                Expr idx = new Parser(idxStr).parseExpr();
+                if (idxStr.trim().isEmpty()) throw new RegistryException("Array index empty: '" + s + "'");
+                Expr idx = parseFragment(idxStr, start + s.indexOf('[') + 1);
                 return new Lhs.LocalArrayLhs(name, idx);
             }
             validateIdent(rest);
@@ -156,14 +170,26 @@ public final class Parser {
             int rb = s.lastIndexOf(']');
             if (rb < 0 || rb != s.length() - 1) throw new RegistryException("Invalid array lhs: '" + s + "'");
             String arr = s.substring(0, lb).trim();
-            String idxStr = s.substring(lb + 1, rb).trim();
+            String idxStr = s.substring(lb + 1, rb);
             validateIdent(arr);
-            if (idxStr.isEmpty()) throw new RegistryException("Array index empty: '" + s + "'");
-            Expr idx = new Parser(idxStr).parseExpr();
+            if (idxStr.trim().isEmpty()) throw new RegistryException("Array index empty: '" + s + "'");
+            Expr idx = parseFragment(idxStr, start + lb + 1);
             return new Lhs.ArrayLhs(arr, idx);
         }
         validateIdent(s);
         return new Lhs.FieldLhs(s);
+    }
+
+    /**
+     * Preserves legacy fragment trimming while rebasing its positional errors.
+     * @param fragment nonempty-after-trim RHS or assignment-index slice
+     * @param start zero-based slice start within the complete parser input
+     * @return expression parsed from the trimmed fragment
+     * @throws RegistryException for invalid expression syntax
+     */
+    private static Expr parseFragment(String fragment, int start) {
+        String trimmed = fragment.trim();
+        return new Parser(trimmed, start + fragment.indexOf(trimmed)).parseExpr();
     }
 
     // grammar: or -> and ( "||" and )*
@@ -425,7 +451,7 @@ public final class Parser {
             Expr operand = parsePrimary();
             return new Expr.UnaryOp("-", operand);
         }
-        throw new RegistryException("Unexpected character '" + c + "' at pos " + pos);
+        throw new RegistryException("Unexpected character '" + c + "' at pos " + (origin + pos));
     }
 
     /**
@@ -467,7 +493,7 @@ public final class Parser {
      */
     private String parseIdent() {
         int start = pos;
-        if (eof() || !Character.isLetter(peek())) throw new RegistryException("Expected identifier at pos " + pos);
+        if (eof() || !Character.isLetter(peek())) throw new RegistryException("Expected identifier at pos " + (origin + pos));
         consume();
         while (!eof() && (Character.isLetterOrDigit(peek()) || peek() == '_')) consume();
         String ident = input.substring(start, pos);

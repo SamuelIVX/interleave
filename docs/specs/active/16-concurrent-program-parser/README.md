@@ -126,7 +126,8 @@ current capped-arithmetic observer limits, using independent adjacent-boundary f
 counting and exact budget-error provenance at the64/65 boundary.
 [Spec59](../59-source-expression-diagnostic-contracts.md) adds exact expression diagnostic
 categories at condition/effect entry points and positive parser offsets for conditions only.
-Effect RHS/index offset mapping remains a separate 9-V2 follow-up (see Spec59).
+[Spec60](../60-source-effect-diagnostic-offsets.md) separately fixes effect RHS/index positions
+by retaining subparser origins, including whitespace and multiline source.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
