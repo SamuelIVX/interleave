@@ -1,4 +1,4 @@
-/** Logical compiler-work assertions for unrolling and token emission inside PIT JVMs only. */
+/** Logical compiler-work assertions for unrolling, token emission and delimiter scanning inside PIT JVMs only. */
 package dev.samhb.mutationharness;
 
 import java.lang.classfile.*;
@@ -10,7 +10,7 @@ import java.lang.instrument.Instrumentation;
 import java.security.ProtectionDomain;
 import static java.lang.constant.ConstantDescs.*;
 
-/** Two independently derived bounds; neither promises whole-compilation resource equivalence. */
+/** Three independently derived bounds; none promises whole-compilation resource equivalence. */
 final class CompilerWorkBudget {
     /** Sole compiler class this transformer may change. */
     private static final String TARGET = "dev/samhb/interleave/format/dsl/SourceCompiler";
@@ -22,6 +22,11 @@ final class CompilerWorkBudget {
     private static final String EXPAND = "(Ljava/util/List;Ljava/util/List;)Ljava/util/List;";
     /** Erased tokenizer signature. */
     private static final String TOKENIZE = "()Ljava/util/List;";
+
+    /** Erased delimiter scanner signature. */
+    private static final String UNTIL = "(Ljava/lang/String;)Ljava/lang/String;";
+    /** Immutable token-list type used to derive the delimiter bound. */
+    private static final ClassDesc LIST = ClassDesc.of("java.util.List");
 
     /** Prevents constructing this instrumentation utility. */
     private CompilerWorkBudget() {}
@@ -47,13 +52,18 @@ final class CompilerWorkBudget {
         if (!model.thisClass().asInternalName().equals(TARGET)
                 || model.methods().stream().filter(m -> matches(m, "expand", EXPAND)).count() != 1
                 || model.methods().stream().filter(m -> matches(m, "tokenize", TOKENIZE)).count() != 1
+                || model.methods().stream().filter(m -> matches(m, "until", UNTIL)).count() != 1
+                || model.fields().stream().filter(f -> f.fieldName().equalsString("tokens")
+                    && f.fieldType().equalsString("Ljava/util/List;")
+                    && f.flags().has(java.lang.reflect.AccessFlag.FINAL)
+                    && !f.flags().has(java.lang.reflect.AccessFlag.STATIC)).count() != 1
                 || model.fields().stream().filter(f -> f.fieldName().equalsString("clean")
                     && f.fieldType().equalsString("Ljava/lang/String;")
                     && f.flags().has(java.lang.reflect.AccessFlag.FINAL)
                     && !f.flags().has(java.lang.reflect.AccessFlag.STATIC)).count() != 1) {
             throw new IllegalArgumentException("Unexpected compiler method/field shape");
         }
-        int[] expansionSites = {0}, tokenSites = {0};
+        int[] expansionSites = {0}, tokenSites = {0}, scanSites = {0};
         var expansion = ClassTransform.transformingMethodBodies(m -> matches(m, "expand", EXPAND),
             CodeTransform.ofStateful(() -> new CodeTransform() {
                 /** Fresh integer slot for one frame's remaining unrolling events. */
@@ -119,10 +129,46 @@ final class CompilerWorkBudget {
                     code.with(element);
                 }
             }));
-        byte[] result = file.transformClass(model, expansion.andThen(tokens));
+        var delimiters = ClassTransform.transformingMethodBodies(m -> matches(m, "until", UNTIL),
+            CodeTransform.ofStateful(() -> new CodeTransform() {
+                /** Long slot for the immutable token count plus one. */
+                private int remaining;
+
+                /** Allows initial current(), one per token and a terminal current().
+                 * EOF is already in the list; widening precedes the extra allowance.
+                 * @param code destination body
+                 */
+                @Override public void atStart(CodeBuilder code) {
+                    remaining = code.allocateLocal(TypeKind.LONG);
+                    code.aload(0).getfield(COMPILER, "tokens", LIST)
+                        .invokeinterface(LIST, "size", MethodTypeDesc.of(CD_int))
+                        .i2l().lconst_1().ladd().lstore(remaining);
+                }
+
+                /** Charges direct scanner reads independently of its removable EOF guard.
+                 * @param code destination body
+                 * @param element original bytecode element
+                 */
+                @Override public void accept(CodeBuilder code, CodeElement element) {
+                    if (element instanceof InvokeInstruction invoke && invoke.owner().asInternalName().equals(TARGET)
+                            && invoke.name().equalsString("current")
+                            && invoke.type().equalsString("()L" + TARGET + "$Token;")) {
+                        scanSites[0]++;
+                        code.lload(remaining).lconst_1().lsub().lstore(remaining)
+                            .lload(remaining).lconst_0().lcmp().ifThen(Opcode.IFLT, bad ->
+                                bad.new_(ASSERTION).dup()
+                                    .ldc("Compiler delimiter scan exceeded token count plus one")
+                                    .invokespecial(ASSERTION, INIT_NAME,
+                                        MethodTypeDesc.of(CD_void, CD_Object)).athrow());
+                    }
+                    code.with(element);
+                }
+            }));
+        byte[] result = file.transformClass(model, expansion.andThen(tokens).andThen(delimiters));
         // A single call-removal mutation can remove one checkpoint; its progress guards remain intact.
         if ((expansionSites[0] != 3 && !(redefinition && expansionSites[0] == 2))
-                || (tokenSites[0] != 2 && !(redefinition && tokenSites[0] == 1))) {
+                || (tokenSites[0] != 2 && !(redefinition && tokenSites[0] == 1))
+                || (scanSites[0] != 6 && !(redefinition && scanSites[0] == 5))) {
             throw new IllegalArgumentException("Unexpected compiler checkpoint shape");
         }
         return result;
@@ -141,6 +187,9 @@ final class CompilerWorkBudget {
 
     /** Filters unrelated definitions and makes initial binding failures visible. */
     private static final class Transformer implements ClassFileTransformer {
+        /** Restricts transformer construction to this utility. */
+        private Transformer() {}
+
         /** Weaves assertions on initial definition and PIT redefinition.
          * @param module defining module
          * @param loader defining class loader

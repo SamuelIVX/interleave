@@ -11,7 +11,8 @@ public final class CompilerWorkProbe {
     private CompilerWorkProbe() {}
 
     /** Validates compiler boundaries or an exact injected assertion.
-     * Prints {@code BOUNDARIES [64, 64, 1, 0]} on boundary success, or {@code BOUND_EXCEEDED}
+     * Prints {@code BOUNDARIES [64, 64, 1, 0]} or {@code DELIMITER_BOUNDARIES} on boundary success,
+     * or {@code BOUND_EXCEEDED}
      * when the requested exact logical assertion fires.
      * @param args non-null command-line arguments containing one supported mode
      * @throws IllegalArgumentException for unsupported modes
@@ -36,6 +37,11 @@ public final class CompilerWorkProbe {
             System.out.println("BOUNDARIES [64, 64, 1, 0]");
             return;
         }
+        if (args[0].equals("delimiter-boundaries")) {
+            delimiterBoundaries();
+            System.out.println("DELIMITER_BOUNDARIES");
+            return;
+        }
         String body;
         String assertion;
         switch (args[0]) {
@@ -51,14 +57,35 @@ public final class CompilerWorkProbe {
                 body = "atomic when (counter == 0) {}";
                 assertion = "Compiler tokenization exceeded source units plus EOF";
             }
+            case "delimiter-bound" -> {
+                body = "";
+                assertion = "Compiler delimiter scan exceeded token count plus one";
+            }
             default -> throw new IllegalArgumentException("Unknown compiler probe mode");
         }
         try {
-            steps(body);
+            if (args[0].equals("delimiter-bound")) {
+                new SourceProgramLoader().load("program probe { shared int counter = 0; thread 0 { atomic { counter = 1");
+            } else steps(body);
             throw new IllegalStateException("Expected logical compiler bound");
         } catch (AssertionError failure) {
             if (!assertion.equals(failure.getMessage())) throw failure;
             System.out.println("BOUND_EXCEEDED");
+        }
+    }
+
+    /** Checks finite original scanner paths without accepting injected assertion failures. */
+    private static void delimiterBoundaries() {
+        if (steps("atomic when ((counter == 0)) { counter = (1 + (2)); }") != 1)
+            throw new AssertionError("Nested expression must compile to one instruction");
+        String prefix = "program probe { shared int counter = 0; thread 0 { ";
+        for (String tail : List.of("if (true", "atomic { counter = 1", "if (true { } } }",
+                "if (true } }", "atomic { counter = 1 { } } } }", "atomic { counter = 1 } } }",
+                "atomic { counter = 1); } } }", "if (true]) {} } }")) {
+            try {
+                new SourceProgramLoader().load(prefix + tail);
+                throw new AssertionError("Malformed delimiter must be rejected: " + tail);
+            } catch (RegistryException expected) { /* Original syntax errors remain finite. */ }
         }
     }
 

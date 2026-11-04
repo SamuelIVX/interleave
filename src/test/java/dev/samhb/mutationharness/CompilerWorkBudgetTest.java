@@ -71,16 +71,19 @@ class CompilerWorkBudgetTest {
      * @param method one instrumented method
      * @throws Exception if bytecode or the child JVM cannot be prepared
      */
-    @ParameterizedTest @ValueSource(strings = {"expand", "tokenize"})
+    @ParameterizedTest @ValueSource(strings = {"expand", "tokenize", "until"})
     void verifiesRemovedCheckpointAndRejectsInitialDrift(String method) throws Exception {
         int[] removed = {0};
         ClassFile file = classFile();
         byte[] changed = file.transformClass(file.parse(compiler()), ClassTransform.transformingMethodBodies(
             candidate -> candidate.methodName().equalsString(method), (code, element) -> {
                 if (removed[0] == 0 && element instanceof InvokeInstruction invoke
-                        && invoke.name().equalsString(method.equals("expand") ? "ancestry" : "add")) {
+                        && invoke.name().equalsString(switch (method) {
+                            case "expand" -> "ancestry"; case "tokenize" -> "add"; default -> "current";
+                        })) {
                     if (method.equals("expand")) code.pop2().pop().aconst_null();
-                    else code.pop2().iconst_0();
+                    else if (method.equals("tokenize")) code.pop2().iconst_0();
+                    else code.pop().aconst_null();
                     removed[0]++;
                 } else code.with(element);
             }));
@@ -96,7 +99,7 @@ class CompilerWorkBudgetTest {
      * @param method one required method to remove
      * @throws Exception if the compiler definition cannot be read
      */
-    @ParameterizedTest @ValueSource(strings = {"expand", "tokenize"})
+    @ParameterizedTest @ValueSource(strings = {"expand", "tokenize", "until"})
     void rejectsMissingMethod(String method) throws Exception {
         ClassFile file = classFile();
         byte[] changed = file.transformClass(file.parse(compiler()), ClassTransform.dropping(
@@ -106,13 +109,15 @@ class CompilerWorkBudgetTest {
     }
 
     /** A verifier-valid but mutable input field violates the declared immutable binding in both phases.
+     * @param name immutable input field
      * @throws Exception if the compiler definition cannot be read
      */
-    @Test void rejectsMutableCleanField() throws Exception {
+    @ParameterizedTest @ValueSource(strings = {"clean", "tokens"})
+    void rejectsMutableInputField(String name) throws Exception {
         int[] changedFields = {0};
         ClassFile file = classFile();
         byte[] changed = file.transformClass(file.parse(compiler()), (builder, element) -> {
-            if (element instanceof FieldModel field && field.fieldName().equalsString("clean")) {
+            if (element instanceof FieldModel field && field.fieldName().equalsString(name)) {
                 assertTrue(field.flags().has(java.lang.reflect.AccessFlag.FINAL));
                 changedFields[0]++;
                 builder.withField(field.fieldName(), field.fieldType(), target -> {
@@ -122,13 +127,56 @@ class CompilerWorkBudgetTest {
             } else builder.with(element);
         });
         assertEquals(1, changedFields[0]);
-        assertFalse(file.parse(changed).fields().stream().filter(f -> f.fieldName().equalsString("clean"))
+        assertFalse(file.parse(changed).fields().stream().filter(f -> f.fieldName().equalsString(name))
             .findFirst().orElseThrow().flags().has(java.lang.reflect.AccessFlag.FINAL));
         assertEquals(List.of(), file.verify(changed));
         assertThrows(IllegalArgumentException.class,
             () -> CompilerWorkBudget.instrument(changed, false, getClass().getClassLoader()));
         assertThrows(IllegalArgumentException.class,
             () -> CompilerWorkBudget.instrument(changed, true, getClass().getClassLoader()));
+    }
+
+    /** Original nested expressions and delimiter diagnostics survive instrumentation.
+     * @throws Exception if either child JVM cannot execute
+     */
+    @Test void preservesDelimiterBoundaries() throws Exception {
+        assertEquals("DELIMITER_BOUNDARIES", run(null, false, "delimiter-boundaries").trim());
+        assertEquals("DELIMITER_BOUNDARIES", run(null, true, "delimiter-boundaries").trim());
+    }
+
+    /** A missing EOF guard fails the logical assertion, rather than a timeout oracle.
+     * @throws Exception if bytecode or the child JVM cannot be prepared
+     */
+    @Test void catchesRemovedDelimiterEofGuard() throws Exception {
+        int[] removed = {0};
+        ClassFile file = classFile();
+        byte[] changed = file.transformClass(file.parse(compiler()), ClassTransform.transformingMethodBodies(
+            method -> method.methodName().equalsString("until"), (code, element) -> {
+                if (element instanceof InvokeInstruction invoke
+                        && invoke.owner().asInternalName().equals("dev/samhb/interleave/format/dsl/SourceCompiler")
+                        && invoke.name().equalsString("peek")
+                        && invoke.type().equalsString("(Ljava/lang/String;)Z")) {
+                    code.pop2().iconst_0();
+                    removed[0]++;
+                } else code.with(element);
+            }));
+        assertEquals(1, removed[0]);
+        assertEquals(List.of(), file.verify(changed));
+        assertEquals(List.of(), file.verify(CompilerWorkBudget.instrument(changed, true, getClass().getClassLoader())));
+        assertEquals("BOUND_EXCEEDED", run(changed, true, "delimiter-bound").trim());
+    }
+
+    /** Missing immutable token storage cannot silently disable the scanner bound.
+     * @throws Exception if the compiler definition cannot be read
+     */
+    @Test void rejectsMissingTokensField() throws Exception {
+        ClassFile file = classFile();
+        byte[] changed = file.transformClass(file.parse(compiler()), ClassTransform.dropping(
+            element -> element instanceof FieldModel field && field.fieldName().equalsString("tokens")));
+        for (boolean redefinition : List.of(false, true)) {
+            assertThrows(IllegalArgumentException.class,
+                () -> CompilerWorkBudget.instrument(changed, redefinition, getClass().getClassLoader()));
+        }
     }
 
     /** Negates the first work comparison in an actual compiled method, with a checked opcode oracle.
