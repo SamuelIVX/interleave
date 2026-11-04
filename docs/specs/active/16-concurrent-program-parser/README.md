@@ -321,3 +321,6 @@ The subsequent replay-only run passes its scoped ratchet at **197/203 kills**, w
 4 survivors, 2 uncovered mutations and zero timeout/error detections. The
 previously uncovered prefix-cost increment is now killed. These counts apply to the strengthened
 replay tests; they do not silently replace the earlier expanded-run aggregate.
+
+[Spec 63](../63-source-delimiter-contracts.md) checks EOF, brace and unmatched-delimiter diagnostics,
+plus balanced nested-expression replay, with a PIT-only logical bound for delimiter scanning.
