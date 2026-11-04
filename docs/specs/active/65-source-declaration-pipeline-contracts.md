@@ -22,8 +22,10 @@ Two accepted cases combine all shared/local kinds: signed-int endpoints, true/fa
 and arrays containing minimum/zero/maximum. The maximum is spelled either 2147483647 or
 0002147483647. Populated arrays also use -0 and 000. Literal StateDecl records verify exact names,
 order, types and initializers; public DynamicState getters independently verify shared values and
-both owners' locals. A direct initial-state mutation then changes owner 0's middle array element
-to 42 while owner 1 retains zero, checking allocation independence before any execution copy.
+both owners' locals. A DynamicState constructed directly from the source-derived declaration is
+mutated before Program/Configuration copies can separate its arrays: owner 0's middle element
+becomes 42 while owner 1 retains zero. The same mutation is checked on the program's initial
+configuration as well.
 Expected records do not call declaration parsing, source mapping or loader
 factories. Decimal spellings normalize through signedInt to Integer JSON numbers before shared
 validation, rather than carrying raw decimal text into it.
@@ -168,3 +170,13 @@ Scoped R6 passes; R5/R7 skip as designed. The separate default full mutation gat
 R5/R6/R7 pass.
 Dispositions are not counted as kills; browser checks are unnecessary for unchanged application/
 rendering and remote CI is unverified.
+
+### PR review follow-up
+
+The original owner-independence assertions used Program.initialConfiguration(), after both Program
+and Configuration.initial had copied state. Those copies could hide constructor aliasing. Added
+a directly constructed DynamicState from the source-derived declaration and checked owner-0 writes
+against owner-1's unchanged array, retaining the original assertions. No production or mutation-policy
+change. All 1,220 tests, build, strict Javadoc, relative links and diff checks pass after the fix.
+No CLI or PIT repeat for this trivial test-only correction; mutation figures above are the original
+implementation measurements.

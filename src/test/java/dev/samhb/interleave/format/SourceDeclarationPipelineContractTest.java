@@ -65,6 +65,10 @@ class SourceDeclarationPipelineContractTest {
             assertArrayEquals(new int[] {}, initial.getLocalArray(owner, "vacant"));
             assertArrayEquals(new int[] {-2147483648, 0, 2147483647}, initial.getLocalArray(owner, "items"));
         }
+        var direct = new DynamicState(initial.decl(), 2);
+        direct.setLocalArrayElement(0, "items", 1, 42);
+        assertArrayEquals(new int[] {-2147483648, 42, 2147483647}, direct.getLocalArray(0, "items"));
+        assertArrayEquals(new int[] {-2147483648, 0, 2147483647}, direct.getLocalArray(1, "items"));
         initial.setLocalArrayElement(0, "items", 1, 42);
         assertArrayEquals(new int[] {-2147483648, 42, 2147483647}, initial.getLocalArray(0, "items"));
         assertArrayEquals(new int[] {-2147483648, 0, 2147483647}, initial.getLocalArray(1, "items"));
