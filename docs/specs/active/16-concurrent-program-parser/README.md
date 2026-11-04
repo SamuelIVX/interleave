@@ -330,3 +330,6 @@ public transitions, exact DFS and replay, with scoped proofs for five boundary s
 
 [Spec 65](../65-source-declaration-pipeline-contracts.md) checks source declaration schemas and
 initializers, with scoped proofs for shared-validator remapping and offset-list residuals.
+
+[Spec 66](../66-source-compiler-verification-closeout.md) records the measured outer-compiler ledger,
+diagnostic characterization and scoped cursor/count proofs. Parser residuals remain separate.
