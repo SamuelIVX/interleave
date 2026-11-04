@@ -130,6 +130,8 @@ categories at condition/effect entry points and positive parser offsets for cond
 by retaining subparser origins, including whitespace and multiline source.
 [Spec61](../61-parser-mutation-progress-bounds.md) adds PIT-only lexical-work and per-match
 cursor assertions for the four measured Parser progress failures; production parsing is unchanged.
+[Spec 62](../62-source-loop-provenance-contracts.md) checks literal source spans, labels and
+repeat/while occurrence paths in compiled steps, recorded traces and omitted cutoff evidence.
 
 The resource failures remove parser expansion guards or zero-work elimination under huge-count
 fixtures. They are mutation-induced failures, not successful executions of the unmodified loader.
