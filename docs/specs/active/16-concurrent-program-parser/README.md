@@ -327,3 +327,6 @@ plus balanced nested-expression replay, with a PIT-only logical bound for delimi
 
 [Spec 64](../64-source-lowering-contracts.md) checks empty-arm and nested forward joins through
 public transitions, exact DFS and replay, with scoped proofs for five boundary survivors.
+
+[Spec 65](../65-source-declaration-pipeline-contracts.md) checks source declaration schemas and
+initializers, with scoped proofs for shared-validator remapping and offset-list residuals.
