@@ -324,3 +324,6 @@ replay tests; they do not silently replace the earlier expanded-run aggregate.
 
 [Spec 63](../63-source-delimiter-contracts.md) checks EOF, brace and unmatched-delimiter diagnostics,
 plus balanced nested-expression replay, with a PIT-only logical bound for delimiter scanning.
+
+[Spec 64](../64-source-lowering-contracts.md) checks empty-arm and nested forward joins through
+public transitions, exact DFS and replay, with scoped proofs for five boundary survivors.
