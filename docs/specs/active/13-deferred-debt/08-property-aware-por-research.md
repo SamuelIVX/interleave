@@ -138,7 +138,7 @@ exact store, independent fixtures/oracles, and no truncation, comparing violatio
 and replayability rather than equal state counts.
 
 DSL `always` observations must include every expression input (including both operands,
-all conjuncts, and dynamic indices). DSL `final` remains unknown: its evaluation depends
+all conjuncts, and dynamic indices). Legacy declarative DSL `final` remains unknown: its evaluation depends
 on termination metadata, which invisibility of shared-memory writes cannot describe.
 Likewise, documentation alone cannot infer observations for arbitrary Java callbacks.
 The new opt-in contract is a caller correctness obligation; the implementation cannot
@@ -158,3 +158,13 @@ reachable continuation. Terminal cutoffs require existence preservation alongsid
 The extension, complete footprint argument and source-only DPOR sleep-set subsumption rule are
 recorded in [16.05](../16-concurrent-program-parser/05-por-and-dpor-soundness.md#implementation-preservation-argument).
 This does not extend the checker to backward edges or unbounded loops.
+
+## Declared final source predicates
+
+[Spec 70](../70-final-source-property-reduction.md) adds a separate final-observation contract for
+finite forward source programs. It leaves the original state-only contract and legacy DSL fallback
+unchanged. Its completion-gate lemma addresses the termination dependency excluded above: a step
+cannot activate a final predicate while another nonterminated owner is being postponed. Existing
+future-component selection, preparation fallback and rank arguments remain required; no broader
+unknown-callback, cyclic-program or whole-state-space guarantee follows. Historical counts in this
+research record are unchanged.

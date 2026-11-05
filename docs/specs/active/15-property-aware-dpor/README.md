@@ -23,7 +23,7 @@ Where `DporExplorer` historically disabled all sleep-set reduction whenever an i
 ## Acceptance Criteria
 
 1. **Property-Aware DPOR Reduction**: `DporExplorer.explore(program, invariant)` prunes states via sleep sets when `invariant.observedLocations().isPresent()`.
-2. **Exhaustive Fallback Preservation**: When `invariant.observedLocations().isEmpty()` (unknown callbacks, configuration-dependent predicates, DSL `final`), DPOR strictly executes exhaustive `dfsDfs`.
+2. **Exhaustive Fallback Preservation**: Unknown callbacks, configuration-dependent predicates and legacy DSL `final` checks retain exhaustive `dfsDfs`. [Spec 70](../70-final-source-property-reduction.md) separately permits declared final source predicates through `finalObservedLocations()`; an empty original state-only Optional alone no longer determines source dispatch.
 3. **Soundness & Zero Missed Violations**:
    - All invariant violations and deadlocks across `BugCorpus.all()` are detected identically to `DfsExplorer`.
    - Visible races (such as independent writes to distinct observed variables) are never suppressed by sleep sets.

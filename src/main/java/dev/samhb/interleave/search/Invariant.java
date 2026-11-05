@@ -1,4 +1,4 @@
-/** Defines safety predicates and optional state observations for property-aware static reduction. */
+/** Defines safety predicates and separate state/final observations for property-aware reduction. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.Configuration;
@@ -24,7 +24,8 @@ public interface Invariant {
      * Describes a state-only property's complete observation footprint, when known.
      *
      * <p>An absent value means unknown or configuration-sensitive observations and retains
-     * exhaustive branching. A present empty set describes a constant property. Opted-in checks
+     * exhaustive branching unless a source model supplies the separate final-only contract.
+     * A present empty set describes a constant property. Opted-in checks
      * must be deterministic, value-based, and depend only on the declared locations, including
      * inputs to evaluation errors. Counters, termination, history and object identity are excluded.
      * Locations must use the same names and array aliases as the steps' footprints.
@@ -32,6 +33,26 @@ public interface Invariant {
      * @return known state-observation locations, or an empty Optional when unknown
      */
     default Optional<Set<MemoryLocation>> observedLocations() {
+        return Optional.empty();
+    }
+
+    /**
+     * Describes a final-only predicate's complete state observations, when explicitly known.
+     *
+     * <p>The property must hold whenever {@code config.allTerminated()} is false. At complete
+     * configurations, its truth and evaluation-error result must depend only on these locations.
+     * Termination is its only permitted configuration dependency: counters, owner identity,
+     * enabledness and history must not affect the final predicate. The purity, complete-footprint
+     * and stable alias requirements of {@link #observedLocations()} still apply to that predicate.
+     * A present empty set is a constant final predicate, not an always-true property.
+     *
+     * <p>Source POR/DPOR may use this contract under the finite forward-source argument in Spec 70.
+     * Legacy programs ignore it. An absent value retains exhaustive fallback when the original
+     * state-only observations are also unknown. Ordinary callbacks inherit this unknown default.
+     *
+     * @return known final-expression locations, or an empty Optional when unknown
+     */
+    default Optional<Set<MemoryLocation>> finalObservedLocations() {
         return Optional.empty();
     }
 
