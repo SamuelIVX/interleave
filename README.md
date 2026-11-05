@@ -12,7 +12,7 @@ The project is built as a clean, spec-driven proof-of-concept. It is not a produ
 
 ## What it does
 
-- **Readable source models** — `.ilv` atomic blocks, branching, repetition and bounded loops share the existing checker and source-aware trace viewer.
+- **Readable source models** — `.ilv` atomic blocks, bounded reusable helpers, branching, repetition and bounded loops share the existing checker and source-aware trace viewer.
 - **Exhaustive DFS** — tries every enabled thread at every reachable configuration.
 - **State hashing** — collapses identical configurations so the search space becomes a DAG instead of a tree.
 - **Static POR** — computes persistent sets from read/write access sets to avoid exploring equivalent interleavings.
@@ -289,6 +289,10 @@ deepening narrow instead of widen.
   is correct) is the one that reports `INCOMPLETE`
 
 ## Readable concurrent models
+
+Reusable zero-argument `helper` definitions can call earlier helpers and expand into existing
+scheduled instructions. See [the helper examples](examples/programs/helper-increment.ilv) and
+[bounded helper rules](docs/specs/active/71-bounded-source-helpers.md).
 
 Use `.ilv` to describe a small concurrent model directly. Assignments inside one `atomic` block run
 together. Thread-level `if` and `while` conditions are separate scheduling actions; another thread

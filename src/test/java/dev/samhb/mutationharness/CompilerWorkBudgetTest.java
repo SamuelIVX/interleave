@@ -34,7 +34,7 @@ class CompilerWorkBudgetTest {
      * @throws Exception if bytecode or the child JVM cannot be prepared
      */
     @Test void catchesNegatedZeroWorkSkip() throws Exception {
-        assertEquals("BOUND_EXCEEDED", run(negateWorkBranch("expand", Opcode.IFNE, Opcode.IFEQ),
+        assertEquals("BOUND_EXCEEDED", run(negateWorkBranch("expand", 0, Opcode.IFNE, Opcode.IFEQ),
             true, "zero-bound").trim());
     }
 
@@ -42,7 +42,7 @@ class CompilerWorkBudgetTest {
      * @throws Exception if bytecode or the child JVM cannot be prepared
      */
     @Test void catchesBypassedInstructionCap() throws Exception {
-        assertEquals("BOUND_EXCEEDED", run(negateWorkBranch("compile", Opcode.IFLE, Opcode.IFGT),
+        assertEquals("BOUND_EXCEEDED", run(negateWorkBranch("compile", 1, Opcode.IFLE, Opcode.IFGT),
             true, "work-bound").trim());
     }
 
@@ -179,19 +179,21 @@ class CompilerWorkBudgetTest {
         }
     }
 
-    /** Negates the first work comparison in an actual compiled method, with a checked opcode oracle.
+    /** Negates one original compiler work comparison, excluding cached helper getters.
+     * Both methods have two compiler work sites; helper accounting precedes the thread cap in compile.
      * @param method method owning the comparison
+     * @param ordinal zero-based SourceCompiler.work call to select
      * @param expected original comparison opcode
      * @param replacement its logical negation
      * @return verified single-guard mutant bytes
      * @throws Exception if the compiler definition cannot be read
      */
-    private byte[] negateWorkBranch(String method, Opcode expected, Opcode replacement) throws Exception {
-        int[] changed = {0};
+    private byte[] negateWorkBranch(String method, int ordinal, Opcode expected, Opcode replacement) throws Exception {
+        int[] changed = {0}, workCalls = {0};
         ClassFile file = classFile();
         byte[] result = file.transformClass(file.parse(compiler()), ClassTransform.transformingMethodBodies(
             candidate -> candidate.methodName().equalsString(method), CodeTransform.ofStateful(() -> new CodeTransform() {
-                /** Whether the next branch consumes the first work comparison. */
+                /** Whether the next branch consumes the selected real compiler work comparison. */
                 private boolean work;
                 /** Replaces only that comparison, preserving all surrounding compiler code.
                  * @param code destination body
@@ -205,11 +207,16 @@ class CompilerWorkBudgetTest {
                         work = false;
                     } else {
                         code.with(element);
-                        if (changed[0] == 0 && element instanceof InvokeInstruction invoke
-                                && invoke.name().equalsString("work")) work = true;
+                        if (element instanceof InvokeInstruction invoke
+                                && (invoke.owner().asInternalName() + ".class").equals(COMPILER)
+                                && invoke.name().equalsString("work")
+                                && invoke.type().equalsString("(Ljava/util/List;)J")) {
+                            if (workCalls[0]++ == ordinal) work = true;
+                        }
                     }
                 }
             })));
+        assertEquals(2, workCalls[0]);
         assertEquals(1, changed[0]);
         assertEquals(List.of(), file.verify(result));
         return result;

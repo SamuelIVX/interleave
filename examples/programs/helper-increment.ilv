@@ -1,0 +1,8 @@
+program helper_increment {
+  shared int counter = 0;
+  helper increment { atomic { counter = counter + 1; } }
+  thread 0 { call increment; }
+  thread 1 { call increment; }
+  invariant final (counter == 2);
+  expected PASS;
+}

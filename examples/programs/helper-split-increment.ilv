@@ -1,0 +1,12 @@
+program helper_split_increment {
+  shared int counter = 0;
+  local int saved = 0;
+  helper increment {
+    atomic { local.saved = counter; }
+    atomic { counter = local.saved + 1; }
+  }
+  thread 0 { call increment; }
+  thread 1 { call increment; }
+  invariant final (counter == 2);
+  expected VIOLATION;
+}

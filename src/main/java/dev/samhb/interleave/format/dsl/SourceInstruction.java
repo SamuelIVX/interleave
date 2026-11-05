@@ -11,6 +11,8 @@ final class SourceInstruction implements SourceStep {
     /** Immutable source text, independent of parser state. */
     private final SourceText text;
     private final Node node;
+    /** Stable helper callsite chain, empty for ordinary source actions. */
+    private final String callLabel;
     private final int yes, no, owner;
     private final Set<MemoryLocation> reads, writes;
     /** Freezes targets and recursively derives every control/effect dependency.
@@ -20,9 +22,11 @@ final class SourceInstruction implements SourceStep {
      * @param owner modeled thread owning local references
      * @param shape validated declarations for shared assignment-footprint rules
      * @param text immutable original source map
+     * @param callLabel outermost-first helper callsite annotation for the bounded label
      */
-    SourceInstruction(Node node, int yes, int no, int owner, StateDecl shape, SourceText text) {
+    SourceInstruction(Node node, int yes, int no, int owner, StateDecl shape, SourceText text, String callLabel) {
         this.text = text;
+        this.callLabel = callLabel;
         this.node = node; this.yes = yes; this.no = no; this.owner = owner;
         Set<MemoryLocation> r = new HashSet<>(), w = new HashSet<>();
         if (node.kind() == Kind.ATOMIC) footprint(node, owner, shape, r, w);
@@ -90,6 +94,7 @@ final class SourceInstruction implements SourceStep {
     @Override
     public ExecutedStep metadata(int pc) {
         String label = text.source().substring(node.start(), node.end()).strip().lines().findFirst().orElse("atomic {}");
+        if (!callLabel.isEmpty()) label = callLabel + label;
         if (label.length() > 256) label = label.substring(0, 256) + "…";
         return new ExecutedStep(pc, text.location(node.start(), node.end()), label, node.path());
     }

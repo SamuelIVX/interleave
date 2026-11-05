@@ -40,6 +40,7 @@ truncation, hidden splitting of atomic blocks or clamping of counts is permitted
 | Shared declarations | 1–32 |
 | Common local declarations | 0–8 |
 | Arrays | 0–64 integer elements, shared or per-thread |
+| Helpers | 0–16, earlier definitions only; each at most 64 actions and 5,000 expression nodes |
 | Threads | 1–8, sequential IDs in declaration order |
 | Expression depth | 16, following existing Expr.depth convention |
 | Aggregate expression nodes | 5,000 after expansion across all thread/global/internal occurrences plus property |
@@ -57,8 +58,11 @@ but contribute zero expanded executable work; original source/nesting limits sti
 Budget expression occurrences conservatively: each expanded expression in an instruction/atomic
 tree counts, even when immutable nodes could be shared in memory. Detect sums/products exceeding
 the cap before allocation, using checked long arithmetic or cap-saturating calculations. A huge
-zero-work repeat can be eliminated without iterating its literal count. No recursive host traversal
-may run beyond validated parser/source depth.
+zero-work repeat can be eliminated without iterating its literal count. Helper costs are cached once
+in declaration order; each call contributes those costs, including across owners. Zero-work calls are removed before expansion. Every private atomic body in a helper
+is checked against 64, including unused and zero-repeat branches; helper-free dead-code handling
+is unchanged. Recursive traversal is bounded by validated source braces, at most 16 acyclic helper
+layers, and validated expanded work; costing never recursively traverses the shared helper DAG.
 
 ## Types, names and diagnostics
 

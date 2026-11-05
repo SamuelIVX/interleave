@@ -22,6 +22,8 @@ public final class SourceCompiler {
     private final List<Token> tokens;
     /** Immutable diagnostic source map shared with compiled instructions. */
     private final SourceText sourceText;
+    /** Earlier immutable helper definitions; declaration order makes calls acyclic. */
+    private final Map<String, Helper> helpers = new LinkedHashMap<>();
     /** Current token and validated declarations. */
     private int position;
     /** Shared state shape. */
@@ -76,6 +78,18 @@ public final class SourceCompiler {
             String message = e.getMessage().replaceAll("state\\.(fields|locals)(?:\\[[0-9]+\\])?(?:\\.init(?:\\[[0-9]+\\])?)?", "source declaration");
             throw error(offset, "type", message);
         }
+        while (take("helper")) {
+            int start = previous().start();
+            if (helpers.size() == 16) throw error(start, "limit", "At most 16 helper declarations");
+            String id = identifier();
+            if (!names.add(id)) throw error(start, "name", "Duplicate declaration '" + id + "'");
+            List<Node> body = block(false, 1);
+            long actions = work(body), expressions = expressionWork(body);
+            if (actions > 64) throw error(start, "limit", "Expanded helper instructions exceed 64");
+            if (expressions > 5000) throw error(start, "limit", "Expanded helper expression nodes exceed 5000");
+            checkHelperAtomics(body);
+            helpers.put(id, new Helper(id, body, actions, expressions));
+        }
         List<List<Node>> bodies = new ArrayList<>();
         List<Integer> threadOffsets = new ArrayList<>();
         while (take("thread")) {
@@ -116,7 +130,7 @@ public final class SourceCompiler {
             if (totalNodes > 5000) throw error(threadOffsets.get(owner), "limit", "Expanded expression nodes exceed 5000");
             List<Node> expanded = expand(body, List.of());
             List<Draft> drafts = new ArrayList<>();
-            Fragment whole = lower(expanded, drafts);
+            Fragment whole = lower(expanded, drafts, "");
             patch(whole.exits(), drafts.size(), drafts);
             List<Step> instructions = new ArrayList<>();
             for (int pc = 0; pc < drafts.size(); pc++) {
@@ -124,7 +138,7 @@ public final class SourceCompiler {
                 if (d.yes <= pc || d.yes > drafts.size() || d.no <= pc || d.no > drafts.size()) {
                     throw new IllegalStateException("Compiler produced an invalid forward target");
                 }
-                instructions.add(new SourceInstruction(d.node, d.yes, d.no, owner, decl, sourceText));
+                instructions.add(new SourceInstruction(d.node, d.yes, d.no, owner, decl, sourceText, d.callLabel));
             }
             threads.add(new ModelThread(owner, instructions));
         }
@@ -181,19 +195,30 @@ public final class SourceCompiler {
                 if (insideAtomic) throw error(start, "unsupported", "Nested atomic blocks are unsupported");
                 Expr guard = take("when") ? condition() : null;
                 List<Node> body = block(true, depth + 1);
-                nodes.add(new Node(Kind.ATOMIC, null, guard, body, List.of(), 0, start, previous().end(), List.of()));
+                nodes.add(new Node(Kind.ATOMIC, null, guard, body, List.of(), 0, start, previous().end(), List.of(), null));
             } else if (take("if")) {
                 Expr test = condition();
                 List<Node> yes = block(insideAtomic, depth + 1);
                 List<Node> no = take("else") ? block(insideAtomic, depth + 1) : List.of();
-                nodes.add(new Node(Kind.IF, null, test, yes, no, 0, start, previous().end(), List.of()));
+                nodes.add(new Node(Kind.IF, null, test, yes, no, 0, start, previous().end(), List.of(), null));
             } else if (take("repeat")) {
                 int count = count(); List<Node> body = block(insideAtomic, depth + 1);
-                nodes.add(new Node(Kind.REPEAT, null, null, body, List.of(), count, start, previous().end(), List.of()));
+                nodes.add(new Node(Kind.REPEAT, null, null, body, List.of(), count, start, previous().end(), List.of(), null));
             } else if (take("while")) {
                 Expr test = condition(); expect("limit"); int count = count();
                 List<Node> body = block(insideAtomic, depth + 1);
-                nodes.add(new Node(Kind.WHILE, null, test, body, List.of(), count, start, previous().end(), List.of()));
+                nodes.add(new Node(Kind.WHILE, null, test, body, List.of(), count, start, previous().end(), List.of(), null));
+            } else if (peek("call") && !tokens.get(position + 1).text().equals("=")
+                    && !tokens.get(position + 1).text().equals("[")) {
+                if (insideAtomic) throw error(start, "unsupported", "Helper calls inside atomic blocks are unsupported");
+                position++;
+                int target = current().start();
+                String id = identifier();
+                if (peek("(")) throw error(current().start(), "unsupported", "Helper arguments are unsupported; use call name;");
+                expect(";");
+                Helper helper = helpers.get(id);
+                if (helper == null) throw error(target, "name", "Helper '" + id + "' must be declared before use; recursive calls are unsupported");
+                nodes.add(new Node(Kind.CALL, null, null, List.of(), List.of(), 0, start, previous().end(), List.of(), helper));
             } else if (insideAtomic) {
                 String effectText = until(";"); expect(";");
                 Effect effect;
@@ -203,7 +228,7 @@ public final class SourceCompiler {
                     checkExpression(target, start); checkExpression(effect.rhs(), start);
                     if (TypeChecker.check(target, decl) != TypeChecker.check(effect.rhs(), decl)) throw new RegistryException("Assignment type mismatch");
                 } catch (RegistryException e) { throw diagnostic(start, "type", e); }
-                nodes.add(new Node(Kind.ASSIGN, effect, null, List.of(), List.of(), 0, start, previous().end(), List.of()));
+                nodes.add(new Node(Kind.ASSIGN, effect, null, List.of(), List.of(), 0, start, previous().end(), List.of(), null));
             } else throw error(start, "unsupported", "Expected atomic, if, repeat or bounded while");
         }
         expect("}"); return List.copyOf(nodes);
@@ -261,6 +286,21 @@ public final class SourceCompiler {
         throw error(current().start(), "syntax", "Expected '" + delimiter + "' before EOF");
     }
 
+    /** Validates private budgets in every helper definition before any call can expand it.
+     * Earlier callees have already passed this check; CALL nodes have no raw child syntax.
+     * @param nodes parsed definition nodes, including unused and zero-repeat branches
+     * @throws RegistryException if an atomic body exceeds the existing 64-instruction cap
+     */
+    private void checkHelperAtomics(List<Node> nodes) {
+        for (Node node : nodes) {
+            if (node.kind() == Kind.ATOMIC && work(node.yes()) > 64) {
+                throw error(node.start(), "limit", "Atomic internal instructions exceed 64");
+            }
+            checkHelperAtomics(node.yes());
+            checkHelperAtomics(node.no());
+        }
+    }
+
     /** Computes expanded executable work with saturation before any loop-copy allocation.
      * @param nodes scheduled or private syntax to count using the same instruction rules
      * @return expanded action count, saturated at 65 to signal the inclusive 64-action cap
@@ -276,6 +316,7 @@ public final class SourceCompiler {
                 case REPEAT -> cappedMultiply(n.count(), body, 64);
                 case WHILE -> cappedAdd((long) n.count() + 1, cappedMultiply(n.count(), body, 64), 64);
                 case LIMIT -> 1;
+                case CALL -> n.helper().work();
             };
             result = cappedAdd(result, amount, 64);
         }
@@ -293,6 +334,7 @@ public final class SourceCompiler {
             long own = n.effect() == null ? test : Expr.nodeCount(n.effect().rhs()) + Expr.nodeCount(targetExpression(n.effect().lhs()));
             long body = expressionWork(n.yes());
             long amount = switch (n.kind()) {
+                case CALL -> n.helper().expressionWork();
                 case REPEAT -> cappedMultiply(n.count(), body, 5000);
                 case WHILE -> cappedAdd(cappedMultiply((long) n.count() + 1, test, 5000), cappedMultiply(n.count(), body, 5000), 5000);
                 default -> cappedAdd(own, cappedAdd(body, expressionWork(n.no()), 5000), 5000);
@@ -311,20 +353,24 @@ public final class SourceCompiler {
     private List<Node> expand(List<Node> nodes, List<ExecutedStep.Expansion> path) {
         List<Node> result = new ArrayList<>();
         for (Node n : nodes) {
-            if (n.kind() == Kind.REPEAT) {
+            if (n.kind() == Kind.CALL) {
+                if (n.helper().work() == 0) continue;
+                result.add(new Node(Kind.CALL, null, null, expand(n.helper().body(), path), List.of(), 0,
+                    n.start(), n.end(), path, n.helper()));
+            } else if (n.kind() == Kind.REPEAT) {
                 if (work(n.yes()) == 0) continue;
                 for (int i = 0; i < n.count(); i++) result.addAll(expand(n.yes(), ancestry(path, n.start(), i)));
             } else if (n.kind() == Kind.WHILE) {
-                List<Node> tail = List.of(new Node(Kind.LIMIT, null, n.test(), List.of(), List.of(), n.count(), n.start(), n.end(), ancestry(path, n.start(), n.count())));
+                List<Node> tail = List.of(new Node(Kind.LIMIT, null, n.test(), List.of(), List.of(), n.count(), n.start(), n.end(), ancestry(path, n.start(), n.count()), null));
                 for (int i = n.count() - 1; i >= 0; i--) {
                     List<ExecutedStep.Expansion> iteration = ancestry(path, n.start(), i);
                     List<Node> yes = new ArrayList<>(expand(n.yes(), iteration)); yes.addAll(tail);
-                    tail = List.of(new Node(Kind.IF, null, n.test(), List.copyOf(yes), List.of(), 0, n.start(), n.end(), iteration));
+                    tail = List.of(new Node(Kind.IF, null, n.test(), List.copyOf(yes), List.of(), 0, n.start(), n.end(), iteration, null));
                 }
                 result.addAll(tail);
             } else {
                 if (n.kind() == Kind.ATOMIC && work(n.yes()) > 64) throw error(n.start(), "limit", "Atomic internal instructions exceed 64");
-                result.add(new Node(n.kind(), n.effect(), n.test(), expand(n.yes(), path), expand(n.no(), path), n.count(), n.start(), n.end(), path));
+                result.add(new Node(n.kind(), n.effect(), n.test(), expand(n.yes(), path), expand(n.no(), path), n.count(), n.start(), n.end(), path, null));
             }
         }
         return List.copyOf(result);
@@ -333,16 +379,27 @@ public final class SourceCompiler {
     /** Lowers source-order fragments and patches direct branch joins without scheduled jumps.
      * @param nodes expanded forward syntax with no repeat/while nodes
      * @param drafts destination instruction list, extended in source order
+     * @param callLabel outermost-first caller context, empty for ordinary source actions
      * @return entry position and unresolved continuation edges; empty fragments have entry -1
      */
-    private Fragment lower(List<Node> nodes, List<Draft> drafts) {
+    private Fragment lower(List<Node> nodes, List<Draft> drafts, String callLabel) {
         int start = -1; List<Edge> exits = List.of();
         for (Node n : nodes) {
-            int pc = drafts.size(); Draft draft = new Draft(n); drafts.add(draft);
+            if (n.kind() == Kind.CALL) {
+                SourceLocation call = location(n.start(), n.end());
+                String context = callLabel + "call " + n.helper().name() + " at " + call.line() + ":" + call.column() + " -> ";
+                Fragment invoked = lower(n.yes(), drafts, context);
+                if (invoked.start() < 0) continue;
+                if (start < 0) start = invoked.start();
+                patch(exits, invoked.start(), drafts);
+                exits = invoked.exits();
+                continue;
+            }
+            int pc = drafts.size(); Draft draft = new Draft(n, callLabel); drafts.add(draft);
             if (start < 0) start = pc;
             patch(exits, pc, drafts);
             if (n.kind() == Kind.IF) {
-                Fragment yes = lower(n.yes(), drafts), no = lower(n.no(), drafts);
+                Fragment yes = lower(n.yes(), drafts, callLabel), no = lower(n.no(), drafts, callLabel);
                 List<Edge> next = new ArrayList<>();
                 if (yes.start() < 0) next.add(new Edge(pc, true)); else { draft.yes = yes.start(); next.addAll(yes.exits()); }
                 if (no.start() < 0) next.add(new Edge(pc, false)); else { draft.no = no.start(); next.addAll(no.exits()); }
@@ -552,10 +609,12 @@ public final class SourceCompiler {
     /** Parsed source token. */
     private record Token(String text, int start, int end) {}
     /** Syntax node variants before/after bounded expansion. */
-    enum Kind { ASSIGN, ATOMIC, IF, REPEAT, WHILE, LIMIT }
+    enum Kind { ASSIGN, ATOMIC, IF, REPEAT, WHILE, LIMIT, CALL }
     /** Immutable syntax and retained source ancestry. */
     record Node(Kind kind, Effect effect, Expr test, List<Node> yes, List<Node> no, int count,
-                        int start, int end, List<ExecutedStep.Expansion> path) {}
+                        int start, int end, List<ExecutedStep.Expansion> path, Helper helper) {}
+    /** Earlier definition and cached saturated costs; all bodies are immutable and acyclic. */
+    record Helper(String name, List<Node> body, long work, long expressionWork) {}
     /** Pending forward continuation. */
     private record Edge(int pc, boolean yes) {}
     /** Lowered entry and unresolved exits. */
@@ -564,12 +623,15 @@ public final class SourceCompiler {
     private static final class Draft {
         /** Expanded source instruction whose metadata and effects remain immutable. */
         private final Node node;
+        /** Caller annotation for the existing bounded metadata label. */
+        private final String callLabel;
         /** True/success and false targets; -1 denotes an unresolved continuation. */
         private int yes = -1, no = -1;
         /** Initializes unresolved forward targets.
          * @param node expanded source instruction retained by the eventual immutable action
+         * @param callLabel stable caller context, empty for direct source actions
          */
-        private Draft(Node node) { this.node = node; }
+        private Draft(Node node, String callLabel) { this.node = node; this.callLabel = callLabel; }
     }
 
 }
