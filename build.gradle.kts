@@ -82,6 +82,20 @@ tasks.test {
     }
 }
 
+// Opt-in measurements use test fixtures without shipping them or attaching mutation agents.
+tasks.register<JavaExec>("profileSearch") {
+    group = "verification"
+    description = "Measure trace construction and DPOR sleep contexts (Spec 68)"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.samhb.profiling.SearchProfile")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    minHeapSize = "512m"
+    maxHeapSize = "512m"
+    val fork = providers.gradleProperty("profileFork").orElse("1")
+    args(layout.buildDirectory.dir("reports/search-profile/fork-${fork.get()}").get().asFile.absolutePath, fork.get())
+}
+
 tasks.withType<JavaCompile> {
     options.encoding = Charsets.UTF_8.name()
     options.release.set(26)
