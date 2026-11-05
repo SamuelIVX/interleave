@@ -136,7 +136,7 @@ public final class DfsExplorer {
         statesExplored = 0;
 
         Configuration initial = program.initialConfiguration();
-        dfs(program, initial, new ArrayList<>(), new ArrayList<>(), invariant);
+        dfs(program, initial, new ArrayList<>(), new ArrayList<>(), TracePrefix.empty(), invariant);
 
         return new DfsResult(visitedStates, traces, statesExplored);
     }
@@ -147,11 +147,13 @@ public final class DfsExplorer {
      * @param config current search configuration
      * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
      * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
+     * @param prefix immutable source evidence for actual traversal edges
      * @param invariant property to check, or null when no property is supplied
      */
     private void dfs(Program program, Configuration config,
                      List<Integer> currentThreadIds,
                      List<StepOutcome> currentOutcomes,
+                     TracePrefix prefix,
                      Invariant invariant) {
         if (statesExplored >= maxStatesBudget) return;
         if (stateStore.isVisited(config)) {
@@ -167,7 +169,7 @@ public final class DfsExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -176,7 +178,7 @@ public final class DfsExplorer {
         }
 
         if (config.allTerminated()) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -189,13 +191,14 @@ public final class DfsExplorer {
             StepTransition execution = TransitionExecutor.execute(program, config, threadId);
             if (execution.cutoff() != null) {
                 if (emittedCutoffs.add(execution.cutoff())) {
-                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                    Trace cutoff = prefix.trace(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, config, execution.cutoff());
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
                 }
                 continue;
             }
             StepOutcome outcome = execution.outcome();
+            TracePrefix nextPrefix = prefix.append(program, config, threadId, execution);
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -204,7 +207,7 @@ public final class DfsExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
+                Trace trace = nextPrefix.trace(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -214,11 +217,11 @@ public final class DfsExplorer {
 
             Configuration nextConfig = execution.successor();
 
-            dfs(program, nextConfig, nextThreadIds, nextOutcomes, invariant);
+            dfs(program, nextConfig, nextThreadIds, nextOutcomes, nextPrefix, invariant);
         }
 
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);

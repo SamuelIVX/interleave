@@ -122,7 +122,7 @@ public final class ContextBoundedExplorer {
         incompleteOutcomes = null;
         incompleteEvidence = null;
 
-        dfs(program, program.initialConfiguration(), new ArrayList<>(), new ArrayList<>(),
+        dfs(program, program.initialConfiguration(), new ArrayList<>(), new ArrayList<>(), TracePrefix.empty(),
             -1, 0, maxPreemptions, invariant, store, stateVisitor);
 
         emitIncompleteTraceIfNeeded(program, stateVisitor);
@@ -136,6 +136,7 @@ public final class ContextBoundedExplorer {
      * @param config current search configuration
      * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
      * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
+     * @param prefix immutable source evidence for actual traversal edges
      * @param lastThreadId previously scheduled thread, or the initial sentinel
      * @param currentPreemptions preemption cost accumulated along this path
      * @param maxPreemptions nonnegative preemption bound
@@ -146,6 +147,7 @@ public final class ContextBoundedExplorer {
     private void dfs(Program program, Configuration config,
                      List<Integer> currentThreadIds,
                      List<StepOutcome> currentOutcomes,
+                     TracePrefix prefix,
                      int lastThreadId, int currentPreemptions, int maxPreemptions,
                      Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
 
@@ -161,12 +163,12 @@ public final class ContextBoundedExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            addTrace(Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant), stateVisitor);
+            addTrace(prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant, config, null), stateVisitor);
             return;
         }
 
         if (config.allTerminated()) {
-            addTrace(Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant), stateVisitor);
+            addTrace(prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant, config, null), stateVisitor);
             return;
         }
 
@@ -204,8 +206,7 @@ public final class ContextBoundedExplorer {
                         threadId, pc, maxPreemptions, null, source == null ? null : source.source(),
                         source == null ? List.of() : source.expansionPath());
                     // Source partial results must retain this witness even if a later visit interrupts DFS.
-                    if (program.isSource()) addTrace(Trace.create(program, incompleteThreadIds, incompleteOutcomes,
-                        TraceOutcome.INCOMPLETE, null, incompleteEvidence), stateVisitor);
+                    if (program.isSource()) addTrace(prefix.trace(program, incompleteThreadIds, incompleteOutcomes, TraceOutcome.INCOMPLETE, null, config, incompleteEvidence), stateVisitor);
                 }
                 continue;
             }
@@ -213,13 +214,14 @@ public final class ContextBoundedExplorer {
             StepTransition execution = TransitionExecutor.execute(program, config, threadId);
             if (execution.cutoff() != null) {
                 if (emittedCutoffs.add(execution.cutoff())) {
-                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                    Trace cutoff = prefix.trace(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, config, execution.cutoff());
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
                 }
                 continue;
             }
             StepOutcome outcome = execution.outcome();
+            TracePrefix nextPrefix = prefix.append(program, config, threadId, execution);
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -227,18 +229,18 @@ public final class ContextBoundedExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                addTrace(Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant), stateVisitor);
+                addTrace(nextPrefix.trace(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant, config, null), stateVisitor);
                 continue;
             }
 
             Configuration nextConfig = execution.successor();
 
-            dfs(program, nextConfig, nextThreadIds, nextOutcomes,
+            dfs(program, nextConfig, nextThreadIds, nextOutcomes, nextPrefix,
                 threadId, nextPreemptions, maxPreemptions, invariant, stateStore, stateVisitor);
         }
 
         if (config.isDeadlockCandidate()) {
-            addTrace(Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant), stateVisitor);
+            addTrace(prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant, config, null), stateVisitor);
         }
     }
 

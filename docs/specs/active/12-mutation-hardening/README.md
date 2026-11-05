@@ -228,11 +228,29 @@ on disagreement (DEFERRED E1/E2). It does not parse or validate this Markdown ta
 compare the table with the emitted census and update it alongside the constants. Scoped runs compare
 only measured classes; a missing-class notice is meaningful only on a full run.
 
-The **current** column reflects the full-scope 13.09 run on 2026-10-06:
-**268 mutants, 255 killed**, with the same 13 survivors as merged PR #42. The `c5fdcd0` column is
-historical. Scoped and full runs agree for each measured class; only full runs establish the aggregate.
+The current default state/CBS census is the fresh [Spec 69](../69-traversal-trace-evidence.md)
+run on `460641d` plus its traversal-evidence patch (2026-11-05): **283/293 killed, ten survived**,
+zero uncovered/resource/run errors, full R5/R6/R7 pass. The unchanged state classes retain all 168
+identities/statuses. CBS gains two killed prefix calls (125/125 versus fresh baseline 123/123);
+its descriptor/index relocation is accounted for in Spec 69. `EXPECTED_PER_CLASS` now records:
 
-| class | historical `c5fdcd0` | coverage | **current** | coverage | re-verified | moved by |
+| class | current killed / total | coverage | provenance |
+|---|---|---|---|
+| `CanonicalEncoder` | **18/19** | **94.7%** | Spec 69 default census; unchanged from fresh baseline |
+| `HashingStateStore` | **45/52** | **86.5%** | Spec 19 hardening retained; Spec 69 re-verifies |
+| `ContextBoundedExplorer` | **125/125** | **100.0%** | Spec 69 traversal evidence, two new killed calls |
+| `BitstateStore` | **95/97** | **97.9%** | Spec 20 hardening retained; Spec 69 re-verifies |
+
+The 94% floor is unchanged; 283/293 retains the baseline's seven-kill headroom. The separate
+TracePrefix scope is 30/31 with one capacity-hint survivor, not part of the 293-mutant default
+population. Do not add overlapping or separately targeted scopes. Class fingerprints and local
+measurement provenance are in the [Spec 69 report](../../../measurements/69-traversal-trace-evidence.md).
+
+The **historical 13.09** column below preserves the full-scope run on 2026-10-06:
+**268 mutants, 255 killed**, with the same 13 survivors as merged PR #42. The `c5fdcd0` column is
+also historical. Scoped and full runs agree per class; only full runs establish the aggregate.
+
+| class | historical `c5fdcd0` | coverage | **historical 13.09** | coverage | measured | moved by |
 |---|---|---|---|---|---|---|
 | `CanonicalEncoder` | 6/12 | 50.0% | **18/19** | **94.7%** | 2026-10-06 | 12.01 deletion; 13.09 shared keys |
 | `HashingStateStore` | 46/61 | 75.4% | **43/52** | **82.7%** | 2026-10-06 | 12.02 tests; 13.09 consolidation |

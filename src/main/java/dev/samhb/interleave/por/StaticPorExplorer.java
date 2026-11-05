@@ -95,7 +95,7 @@ public final class StaticPorExplorer {
                 .map(locations -> new PropertyPersistentSetComputer(program.threads(), locations, relation))
                 .orElse(null);
         Configuration initial = program.initialConfiguration();
-        porDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
+        porDfs(program, initial, new ArrayList<>(), new ArrayList<>(), TracePrefix.empty(),
                visitedStates, traces, emittedCutoffs, invariant, statesExplored, effectiveStateStore, stateVisitor, propertySets);
 
         return new DfsResult(visitedStates, traces, statesExplored[0]);
@@ -107,6 +107,7 @@ public final class StaticPorExplorer {
      * @param config current position
      * @param currentThreadIds schedule prefix
      * @param currentOutcomes executed-outcome prefix
+     * @param prefix immutable source evidence for actual traversal edges
      * @param visitedStates value-keyed explored positions
      * @param emittedCutoffs run-local loop witnesses already emitted, preserving the first prefix
      * @param traces emitted evidence
@@ -119,6 +120,7 @@ public final class StaticPorExplorer {
     private void porDfs(Program program, Configuration config,
                         List<Integer> currentThreadIds,
                         List<StepOutcome> currentOutcomes,
+                        TracePrefix prefix,
                         Map<String, Configuration> visitedStates,
                         List<Trace> traces,
                         Set<CutoffEvidence> emittedCutoffs,
@@ -140,7 +142,7 @@ public final class StaticPorExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -149,7 +151,7 @@ public final class StaticPorExplorer {
         }
 
         if (config.allTerminated()) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -186,13 +188,14 @@ public final class StaticPorExplorer {
             CutoffEvidence evidence = transition.cutoff();
             if (evidence != null) {
                 if (emittedCutoffs.add(evidence)) {
-                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, evidence);
+                    Trace cutoff = prefix.trace(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, config, evidence);
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
                 }
                 continue;
             }
             StepOutcome outcome = transition.outcome();
+            TracePrefix nextPrefix = prefix.append(program, config, threadId, transition);
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -201,7 +204,7 @@ public final class StaticPorExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
+                Trace trace = nextPrefix.trace(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -211,20 +214,20 @@ public final class StaticPorExplorer {
 
             Configuration nextConfig = transition.successor();
 
-            porDfs(program, nextConfig, nextThreadIds, nextOutcomes,
+            porDfs(program, nextConfig, nextThreadIds, nextOutcomes, nextPrefix,
                    visitedStates, traces, emittedCutoffs, invariant, statesExplored, stateStore, stateVisitor, propertySets);
         }
 
         if (config.enabledThreadIds().isEmpty() && !config.allTerminated()) {
             // Check invariant before reporting deadlock
             if (invariant != null && !invariant.holds(config.state(), config)) {
-                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
+                Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
                 }
             } else {
-                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant);
+                Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
