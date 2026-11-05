@@ -29,6 +29,10 @@ executedSteps[i] = {
 zero-based, ordered outermost first. A final while check uses iteration N. For internal atomic
 control flow, the executed outer block has one metadata entry; an inner failure/cutoff location
 belongs to separate terminal evidence, not fictitious committed inner steps.
+Helper actions retain definition spans, including precise inner error/cutoff spans. Their labels
+include an outermost-first call name and callsite line/column chain within the existing label cap.
+Owner, actual PC, loop ancestry and exact source digest identify expanded occurrences; no runtime
+call-stack field or JSON schema change is introduced. Replay/minimization regenerate this evidence.
 Labels are source-derived diagnostic text and must be rendered as text, never HTML.
 
 Preserve legacy traces that lack metadata. Reject supplied misaligned executedSteps, impossible

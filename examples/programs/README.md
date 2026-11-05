@@ -22,11 +22,17 @@ apply. Each outer `atomic` is one scheduling action; an outer condition is a sep
 |---|---|
 | `split-increment.ilv` | Two reads before either write leave 1; serial increments leave 2. Final `counter == 2` can fail. Matches the hand-authored typed `lost-update.json` teaching case. |
 | `atomic-increment.ilv` | Either ordering increments twice: final value 2, PASS. |
+| `helper-increment.ilv` | Two calls to one atomic increment helper retain final value 2, PASS. |
+| `helper-split-increment.ilv` | Caller-local load/store helper permits final values 1 and 2, VIOLATION. |
 | `branching-flag.ilv` | Decision before producer selects value 2, even if producer runs before the body; producer before decision selects 1. PASS. |
 | `bounded-loops.ilv` | First while increments twice, its final test exits; second invocation exits immediately. False zero-limit loop exits; true zero-limit loop yields INCOMPLETE with counter 2. |
 | `atomic-cutoff.ilv` | A true final private loop test cuts off; none of the tentative writes commit. INCOMPLETE, counter 0. |
 | `atomic-runtime-error.ilv` | Modulo by zero aborts the whole atomic block. VIOLATION with unchanged counter 0; the always predicate itself holds. |
 | `guarded-handoff.ilv` | Consumer waits for producer, then commits value 8 and clears ready. PASS. Removing producer's action leaves a genuine DEADLOCK, unlike loop cutoff. |
+
+Helpers are zero-argument scheduled sequences declared before threads; calls may reference earlier
+helpers. Their bodies bind locals/tid to the caller. Calls add no extra action; all existing expanded
+work limits still apply. Calls inside atomic interiors and recursive calls are rejected.
 
 A bound allows N bodies and then tests once more: true means unexplored behavior, so INCOMPLETE.
 Exact-store PASS proves the selected finite model; bitstate absence is APPROXIMATE_PASS. These files

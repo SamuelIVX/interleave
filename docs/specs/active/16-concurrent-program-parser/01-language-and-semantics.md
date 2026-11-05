@@ -16,15 +16,17 @@ Whitespace, `//` line comments and non-nested `/* ... */` comments separate toke
 comments are errors. Comments may separate expression tokens without concatenating identifiers.
 
 ```ebnf
-program     = "program", IDENT, "{", sharedDecl, {sharedDecl}, {localDecl},
+program     = "program", IDENT, "{", sharedDecl, {sharedDecl}, {localDecl}, {helperDecl},
               threadDecl, {threadDecl}, [property], [expectation], "}" ;
 sharedDecl  = "shared", type, IDENT, "=", initializer, ";" ;
 localDecl   = "local", type, IDENT, "=", initializer, ";" ;
 type        = "int" | "bool" | "int", "[", "]" ;
 initializer = signedInt | "true" | "false" | "[", [signedInt, {",", signedInt}], "]" ;
+helperDecl  = "helper", IDENT, block ;
+helperCall  = "call", IDENT, ";" ;
 threadDecl  = "thread", UINT, block ;
 block       = "{", {statement}, "}" ;
-statement   = atomic | conditional | repetition | boundedLoop ;
+statement   = atomic | conditional | repetition | boundedLoop | helperCall ;
 atomic      = "atomic", ["when", "(", expr, ")"], atomicBlock ;
 atomicBlock = "{", {atomicStmt}, "}" ;
 atomicStmt  = assignment, ";" | atomicIf | atomicRepeat | atomicLoop ;
@@ -41,22 +43,33 @@ expectation = "expected", ("PASS" | "VIOLATION" | "DEADLOCK"), ";" ;
 `signedInt`, `expr` and `assignment` use the existing declarative parser's actual operator grammar:
 32-bit decimal integers, booleans, `tid`, shared/local references, array access, parentheses, unary
 `! -`, and binary `+ - * % == != < <= > >= && ||`. Assignment is `lhs = expr`, where `lhs` is an
-existing scalar or indexed shared/local array target. Division, calls, increment syntax and chained
-assignment are rejected. Preserve existing precedence, left associativity and short-circuit rules.
+existing scalar or indexed shared/local array target. Division, expression calls, increment syntax
+and chained assignment are rejected. Preserve existing precedence, left associativity and short-circuit rules.
 
 ## Declarations and properties
 
 Types and literal initializer shapes must match. `int[]` is supported for shared and local arrays,
 matching current `DslLocalArrayTest` and implementation, rather than obsolete scalar-only text in
-spec 09. All names are unique across shared/local declarations; shadowing is rejected.
+spec 09. All names are unique across shared/local/helper declarations; shadowing is rejected.
 Each thread receives its own initialized copy of the common local declaration schema. Reference
 locals with `local.name`; a bare identifier denotes shared state. Thread IDs are sequential from 0.
-Declarations precede threads, which precede the optional property and expectation.
+Shared/local declarations precede helper definitions, then threads, then the optional property
+and expectation.
 
 A property must be boolean and use shared fields only; `local.*` and `tid` are rejected, including
 inside array indices. `always` checks the initial state and every committed configuration; `final`
 checks only when all threads terminate. Multiple predicates use `&&` within the one property.
 The expected verdict is metadata, never evidence and never an input to search pruning.
+
+## Reusable scheduled helpers
+
+`helper` and `call` are contextual words, so existing declarations with those names remain legal.
+A helper takes no arguments and returns no value. It may call earlier definitions only; forward
+references and recursion are rejected. Calls are allowed in scheduled thread/helper control flow,
+including branches and loops, but not inside atomic interiors. Definition bodies are validated even
+when unused. Shared/local/tid references bind to the caller owner. Expansion adds no scheduled action
+or PC beyond the body, preserving the actions and footprints of manual inlining. See
+[Spec 71](../71-bounded-source-helpers.md) for bounds and acceptance evidence.
 
 ## Scheduling and blocking
 
@@ -121,4 +134,4 @@ Validate values and scheduling boundaries against hand-written expectations, not
 
 ## Implementation evidence
 
-`SourceProgramLoaderTest` and `SourceAcceptanceTest` exercise final-value/schedule oracles, nested allowance reset, atomic observation boundaries, guards and runtime rollback. The seven `.ilv` examples are loaded through all benchmark rows by `SourceAcceptanceTest`. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.
+`SourceProgramLoaderTest` and `SourceAcceptanceTest` exercise final-value/schedule oracles, nested allowance reset, atomic observation boundaries, guards and runtime rollback. The nine `.ilv` examples are loaded through all benchmark rows by `SourceAcceptanceTest`. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.
