@@ -419,7 +419,13 @@ pitest {
  * away because the duplicated derivation was consolidated, which was the assigned work; had the call
  * been deleted for the purpose of killing the mutant, this would be the score-laundering D5 forbids.
  */
-val EXPECTED_TOTAL_MUTANTS = 291
+// Spec 69: CBS gains two killed calls (TracePrefix.empty/append): 283/293, CBS 125/125.
+// All 168 state-scope identities/statuses and ten raw survivors are unchanged. CBS's new dfs
+// parameter shifts its bytecode identities; the method/mutator census accounts for the net +2.
+// Same scope/operators/runtime and 94% floor: ceil(94*293/100)=276, seven kills of headroom,
+// matching baseline 281-ceil(94*291/100)=7. This is production population drift, not new kills
+// of old survivors. See Spec 69 for the exact before/after census.
+val EXPECTED_TOTAL_MUTANTS = 293
 
 /**
  * Per-class kills/total, checked against the measurement on every run and reported as a WARNING only.
@@ -437,9 +443,9 @@ val EXPECTED_TOTAL_MUTANTS = 291
  */
 val EXPECTED_PER_CLASS = mapOf(
     "dev.samhb.interleave.state.CanonicalEncoder" to "18/19",
-    "dev.samhb.interleave.state.HashingStateStore" to "43/52",
-    "dev.samhb.interleave.state.BitstateStore" to "94/97",
-    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "122/123",
+    "dev.samhb.interleave.state.HashingStateStore" to "45/52",
+    "dev.samhb.interleave.state.BitstateStore" to "95/97",
+    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "125/125",
 )
 
 /**
@@ -450,6 +456,8 @@ val EXPECTED_PER_CLASS = mapOf(
  *
  * Spec 16's initial 295-mutant population required 278 kills: 94*295 = 27730.
  * The cutoff-set follow-up has 291 mutants and requires 274 kills: 94*291 = 27354.
+ * Spec 69 has 293 mutants and requires 276 kills: 94*293 = 27542. With 283 kills,
+ * the seven-kill margin matches the fresh 281/291 baseline; no floor weakening.
  * Historical arithmetic against the 268-mutant population: 94*268 = 25192, so 252 kills clear the gate and 251
  * does not. That is one lost kill more permissive than the 270-mutant arithmetic (94*270 = 25380, so
  * 254 cleared and 253 did not) — a fixed percentage against a smaller denominator buys a little slack.
@@ -699,9 +707,9 @@ tasks.register("mutationRatchet") {
         if (enforceAggregate && total != EXPECTED_TOTAL_MUTANTS) {
             throw GradleException(
                 "Ratchet: expected $EXPECTED_TOTAL_MUTANTS mutants, PIT generated $total.\n" +
-                    "Either the scope moved (targetClasses), the mutator set moved, or the\n" +
-                    "runtime changed. Do NOT simply update the constant — confirm which of\n" +
-                    "the three it is, and re-derive MUTATION_FLOOR_PERCENT if the population\n" +
+                    "Production code, the scope (targetClasses), mutators or runtime changed.\n" +
+                    "Do NOT simply update the constant — record the cause and identity census,\n" +
+                    "and re-derive MUTATION_FLOOR_PERCENT if the population\n" +
                     "changed for a reason other than dead-code removal."
             )
         }

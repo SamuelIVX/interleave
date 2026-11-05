@@ -90,15 +90,15 @@ public final class DporExplorer {
         Configuration initial = program.initialConfiguration();
         Optional<Set<MemoryLocation>> maybeObs = invariant != null ? invariant.observedLocations() : Optional.empty();
         if (invariant == null) {
-            dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
+            dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(), TracePrefix.empty(),
                     visitedStates, traces, emittedCutoffs, invariant, statesExplored,
                     new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, null, sleepCoverage);
         } else if (maybeObs.isPresent()) {
-            dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
+            dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(), TracePrefix.empty(),
                     visitedStates, traces, emittedCutoffs, invariant, statesExplored,
                     new SleepSet(), new HappensBefore(), effectiveStateStore, stateVisitor, maybeObs.get(), sleepCoverage);
         } else {
-            dfsDfs(program, initial, new ArrayList<>(), new ArrayList<>(),
+            dfsDfs(program, initial, new ArrayList<>(), new ArrayList<>(), TracePrefix.empty(),
                     visitedStates, traces, emittedCutoffs, invariant, statesExplored, effectiveStateStore, stateVisitor);
         }
 
@@ -111,6 +111,7 @@ public final class DporExplorer {
      * @param config current search configuration
      * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
      * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
+     * @param prefix immutable source evidence for actual traversal edges
      * @param visitedStates configurations indexed by canonical value key
      * @param emittedCutoffs run-local loop witnesses already emitted, preserving the first prefix
      * @param traces recorded executions
@@ -126,6 +127,7 @@ public final class DporExplorer {
     private void dporDfs(Program program, Configuration config,
                          List<Integer> currentThreadIds,
                          List<StepOutcome> currentOutcomes,
+                         TracePrefix prefix,
                          Map<String, Configuration> visitedStates,
                          List<Trace> traces,
                         Set<CutoffEvidence> emittedCutoffs,
@@ -168,7 +170,7 @@ public final class DporExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -177,7 +179,7 @@ public final class DporExplorer {
         }
 
         if (config.allTerminated()) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -189,13 +191,13 @@ public final class DporExplorer {
         if (enabled.isEmpty()) {
             // Check invariant before reporting deadlock
             if (invariant != null && !invariant.holds(config.state(), config)) {
-                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
+                Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
                 }
             } else {
-                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant);
+                Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -217,13 +219,14 @@ public final class DporExplorer {
             StepTransition execution = TransitionExecutor.execute(program, config, threadId);
             if (execution.cutoff() != null) {
                 if (emittedCutoffs.add(execution.cutoff())) {
-                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                    Trace cutoff = prefix.trace(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, config, execution.cutoff());
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
                 }
                 continue;
             }
             StepOutcome outcome = execution.outcome();
+            TracePrefix nextPrefix = prefix.append(program, config, threadId, execution);
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -232,7 +235,7 @@ public final class DporExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
+                Trace trace = nextPrefix.trace(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -278,7 +281,7 @@ public final class DporExplorer {
                 }
             }
 
-            dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
+            dporDfs(program, nextConfig, nextThreadIds, nextOutcomes, nextPrefix,
                     visitedStates, traces, emittedCutoffs, invariant, statesExplored,
                     nextSleepSet, nextHappensBefore, stateStore, stateVisitor, observations, sleepCoverage);
         }
@@ -293,13 +296,14 @@ public final class DporExplorer {
                 StepTransition execution = TransitionExecutor.execute(program, config, threadId);
                 if (execution.cutoff() != null) {
                     if (emittedCutoffs.add(execution.cutoff())) {
-                        Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                        Trace cutoff = prefix.trace(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, config, execution.cutoff());
                         traces.add(cutoff);
                         if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
                     }
                     continue;
                 }
                 StepOutcome outcome = execution.outcome();
+                TracePrefix nextPrefix = prefix.append(program, config, threadId, execution);
 
                 List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
                 nextThreadIds.add(threadId);
@@ -308,7 +312,7 @@ public final class DporExplorer {
                 nextOutcomes.add(outcome);
 
                 if (outcome == StepOutcome.ASSERTION_FAILED) {
-                    Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
+                    Trace trace = nextPrefix.trace(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
                     traces.add(trace);
                     if (stateVisitor != null) {
                         stateVisitor.onTraceCreated(trace);
@@ -318,7 +322,7 @@ public final class DporExplorer {
 
                 Configuration nextConfig = execution.successor();
 
-                dporDfs(program, nextConfig, nextThreadIds, nextOutcomes,
+                dporDfs(program, nextConfig, nextThreadIds, nextOutcomes, nextPrefix,
                         visitedStates, traces, emittedCutoffs, invariant, statesExplored,
                         new SleepSet(), new HappensBefore(), stateStore, stateVisitor, observations, sleepCoverage);
             }
@@ -331,6 +335,7 @@ public final class DporExplorer {
      * @param config current search configuration
      * @param currentThreadIds mutable thread-choice prefix, restored after recursive exploration
      * @param currentOutcomes mutable step-outcome prefix, restored after recursive exploration
+     * @param prefix immutable source evidence for actual traversal edges
      * @param visitedStates configurations indexed by canonical value key
      * @param emittedCutoffs run-local loop witnesses already emitted, preserving the first prefix
      * @param traces recorded executions
@@ -342,6 +347,7 @@ public final class DporExplorer {
     private void dfsDfs(Program program, Configuration config,
                         List<Integer> currentThreadIds,
                         List<StepOutcome> currentOutcomes,
+                        TracePrefix prefix,
                         Map<String, Configuration> visitedStates,
                         List<Trace> traces,
                         Set<CutoffEvidence> emittedCutoffs,
@@ -362,7 +368,7 @@ public final class DporExplorer {
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -371,7 +377,7 @@ public final class DporExplorer {
         }
 
         if (config.allTerminated()) {
-            Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant);
+            Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.COMPLETED, invariant, config, null);
             traces.add(trace);
             if (stateVisitor != null) {
                 stateVisitor.onTraceCreated(trace);
@@ -383,13 +389,13 @@ public final class DporExplorer {
         if (enabled.isEmpty()) {
             // Check invariant before reporting deadlock
             if (invariant != null && !invariant.holds(config.state(), config)) {
-                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant);
+                Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
                 }
             } else {
-                Trace trace = Trace.create(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant);
+                Trace trace = prefix.trace(program, List.copyOf(currentThreadIds), List.copyOf(currentOutcomes), TraceOutcome.DEADLOCK, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -407,13 +413,14 @@ public final class DporExplorer {
             StepTransition execution = TransitionExecutor.execute(program, config, threadId);
             if (execution.cutoff() != null) {
                 if (emittedCutoffs.add(execution.cutoff())) {
-                    Trace cutoff = Trace.create(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, execution.cutoff());
+                    Trace cutoff = prefix.trace(program, currentThreadIds, currentOutcomes, TraceOutcome.INCOMPLETE, invariant, config, execution.cutoff());
                     traces.add(cutoff);
                     if (stateVisitor != null) stateVisitor.onTraceCreated(cutoff);
                 }
                 continue;
             }
             StepOutcome outcome = execution.outcome();
+            TracePrefix nextPrefix = prefix.append(program, config, threadId, execution);
 
             List<Integer> nextThreadIds = new ArrayList<>(currentThreadIds);
             nextThreadIds.add(threadId);
@@ -422,7 +429,7 @@ public final class DporExplorer {
             nextOutcomes.add(outcome);
 
             if (outcome == StepOutcome.ASSERTION_FAILED) {
-                Trace trace = Trace.create(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant);
+                Trace trace = nextPrefix.trace(program, List.copyOf(nextThreadIds), List.copyOf(nextOutcomes), TraceOutcome.VIOLATION, invariant, config, null);
                 traces.add(trace);
                 if (stateVisitor != null) {
                     stateVisitor.onTraceCreated(trace);
@@ -432,7 +439,7 @@ public final class DporExplorer {
 
             Configuration nextConfig = execution.successor();
 
-            dfsDfs(program, nextConfig, nextThreadIds, nextOutcomes,
+            dfsDfs(program, nextConfig, nextThreadIds, nextOutcomes, nextPrefix,
                    visitedStates, traces, emittedCutoffs, invariant, statesExplored, stateStore, stateVisitor);
         }
     }
