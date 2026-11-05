@@ -24,7 +24,11 @@ bounded while loops and POR/DPOR support. Shipped in [PR #57](https://github.com
 with CLI/library support, source traces and all strategies. Spec 16 records acceptance, mutation
 evidence and completed CLI review dispositions; all implementation PR CI checks passed.
 
-## Remaining Candidates — Ranked by LOE
+## Remaining work — execution order and PR grouping
+
+Complete the preceding follow-up backlog, including deferred tasks and bug fixes, before starting
+items **#10, #11 or #12**. The 9-H, 9-V and 9-F follow-ups come first. Each of #10–12 is a separate
+later workstream with its own specification and PRs; do not combine them with the preceding backlog.
 
 PR grouping is advisory: prefer one complete behavior in a moderately sized PR. Bundle its
 implementation, affected callers, API/CLI wiring, fixtures, documentation and regression tests;
@@ -53,15 +57,9 @@ Shared bundles and proposed sequence:
   automatically authorized by profiling, and representation work does not change pruning rules.
 - Share cyclic-execution groundwork once across 9-F6, backward jumps in 9-F7 and liveness in 9-F8.
   Their language/analysis features retain separate acceptance contracts and complete feature PRs.
-- After the Parser closeout merges, use the shared profiling bundle before selecting feature work
+- After the Parser closeout, use the shared profiling bundle before selecting feature work
   from demonstrated modeling needs.
   The grouping plan does not change the deferred status or priority of any candidate below.
-
-| # | Item | LOE | Spec Needed? | Why | PR grouping / boundary |
-|---|---|---|---|---|---|
-| 10 | Symmetry reduction | High | Spec-set | Canonicalization is subtle; soundness must be proven | Target 2–3 PRs: canonicalization and identity-mapping proof/tests; complete exact-search integration with original-identity trace/replay support; reduced-strategy integration. Preserve safe behavior for unsupported combinations until that integration lands. |
-| 11 | Relaxed memory models | Very High | Spec-set | Fundamental semantics change — needs formal spec | Stage one selected memory model: state/transition foundations; complete execution and witness support; supported search/reduction integration. Keep each additional memory model separate. Exact PR count follows the semantics/proof scope. |
-| 12 | Real Java bytecode instrumentation | Very High | Spec-set | Entirely new subsystem with external deps (ASM/Javassist) | Stage supported-bytecode ingestion and rejection rules; execution/lowering with source identities and replay; CLI/library integration and differential corpus verification. Group broader bytecode coverage by supported capability, not individual opcodes. Exact PR count follows the selected Java subset. |
 
 ## Spec 16 follow-ups — hardening, larger changes and feature candidates
 
@@ -99,7 +97,7 @@ before optimization; preserving safety fallbacks is the default.
 | ID | Gap and proposed work | Benefit | Cost / risk | LOE | Spec | Recommendation | PR grouping / boundary |
 |---|---|---|---|---|---|---|---|
 | 9-V1 | Tracked verification hardening complete in Specs 21–48 / PRs #62–89. [Spec47](../specs/active/47-verification-census.md) records the original ten-class census: 1,264/1,301 KILLED, 19 SURVIVED, 18 NO_COVERAGE; all 37 non-kills have scoped dispositions. [Spec48](../specs/active/48-selector-mutation-work-bound.md) addresses the separate selector resource failure: 111/115 KILLED, four scoped survivors, zero resource/run errors. Other helper/report populations remain separate in their specs. | Protects the recorded source execution, evidence, replay, reduction and reporting contracts. | Completion is limited to the enumerated ledger and each disposition's model/metadata/purity assumptions; raw survivors/uncovered remain visible. No whole-checker mutation or soundness closure claim. | M–L | Focused hardening specs | Complete; Spec48 merged in PR #89 at `06985a0`. Merged revision passes 1,003 tests, strict Javadoc, default full gate 281/291 and selector 111/115 (scoped R6 passes; R5/R7 skipped), plus 18 normalization checks. Reopen for a concrete contract regression; unsupported fixtures and production cleanup are not required to force 100%. | No further tracked 9-V1 implementation PR planned. Replay/state/CBS overlap is covered with 9-H1/H2. Broader compiler-harness work belongs to the separate 9-V2 effort. |
-| 9-V2 | Tracked frontend/harness verification implemented in Specs 49–67; Specs 49–66 merged in PRs #91–108. [Spec 67](../specs/active/67-parser-contract-closeout.md) closes the recorded Parser ledger in one bundle. | Protects literal syntax trees, assignment validation, diagnostic precedence and recursion limits. | Parser 320/361 K + 30 S + 11 NC: all 41 residuals have scoped dispositions. Compiler/loader/default scopes remain separate; no whole-checker claim. | M | Focused verification specs | Spec 67 implemented, pending merge: 61 new cases, 1,290 tests/build/Javadoc pass; 45 new kills, all 361 identities/275 prior kills retained, zero resource/run errors. CLI four files, one trivial finding patched. Default 281/291 retains all 291 identities/statuses and passes R5/R6/R7. | Completed in one Parser closeout bundle, including the requested roadmap grouping plan. No further tracked 9-V2 PR planned after merge; reopen for a concrete regression. Structured diagnostics remains a separately selected 9-F11 feature. Preserve completed 9-V1. |
+| 9-V2 | Tracked frontend/harness verification complete in Specs 49–67 / PRs #91–109. [Spec 67](../specs/active/67-parser-contract-closeout.md) closes the recorded Parser ledger in one bundle. | Protects literal syntax trees, assignment validation, diagnostic precedence and recursion limits. | Parser 320/361 K + 30 S + 11 NC: all 41 residuals have scoped dispositions. Compiler/loader/default scopes remain separate; no whole-checker claim. | M | Focused verification specs | Spec 67 merged in PR #109: 61 new cases, 1,290 tests/build/Javadoc pass; 45 new kills, all 361 identities/275 prior kills retained, zero resource/run errors. CLI four files, one trivial finding patched. Default 281/291 retains all 291 identities/statuses and passes R5/R6/R7. | Completed in one Parser closeout bundle, including the requested roadmap grouping plan. No further tracked 9-V2 PR planned; reopen for a concrete regression. Structured diagnostics remains a separately selected 9-F11 feature. Preserve completed 9-V1. |
 | 9-V3 | Trace construction: profile prefix replay; capture metadata during traversal only if the cost is material. | May avoid repeated execution work. | Adds metadata plumbing and memory use; no measured bottleneck is documented. | S profiling; M–L implementation | Simple optimization spec after profiling | Profile first; defer implementation. | Share one profiling PR with 9-V5: reproducible models, trace-construction and sleep-context measurements, and results. If justified, one separate trace-optimization PR includes affected explorers, metadata capture, replay compatibility and performance/regression tests. |
 | 9-V4 | Unknown/final-property reduction: prove a broader observation/reduction contract before replacing exhaustive fallback. | Could explore fewer schedules. | Unsound pruning can hide failures. | L–XL | Spec-set | Defer; the current fallback protects correctness. | Target 1–2 PRs: observation contract/proof plus substantial supporting groundwork if needed; complete reduction changes with safe fallback, exhaustive-oracle comparisons and result/attestation updates. Keep the full 9-V6 formal-proof effort separate. |
 | 9-V5 | DPOR context costs: benchmark sleep-set antichains; optimize representation before considering new pruning rules. | Potential memory/time savings. | Revisited configurations can represent necessary work; dropping contexts can lose outcomes. | S profiling; L algorithm work | Simple spec for representation changes; spec-set for coverage changes | Keep current semantics unless measurements justify work. | Use the shared 9-V3/9-V5 profiling PR once. If justified, one DPOR representation PR includes sleep-context storage, subsumption checks, verdict/witness regressions and before/after measurements. Coverage-changing pruning rules require a separate proof and implementation scope. |
@@ -140,6 +138,18 @@ Language boundaries come from [16.01](../specs/active/16-concurrent-program-pars
 and [16.03](../specs/active/16-concurrent-program-parser/03-parser-validation-and-lowering.md);
 search tradeoffs from [16.05](../specs/active/16-concurrent-program-parser/05-por-and-dpor-soundness.md);
 replay, minimization and browser boundaries from [16.06](../specs/active/16-concurrent-program-parser/06-traces-replay-and-minimization.md).
+
+## Later independent workstreams — items 10–12
+
+Start these only after the preceding follow-up backlog, including its deferred tasks and bug fixes,
+is complete. The order below does not make any of them a substitute for completing that backlog.
+Keep symmetry reduction, relaxed memory models and actual Java input as separate workstreams.
+
+| # | Item | LOE | Spec Needed? | Why | PR grouping / boundary |
+|---|---|---|---|---|---|
+| 10 | Symmetry reduction | High | Spec-set | Canonicalization is subtle; soundness must be proven | Target 2–3 PRs: canonicalization and identity-mapping proof/tests; complete exact-search integration with original-identity trace/replay support; reduced-strategy integration. Preserve safe behavior for unsupported combinations until that integration lands. |
+| 11 | Relaxed memory models | Very High | Spec-set | Fundamental semantics change — needs formal spec | Stage one selected memory model: state/transition foundations; complete execution and witness support; supported search/reduction integration. Keep each additional memory model separate. Exact PR count follows the semantics/proof scope. |
+| 12 | Real Java bytecode instrumentation | Very High | Spec-set | Entirely new subsystem with external deps (ASM/Javassist) | Stage supported-bytecode ingestion and rejection rules; execution/lowering with source identities and replay; CLI/library integration and differential corpus verification. Group broader bytecode coverage by supported capability, not individual opcodes. Exact PR count follows the selected Java subset. |
 
 ## Deferred
 
