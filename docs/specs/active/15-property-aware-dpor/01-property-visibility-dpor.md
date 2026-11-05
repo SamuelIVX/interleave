@@ -26,10 +26,16 @@ When `DporExplorer.explore(program, invariant, stateStore, stateVisitor)` is inv
    - Known, complete state observation footprint $\mathcal{O} = \text{invariant.observedLocations().get()}$.
    - Executes `dporDfs(...)` with property-aware sleep-set maintenance.
    - Invisible transitions commute and sleep; visible transitions are never put to sleep and visible executions refresh sleeping transitions.
-3. **Case C: `invariant != null && invariant.observedLocations().isEmpty()`**
-   - Unknown observations, configuration-dependent callbacks, or DSL `final` assertions.
+3. **Case C: no applicable observation contract**
+   - The invariant is non-null, state-only observations are unknown, and either the program is legacy or final observations are also unknown.
+   - Unknown observations, configuration-dependent callbacks, or legacy DSL `final` checks.
    - The explorer cannot verify whether an arbitrary step might alter the predicate's truth value.
    - Fallback to unreduced, exhaustive depth-first search (`dfsDfs`) is strictly preserved.
+
+4. **Case D: declared final source observations (Spec 70)**
+   - `program.isSource()` is true, the original state-only observations are unknown, and `finalObservedLocations()` is present.
+   - Use the final expression's complete read set as O under the separate [completion-gate argument](../70-final-source-property-reduction.md).
+   - The existing visibility/sleep rules remain unchanged. This does not infer metadata for opaque callbacks or broaden legacy dispatch.
 
 ### 2. Transition Visibility Rules
 

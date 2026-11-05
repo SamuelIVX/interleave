@@ -10,7 +10,9 @@ import java.util.*;
 /**
  * Static partial-order search with conservative support for observed state-only properties.
  *
- * <p>Ordinary invariant callbacks branch exhaustively. Properties declaring complete
+ * <p>Finite source models also support the explicit {@link Invariant#finalObservedLocations()}
+ * contract under Spec 70; termination is its only configuration-dependent observation gate.
+ * Ordinary invariant callbacks branch exhaustively. Properties declaring complete
  * {@link Invariant#observedLocations()} may use an invisible component closed over all remaining
  * thread dependencies, provided its executed actions advance their counters. Unknown observations,
  * visible/dependent components and non-progressing actions retain exhaustive branching.
@@ -89,9 +91,13 @@ public final class StaticPorExplorer {
         Set<CutoffEvidence> emittedCutoffs = new HashSet<>();
         long[] statesExplored = new long[1];
 
+        Optional<Set<MemoryLocation>> observations = invariant != null ? invariant.observedLocations() : Optional.empty();
+        if (program.isSource() && invariant != null && observations.isEmpty()) {
+            observations = invariant.finalObservedLocations();
+        }
         PropertyPersistentSetComputer propertySets = invariant == null ? (program.isSource()
             ? new PropertyPersistentSetComputer(program.threads(), Set.of(), relation) : null)
-            : invariant.observedLocations()
+            : observations
                 .map(locations -> new PropertyPersistentSetComputer(program.threads(), locations, relation))
                 .orElse(null);
         Configuration initial = program.initialConfiguration();

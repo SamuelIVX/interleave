@@ -33,7 +33,9 @@ The implementation supplies a reviewed preservation argument with these componen
    conservative across skipped branches. State explicitly where branch exits/terminal instructions
    are covered. Code must not insert a backward successor.
 3. **Properties:** preserve existing complete state-only observations and exhaustive fallback for
-   unknown/configuration-dependent/final properties. Atomic interiors are not property observation
+   unknown/configuration-dependent properties. Declared final source predicates use the separate
+   [Spec 70](../70-final-source-property-reduction.md) completion-gate argument; legacy final
+   properties retain fallback. Atomic interiors are not property observation
    points. Disjoint writes alone do not justify pruning observable intermediate states.
 4. **Terminal preservation:** exact reduced search preserves existence of VIOLATION, DEADLOCK,
    COMPLETED and LOOP_LIMIT evidence. It need not enumerate all traces or identical cutoff source
@@ -110,7 +112,9 @@ and the terminal limit test. Cross-component future interference is consequently
 A selected invisible successful action commutes earlier across all excluded actions until the
 next selected action; moving it does not change property truth. If preparation encounters failure,
 cutoff or nonprogress, all enabled candidates are explored, reusing the prepared result. Induction
-on rank preserves a terminal witness. Unknown/final observations retain exhaustive fallback.
+on rank preserves a terminal witness. Unknown observations retain exhaustive fallback. Final source
+predicates with complete declared expression reads additionally satisfy Spec 70's completion-gate
+lemma; legacy final predicates remain outside that extension.
 
 DPOR sleeps an enabled action only if it is invisible, independent of the chosen action, has no
 enable/disable interference, and is independent of *every remaining lexical instruction* of the

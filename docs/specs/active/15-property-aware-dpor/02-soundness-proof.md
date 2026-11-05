@@ -81,3 +81,14 @@ reachable continuation. Terminal cutoffs require existence preservation alongsid
 The extension, complete footprint argument and source-only DPOR sleep-set subsumption rule are
 recorded in [16.05](../16-concurrent-program-parser/05-por-and-dpor-soundness.md#implementation-preservation-argument).
 This does not extend the checker to backward edges or unbounded loops.
+
+## Separate final source contract
+
+The state-only assumption above is not silently broadened to termination-sensitive predicates.
+[Spec 70](../70-final-source-property-reduction.md) supplies a separate completion-gate argument
+for finite forward source models declaring final expression reads. While another live owner's
+independent action is postponed, the global configuration cannot be all-terminated; once complete,
+the same declared values determine predicate truth/error. The existing source sleep normalization,
+future-dependency checks and subsumption argument from Spec 16.05 still apply. Unknown callbacks
+and legacy final predicates retain exhaustive dispatch. This source-level extension is not a
+mechanically checked proof or a change to the historical measurements/theorem assumptions above.

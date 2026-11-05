@@ -36,9 +36,14 @@ final class SourceProperty implements DiagnosticInvariant {
             return new FailureEvidence(FailureEvidence.Kind.RUNTIME_ERROR, FailureEvidence.Phase.PROPERTY, span, category);
         }
     }
-    /** Returns complete observations for always properties, unknown for termination-dependent ones.
-     * @return complete observations for always properties, unknown for termination-dependent ones
+    /** Returns state-only observations for always properties; final timing uses its separate contract.
+     * @return state-only observations for always properties, or unknown for final timing
      */
     @Override
     public Optional<Set<MemoryLocation>> observedLocations() { return always ? Optional.of(reads) : Optional.empty(); }
+    /** Returns complete final-expression reads with all-termination as the only observation gate.
+     * @return immutable final reads, or unknown when this property is always-timed
+     */
+    @Override
+    public Optional<Set<MemoryLocation>> finalObservedLocations() { return always ? Optional.empty() : Optional.of(reads); }
 }

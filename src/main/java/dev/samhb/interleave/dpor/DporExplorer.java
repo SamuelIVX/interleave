@@ -18,12 +18,15 @@ import java.util.*;
  * successor's sleep set only when it is independent, does not interfere with enable/disable, and the
  * stepping thread has no later dependent step that could observe a difference.
  *
- * <p><b>Property-aware reduction:</b> When an invariant declares complete {@link Invariant#observedLocations()},
- * dynamic partial-order reduction is applied using property visibility: transitions that write to observed
+ * <p>Finite source models also support the explicit {@link Invariant#finalObservedLocations()}
+ * contract under Spec 70, with termination as the only configuration-dependent observation gate.
+ *
+ * <p><b>Property-aware reduction:</b> With complete state observations or the applicable final source
+ * contract, dynamic partial-order reduction is applied using property visibility: transitions that write to observed
  * locations are treated as visible and never placed into sleep sets, and executing a visible transition
  * refreshes sleeping transitions. Independent invisible transitions are pruned via sleep sets, reducing
  * explored states while preserving all invariant violations. Invariants with unknown observations (e.g.
- * unannotated callbacks or DSL {@code final} checks) retain exhaustive depth-first search fallback.
+ * unannotated callbacks or legacy DSL {@code final} checks) retain exhaustive depth-first search fallback.
  *
  * <p>Deadlock is reported only after the invariant is checked at the same configuration, so a state that
  * both blocks every thread and violates the invariant is recorded as a violation rather than as a
@@ -55,7 +58,8 @@ public final class DporExplorer {
      * Explores, checking an invariant at every configuration.
      *
      * <p>When the invariant declares complete {@link Invariant#observedLocations()}, dynamic reduction
-     * prunes independent invisible schedules. Invariants with unknown observations fall back to exhaustive search.
+     * prunes independent invisible schedules. Source programs may also supply the separate final-only
+     * contract. If neither applicable contract is known, traversal falls back to exhaustive search.
      *
      * @param program the program to explore
      * @param invariant the invariant to check, or null to keep the reduction
@@ -89,6 +93,9 @@ public final class DporExplorer {
 
         Configuration initial = program.initialConfiguration();
         Optional<Set<MemoryLocation>> maybeObs = invariant != null ? invariant.observedLocations() : Optional.empty();
+        if (program.isSource() && invariant != null && maybeObs.isEmpty()) {
+            maybeObs = invariant.finalObservedLocations();
+        }
         if (invariant == null) {
             dporDfs(program, initial, new ArrayList<>(), new ArrayList<>(), TracePrefix.empty(),
                     visitedStates, traces, emittedCutoffs, invariant, statesExplored,
