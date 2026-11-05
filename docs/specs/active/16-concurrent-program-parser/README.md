@@ -333,3 +333,6 @@ initializers, with scoped proofs for shared-validator remapping and offset-list 
 
 [Spec 66](../66-source-compiler-verification-closeout.md) records the measured outer-compiler ledger,
 diagnostic characterization and scoped cursor/count proofs. Parser residuals remain separate.
+
+[Spec 67](../67-parser-contract-closeout.md) records the Parser ledger closeout in one public-contract
+bundle: literal ASTs, deliberate errors, identifier/nesting limits and scoped helper proofs.
