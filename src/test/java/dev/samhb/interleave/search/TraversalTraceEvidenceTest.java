@@ -92,6 +92,29 @@ class TraversalTraceEvidenceTest {
         new TraceReplayer().replay(program, trace, invariant);
     }
 
+    /** A failed source attempt executes once before failure evidence is frozen, without terminal replay.
+     * @param mode traversal route to instrument
+     */
+    @ParameterizedTest @EnumSource(Mode.class)
+    void traversalDoesNotExecuteFailingTransitionAgain(Mode mode) {
+        var loaded = new SourceProgramLoader().load("program failedcount { shared int x = 0; thread 0 { atomic { x = 7; x = 1 % 0; } } invariant always (true); }");
+        var executions = new AtomicInteger();
+        var step = new CountingStep((SourceStep) loaded.program().threads().getFirst().steps().getFirst(), executions);
+        var program = new Program(loaded.program().initialConfiguration().state(),
+            List.of(new ModelThread(0, List.of(step))), loaded.program().sourceDigest());
+        var model = new BenchmarkProgram("failedcount", program, null, loaded.invariant().orElseThrow());
+        var result = explore(model, mode);
+        assertEquals(1, executions.get());
+        assertEquals(1, result.traces().size());
+        Trace trace = result.traces().getFirst();
+        assertEquals(TraceOutcome.VIOLATION, trace.outcome());
+        assertEquals(List.of(StepOutcome.ASSERTION_FAILED), trace.outcomes());
+        assertEquals(FailureEvidence.Kind.RUNTIME_ERROR, trace.failure().kind());
+        assertEquals(FailureEvidence.Phase.STEP, trace.failure().phase());
+        assertEquals(FailureEvidence.Category.MODULO_BY_ZERO, trace.failure().category());
+        assertCompatible(model, trace, property(model, mode));
+    }
+
     /** Rejects an omitted action at the shared path seam rather than silently appending it. */
     @Test void omittedCutoffCannotBeAppended() {
         var model = new SourceProgramLoader().load("program cutoff { shared int x = 0; thread 0 { while (true) limit 0 {} } }");

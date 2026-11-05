@@ -154,7 +154,7 @@ Follow [Spec 69](../specs/active/69-traversal-trace-evidence.md) for correctness
 
 ## Integrated verification
 
-Build/tests/strict Javadoc pass 1,375 tests (72 new cases). Fresh default mutation census:
+Initial bundle: build/tests/strict Javadoc pass 1,375 tests (72 new cases). Fresh default mutation census:
 283/293 KILLED + ten SURVIVED; CBS 125/125 versus fresh 123/123. All 168 state-scope identities/
 statuses are retained; 204 identities are exactly shared overall. The CBS descriptor/index changes
 replace 87 killed identities with 89 killed identities, net two new call mutants, not old survivors
@@ -171,3 +171,7 @@ The mutation README now records the current four class figures/provenance and pr
 measurements. Markdown/table/link/diff checks pass; no CLI repeat for the minor docs patch.
 Browser rendering tests and unrelated frontend scoped PIT were not rerun. Remote CI is left for
 Sam to report after publication.
+
+PR #111 feedback adds five failed-action work-count cases. Integrated build/Javadoc and all 1,380
+tests pass; no production or profiling-code changes. Original measurements and mutation census
+remain the recorded runs above; they were not rerun for this test-only follow-up.

@@ -132,3 +132,13 @@ mutation README's current census. Independently verified and patched the four cu
 provenance while retaining its dated historical figures. Markdown/table/link/diff checks pass;
 no second CLI review for this minor documentation follow-up. Evidence is
 `/private/tmp/interleave-traversal-review.ndjson`. Remote CI is not watched after publication.
+
+## PR feedback: failed-action execution count
+
+The trivial PR #111 comment adds five cases through the existing public SourceStep counting wrapper:
+DFS, POR, DPOR, unknown-property DPOR and CBS each execute one runtime-failing atomic action exactly
+once. Assert the counter immediately after traversal, before compatibility reconstruction/replay,
+then validate the failure classification and full evidence. The successful-action test is unchanged.
+Final integrated build/Javadoc and 1,380 tests pass (77 new cases in this bundle). Production code,
+measurement fingerprints and mutation configuration are unchanged; PIT/profiling/CodeRabbit CLI
+were not rerun for this focused test-only follow-up.
