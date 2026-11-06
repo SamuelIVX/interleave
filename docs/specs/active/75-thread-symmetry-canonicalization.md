@@ -1,5 +1,9 @@
 # Spec 75: Thread-symmetry canonicalization foundations
 
+Foundation merged in PR #117 at ac16444. This document records that phase's internal API;
+[Spec 76](76-source-symmetry-exact-search.md) exposes the mathematical canonicalizer to checked
+exact DFS while keeping program/property eligibility separate from value canonicalization.
+
 ## Scope and release boundary
 
 Begin active roadmap #10 after merged PR #116 at 2d320ae. This first coherent PR owns orbit-key
@@ -122,5 +126,5 @@ coverage limitation), integer floor/headroom accounting and reproducible command
 
 Final CodeRabbit CLI review completed all seven files with zero findings; agent-setup record
 saved. Browser/CLI manual checks are omitted because no runtime/wire/UI contract changes.
-The internal foundation awaits merge; actual symmetry pruning and eligibility remain for the
-next #10 PR. No search speedup, enabled feature or unconditional quotient proof is claimed.
+The foundation merged in PR #117; actual symmetry pruning and eligibility are implemented in
+Spec 76 as the next #10 phase. No runtime speedup or unconditional quotient proof is claimed.

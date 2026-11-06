@@ -53,6 +53,9 @@ public final class ReportWriter {
     public String writeMarkdown() {
         StringBuilder sb = new StringBuilder();
         sb.append("# interleave Benchmark Report\n\n");
+        if (results.stream().anyMatch(BenchmarkResult::symmetryReduction)) {
+            sb.append("**Thread symmetry:** marked DFS rows count orbit representatives, not every concrete state or schedule.\n\n");
+        }
 
         StatesExploredTable table = new StatesExploredTable(results);
         sb.append(table.formatReductionTable());
@@ -89,7 +92,9 @@ public final class ReportWriter {
 
         for (int i = 0; i < results.size(); i++) {
             BenchmarkResult result = results.get(i);
+            boolean symmetryReduction = result.symmetryReduction();
             sb.append("    {\n");
+            if (symmetryReduction) sb.append("      \"symmetryReduction\": true,\n");
             sb.append("      \"bug\": ").append(GSON.toJson(result.bugName())).append(",\n");
             sb.append(String.format("      \"strategy\": \"%s\",\n", result.strategy()));
             sb.append(String.format("      \"storeType\": \"%s\",\n", result.storeType()));

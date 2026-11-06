@@ -28,6 +28,8 @@ import java.util.function.LongSupplier;
 public final class InterleaveRunner implements Serializable {
     /** Strategy. */
     private final Strategy strategy;
+    /** Whether checked source-orbit DFS is selected. */
+    private final boolean symmetryReduction;
     /** Invariant. */
     private final Invariant invariant;
     /** State store factory. */
@@ -47,6 +49,7 @@ public final class InterleaveRunner implements Serializable {
      */
     private InterleaveRunner(Builder builder) {
         this.strategy = builder.strategy;
+        this.symmetryReduction = builder.symmetryReduction;
         this.invariant = builder.invariant;
         this.stateStoreFactory = builder.stateStoreFactory;
         this.maxStates = builder.maxStates;
@@ -68,6 +71,7 @@ public final class InterleaveRunner implements Serializable {
      * @return the test result including states explored, verdict, and traces
      * @throws IllegalStateException if iterative deepening receives a previously used store instance
      * @throws IllegalArgumentException if a bitstate store cannot represent the current preemption bound
+     *         or requested symmetry fails source/property eligibility
      * @throws ArithmeticException if the time limit overflows when converted to milliseconds
      */
     public TestResult run(Program program) {
@@ -113,7 +117,9 @@ public final class InterleaveRunner implements Serializable {
             switch (strategy) {
                 case DFS -> {
                     DfsExplorer explorer = new DfsExplorer();
-                    result = explorer.explore(program, invariant, runStore.get(), visitor);
+                    result = symmetryReduction
+                        ? new SymmetryDfsExplorer().explore(program, invariant, visitor, Long.MAX_VALUE)
+                        : explorer.explore(program, invariant, runStore.get(), visitor);
                 }
                 case STATIC_POR -> {
                     StaticPorExplorer explorer = new StaticPorExplorer();
@@ -143,15 +149,18 @@ public final class InterleaveRunner implements Serializable {
                     limitState.partialResult = limitState.partialResult.withTrace(previous);
                 }
             }
-            return convertToTestResult(limitState.partialResult, wallTime, heapDelta, true)
+            TestResult partial = convertToTestResult(limitState.partialResult, wallTime, heapDelta, true)
                 .withRunMetadata(program.isSource(), limitState.resourceLimitReason, limitState.approximate);
+            return symmetryReduction ? partial.withSymmetryReduction() : partial;
         }
 
         long memAfter = runtime.totalMemory() - runtime.freeMemory();
         long wallTime = clock.getAsLong() - start;
         long heapDelta = Math.max(0, memAfter - memBefore);
 
-        return convertToTestResult(result, program, wallTime, heapDelta, false).withRunMetadata(program.isSource(), null, limitState.approximate);
+        TestResult completed = convertToTestResult(result, program, wallTime, heapDelta, false)
+            .withRunMetadata(program.isSource(), null, limitState.approximate);
+        return symmetryReduction ? completed.withSymmetryReduction() : completed;
     }
 
     /**
@@ -490,6 +499,10 @@ public final class InterleaveRunner implements Serializable {
 
         /** Strategy. */
         private Strategy strategy = Strategy.DFS;
+        /** Opt-in checked source symmetry; ordinary verification remains unchanged. */
+        private boolean symmetryReduction;
+        /** Whether a caller supplied a store contract that symmetry must not silently ignore. */
+        private boolean stateStoreExplicit;
         /** Invariant. */
         private Invariant invariant = null;
         /** State store factory. */
@@ -521,6 +534,18 @@ public final class InterleaveRunner implements Serializable {
         }
 
         /**
+         * Selects checked exact source-orbit DFS, retaining original execution and trace identities.
+         * Requires DFS and the built-in store, plus source/property eligibility checked at run time.
+         * For example, builder().symmetryReduction(true).build().run(sourceProgram) explores orbits.
+         * @param enabled whether to enable the conservative source symmetry mode
+         * @return this builder
+         */
+        public Builder symmetryReduction(boolean enabled) {
+            this.symmetryReduction = enabled;
+            return this;
+        }
+
+        /**
          * Sets the invariant to check during exploration.
          *
          * @param invariant the invariant, or null for no invariant checking
@@ -541,6 +566,7 @@ public final class InterleaveRunner implements Serializable {
          * @return this builder
          */
         public Builder stateStore(StateStore stateStore) {
+            this.stateStoreExplicit = true;
             // Accept a concrete instance and wrap in supplier for backward compatibility
             // For true per-run isolation, prefer stateStoreFactory()
             // Uses freshCopy() if available; falls back to shared instance for unsupported types
@@ -563,6 +589,7 @@ public final class InterleaveRunner implements Serializable {
          * @return this builder
          */
         public Builder stateStoreFactory(Supplier<StateStore> factory) {
+            this.stateStoreExplicit = true;
             this.stateStoreFactory = factory;
             return this;
         }
@@ -624,9 +651,13 @@ public final class InterleaveRunner implements Serializable {
          *
          * @return a configured {@link InterleaveRunner}
          * @throws IllegalArgumentException if a context-bounded option was explicitly set on a
-         *         strategy that would ignore it
+         *         strategy that would ignore it, or symmetry is combined with a non-DFS strategy
+         *         or an explicitly supplied store/factory
          */
         public InterleaveRunner build() {
+            if (symmetryReduction && (strategy != Strategy.DFS || stateStoreExplicit)) {
+                throw new IllegalArgumentException("Symmetry requires Strategy.DFS and its built-in exact store; custom stores are unsupported");
+            }
             // Only reject an *explicit* set. A caller who never touched these options and chose
             // DFS must keep working; a caller who named a context-bounded option while on another
             // strategy has almost certainly changed strategy and left the option behind, and a

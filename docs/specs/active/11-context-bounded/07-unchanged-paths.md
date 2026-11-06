@@ -67,7 +67,12 @@ for any consumer that reads named members (which is all of them, including `visu
 compatibility test below is therefore specified in terms of *unchanged existing members*, not
 byte-equality.
 
-> `TestResult implements Serializable` with no declared `serialVersionUID`, so adding a field changes the implicit serialVersionUID and previously-serialized instances will fail to deserialize. That is acceptable — `TestResult` is only used in-process — but state it here so the implementer does not discover it as a surprise.
+> Historical decision: `TestResult` has no declared stable `serialVersionUID`; native Java-stream
+> incompatibility from class evolution was accepted in this spec. The original “only in-process”
+> rationale is not the current public usage limit: results may be persisted/transported between
+> matching library builds, but cross-build Java streams are unsupported. JSON compatibility is a
+> separate contract. [Spec 76](../76-source-symmetry-exact-search.md#java-object-stream-upgrade-boundary)
+> records the PR #118 break, fail-closed old-reader behavior, and export-before-upgrade guidance.
 
 ### 3. `Strategy.CONTEXT_BOUNDED` propagation sites
 

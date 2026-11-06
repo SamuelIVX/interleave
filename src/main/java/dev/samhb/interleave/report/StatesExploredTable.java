@@ -39,7 +39,7 @@ public final class StatesExploredTable {
         for (BenchmarkResult result : results) {
             sb.append(String.format("| %s | %s | %s | %d | %d | %d | %s |\n",
                 result.bugName(),
-                result.strategy(),
+                strategyLabel(result),
                 result.storeType().name(),
                 result.statesExplored(),
                 result.wallTimeMs(),
@@ -66,7 +66,7 @@ public final class StatesExploredTable {
 
         for (BenchmarkResult result : results) {
             grouped.computeIfAbsent(result.bugName(), k -> new LinkedHashMap<>())
-                   .computeIfAbsent(result.strategy(), k -> new EnumMap<>(StoreType.class))
+                   .computeIfAbsent(strategyLabel(result), k -> new EnumMap<>(StoreType.class))
                    .put(result.storeType(), result);
         }
 
@@ -82,7 +82,7 @@ public final class StatesExploredTable {
             long dfsBitstate = dfsResults.containsKey(StoreType.BITSTATE) ? dfsResults.get(StoreType.BITSTATE).statesExplored() : 0;
 
             // Order strategies: DFS, STATIC_POR, DPOR, CONTEXT_BOUNDED
-            String[] strategyOrder = {"DFS", "STATIC_POR", "DPOR", "CONTEXT_BOUNDED"};
+            String[] strategyOrder = {"DFS", "DFS + symmetry", "STATIC_POR", "DPOR", "CONTEXT_BOUNDED"};
             for (String strategy : strategyOrder) {
                 Map<StoreType, BenchmarkResult> storeMap = strategyMap.get(strategy);
                 if (storeMap == null) continue;
@@ -128,7 +128,7 @@ public final class StatesExploredTable {
         for (BenchmarkResult result : bitstateResults) {
             sb.append(String.format("| %s | %s | %s | %,d | %s |\n",
                 result.bugName(),
-                result.strategy(),
+                strategyLabel(result),
                 formatSmallDouble(result.estimatedFalsePositiveRate()),
                 result.bitstateBitCount(),
                 formatSmallDouble(result.bitstateBitDensity())));
@@ -136,6 +136,14 @@ public final class StatesExploredTable {
 
         sb.append("\n");
         return sb.toString();
+    }
+
+    /** Keeps symmetry rows distinct from the ordinary DFS baseline and other strategies.
+     * @param result immutable benchmark row
+     * @return display/grouping label, without changing the machine-readable strategy enum
+     */
+    private static String strategyLabel(BenchmarkResult result) {
+        return result.symmetryReduction() ? result.strategy() + " + symmetry" : result.strategy();
     }
 
     /**

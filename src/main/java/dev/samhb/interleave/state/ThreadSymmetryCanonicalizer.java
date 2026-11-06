@@ -1,4 +1,4 @@
-/* Internal orbit-value keys and reversible owner mappings for explicitly supplied thread groups. */
+/* Orbit-value keys and reversible owner mappings for explicitly supplied thread groups. */
 package dev.samhb.interleave.state;
 
 import dev.samhb.interleave.format.dsl.DynamicState;
@@ -10,9 +10,12 @@ import java.util.stream.IntStream;
  * Canonicalizes whole (PC, local-frame, scheduling-context) tuples within disjoint owner groups.
  * This value primitive does not certify behavioral symmetry or enable search pruning. Before a
  * store uses it, its caller must establish program/property equivariance for the supplied groups.
+ * For example, groups [[0,1]] treat the two full owner frames as interchangeable values;
+ * canonicalize(state, List.of(0,0)).canonicalToOriginal() witnesses their sorted order.
+ * This mathematical API alone does not certify a program for exploration.
  * Keys are opaque and scoped to one program and normalized partition, not persistent wire IDs.
  */
-final class ThreadSymmetryCanonicalizer {
+public final class ThreadSymmetryCanonicalizer {
     /** Current bounded-source owner capacity; this utility does not raise model limits. */
     private static final int MAX_THREADS = 8;
     /** Number of owner slots in every accepted position. */
@@ -27,7 +30,7 @@ final class ThreadSymmetryCanonicalizer {
      * @throws NullPointerException for a null collection, group or owner
      * @throws IllegalArgumentException for invalid capacity, empty groups or duplicate/invalid owners
      */
-    ThreadSymmetryCanonicalizer(int threadCount, List<List<Integer>> groups) {
+    public ThreadSymmetryCanonicalizer(int threadCount, List<List<Integer>> groups) {
         if (threadCount < 1 || threadCount > MAX_THREADS) throw new IllegalArgumentException("Expected 1 through 8 owners");
         Objects.requireNonNull(groups, "groups");
         this.threadCount = threadCount;
@@ -57,7 +60,7 @@ final class ThreadSymmetryCanonicalizer {
      * @throws NullPointerException for null state, counter collection or counter element
      * @throws IllegalArgumentException for mismatched owner counts or negative positions
      */
-    CanonicalPosition canonicalize(DynamicState state, List<Integer> programCounters) {
+    public CanonicalPosition canonicalize(DynamicState state, List<Integer> programCounters) {
         return canonicalizePosition(state, programCounters, null);
     }
 
@@ -71,7 +74,7 @@ final class ThreadSymmetryCanonicalizer {
      * @throws NullPointerException for null state, counter collection or counter element
      * @throws IllegalArgumentException for mismatched counts, negative PCs or invalid last owner
      */
-    CanonicalPosition canonicalize(DynamicState state, List<Integer> programCounters, int lastThreadId) {
+    public CanonicalPosition canonicalize(DynamicState state, List<Integer> programCounters, int lastThreadId) {
         return canonicalizePosition(state, programCounters, lastThreadId);
     }
 
@@ -154,7 +157,7 @@ final class ThreadSymmetryCanonicalizer {
     }
 
     /** Immutable canonical key and checked bijection back to the original modeled owners. */
-    static final class CanonicalPosition {
+    public static final class CanonicalPosition {
         /** Opaque orbit-value key; no original input object is retained. */
         private final String key;
         /** Original owner occupying each canonical position; a full permutation. */
@@ -172,26 +175,26 @@ final class ThreadSymmetryCanonicalizer {
         /** Returns the opaque key for this position within one program/partition.
          * @return immutable canonical value/context key
          */
-        String key() { return key; }
+        public String key() { return key; }
 
         /** Returns the original owner at every canonical position.
          * @return immutable complete owner permutation
          */
-        List<Integer> canonicalToOriginal() { return toOriginal; }
+        public List<Integer> canonicalToOriginal() { return toOriginal; }
 
         /** Maps a canonical position back to its original modeled owner.
          * @param canonicalThreadId canonical position in the partition's owner domain
          * @return original modeled owner
          * @throws IndexOutOfBoundsException for an invalid canonical position
          */
-        int originalThreadId(int canonicalThreadId) { return toOriginal.get(canonicalThreadId); }
+        public int originalThreadId(int canonicalThreadId) { return toOriginal.get(canonicalThreadId); }
 
         /** Maps an original modeled owner to its canonical position.
          * @param originalThreadId original owner in the partition's domain
          * @return inverse canonical owner position
          * @throws IndexOutOfBoundsException for an invalid original owner
          */
-        int canonicalThreadId(int originalThreadId) {
+        public int canonicalThreadId(int originalThreadId) {
             Objects.checkIndex(originalThreadId, toOriginal.size());
             return toOriginal.indexOf(originalThreadId);
         }

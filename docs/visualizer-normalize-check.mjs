@@ -26,6 +26,14 @@ const end = endMarker + 3;
 // future edit that started using it would silently be checked against the wrong limit.
 const normalize = new Function(src.slice(start, end) + '\nreturn normalize;')();
 
+// Explicit symmetry identity survives both report wrappers and library results; truthy strings do not enable it.
+for (const raw of [
+  {benchmarks:[{strategy:'DFS',storeType:'EXACT',verdict:'PASS',symmetryReduction:true,statesExplored:5}]},
+  {programKind:'SOURCE',storeType:'EXACT',symmetryReduction:true,completedTraces:[],hasViolation:false},
+  {benchmarks:[{verdict:'VIOLATION',symmetryReduction:true,failingTrace:{threads:[0],outcome:'VIOLATION'}}]}
+]) assert.equal(normalize(raw).meta.symmetryReduction, true);
+assert.equal(normalize({benchmarks:[{verdict:'PASS',symmetryReduction:'true'}]}).meta.symmetryReduction, false);
+
 let fails = 0;
 const check = (name, raw, expected) => {
   let got;

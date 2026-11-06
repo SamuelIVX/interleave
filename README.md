@@ -72,6 +72,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | `--all` | Run entire corpus |
 | `--file <path>` | Load program from JSON file |
 | `--source <path>` | Load a bounded concurrent `.ilv` source model |
+| `--symmetry` | Opt-in source-thread symmetry; requires `--store exact --strategy DFS` |
 
 ### Examples
 
@@ -168,9 +169,10 @@ CodeRabbit’s 80% docstring threshold is a minimum; every new function requires
 documentation. PR #45’s remote CodeRabbit review was skipped due to its file limit, so no remote
 coverage percentage was produced. The local audit, Javadoc checks, and two local reviews passed.
 
-[Spec 75](docs/specs/active/75-thread-symmetry-canonicalization.md) begins roadmap #10 with
-internal thread-orbit keys and reversible owner mappings. This foundation does not enable runtime
-symmetry pruning; program/property eligibility and exact-search integration follow separately.
+[Spec 75](docs/specs/active/75-thread-symmetry-canonicalization.md) provides thread-orbit keys and
+reversible owner mappings. [Spec 76](docs/specs/active/76-source-symmetry-exact-search.md) integrates
+conservative source eligibility and opt-in exact DFS. POR/DPOR/CBS and bitstate composition remain
+unsupported in this phase of roadmap #10.
 
 ## Tech stack
 
@@ -238,7 +240,20 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 - **Limit enforcement** — `maxStates` / `maxTime` stop exploration early and return partial results with `limitExceeded=true`
 - **Trace capture on limit** — traces found before limit are preserved via `StateVisitor.onTraceCreated()`
 - **StateStore factory** — `stateStoreFactory(Supplier<StateStore>)` preserves configured implementation type
-- **Serializable results** — `TestResult`, `TraceRecord` implement `Serializable` for persistence/transport
+- **Serializable results** — `TestResult`, `TraceRecord` implement `Serializable` for persistence/transport between matching library builds; native object streams are not a stable cross-build format
+
+**Native Java stream upgrade boundary (PR #118).** The symmetry field/API changes `TestResult`'s
+computed serial UID. Java streams from the preceding build (`ac16444`) and this build reject each
+other with `InvalidClassException`, including ordinary results. The project retains its existing
+build-specific serialization policy; Java source API and additive JSON compatibility are separate.
+An older Java reader therefore cannot silently treat a new symmetry result as ordinary DFS.
+
+Keep the exact writer build available when upgrading stored Java results. Read them with that
+build and export `TestResult.toJson()` before upgrading, or recompute them with the new build.
+Use JSON for interchange/archive data, preserving its named fields; consumers of symmetry results
+must retain `symmetryReduction` and treat counts as orbit representatives. A matching version
+string alone is insufficient for development builds: retain the artifact/revision. Do not force
+an old UID onto the new class: old readers would ignore the new field and lose the reduction marker.
 
 ## Recent improvements (2026-09-11)
 
@@ -322,6 +337,29 @@ program increments {
 block. A false private assertion rolls back the outer action and reports its own source location.
 See [passing assertions](examples/programs/statement-assertions.ilv) and
 [assertion rollback](examples/programs/assertion-rollback.ilv).
+
+Use `--symmetry --store exact --strategy DFS` to explore one representative of each interchangeable
+source-thread orbit. The checker groups structurally identical instructions with equal initial
+locals and no `tid` observations; other owners stay fixed. It accepts absent or compiler-built
+shared source properties and rejects unknown callbacks or a model with no eligible group. Actual
+execution and replay traces retain original thread IDs and source locations. Reports/viewer label
+counts as orbit representatives; this is a state-count reduction, not a runtime-speedup claim.
+
+```bash
+./gradlew --max-workers=1 -PpitestThreads=1 run --args="--source examples/programs/symmetry-counter.ilv --store exact --strategy DFS --symmetry --json"
+```
+
+This four-owner example visits five representatives instead of 16 concrete states. Library use:
+
+```java
+var model = new SourceProgramLoader().loadFromFile(Path.of("examples/programs/symmetry-counter.ilv"));
+var result = InterleaveRunner.builder().symmetryReduction(true)
+    .invariant(model.invariant().orElse(null)).build().run(model.program());
+```
+
+The library mode requires DFS and its built-in exact store; explicitly supplied stores/factories
+reject rather than being ignored. Reduced strategies, CBS options and bitstate combinations reject
+until their separate composition argument/integration lands. Default runs remain unchanged.
 
 To shorten a bound explanation, use `--simplify-cutoff` with a source model, `--json`,
 `--store exact` and one `--strategy`. It emits one direct trace for the existing viewer, preserving

@@ -15,6 +15,8 @@ import java.util.Optional;
  * Immutable result of a single benchmark run (one strategy + one store type).
  */
 public final class BenchmarkResult {
+    /** Whether this row counts checked source-orbit representatives. */
+    private final boolean symmetryReduction;
     /** Strategy. */
     private final String strategy;
     /** Bug name. */
@@ -189,6 +191,7 @@ public final class BenchmarkResult {
                            double estimatedFalsePositiveRate, int bitstateBitCount,
                            double bitstateBitDensity, Integer preemptionsUsed,
                            List<StateSnapshot> states) {
+        this.symmetryReduction = false;
         this.strategy = strategy;
         this.bugName = bugName;
         this.statesExplored = statesExplored;
@@ -213,8 +216,10 @@ public final class BenchmarkResult {
      * @param row immutable benchmark row whose counts and existing failure snapshots are preserved
      * @param program executed model, or null when no source identity or replay context is available
      * @param result exploration evidence whose INCOMPLETE traces are retained in encounter order
+     * @param symmetryReduction whether checked source-orbit DFS produced this row
      */
-    private BenchmarkResult(BenchmarkResult row, Program program, DfsResult result) {
+    private BenchmarkResult(BenchmarkResult row, Program program, DfsResult result, boolean symmetryReduction) {
+        this.symmetryReduction = symmetryReduction;
         this.strategy = row.strategy; this.bugName = row.bugName; this.statesExplored = row.statesExplored;
         this.wallTimeMs = row.wallTimeMs; this.heapDeltaBytes = row.heapDeltaBytes;
         this.sourceModel = program != null && program.isSource();
@@ -243,8 +248,23 @@ public final class BenchmarkResult {
      * @return a new row preserving all counts and diagnostics
      */
     public BenchmarkResult withExploration(Program program, DfsResult result) {
-        return new BenchmarkResult(this, program, result);
+        return new BenchmarkResult(this, program, result, symmetryReduction);
     }
+
+    /** Attaches actual checked exploration mode alongside the ordinary source evidence.
+     * @param program executed source model
+     * @param result actual concrete representative evidence
+     * @param symmetryReduction whether checked source-orbit DFS was selected
+     * @return immutable row with mode and evidence preserved
+     */
+    BenchmarkResult withExploration(Program program, DfsResult result, boolean symmetryReduction) {
+        return new BenchmarkResult(this, program, result, symmetryReduction);
+    }
+
+    /** Returns whether this row counts checked source-orbit representatives.
+     * @return true for explicitly selected checked source symmetry
+     */
+    public boolean symmetryReduction() { return symmetryReduction; }
 
     /** Returns immutable bounded prefixes.
      * @return immutable bounded prefixes
