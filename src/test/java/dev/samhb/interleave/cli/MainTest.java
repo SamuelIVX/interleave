@@ -369,21 +369,71 @@ class MainTest {
         var markdown = invokeCli("--source", source, "--store", "exact", "--strategy", "DFS", "--symmetry");
         assertEquals(0, markdown.exitCode(), markdown.output());
         assertTrue(markdown.output().contains("DFS + symmetry (exact): 5 states"));
-        assertTrue(markdown.output().contains("orbit representatives"));
+        assertTrue(markdown.output().contains("representative visits"));
         var artifact = java.nio.file.Path.of("build/source-symmetry-visualizer.json");
         java.nio.file.Files.createDirectories(artifact.getParent());
         java.nio.file.Files.writeString(artifact, reduced.output());
+    }
+
+    /** CLI default selection composes all four exact strategies, including iterative CBS.
+     * @throws Exception if child JVM execution fails
+     */
+    @Test void sourceSymmetryCliSupportsAllStrategiesAndIterativeCbs() throws Exception {
+        var all = invokeCli("--source", "examples/programs/symmetry-counter.ilv", "--symmetry", "--store", "exact", "--json");
+        assertEquals(0,all.exitCode(),all.output());
+        var rows = com.google.gson.JsonParser.parseString(all.output()).getAsJsonObject().getAsJsonArray("benchmarks");
+        assertEquals(4, rows.size());
+        var strategies = new java.util.HashSet<String>();
+        for (var value : rows) {
+            var row = value.getAsJsonObject();
+            strategies.add(row.get("strategy").getAsString());
+            assertTrue(row.get("symmetryReduction").getAsBoolean());
+            assertEquals(5,row.get("statesExplored").getAsInt());
+        }
+        assertEquals(java.util.Set.of("DFS","STATIC_POR","DPOR","CONTEXT_BOUNDED"),strategies);
+        var bounded = invokeCli("--source", "examples/programs/symmetry-counter.ilv", "--symmetry", "--store", "exact",
+            "--strategy", "CONTEXT_BOUNDED", "--max-preemptions", "0", "--json");
+        assertEquals(0,bounded.exitCode(),bounded.output());
+        var boundedRow = com.google.gson.JsonParser.parseString(bounded.output()).getAsJsonObject().getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals(5,boundedRow.get("statesExplored").getAsInt());
+        assertEquals("CONTEXT_BOUNDED",boundedRow.get("strategy").getAsString());
+        assertTrue(boundedRow.get("symmetryReduction").getAsBoolean());
+        assertEquals(0,boundedRow.get("preemptionsUsed").getAsInt());
+        var iterative = invokeCli("--source", "examples/programs/symmetry-counter.ilv", "--symmetry", "--store", "exact",
+            "--strategy", "CONTEXT_BOUNDED", "--iterative-deepening", "--max-preemptions", "1", "--json");
+        assertEquals(0,iterative.exitCode(),iterative.output());
+        var iterativeRow = com.google.gson.JsonParser.parseString(iterative.output()).getAsJsonObject().getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals(5,iterativeRow.get("statesExplored").getAsInt());
+        assertEquals("CONTEXT_BOUNDED",iterativeRow.get("strategy").getAsString());
+        assertTrue(iterativeRow.get("symmetryReduction").getAsBoolean());
+        // Each one-action owner terminates before switching, so K=0 already prunes no edge.
+        assertEquals(0,iterativeRow.get("preemptionsUsed").getAsInt());
+    }
+
+    /** An option-looking source filename is a value, not an explicitly supplied CBS option.
+     * @param directory isolated child JVM working directory
+     * @throws Exception if fixture creation or child JVM execution fails
+     */
+    @Test void sourceSymmetryCliDoesNotTreatSourceFilenameAsCbsFlag(
+            @org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        java.nio.file.Files.writeString(directory.resolve("--max-preemptions"),
+            "program pair { shared int x = 0; thread 0 { atomic {} } thread 1 { atomic {} } }");
+        var result = invokeCli(directory,"--source","--max-preemptions","--symmetry","--store","exact","--strategy","DFS","--json");
+        assertEquals(0,result.exitCode(),result.output());
+        var row = com.google.gson.JsonParser.parseString(result.output()).getAsJsonObject().getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals(3,row.get("statesExplored").getAsInt());
+        assertTrue(row.get("symmetryReduction").getAsBoolean());
     }
 
     /** Unsupported CLI selections reject instead of silently falling back.
      * @throws Exception if child JVM execution fails
      */
     @Test void sourceSymmetryCliRejectsUnsupportedSelections() throws Exception {
-        for (var selection : List.of(List.<String>of(), List.of("--store", "exact"),
+        for (var selection : List.of(List.<String>of(),
                 List.of("--store", "bitstate", "--strategy", "DFS"),
-                List.of("--store", "exact", "--strategy", "STATIC_POR"),
-                List.of("--store", "exact", "--strategy", "DPOR"),
-                List.of("--store", "exact", "--strategy", "CONTEXT_BOUNDED"),
+                List.of("--store", "bitstate", "--strategy", "CONTEXT_BOUNDED"),
+                List.of("--store", "exact", "--strategy", "STATIC_POR", "--max-preemptions", "0"),
+                List.of("--store", "exact", "--strategy", "DPOR", "--iterative-deepening"),
                 List.of("--store", "exact", "--strategy", "DFS", "--max-preemptions", "0"),
                 List.of("--store", "exact", "--strategy", "DFS", "--iterative-deepening"))) {
             var args = new java.util.ArrayList<>(List.of("--source", "examples/programs/symmetry-counter.ilv", "--symmetry"));
@@ -439,6 +489,16 @@ class MainTest {
      * @throws Exception if launch, resource lookup, or waiting fails
      */
     private static CliResult invokeCli(String... arguments) throws Exception {
+        return invokeCli((java.nio.file.Path) null, arguments);
+    }
+
+    /** Runs the entry point in an optional isolated working directory with an absolute classpath.
+     * @param directory child working directory, or null to inherit the current directory
+     * @param arguments CLI arguments
+     * @return exit status and merged output
+     * @throws Exception if launch, resource lookup, or waiting fails
+     */
+    private static CliResult invokeCli(java.nio.file.Path directory, String... arguments) throws Exception {
         String separator = java.io.File.pathSeparator;
         String classpath = java.nio.file.Path.of(Main.class.getProtectionDomain().getCodeSource().getLocation().toURI())
             + separator + java.nio.file.Path.of(com.google.gson.Gson.class.getProtectionDomain().getCodeSource().getLocation().toURI())
@@ -451,7 +511,7 @@ class MainTest {
         java.nio.file.Path output = java.nio.file.Files.createTempFile("interleave-cli-", ".log");
         Process process = null;
         try {
-            process = new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(output.toFile()).start();
+            process = new ProcessBuilder(command).directory(directory == null ? null : directory.toFile()).redirectErrorStream(true).redirectOutput(output.toFile()).start();
             assertTrue(process.waitFor(15, java.util.concurrent.TimeUnit.SECONDS), "CLI must terminate");
             return new CliResult(process.exitValue(), java.nio.file.Files.readString(output));
         } finally {

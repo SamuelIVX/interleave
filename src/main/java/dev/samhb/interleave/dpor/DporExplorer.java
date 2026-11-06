@@ -81,9 +81,13 @@ public final class DporExplorer {
      * @param stateStore the visited store, or null for a fresh {@link HashingStateStore}
      * @param stateVisitor notified of each visited configuration, or null
      * @return visited configurations, recorded traces, and exploration count
+     * @throws IllegalArgumentException if a symmetry store is bound to another program, property or strategy
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
+        if (effectiveStateStore instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+            symmetry.requireRun(program, invariant, dev.samhb.interleave.Strategy.DPOR);
+        }
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues
         Map<String, Configuration> visitedStates = new LinkedHashMap<>();
         List<Trace> traces = new ArrayList<>();
@@ -156,14 +160,18 @@ public final class DporExplorer {
             }
             // Normalize the exhaustive all-asleep fallback before comparing coverage contexts.
             if (allSleeping) sleepSet = new SleepSet();
-            String key = encoder.configurationKey(config);
-            // Preserve approximate-store collision pruning; exact revisits require sleep-set coverage.
-            if (seen && !sleepCoverage.containsKey(key)) return;
-            List<SleepSet> covered = sleepCoverage.computeIfAbsent(key, ignored -> new ArrayList<>());
-            Set<Map.Entry<Integer, Step>> incoming = sleepSet.entries();
-            if (covered.stream().anyMatch(previous -> incoming.containsAll(previous.entries()))) return;
-            covered.removeIf(previous -> previous.entries().containsAll(incoming));
-            covered.add(sleepSet.copy());
+            if (stateStore instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+                if (symmetry.sleepCovered(config, sleepSet.entries())) return;
+            } else {
+                String key = encoder.configurationKey(config);
+                // Preserve approximate-store collision pruning; exact revisits require sleep-set coverage.
+                if (seen && !sleepCoverage.containsKey(key)) return;
+                List<SleepSet> covered = sleepCoverage.computeIfAbsent(key, ignored -> new ArrayList<>());
+                Set<Map.Entry<Integer, Step>> incoming = sleepSet.entries();
+                if (covered.stream().anyMatch(previous -> incoming.containsAll(previous.entries()))) return;
+                covered.removeIf(previous -> previous.entries().containsAll(incoming));
+                covered.add(sleepSet.copy());
+            }
         } else if (seen) {
             return;
         }

@@ -76,13 +76,14 @@ public final class StatesExploredTable {
 
             sb.append(String.format("### %s\n\n", bugName));
 
-            // Get DFS baseline for reduction percentages
+            // All reduction percentages, including symmetry rows, use the ordinary same-store DFS
+            // baseline; a missing baseline omits percentages.
             Map<StoreType, BenchmarkResult> dfsResults = strategyMap.getOrDefault("DFS", Map.of());
             long dfsExact = dfsResults.containsKey(StoreType.EXACT) ? dfsResults.get(StoreType.EXACT).statesExplored() : 0;
             long dfsBitstate = dfsResults.containsKey(StoreType.BITSTATE) ? dfsResults.get(StoreType.BITSTATE).statesExplored() : 0;
 
-            // Order strategies: DFS, STATIC_POR, DPOR, CONTEXT_BOUNDED
-            String[] strategyOrder = {"DFS", "DFS + symmetry", "STATIC_POR", "DPOR", "CONTEXT_BOUNDED"};
+            // Ordinary DFS baseline first, symmetry variants next, then other ordinary strategies.
+            String[] strategyOrder = {"DFS", "DFS + symmetry", "STATIC_POR + symmetry", "DPOR + symmetry", "CONTEXT_BOUNDED + symmetry", "STATIC_POR", "DPOR", "CONTEXT_BOUNDED"};
             for (String strategy : strategyOrder) {
                 Map<StoreType, BenchmarkResult> storeMap = strategyMap.get(strategy);
                 if (storeMap == null) continue;

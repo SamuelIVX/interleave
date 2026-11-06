@@ -61,18 +61,22 @@ class SourceSymmetryRunTest {
 
     /** Unsupported compositions reject rather than ignoring caller strategy/store contracts. */
     @Test void rejectsUnsupportedOptionsAndCustomProperties() {
-        for (Strategy strategy : List.of(Strategy.STATIC_POR, Strategy.DPOR, Strategy.CONTEXT_BOUNDED)) {
-            assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().strategy(strategy).symmetryReduction(true).build());
+        assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true).strategy(null).build());
+        assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true).strategy(Strategy.DPOR)
+            .stateStoreFactory(HashingStateStore::new).build());
+        for (Strategy strategy : Strategy.values()) {
+            assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true)
+                .strategy(strategy).stateStore(new HashingStateStore()).build());
         }
-        assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true).stateStore(new HashingStateStore()).build());
         assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true).stateStore(new BitstateStore(100, 2)).build());
         assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true).stateStoreFactory(HashingStateStore::new).build());
         assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true).invariant((s,c) -> true).build().run(model().program()));
         assertDoesNotThrow(() -> InterleaveRunner.builder().symmetryReduction(true).symmetryReduction(false).strategy(Strategy.DPOR).build());
         assertThrows(IllegalArgumentException.class, () -> harness(null, Set.of("DFS")));
-        assertThrows(IllegalArgumentException.class, () -> harness(Set.of(StoreType.EXACT), null));
+        assertDoesNotThrow(() -> harness(Set.of(StoreType.EXACT), null));
         assertThrows(IllegalArgumentException.class, () -> harness(Set.of(StoreType.BITSTATE), Set.of("DFS")));
-        assertThrows(IllegalArgumentException.class, () -> harness(Set.of(StoreType.EXACT), Set.of("DPOR")));
+        assertThrows(IllegalArgumentException.class, () -> harness(Set.of(StoreType.EXACT), Set.of("UNKNOWN")));
+        assertThrows(IllegalArgumentException.class, () -> harness(Set.of(StoreType.EXACT), Set.of()));
         assertThrows(IllegalArgumentException.class, () -> new BenchmarkHarness(100,2,Set.of(StoreType.EXACT),Set.of("DFS"),2,true,true));
     }
 
@@ -102,7 +106,7 @@ class SourceSymmetryRunTest {
         assertTrue(rows.get(1).getAsJsonObject().get("symmetryReduction").getAsBoolean());
         assertEquals("DFS", rows.get(1).getAsJsonObject().get("strategy").getAsString());
         String markdown = writer.writeMarkdown();
-        assertTrue(markdown.contains("orbit representatives"));
+        assertTrue(markdown.contains("representative visits"));
         assertTrue(markdown.contains("DFS (exact): 4 states"));
         assertTrue(markdown.contains("DFS + symmetry (exact): 3 states"));
         assertTrue(markdown.contains("| DFS + symmetry | EXACT | 3 |"));

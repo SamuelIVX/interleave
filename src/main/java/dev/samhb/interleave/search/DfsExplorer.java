@@ -124,11 +124,15 @@ public final class DfsExplorer {
      * @param stateVisitor visitor or null
      * @param maxStates budget; Long.MAX_VALUE for no limit
      * @return visited configurations, recorded traces, and exploration count
+     * @throws IllegalArgumentException if a symmetry store is bound to another program, property or strategy
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor, long maxStates) {
         this.stateStore = stateStore != null ? stateStore : defaultStateStore;
         this.stateVisitor = stateVisitor;
         this.maxStatesBudget = maxStates;
+        if (this.stateStore instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+            symmetry.requireRun(program, invariant, dev.samhb.interleave.Strategy.DFS);
+        }
         this.stateStore.clear();
         visitedStates.clear();
         traces.clear();

@@ -93,7 +93,7 @@ public final class ContextBoundedExplorer {
      * @param maxPreemptions the preemption bound; must not be negative
      * @return visited configurations, recorded traces, and exploration count
      * @throws IllegalArgumentException if {@code maxPreemptions} is negative, or the supplied
-     *         store cannot represent it
+     *         store cannot represent it, or a symmetry store is bound to another program, property or strategy
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore,
                              StateVisitor stateVisitor, int maxPreemptions) {
@@ -112,6 +112,9 @@ public final class ContextBoundedExplorer {
                 + "; construct the store as new BitstateStore(size, k, maxPreemptions)");
         }
 
+        if (store instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+            symmetry.requireRun(program, invariant, dev.samhb.interleave.Strategy.CONTEXT_BOUNDED);
+        }
         store.clear();
         visitedStates.clear();
         traces.clear();
