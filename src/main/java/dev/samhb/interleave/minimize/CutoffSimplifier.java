@@ -21,6 +21,9 @@ public final class CutoffSimplifier {
      * supplied predicates must be pure and deterministic, as required for source replay.
      * A null invariant supplies no additional global predicate; callers with a source property
      * must pass it to reject candidates that would fail before the omitted bound action.
+     * Candidate testing repeatedly copies schedules and replays source execution. Accepted
+     * deletions restart chunk refinement, so long witnesses can require substantial work.
+     * Use this opt-in operation to simplify an explanation outside the exploration hot path.
      * <pre>{@code
      * Trace shorter = new CutoffSimplifier().simplify(model.program(), witness,
      *     model.invariant().orElse(null));
