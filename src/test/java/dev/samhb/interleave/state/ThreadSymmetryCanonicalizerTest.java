@@ -58,8 +58,23 @@ class ThreadSymmetryCanonicalizerTest {
         var normalized = new ThreadSymmetryCanonicalizer(4, List.of(List.of(0, 2), List.of(1, 3)));
         assertEquals(List.of(2, 3, 0, 1), full.canonicalize(state, pcs).canonicalToOriginal());
         assertEquals(normalized.canonicalize(state, pcs).key(), full.canonicalize(state, pcs).key());
+        String fullKey = full.canonicalize(state, pcs).key();
+        for (var permutation : List.of(List.of(0, 1, 2, 3), List.of(0, 3, 2, 1),
+                List.of(2, 1, 0, 3), List.of(2, 3, 0, 1))) {
+            assertEquals(fullKey, full.canonicalize(permute(state, permutation),
+                permutation.stream().map(pcs::get).toList()).key());
+        }
         var partial = new ThreadSymmetryCanonicalizer(4, List.of(List.of(0, 2)));
         assertEquals(List.of(2, 1, 0, 3), partial.canonicalize(state, pcs).canonicalToOriginal());
+        var swapped = permute(state, List.of(2, 1, 0, 3));
+        assertEquals(partial.canonicalize(state, pcs).key(), partial.canonicalize(swapped, pcs).key());
+        var fixedLast = partial.canonicalize(state, pcs, 1);
+        var swappedFixedLast = partial.canonicalize(swapped, pcs, 1);
+        assertEquals(1, fixedLast.canonicalThreadId(1));
+        assertEquals(1, swappedFixedLast.canonicalThreadId(1));
+        assertEquals(fixedLast.key(), swappedFixedLast.key());
+        assertNotEquals(fixedLast.key(), partial.canonicalize(state, pcs, 3).key());
+        assertNotEquals(fixedLast.key(), partial.canonicalize(state, pcs, 2).key());
         assertNotEquals(partial.canonicalize(state, pcs).key(), partial.canonicalize(permute(state, List.of(0, 3, 2, 1)), pcs).key());
         assertNotEquals(full.canonicalize(state, pcs).key(), partial.canonicalize(state, pcs).key());
         var fixed = new ThreadSymmetryCanonicalizer(4, List.of());

@@ -121,3 +121,17 @@ Manual browser/CLI and normalization checks are omitted: no runtime, artifact, s
 is wired. Existing runtime regressions still run in the integrated suite. Future integration must
 validate behavioral eligibility and real quotient search; these offline orbit counts prove no
 runtime state reduction or performance improvement.
+
+
+## PR #117 trivial feedback follow-up
+
+The existing partition regression now compares keys for all four allowed permutations of the
+{0,2}/{1,3} partition and the allowed {0,2} swap with owners 1/3 fixed. It also preserves last
+owner 1 across the permitted swap, checks its canonical ID remains 1, and separates its key from
+both another fixed last owner (3) and a grouped last owner (2). Existing forbidden-swap assertions
+remain. This closes two concrete coverage gaps without changing production behavior or test count.
+
+Build, all 1,543 tests and strict Javadoc pass; local log
+/private/tmp/interleave-pr117-feedback-checks.log. No CodeRabbit CLI or PIT rerun for this trivial
+test-only follow-up. Earlier mutation measurements remain historical evidence from the initial
+bundle; no new kill claim is made.
