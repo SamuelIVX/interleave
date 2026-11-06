@@ -167,3 +167,43 @@ normalization suite: **49 browser assertions pass**, zero failures/console error
 /private/tmp/interleave-symmetry-search-browser-ownership-final.log. Workflow YAML and the actual
 producer-selector/environment linkage validate. The Spec 75 status note now records its merged
 foundation and points to this phase's public value API. No remote CI result is claimed.
+
+## PR #118 major serialization feedback
+
+The finding is valid as an undocumented upgrade boundary. Existing Spec 11 explicitly accepted
+implicit-UID incompatibility, while the public README advertised persistence/transport without
+stating the build restriction. This follow-up retains that policy and documents the concrete break;
+it does not silently pin the old UID or claim to restore cross-build Java compatibility.
+
+Freshly compiling the actual ac16444 TestResult source gives UID 6226768608649318615; fa74eb0 gives
+-1542593392263582808. serialver and actual ObjectInputStream descriptors agree. Fresh JVM probes
+using the complete old class verify old→new, new ordinary→old and new symmetry→old all fail with
+InvalidClassException at TestResult. Old→old and new symmetry→new succeed. A disposable copy with
+the old UID pinned proves the unsafe shortcut: the real old reader accepts statesExplored=3 but
+drops symmetryReduction. The repository's runtime serialization implementation is unchanged.
+
+A Base64-encoded genuine base stream fixture has 683 decoded bytes and SHA-256
+011c670b05f2d076be1e0959a971c48eba5a1f376b34c43b67fcee1137d01e62, cross-checked with hashlib/shasum.
+Its provenance and reproduction are in src/test/resources/serialization/README.md. Regression
+tests require root-level old-stream rejection, real current-result round trips for both modes,
+complete JSON-equivalent trace/snapshot metadata, and old-UID gate rejection of both new modes.
+The isolated gate reader tests native descriptor rejection, not full old-library field mapping;
+the complete old-library probes above provide the latter version-boundary evidence.
+
+The README, TestResult Javadoc and prior/current specs now distinguish source/JSON compatibility
+from native Java streams, and tell persistence users to export with the old build or recompute.
+No field, UID, readObject/writeObject or runtime protocol is changed by this follow-up.
+
+Serialization feedback validation: focused three native-stream cases pass; full build, strict
+Javadoc and **1,588 tests** pass, zero failures/errors/skips. The TestResult UID remains
+-1542593392263582808 after the Javadoc-only production edit. Local log:
+/private/tmp/interleave-pr118-serialization-integrated.log; fresh old/new and unsafe-pinned probes
+are under /private/tmp/interleave-pr118-serialization-probe. Those are local-only evidence.
+PIT, browser and CodeRabbit CLI were not rerun for this documentation/native-stream-test follow-up;
+no runtime behavior, field layout or protocol changed, and no new mutation-kill claim is made.
+
+The observed UID rejection and field-evolution behavior follow the Java specification's
+[stream UID contract](https://docs.oracle.com/en/java/javase/26/docs/specs/serialization/class.html#stream-unique-identifiers)
+and [type-versioning rules](https://docs.oracle.com/en/java/javase/26/docs/specs/serialization/version.html#type-changes-affecting-serialization).
+The project's choice to retain build-specific compatibility comes from Spec 11, not from a claim
+that Java cannot support a separately designed compatibility protocol.

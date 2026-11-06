@@ -92,7 +92,7 @@ work remains. Deferred/conditional follow-ups remain parked. Stop and explicitly
 
 ## Results
 
-Implementation and integrated build/Javadoc/1,585 tests pass (42 new cases), zero failures,
+Implementation and integrated build/Javadoc/1,588 tests pass (45 new cases), zero failures,
 errors or skips. Private-member doclint for the four core files passes. Actual CLI comparisons,
 22 verdict normalization cases plus four identity assertions, and 49 browser checks pass with
 zero console errors. The workflow produces/consumes the real symmetry artifact.
@@ -119,3 +119,22 @@ DPOR instead of checked DFS). BenchmarkHarness now snapshots filters before vali
 Final build/Javadoc/all 1,585 tests and the 433/449 default gate pass after this small fix; all
 449 inherited identities/statuses remain. It follows the two completed CLI reviews with local
 regression/integrated validation, without claiming a third external review.
+
+## Java object-stream upgrade boundary
+
+PR #118 changes TestResult's computed native Java serial UID. This follows Spec 11's accepted
+build-specific object-stream policy; source/JSON compatibility does not guarantee native stream
+compatibility. Both directions between ac16444 and this build reject with InvalidClassException,
+including new ordinary results. Current ordinary and symmetry native round trips preserve the
+complete result and the symmetry marker. Do not reuse the old UID: a disposable pinned-UID probe
+showed an actual old reader silently accepting three quotient states as an ordinary DFS result.
+
+Persisted Java streams must be read/exported using their original build before upgrading, or
+recomputed. Preserve named JSON fields, including symmetryReduction, for transport/archive use.
+The fixture and regressions document that this phase deliberately does not add a legacy Java
+stream reader, proxy protocol or automatic migration. This boundary applies regardless of whether
+symmetry is enabled; the field/API changes the class identity for both modes.
+
+Feedback validation adds three native-stream cases: full build/Javadoc/1,588 tests pass, zero
+failures/errors/skips. The class UID and runtime serialization code are unchanged by this
+clarification; earlier mutation/browser measurements remain their recorded feature-run evidence.

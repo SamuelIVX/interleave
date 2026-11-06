@@ -240,7 +240,20 @@ TraceRecord record = vr.completedTraces().get(0).toRecord();
 - **Limit enforcement** — `maxStates` / `maxTime` stop exploration early and return partial results with `limitExceeded=true`
 - **Trace capture on limit** — traces found before limit are preserved via `StateVisitor.onTraceCreated()`
 - **StateStore factory** — `stateStoreFactory(Supplier<StateStore>)` preserves configured implementation type
-- **Serializable results** — `TestResult`, `TraceRecord` implement `Serializable` for persistence/transport
+- **Serializable results** — `TestResult`, `TraceRecord` implement `Serializable` for persistence/transport between matching library builds; native object streams are not a stable cross-build format
+
+**Native Java stream upgrade boundary (PR #118).** The symmetry field/API changes `TestResult`'s
+computed serial UID. Java streams from the preceding build (`ac16444`) and this build reject each
+other with `InvalidClassException`, including ordinary results. The project retains its existing
+build-specific serialization policy; Java source API and additive JSON compatibility are separate.
+An older Java reader therefore cannot silently treat a new symmetry result as ordinary DFS.
+
+Keep the exact writer build available when upgrading stored Java results. Read them with that
+build and export `TestResult.toJson()` before upgrading, or recompute them with the new build.
+Use JSON for interchange/archive data, preserving its named fields; consumers of symmetry results
+must retain `symmetryReduction` and treat counts as orbit representatives. A matching version
+string alone is insufficient for development builds: retain the artifact/revision. Do not force
+an old UID onto the new class: old readers would ignore the new field and lose the reduction marker.
 
 ## Recent improvements (2026-09-11)
 

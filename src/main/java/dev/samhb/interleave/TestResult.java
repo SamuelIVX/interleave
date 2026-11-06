@@ -6,7 +6,14 @@ import java.util.List;
 import dev.samhb.interleave.core.CutoffEvidence;
 import dev.samhb.interleave.core.ResourceLimitReason;
 
-/** Public verification outcome with categorized traces, measurements, and limit status. */
+/**
+ * Public verification outcome with categorized traces, measurements, and limit status.
+ * <p>Native Java object streams are specific to the writer's library build, with no stable
+ * cross-build serial UID. Class changes can cause {@link java.io.InvalidClassException}, even
+ * for ordinary results. Read stored streams with the original build and export {@link #toJson()}
+ * before upgrading; JSON compatibility is separate from Java object-stream compatibility.
+ * A changed UID deliberately prevents older readers from silently dropping symmetry metadata.
+ */
 public final class TestResult implements Serializable {
     /** True only for checked source-orbit DFS results. */
     private final boolean symmetryReduction;
