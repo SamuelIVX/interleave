@@ -319,6 +319,15 @@ block. A false private assertion rolls back the outer action and reports its own
 See [passing assertions](examples/programs/statement-assertions.ilv) and
 [assertion rollback](examples/programs/assertion-rollback.ilv).
 
+To shorten a bound explanation, use `--simplify-cutoff` with a source model, `--json`,
+`--store exact` and one `--strategy`. It emits one direct trace for the existing viewer, preserving
+the exact loop/preemption cutoff and its bound. It remains INCOMPLETE and requires an INCOMPLETE
+selected run; this operation does not hide a known violation or minimize failures.
+
+```bash
+./gradlew --max-workers=1 -PpitestThreads=1 run --args="--source examples/programs/cutoff-simplification.ilv --store exact --strategy DFS --json --simplify-cutoff"
+```
+
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to
 the existing runner. Load failures are `RegistryException` diagnostics with file, line, column

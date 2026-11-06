@@ -47,12 +47,13 @@ jobs:
           cache: gradle
 
       - name: Generate and validate fresh source report
-        run: ./gradlew test --tests dev.samhb.interleave.format.SourceProgramLoaderTest --tests dev.samhb.interleave.format.SourceAssertionTest --no-daemon
+        run: ./gradlew test --tests dev.samhb.interleave.format.SourceProgramLoaderTest --tests dev.samhb.interleave.format.SourceAssertionTest --tests dev.samhb.interleave.cli.MainTest.cutoffSimplificationProducesDirectTrace --no-daemon
 
       - name: Run visualizer test suite
         env:
           SOURCE_TRACE_JSON: build/source-visualizer.json
           SOURCE_ASSERTION_JSON: build/source-assertion-visualizer.json
+          SOURCE_SIMPLIFIED_CUTOFF_JSON: build/source-simplified-cutoff.json
         run: npm test --prefix docs
 
   build:

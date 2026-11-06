@@ -80,7 +80,12 @@ source replay and validate 04's failure kind rather than infer it from the rolle
 
 ## Minimization
 
-Continue rejecting INCOMPLETE minimization, including source loop cutoffs. Update CBS-specific
+Continue rejecting INCOMPLETE failure minimization, including source loop cutoffs.
+[Spec 74](../74-source-cutoff-witness-simplification.md) supplies a separate CutoffSimplifier for
+source loop/preemption witnesses: retain the entire cutoff value and authenticate every shortened
+nonterminal prefix with the actual property. The result stays INCOMPLETE and deletion-1-minimal,
+not necessarily globally shortest. Resource-only witnesses remain unsupported. The explicit CLI
+operation exports a direct trace with fresh snapshots; normal search reports remain unchanged. Update CBS-specific
 error text to describe bounded/incomplete evidence generally.
 
 For ordinary failures, removing scheduled choices can change the chosen arm, executed PCs and
