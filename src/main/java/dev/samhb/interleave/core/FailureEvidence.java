@@ -6,24 +6,26 @@ import java.util.Objects;
 
 /**
  * Evidence for a real source-model failure.
- * @param kind INVARIANT or RUNTIME_ERROR
+ * @param kind false global INVARIANT, false statement ASSERTION or RUNTIME_ERROR
  * @param phase STEP or PROPERTY
  * @param source actual failing expression location
- * @param category runtime category, null for false invariants
+ * @param category runtime category, null for false properties/assertions
  */
 public record FailureEvidence(Kind kind, Phase phase, SourceLocation source, Category category)
         implements Serializable {
-    /** Enforces the distinction between false properties and execution errors. */
+    /** Enforces phase/category contracts for properties, assertions and execution errors. */
     public FailureEvidence {
         Objects.requireNonNull(kind, "kind");
         Objects.requireNonNull(phase, "phase");
         if ((kind == Kind.RUNTIME_ERROR) != (category != null)
-                || (kind == Kind.INVARIANT && phase != Phase.PROPERTY)) {
+                || (kind == Kind.INVARIANT && phase != Phase.PROPERTY)
+                || (kind == Kind.ASSERTION && phase != Phase.STEP)) {
             throw new IllegalArgumentException("Inconsistent failure classification");
         }
     }
     /** Failure meaning. */
-    public enum Kind { /** False property. */ INVARIANT, /** Modeled evaluation failed. */ RUNTIME_ERROR }
+    public enum Kind { /** False property. */ INVARIANT, /** Modeled evaluation failed. */ RUNTIME_ERROR,
+        /** False statement assertion. */ ASSERTION }
     /** Observation boundary. */
     public enum Phase { /** Attempted instruction. */ STEP, /** Observed configuration. */ PROPERTY }
     /** Deterministic runtime error classes. */

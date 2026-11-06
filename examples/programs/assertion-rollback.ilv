@@ -1,0 +1,12 @@
+program assertion_rollback {
+  shared int counter = 0;
+  thread 0 {
+    atomic {
+      counter = 7;
+      assert (counter == 0);
+      counter = 9;
+    }
+  }
+  invariant always (counter == 0);
+  expected VIOLATION;
+}

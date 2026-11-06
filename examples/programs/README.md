@@ -22,6 +22,8 @@ apply. Each outer `atomic` is one scheduling action; an outer condition is a sep
 |---|---|
 | `split-increment.ilv` | Two reads before either write leave 1; serial increments leave 2. Final `counter == 2` can fail. Matches the hand-authored typed `lost-update.json` teaching case. |
 | `atomic-increment.ilv` | Either ordering increments twice: final value 2, PASS. |
+| `statement-assertions.ilv` | Scheduled and private assertions all hold; PASS. |
+| `assertion-rollback.ilv` | A private assertion sees tentative 7 and fails; rollback leaves counter 0 and the global property true, VIOLATION. |
 | `nested-atomic.ilv` | Nested load/store grouping shares one outer action per owner: counter 2, PASS. |
 | `helper-increment.ilv` | Two calls to one atomic increment helper retain final value 2, PASS. |
 | `helper-split-increment.ilv` | Caller-local load/store helper permits final values 1 and 2, VIOLATION. |

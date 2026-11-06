@@ -35,6 +35,9 @@ Owner, actual PC, loop ancestry and exact source digest identify expanded occurr
 call-stack field or JSON schema change is introduced. Replay/minimization regenerate this evidence.
 Nested atomic blocks retain one outer action span/label and the actual inner statement or loop
 location for terminal evidence. They introduce no additional executed-step entry or evidence field.
+False statement assertions use ASSERTION/STEP evidence with no runtime category, retaining the
+actual assertion span and one outer attempted step. Replay compares actual step evidence; report
+attestation accepts an authenticated assertion even when rollback leaves the global property true.
 Labels are source-derived diagnostic text and must be rendered as text, never HTML.
 
 Preserve legacy traces that lack metadata. Reject supplied misaligned executedSteps, impossible

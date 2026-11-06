@@ -170,9 +170,10 @@ function normalize(raw){
     }
     if(value.failure != null){
       const f=value.failure;
-      if(!['INVARIANT','RUNTIME_ERROR'].includes(f.kind) || !['STEP','PROPERTY'].includes(f.phase) ||
-        (f.source!=null && !validSpan(f.source)) || (f.kind==='INVARIANT' ? f.phase!=='PROPERTY' || f.category!=null :
-          !['ARRAY_BOUNDS','MODULO_BY_ZERO','OTHER_EVALUATION_ERROR'].includes(f.category))) throw new Error('Invalid failure evidence');
+      if(!['INVARIANT','RUNTIME_ERROR','ASSERTION'].includes(f.kind) || !['STEP','PROPERTY'].includes(f.phase) ||
+        (f.source!=null && !validSpan(f.source)) || (f.kind==='RUNTIME_ERROR' ?
+          !['ARRAY_BOUNDS','MODULO_BY_ZERO','OTHER_EVALUATION_ERROR'].includes(f.category) :
+          f.category!=null || f.phase!==(f.kind==='ASSERTION' ? 'STEP' : 'PROPERTY'))) throw new Error('Invalid failure evidence');
     }
     if(value.failure!=null && value.cutoff!=null) throw new Error('Conflicting terminal evidence');
     return {sourceDigest:value.sourceDigest,executedSteps:value.executedSteps,cutoff:value.cutoff,failure:value.failure};

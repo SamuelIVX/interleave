@@ -26,7 +26,7 @@ import java.util.*;
  *       For every reported VIOLATION (including bitstate and context-bounded),
  *       requires a failing trace and registered program, then replays the recorded execution.
  *       When an invariant is supplied, the final configuration must violate it unless replay
- *       authenticates a source runtime error (whose atomic rollback may leave the invariant true).
+ *       authenticates a source runtime error or false statement assertion (whose atomic rollback may leave the invariant true).
  *       Without an invariant, replay checks execution and supplied source step evidence only;
  *       success does not establish a property violation. Replay exceptions propagate to the caller.
  *       This positive replay obligation applies to bounded and approximate reports as well.
@@ -126,7 +126,8 @@ if (program != null) {
                 Configuration replayed = replayer.replay(programDef, failingTrace, invariant);
                 if (invariant != null && invariant.holds(replayed.state(), replayed)
                         && !(programDef.isSource() && failingTrace.failure() != null
-                        && failingTrace.failure().kind() == dev.samhb.interleave.core.FailureEvidence.Kind.RUNTIME_ERROR)) {
+                        && (failingTrace.failure().kind() == dev.samhb.interleave.core.FailureEvidence.Kind.RUNTIME_ERROR
+                        || failingTrace.failure().kind() == dev.samhb.interleave.core.FailureEvidence.Kind.ASSERTION))) {
                     return SoundnessCheck.failed("Replayed trace for " + result.bugName() +
                         " under " + result.strategy() + " (" + result.storeType() + ") does not violate invariant");
                 }
@@ -175,7 +176,7 @@ if (program != null) {
     /**
      * Formats the checks performed and their limits, or the first failure diagnostic, as Markdown.
      * Success describes this attestation's checks, not a proof of whole-checker soundness.
-     * Replay without an invariant establishes execution only; authenticated source runtime failures
+     * Replay without an invariant establishes execution only; authenticated source runtime or assertion failures
      * need not leave a false invariant at the replayed configuration.
      *
      * @return a Markdown section with a qualified success summary or warning and failure reason
@@ -189,7 +190,7 @@ if (program != null) {
             sb.append("Source DFS results that were INCOMPLETE or APPROXIMATE_PASS were accepted as ");
             sb.append("inconclusive, not matched verdicts; programs without expectations were not expectation-checked. ");
             sb.append("Reported VIOLATION traces (including bitstate and context-bounded) passed execution replay. ");
-            sb.append("Supplied invariants failed at the replayed configuration, or source runtime failures were authenticated. ");
+            sb.append("Supplied invariants failed at the replayed configuration, or source runtime or assertion failures were authenticated. ");
             sb.append("Without an invariant, successful replay does not establish a property violation. ");
             sb.append("Inconclusive results (INCOMPLETE or APPROXIMATE_PASS) are excluded ");
             sb.append("from the cross-strategy verdict agreement above, since they assert nothing about ");

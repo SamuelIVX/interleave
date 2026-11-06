@@ -26,10 +26,11 @@ helperDecl  = "helper", IDENT, block ;
 helperCall  = "call", IDENT, ";" ;
 threadDecl  = "thread", UINT, block ;
 block       = "{", {statement}, "}" ;
-statement   = atomic | conditional | repetition | boundedLoop | helperCall ;
+statement   = atomic | conditional | repetition | boundedLoop | helperCall | assertion ;
+assertion   = "assert", "(", expr, ")", ";" ;
 atomic      = "atomic", ["when", "(", expr, ")"], atomicBlock ;
 atomicBlock = "{", {atomicStmt}, "}" ;
-atomicStmt  = assignment, ";" | atomicIf | atomicRepeat | atomicLoop | nestedAtomic ;
+atomicStmt  = assignment, ";" | atomicIf | atomicRepeat | atomicLoop | nestedAtomic | assertion ;
 nestedAtomic= "atomic", atomicBlock ;
 conditional = "if", "(", expr, ")", block, ["else", block] ;
 repetition  = "repeat", UINT, block ;
@@ -71,6 +72,16 @@ including branches and loops, but not inside atomic interiors. Definition bodies
 when unused. Shared/local/tid references bind to the caller owner. Expansion adds no scheduled action
 or PC beyond the body, preserving the actions and footprints of manual inlining. See
 [Spec 71](../71-bounded-source-helpers.md) for bounds and acceptance evidence.
+
+## Statement assertions
+
+`assert (condition);` checks a boolean at that statement. At thread/helper level it is one
+scheduled action; inside an atomic body it checks tentative values privately. True advances or
+continues; false is VIOLATION with ASSERTION/STEP evidence and the actual assertion span. A private
+failure rolls back the entire outer action, even if the global property stays true. Evaluation
+errors retain RUNTIME_ERROR classification. First encountered terminal event wins.
+`assert` is contextual before `(`; existing declaration/program names and assignments remain valid.
+Messages/extra arguments are unsupported. See [Spec 73](../73-source-statement-assertions.md).
 
 ## Scheduling and blocking
 
@@ -137,4 +148,4 @@ Validate values and scheduling boundaries against hand-written expectations, not
 
 ## Implementation evidence
 
-`SourceProgramLoaderTest` and `SourceAcceptanceTest` exercise final-value/schedule oracles, nested allowance reset, atomic observation boundaries, guards and runtime rollback. The ten `.ilv` examples are loaded through all benchmark rows by `SourceAcceptanceTest`. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.
+`SourceProgramLoaderTest` and `SourceAcceptanceTest` exercise final-value/schedule oracles, nested allowance reset, atomic observation boundaries, guards and runtime rollback. The twelve `.ilv` examples are loaded through all benchmark rows by `SourceAcceptanceTest`. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.

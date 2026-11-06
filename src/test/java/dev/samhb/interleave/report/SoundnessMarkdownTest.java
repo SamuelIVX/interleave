@@ -23,7 +23,7 @@ class SoundnessMarkdownTest {
         + "Source DFS results that were INCOMPLETE or APPROXIMATE_PASS were accepted as "
         + "inconclusive, not matched verdicts; programs without expectations were not expectation-checked. "
         + "Reported VIOLATION traces (including bitstate and context-bounded) passed execution replay. "
-        + "Supplied invariants failed at the replayed configuration, or source runtime failures were authenticated. "
+        + "Supplied invariants failed at the replayed configuration, or source runtime or assertion failures were authenticated. "
         + "Without an invariant, successful replay does not establish a property violation. "
         + "Inconclusive results (INCOMPLETE or APPROXIMATE_PASS) are excluded "
         + "from the cross-strategy verdict agreement above, since they assert nothing about "

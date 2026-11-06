@@ -59,6 +59,9 @@ retain their PC. Reject malformed compiled targets before search. No source back
 - Outer atomic blocks become one global instruction, irrespective of their internal operation count.
   Unguarded nested atomic bodies flatten into private statements in source order, preserving their
   inner diagnostic spans. They create no instruction or independent transaction.
+- A scheduled assertion becomes one instruction with complete expression reads. True advances;
+  false produces ASSERTION/STEP evidence with no successor. A private assertion shares the outer
+  scratch state and rollback boundary.
 - An if becomes a condition instruction and forward true/false successors. The final real action
   of an arm advances directly to its continuation; emit no separately scheduled jump instruction.
 - Compile repeat by expansion. Compile bounded while into up to N body copies separated by
