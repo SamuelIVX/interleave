@@ -180,7 +180,7 @@ public final class SourceCompiler {
     }
 
     /** Parses one braced body, distinguishing scheduled statements from atomic interiors.
-     * @param insideAtomic whether assignments/private control are allowed instead of nested atomics
+     * @param insideAtomic whether statements belong to an outer atomic action; inner blocks flatten
      * @param depth current braced-body depth relative to the enclosing program
      * @return immutable source-order syntax nodes
      * @throws RegistryException for invalid syntax/types or nesting beyond 16 program/body levels
@@ -192,10 +192,12 @@ public final class SourceCompiler {
             if (peek("")) throw error(current().start(), "syntax", "Expected '}' before EOF");
             int start = current().start();
             if (take("atomic")) {
-                if (insideAtomic) throw error(start, "unsupported", "Nested atomic blocks are unsupported");
+                if (insideAtomic && peek("when")) throw error(start, "unsupported", "Guarded nested atomic blocks are unsupported");
                 Expr guard = take("when") ? condition() : null;
                 List<Node> body = block(true, depth + 1);
-                nodes.add(new Node(Kind.ATOMIC, null, guard, body, List.of(), 0, start, previous().end(), List.of(), null));
+                // Inner braces group private work; only the outer action owns scheduling and rollback.
+                if (insideAtomic) nodes.addAll(body);
+                else nodes.add(new Node(Kind.ATOMIC, null, guard, body, List.of(), 0, start, previous().end(), List.of(), null));
             } else if (take("if")) {
                 Expr test = condition();
                 List<Node> yes = block(insideAtomic, depth + 1);

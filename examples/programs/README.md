@@ -22,6 +22,7 @@ apply. Each outer `atomic` is one scheduling action; an outer condition is a sep
 |---|---|
 | `split-increment.ilv` | Two reads before either write leave 1; serial increments leave 2. Final `counter == 2` can fail. Matches the hand-authored typed `lost-update.json` teaching case. |
 | `atomic-increment.ilv` | Either ordering increments twice: final value 2, PASS. |
+| `nested-atomic.ilv` | Nested load/store grouping shares one outer action per owner: counter 2, PASS. |
 | `helper-increment.ilv` | Two calls to one atomic increment helper retain final value 2, PASS. |
 | `helper-split-increment.ilv` | Caller-local load/store helper permits final values 1 and 2, VIOLATION. |
 | `branching-flag.ilv` | Decision before producer selects value 2, even if producer runs before the body; producer before decision selects 1. PASS. |
@@ -33,6 +34,9 @@ apply. Each outer `atomic` is one scheduling action; an outer condition is a sep
 Helpers are zero-argument scheduled sequences declared before threads; calls may reference earlier
 helpers. Their bodies bind locals/tid to the caller. Calls add no extra action; all existing expanded
 work limits still apply. Calls inside atomic interiors and recursive calls are rejected.
+
+Unguarded nested atomic blocks share the outer action: inner closing braces do not commit writes
+or allow interleaving. Inner guards remain unsupported. See `nested-atomic.ilv`.
 
 A bound allows N bodies and then tests once more: true means unexplored behavior, so INCOMPLETE.
 Exact-store PASS proves the selected finite model; bitstate absence is APPROXIMATE_PASS. These files

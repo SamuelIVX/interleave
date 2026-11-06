@@ -45,15 +45,17 @@ truncation, hidden splitting of atomic blocks or clamping of counts is permitted
 | Expression depth | 16, following existing Expr.depth convention |
 | Aggregate expression nodes | 5,000 after expansion across all thread/global/internal occurrences plus property |
 | Global instructions | 64 per thread, 512 across program; zero in a thread is valid |
-| Atomic internal instructions | 64 per expanded atomic block |
+| Atomic internal instructions | 64 per expanded outer atomic block |
 | Count literals | 0–2,147,483,647; expansion may reject otherwise syntactically valid counts |
 
-Global instruction counts include atomic instructions and every scheduled condition, including the
+Global instruction counts include outer atomic instructions and every scheduled condition, including the
 final bounded-while check. Internal counts include assignments and conditional evaluations on both
 arms after expansion; repeat itself adds no action; a bounded while contributes N+1 tests and N
-expanded bodies. Empty atomic bodies count zero internally and one globally. Count all branch arms,
+expanded bodies. Empty outer atomic bodies count zero internally and one globally. Count all branch arms,
 even if a condition is a constant. Unreachable `repeat 0` bodies are still parsed and type checked
 but contribute zero expanded executable work; original source/nesting limits still apply.
+Unguarded nested atomic braces count toward source nesting before flattening; their statements
+share the outer private instruction/expression budgets. Braces add no private instruction.
 
 Budget expression occurrences conservatively: each expanded expression in an instruction/atomic
 tree counts, even when immutable nodes could be shared in memory. Detect sums/products exceeding
