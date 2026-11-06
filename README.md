@@ -314,6 +314,11 @@ program increments {
 ./gradlew --max-workers=1 -PpitestThreads=1 run --args="--source examples/programs/atomic-increment.ilv --json"
 ```
 
+`assert (condition);` checks a boolean at its scheduled position or privately inside an atomic
+block. A false private assertion rolls back the outer action and reports its own source location.
+See [passing assertions](examples/programs/statement-assertions.ilv) and
+[assertion rollback](examples/programs/assertion-rollback.ilv).
+
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to
 the existing runner. Load failures are `RegistryException` diagnostics with file, line, column

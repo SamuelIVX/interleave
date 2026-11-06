@@ -1,0 +1,9 @@
+program statement_assertions {
+  shared int counter = 0;
+  thread 0 {
+    assert (counter == 0);
+    atomic { counter = 1; assert (counter == 1); }
+    assert (counter == 1);
+  }
+  expected PASS;
+}

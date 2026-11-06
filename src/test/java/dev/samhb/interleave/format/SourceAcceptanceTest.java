@@ -77,10 +77,13 @@ class SourceAcceptanceTest {
 
     /** Every teaching fixture is loaded from disk and attested using its actual source program. */
     @Test void teachingFixturesMatchTheirDeclaredOrExplicitTerminalOracles() throws Exception {
-        Map<String, String> expected = Map.of("split-increment", "VIOLATION", "atomic-increment", "PASS",
-            "branching-flag", "PASS", "bounded-loops", "INCOMPLETE", "atomic-cutoff", "INCOMPLETE",
-            "atomic-runtime-error", "VIOLATION", "guarded-handoff", "PASS",
-            "helper-increment", "PASS", "helper-split-increment", "VIOLATION", "nested-atomic", "PASS");
+        Map<String, String> expected = Map.ofEntries(
+            Map.entry("split-increment", "VIOLATION"), Map.entry("atomic-increment", "PASS"),
+            Map.entry("branching-flag", "PASS"), Map.entry("bounded-loops", "INCOMPLETE"),
+            Map.entry("atomic-cutoff", "INCOMPLETE"), Map.entry("atomic-runtime-error", "VIOLATION"),
+            Map.entry("guarded-handoff", "PASS"), Map.entry("helper-increment", "PASS"),
+            Map.entry("helper-split-increment", "VIOLATION"), Map.entry("nested-atomic", "PASS"),
+            Map.entry("statement-assertions", "PASS"), Map.entry("assertion-rollback", "VIOLATION"));
         for (var entry : expected.entrySet()) {
             BenchmarkProgram model = loader.loadFromFile(Path.of("examples/programs/" + entry.getKey() + ".ilv"));
             var results = new BenchmarkHarness().runProgram(model);

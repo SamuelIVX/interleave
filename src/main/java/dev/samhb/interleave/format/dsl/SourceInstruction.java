@@ -60,7 +60,7 @@ final class SourceInstruction implements SourceStep {
      * @param scratch isolated mutable state owned by this attempt
      * @return ADVANCED with committed scratch on success; defensive BLOCKED identity if a false
      *         guard is called directly; LOOP_LIMIT with no successor on cutoff; ASSERTION_FAILED
-     *         with STEP failure evidence and no successor on a runtime error
+     *         with STEP failure evidence and no successor on a false assertion or runtime error
      */
     @Override
     public StepTransition transition(List<ModelThread> threads, Configuration parent, int threadId, SharedState scratch) {
@@ -72,6 +72,8 @@ final class SourceInstruction implements SourceStep {
                 // Re-evaluate erroring guards so they become failures, not disabled actions.
                 if (node.test() != null) evaluate(node.test(), (DynamicState) scratch, owner, node);
                 executeNodes(node.yes(), (DynamicState) scratch, owner);
+            } else if (node.kind() == Kind.ASSERT) {
+                checkAssertion(node, (DynamicState) scratch, owner);
             } else {
                 boolean value = evaluate(node.test(), (DynamicState) scratch, owner, node).asBool();
                 if (node.kind() == Kind.LIMIT && value) throw new BoundedStop(node);
@@ -120,7 +122,7 @@ final class SourceInstruction implements SourceStep {
      * @param state attempt-owned tentative state
      * @param owner local-state owner
      * @throws BoundedStop on a true final loop test
-     * @throws EvaluationFailure on a modeled runtime error
+     * @throws EvaluationFailure on a false assertion or modeled runtime error
      */
     private void executeNodes(List<Node> nodes, DynamicState state, int owner) {
         for (Node node : nodes) {
@@ -129,10 +131,24 @@ final class SourceInstruction implements SourceStep {
                     try { Evaluator.assign(node.effect(), state, owner); }
                     catch (Evaluator.EvalException | IndexOutOfBoundsException e) { throw evaluationFailure(e, node, FailureEvidence.Phase.STEP); }
                 }
+                case ASSERT -> checkAssertion(node, state, owner);
                 case IF -> executeNodes(evaluate(node.test(), state, owner, node).asBool() ? node.yes() : node.no(), state, owner);
                 case LIMIT -> { if (evaluate(node.test(), state, owner, node).asBool()) throw new BoundedStop(node); }
                 default -> throw new IllegalStateException("Unexpanded atomic instruction");
             }
+        }
+    }
+
+    /** Evaluates a scheduled or private assertion at its actual observation point.
+     * @param node validated assertion with its original statement span
+     * @param state committed-copy or tentative outer-atomic state
+     * @param owner caller-local owner for expression evaluation
+     * @throws EvaluationFailure for a false assertion or modeled expression error
+     */
+    private void checkAssertion(Node node, DynamicState state, int owner) {
+        if (!evaluate(node.test(), state, owner, node).asBool()) {
+            throw new EvaluationFailure(new FailureEvidence(FailureEvidence.Kind.ASSERTION,
+                FailureEvidence.Phase.STEP, text.location(node.start(), node.end()), null));
         }
     }
 
@@ -167,7 +183,7 @@ final class SourceInstruction implements SourceStep {
         /** Retains the actual exhausted loop occurrence. */
         private BoundedStop(Node node) { this.node = node; }
     }
-    /** Internal classified evaluation failure. */
+    /** Internal classified assertion or evaluation failure. */
     private static final class EvaluationFailure extends RuntimeException {
         private final FailureEvidence evidence;
         /** Retains modeled failure evidence rather than a host stack trace in artifacts. */

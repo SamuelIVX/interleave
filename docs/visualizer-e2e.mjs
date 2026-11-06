@@ -254,6 +254,23 @@ async function runTests() {
       assert(await page.locator('#timeline img').count()===0, 'Source labels are rendered as text');
     }
 
+    // Fresh private-assertion report must retain rollback and the distinct failure kind.
+    if(process.env.SOURCE_ASSERTION_JSON){
+      const assertionJson = readFileSync(join(projectRoot, process.env.SOURCE_ASSERTION_JSON), 'utf8');
+      const assertion = JSON.parse(assertionJson).benchmarks[0].failingTrace;
+      assert(assertion.failure.kind==='ASSERTION' && assertion.failure.phase==='STEP', 'Java emitted false statement evidence');
+      await page.locator('#clearBtn').click();
+      await page.locator('#paste').fill(assertionJson);
+      await page.locator('#loadPaste').click();
+      await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('ASSERTION'));
+      const meta = await page.locator('#meta').textContent();
+      assert(meta.includes('ASSERTION') && meta.includes('STEP') && (await page.locator('#verdictBadge').textContent()).includes('VIOLATION'), 'Assertion failure, verdict and observation phase are visible');
+      assert(meta.includes(`${assertion.failure.source.line}:${assertion.failure.source.column}`), 'Actual inner assertion location is visible');
+      assert(await page.locator('#timeline tbody tr').count()===2, 'False private assertion retains one outer attempted action');
+      const x = page.locator('#stateStrip tbody tr').filter({has:page.locator('td:nth-child(2) code', {hasText:/^x$/})});
+      assert((await x.locator('td').nth(2).textContent()).trim()==='0', 'Assertion rollback retains committed x=0');
+    }
+
     // Test 8: Integrity & Console Sanity
     // -------------------------------------------------------------
     console.log('\nTest 8: Console and error integrity');

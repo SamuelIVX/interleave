@@ -56,6 +56,8 @@ even if a condition is a constant. Unreachable `repeat 0` bodies are still parse
 but contribute zero expanded executable work; original source/nesting limits still apply.
 Unguarded nested atomic braces count toward source nesting before flattening; their statements
 share the outer private instruction/expression budgets. Braces add no private instruction.
+Each scheduled assertion counts one global instruction; each private assertion counts one private
+instruction. Every expanded assertion expression occurrence contributes to the global node budget.
 
 Budget expression occurrences conservatively: each expanded expression in an instruction/atomic
 tree counts, even when immutable nodes could be shared in memory. Detect sums/products exceeding

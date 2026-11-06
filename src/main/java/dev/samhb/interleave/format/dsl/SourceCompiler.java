@@ -210,6 +210,10 @@ public final class SourceCompiler {
                 Expr test = condition(); expect("limit"); int count = count();
                 List<Node> body = block(insideAtomic, depth + 1);
                 nodes.add(new Node(Kind.WHILE, null, test, body, List.of(), count, start, previous().end(), List.of(), null));
+            } else if (peek("assert") && tokens.get(position + 1).text().equals("(")) {
+                position++;
+                Expr test = condition(); expect(";");
+                nodes.add(new Node(Kind.ASSERT, null, test, List.of(), List.of(), 0, start, previous().end(), List.of(), null));
             } else if (peek("call") && !tokens.get(position + 1).text().equals("=")
                     && !tokens.get(position + 1).text().equals("[")) {
                 if (insideAtomic) throw error(start, "unsupported", "Helper calls inside atomic blocks are unsupported");
@@ -231,7 +235,7 @@ public final class SourceCompiler {
                     if (TypeChecker.check(target, decl) != TypeChecker.check(effect.rhs(), decl)) throw new RegistryException("Assignment type mismatch");
                 } catch (RegistryException e) { throw diagnostic(start, "type", e); }
                 nodes.add(new Node(Kind.ASSIGN, effect, null, List.of(), List.of(), 0, start, previous().end(), List.of(), null));
-            } else throw error(start, "unsupported", "Expected atomic, if, repeat or bounded while");
+            } else throw error(start, "unsupported", "Expected atomic, assert, call, if, repeat or bounded while");
         }
         expect("}"); return List.copyOf(nodes);
     }
@@ -312,7 +316,7 @@ public final class SourceCompiler {
         for (Node n : nodes) {
             long body = work(n.yes());
             long amount = switch (n.kind()) {
-                case ASSIGN -> 1;
+                case ASSIGN, ASSERT -> 1;
                 case ATOMIC -> 1;
                 case IF -> cappedAdd(1, cappedAdd(body, work(n.no()), 64), 64);
                 case REPEAT -> cappedMultiply(n.count(), body, 64);
@@ -611,7 +615,7 @@ public final class SourceCompiler {
     /** Parsed source token. */
     private record Token(String text, int start, int end) {}
     /** Syntax node variants before/after bounded expansion. */
-    enum Kind { ASSIGN, ATOMIC, IF, REPEAT, WHILE, LIMIT, CALL }
+    enum Kind { ASSIGN, ATOMIC, IF, REPEAT, WHILE, LIMIT, CALL, ASSERT }
     /** Immutable syntax and retained source ancestry. */
     record Node(Kind kind, Effect effect, Expr test, List<Node> yes, List<Node> no, int count,
                         int start, int end, List<ExecutedStep.Expansion> path, Helper helper) {}

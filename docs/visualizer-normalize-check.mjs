@@ -4,6 +4,7 @@
 //
 // Run: node docs/visualizer-normalize-check.mjs
 import { readFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -67,8 +68,20 @@ const sourceTrace = {threads:[0],outcomes:['ADVANCED'],outcome:'COMPLETED',sourc
 if(normalize(sourceTrace).trace.executedSteps?.[0]?.instructionIndex !== 2){ fails++; console.log('FAIL source instruction identity'); }
 try { normalize({...sourceTrace,executedSteps:[]}); fails++; console.log('FAIL misaligned source metadata accepted'); } catch { /* Expected boundary rejection. */ }
 for(const malformed of [{failure:{kind:'INVARIANT',phase:'STEP'}}, {failure:{kind:'RUNTIME_ERROR',phase:'STEP'}},
+  {failure:{kind:'ASSERTION',phase:'PROPERTY'}}, {failure:{kind:'ASSERTION',phase:'STEP',category:'ARRAY_BOUNDS'}},
   {cutoff:{reason:'LOOP_LIMIT',threadId:0,instructionIndex:0,limit:0,iterations:0,expansionPath:[{sourceOffset:-1,iteration:0}]}}]){
   try { normalize({...sourceTrace,...malformed}); fails++; console.log('FAIL malformed terminal evidence accepted'); } catch { /* Expected boundary rejection. */ }
+}
+const assertionFailure = {kind:'ASSERTION',phase:'STEP',source:sourceStep.source};
+const assertionTrace = {...sourceTrace,outcomes:['ASSERTION_FAILED'],outcome:'VIOLATION',failure:assertionFailure};
+for(const [name, raw] of [
+  ['direct assertion trace', assertionTrace],
+  ['assertion trace record aliases', {...assertionTrace,threadIds:[0]}],
+  ['assertion result wrapper', {failingTraces:[assertionTrace],hasViolation:true}],
+  ['assertion report wrapper', {benchmarks:[{verdict:'VIOLATION',failingTrace:assertionTrace}]}]
+]){
+  check(name, raw, 'VIOLATION');
+  assert.deepEqual(normalize(raw).trace.failure, assertionFailure);
 }
 console.log(fails === 0 ? '\nall checks passed' : `\n${fails} FAILED`);
 process.exit(fails === 0 ? 0 : 1);

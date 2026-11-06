@@ -43,8 +43,8 @@ Retain earlier loop/preemption evidence if a later resource interruption stops t
 
 ## Failure evidence
 
-Source traces gain optional `failure = {kind, phase, source?, category?}`. `kind` is INVARIANT or
-RUNTIME_ERROR; phase is STEP or PROPERTY (INVARIANT always uses PROPERTY). Category is required
+Source traces gain optional `failure = {kind, phase, source?, category?}`. `kind` is INVARIANT, ASSERTION or
+RUNTIME_ERROR; phase is STEP or PROPERTY (INVARIANT uses PROPERTY; ASSERTION uses STEP). Category is required
 only for RUNTIME_ERROR and is ARRAY_BOUNDS, MODULO_BY_ZERO or
 OTHER_EVALUATION_ERROR. Source locations identify the actual property, guard or inner assignment.
 An invariant that evaluates false gives INVARIANT; an error evaluating that predicate gives
@@ -56,7 +56,9 @@ initially, its schedule is empty; if it errors after a successful commit, retain
 successful step outcome. Add no synthetic failed action or rollback of a completed action.
 
 Attestation and minimization reproduce the classified failure. A runtime error is a valid VIOLATION
-even with no invariant or with an invariant true in the rolled-back committed state. INVARIANT
+even with no invariant or with an invariant true in the rolled-back committed state. A false
+statement assertion has the same rollback/attestation obligation with ASSERTION/STEP and no runtime
+category; expression errors within assertions remain RUNTIME_ERROR. INVARIANT
 evidence requires actual predicate failure at its specified observation point. Evidence describes
 execution; supplied metadata cannot force a verdict. Propagation/alignment is owned by 06.
 
