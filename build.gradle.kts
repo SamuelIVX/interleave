@@ -425,7 +425,13 @@ pitest {
 // Same scope/operators/runtime and 94% floor: ceil(94*293/100)=276, seven kills of headroom,
 // matching baseline 281-ceil(94*291/100)=7. This is production population drift, not new kills
 // of old survivors. See Spec 69 for the exact before/after census.
-val EXPECTED_TOTAL_MUTANTS = 293
+// Spec 75 adds the internal symmetry canonicalizer/result to the existing state.* scope.
+// Fresh main: 283/293; final new-class scope: 150/156, six raw survivors, no resource errors.
+// The inherited 293 identities/statuses are checked separately; no filters/operators change.
+// Measured total is 449. The unchanged 94% floor requires ceil(94*449/100)=423 kills;
+// 433 assertion kills leave ten kills of headroom, versus seven before the added population.
+// See docs/measurements/75-thread-symmetry-foundations.md for failed-run and identity accounting.
+val EXPECTED_TOTAL_MUTANTS = 449
 
 /**
  * Per-class kills/total, checked against the measurement on every run and reported as a WARNING only.
@@ -446,6 +452,8 @@ val EXPECTED_PER_CLASS = mapOf(
     "dev.samhb.interleave.state.HashingStateStore" to "45/52",
     "dev.samhb.interleave.state.BitstateStore" to "95/97",
     "dev.samhb.interleave.cb.ContextBoundedExplorer" to "125/125",
+    "dev.samhb.interleave.state.ThreadSymmetryCanonicalizer" to "139/145",
+    "dev.samhb.interleave.state.ThreadSymmetryCanonicalizer\$CanonicalPosition" to "11/11",
 )
 
 /**
@@ -458,6 +466,9 @@ val EXPECTED_PER_CLASS = mapOf(
  * The cutoff-set follow-up has 291 mutants and requires 274 kills: 94*291 = 27354.
  * Spec 69 has 293 mutants and requires 276 kills: 94*293 = 27542. With 283 kills,
  * the seven-kill margin matches the fresh 281/291 baseline; no floor weakening.
+ * Spec 75 adds 156 new state-package mutants: 94*449 = 42206 requires 423 kills.
+ * The unchanged percentage allows ten lost kills at 433/449, versus seven at 283/293;
+ * this population-induced slack is explicit, not a change of floor or filter.
  * Historical arithmetic against the 268-mutant population: 94*268 = 25192, so 252 kills clear the gate and 251
  * does not. That is one lost kill more permissive than the 270-mutant arithmetic (94*270 = 25380, so
  * 254 cleared and 253 did not) — a fixed percentage against a smaller denominator buys a little slack.
