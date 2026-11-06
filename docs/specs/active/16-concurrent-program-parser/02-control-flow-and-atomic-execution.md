@@ -56,7 +56,9 @@ Each thread retains a finite immutable instruction list, with end index `size` a
 sentinel. A successful source transition must select `pc < nextPc <= size`; blocked transitions
 retain their PC. Reject malformed compiled targets before search. No source back edge is emitted.
 
-- Atomic blocks become one global instruction, irrespective of their internal operation count.
+- Outer atomic blocks become one global instruction, irrespective of their internal operation count.
+  Unguarded nested atomic bodies flatten into private statements in source order, preserving their
+  inner diagnostic spans. They create no instruction or independent transaction.
 - An if becomes a condition instruction and forward true/false successors. The final real action
   of an arm advances directly to its continuation; emit no separately scheduled jump instruction.
 - Compile repeat by expansion. Compile bounded while into up to N body copies separated by
@@ -81,7 +83,8 @@ All internal loops are bounded and subject to 03's expanded-work limit.
 Successful completion publishes only the final state and outer continuation. A source runtime error
 publishes a failure location but no state; a loop cutoff publishes the exact inner loop location,
 limit and completed iteration count but no state. Discard scratch in either case. A disabled outer
-guard is tested without mutations. No inner guard-wait, nested atomic, host callback, or I/O executes.
+guard is tested without mutations. Nested unguarded blocks flatten before execution. No inner
+guard-wait, independent nested transaction, host callback or I/O executes.
 
 On a cutoff, preserve the current committed configuration and prefix, continue exploring other
 scheduled choices, and record an INCOMPLETE witness through 04. No PC advance or successor visit is

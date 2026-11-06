@@ -29,7 +29,8 @@ block       = "{", {statement}, "}" ;
 statement   = atomic | conditional | repetition | boundedLoop | helperCall ;
 atomic      = "atomic", ["when", "(", expr, ")"], atomicBlock ;
 atomicBlock = "{", {atomicStmt}, "}" ;
-atomicStmt  = assignment, ";" | atomicIf | atomicRepeat | atomicLoop ;
+atomicStmt  = assignment, ";" | atomicIf | atomicRepeat | atomicLoop | nestedAtomic ;
+nestedAtomic= "atomic", atomicBlock ;
 conditional = "if", "(", expr, ")", block, ["else", block] ;
 repetition  = "repeat", UINT, block ;
 boundedLoop = "while", "(", expr, ")", "limit", UINT, block ;
@@ -78,7 +79,7 @@ the chosen arm or continuation. False selects else/continuation and never means 
 thread may execute between that decision and the first selected atomic block. `while` condition
 checks use the same scheduling rule. Branch/loop conditions have no side effects.
 
-Each atomic block is one action, including its nested control flow. Assignments execute in source
+Each outer atomic block is one action, including its nested control flow. Assignments execute in source
 order; later expressions see earlier tentative writes. Internal decisions, iteration bookkeeping
 and assignments add no scheduler choices, snapshots or global-property observations.
 An empty atomic block is a successful no-op action. Empty arms, empty threads and `repeat 0` are
@@ -86,7 +87,9 @@ valid; expansion inserts no synthetic no-op action for them.
 
 `atomic when (g)` has one outer entry guard. False disables this thread's next action until the
 state changes. A guard evaluation error remains enabled so execution can report VIOLATION.
-No entry guard or nested atomic block is permitted inside an atomic body. With live threads but no
+An unguarded nested `atomic { ... }` groups private statements within the outer action; it adds no
+scheduling, observation, commit or rollback boundary. Empty nested blocks add no work. Inner entry
+guards remain unsupported, including in unchosen/zero-repeat bodies. With live threads but no
 enabled action, the configuration is a deadlock; a loop cutoff is a different terminal event.
 
 ## Repetition and errors
@@ -134,4 +137,4 @@ Validate values and scheduling boundaries against hand-written expectations, not
 
 ## Implementation evidence
 
-`SourceProgramLoaderTest` and `SourceAcceptanceTest` exercise final-value/schedule oracles, nested allowance reset, atomic observation boundaries, guards and runtime rollback. The nine `.ilv` examples are loaded through all benchmark rows by `SourceAcceptanceTest`. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.
+`SourceProgramLoaderTest` and `SourceAcceptanceTest` exercise final-value/schedule oracles, nested allowance reset, atomic observation boundaries, guards and runtime rollback. The ten `.ilv` examples are loaded through all benchmark rows by `SourceAcceptanceTest`. See [set evidence](README.md#implementation-evidence) for measured checks and outstanding review/CI gates.

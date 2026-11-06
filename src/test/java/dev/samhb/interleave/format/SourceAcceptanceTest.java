@@ -80,7 +80,7 @@ class SourceAcceptanceTest {
         Map<String, String> expected = Map.of("split-increment", "VIOLATION", "atomic-increment", "PASS",
             "branching-flag", "PASS", "bounded-loops", "INCOMPLETE", "atomic-cutoff", "INCOMPLETE",
             "atomic-runtime-error", "VIOLATION", "guarded-handoff", "PASS",
-            "helper-increment", "PASS", "helper-split-increment", "VIOLATION");
+            "helper-increment", "PASS", "helper-split-increment", "VIOLATION", "nested-atomic", "PASS");
         for (var entry : expected.entrySet()) {
             BenchmarkProgram model = loader.loadFromFile(Path.of("examples/programs/" + entry.getKey() + ".ilv"));
             var results = new BenchmarkHarness().runProgram(model);
