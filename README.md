@@ -168,6 +168,10 @@ CodeRabbit’s 80% docstring threshold is a minimum; every new function requires
 documentation. PR #45’s remote CodeRabbit review was skipped due to its file limit, so no remote
 coverage percentage was produced. The local audit, Javadoc checks, and two local reviews passed.
 
+[Spec 75](docs/specs/active/75-thread-symmetry-canonicalization.md) begins roadmap #10 with
+internal thread-orbit keys and reversible owner mappings. This foundation does not enable runtime
+symmetry pruning; program/property eligibility and exact-search integration follow separately.
+
 ## Tech stack
 
 - **Language:** Java 26+
