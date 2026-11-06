@@ -26,9 +26,10 @@ evidence and completed CLI review dispositions; all implementation PR CI checks 
 
 ## Remaining work — execution order and PR grouping
 
-Complete the preceding follow-up backlog, including deferred tasks and bug fixes, before starting
-items **#10, #11 or #12**. The 9-H, 9-V and 9-F follow-ups come first. Each of #10–12 is a separate
-later workstream with its own specification and PRs; do not combine them with the preceding backlog.
+Complete the active preceding follow-up backlog and bug fixes before starting items **#10, #11
+or #12**. Deferred and unmet conditional items remain parked; they do not block completion of the
+selected active backlog. The active 9-H, 9-V and 9-F follow-ups come first. Each of #10–12 remains
+a separate later workstream with its own specification and PRs; do not combine those workstreams.
 
 PR grouping is advisory: prefer one complete behavior in a moderately sized PR. Bundle its
 implementation, affected callers, API/CLI wiring, fixtures, documentation and regression tests;
@@ -40,7 +41,9 @@ PR counts below are provisional grouping targets, not implementation commitments
 Continue sequentially through active follow-ups only. Sam explicitly deferred 9-F5; deferred
 items and unmet conditional recommendations remain parked and do not become implementation
 commitments merely because their IDs are next. Do not ask for repeated selection of active items.
-9-F2–F4 are merged; 9-F9 is the next active follow-up. Items #10–12 remain separate later workstreams
+9-F2–F4 are merged; 9-F9 is the remaining active follow-up. Parked work includes 9-V5 representation
+changes, 9-V6 research, conditional 9-F1, 9-F5–F8, conditional 9-F10 and deferred 9-F11.
+Items #10–12 remain separate later workstreams
 under the prerequisite above. Count overlapping mutation cases once and shared groundwork once. **Separate workstream** means staged, coherent
 PRs for a larger subsystem, rather than one PR per small helper or test family.
 
@@ -128,7 +131,7 @@ and independent corpus/oracle cases.
 | 9-F6 | Unbounded loops: introduce cyclic-state exploration and appropriate completeness reasoning. | Models more programs directly. | Changes the finite forward-control-flow foundation. | XL | Spec-set | Keep bounded exploration for current needs. | Target 3–4 PRs: cyclic-control foundations; complete execution/search/replay support; completeness, reduction and scheduling integration. Share necessary cycle foundations with 9-F7/9-F8 once, but keep jumps and liveness as separate features. |
 | 9-F7 | Explicit jumps: define supported directions and revise control-flow/reduction reasoning. | More flexible control flow. | Harder to reason about; backward jumps break current assumptions. | L–XL | Spec-set | Not currently worth pursuing. | One forward-jump PR includes labels, name/target validation, execution, source identities and replay tests. A backward-jump feature gets its own PR after 9-F6 supplies the required cyclic-execution foundation; do not duplicate that groundwork. |
 | 9-F8 | Liveness checking: define fairness/progress properties and add appropriate cycle analysis. | Addresses starvation or eventual progress. | Much harder than safety and deadlock checking. | XL | Spec-set | Defer unless progress checking becomes a goal. | Use staged PRs for the property/fairness contract, cycle analysis with complete witnesses, and replay/reporting plus supported-strategy integration. Reuse 9-F6 cycle foundations; define the applicable fairness semantics before exposing results. Exact count follows the analysis contract. |
-| 9-F9 | Cutoff-witness simplification: design a separate operation that preserves bound semantics. | Easier-to-understand incomplete results. | A shorter prefix does not establish anything about unexplored behavior. | M–L | Simple dedicated spec | Next active follow-up; selected for implementation. Ordinary failure minimization remains separate. | Target one complete dedicated operation: cutoff-preservation rules, simplification, regenerated evidence, replay validation and API/CLI presentation with regressions. Keep ordinary failure minimization and replay hardening separate. |
+| 9-F9 | Cutoff-witness simplification implemented in [Spec 74](../specs/active/74-source-cutoff-witness-simplification.md): a separate source operation preserves the exact omitted action and bound. | Easier-to-understand incomplete results. | A shorter prefix does not establish anything about unexplored behavior. | M–L | Simple dedicated spec | Implemented and verified in Spec 74; awaiting merge. Ordinary failure minimization remains separate. | Target one complete dedicated operation: cutoff-preservation rules, simplification, regenerated evidence, replay validation and API/CLI presentation with regressions. Keep ordinary failure minimization and replay hardening separate. |
 | 9-F10 | Browser source authoring: add browser-compatible compilation or a service-backed flow. | Interactive model writing and checking. | Adds deployment, validation and compatibility responsibilities. | L–XL | Spec-set | Only if browser authoring is wanted. | Target 2–3 PRs after selecting the browser/service architecture: compiler/execution interface with request limits and API tests; browser editing, diagnostics and trace rendering with browser tests; additional integration only if required by that architecture. |
 | 9-F11 | Diagnostics/editor tooling: add structured diagnostics and multiple-error recovery, then editor integration if needed. | Better authoring experience for larger models. | Recovery can produce misleading follow-on errors; tooling adds maintenance. | M–L | Simple diagnostic spec; spec-set for editor integration | Defer until authoring volume warrants it. | One core-diagnostics PR includes structured codes/locations, Parser/compiler propagation, loader/CLI adapters and relevant 9-V2 regressions. If selected, error recovery gets one separate complete PR and editor integration another. Target 1–3 PRs without duplicating diagnostic tests across roadmap items. |
 
@@ -150,8 +153,9 @@ replay, minimization and browser boundaries from [16.06](../specs/active/16-conc
 
 ## Later independent workstreams — items 10–12
 
-Start these only after the preceding follow-up backlog, including its deferred tasks and bug fixes,
-is complete. The order below does not make any of them a substitute for completing that backlog.
+Start these only after the active preceding follow-up backlog and bug fixes are complete.
+Deferred and unmet conditional follow-ups remain parked under Sam's current active-items-only
+scope. The order below does not make these workstreams a substitute for completing active fixes.
 Keep symmetry reduction, relaxed memory models and actual Java input as separate workstreams.
 
 | # | Item | LOE | Spec Needed? | Why | PR grouping / boundary |

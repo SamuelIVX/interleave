@@ -83,7 +83,8 @@ class SourceAcceptanceTest {
             Map.entry("atomic-cutoff", "INCOMPLETE"), Map.entry("atomic-runtime-error", "VIOLATION"),
             Map.entry("guarded-handoff", "PASS"), Map.entry("helper-increment", "PASS"),
             Map.entry("helper-split-increment", "VIOLATION"), Map.entry("nested-atomic", "PASS"),
-            Map.entry("statement-assertions", "PASS"), Map.entry("assertion-rollback", "VIOLATION"));
+            Map.entry("statement-assertions", "PASS"), Map.entry("assertion-rollback", "VIOLATION"),
+            Map.entry("cutoff-simplification", "INCOMPLETE"));
         for (var entry : expected.entrySet()) {
             BenchmarkProgram model = loader.loadFromFile(Path.of("examples/programs/" + entry.getKey() + ".ilv"));
             var results = new BenchmarkHarness().runProgram(model);

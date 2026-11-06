@@ -271,6 +271,23 @@ async function runTests() {
       assert((await x.locator('td').nth(2).textContent()).trim()==='0', 'Assertion rollback retains committed x=0');
     }
 
+    // Actual CLI output remains a direct incomplete trace even when its prefix is empty.
+    if(process.env.SOURCE_SIMPLIFIED_CUTOFF_JSON){
+      const simplifiedJson = readFileSync(join(projectRoot, process.env.SOURCE_SIMPLIFIED_CUTOFF_JSON), 'utf8');
+      const simplified = JSON.parse(simplifiedJson);
+      assert(simplified.outcome==='INCOMPLETE' && simplified.cutoff.reason==='LOOP_LIMIT', 'CLI simplification retains its incomplete loop witness');
+      await page.locator('#clearBtn').click();
+      await page.locator('#paste').fill(simplifiedJson);
+      await page.locator('#loadPaste').click();
+      await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('LOOP_LIMIT'));
+      assert((await page.locator('#verdictBadge').textContent()).includes('INCOMPLETE'), 'Simplified cutoff is never displayed as PASS');
+      assert(await page.locator('#timeline tbody tr').count()===1, 'Empty simplified prefix has one configuration and no attempted row');
+      const meta = await page.locator('#meta').textContent();
+      assert(meta.includes(`${simplified.cutoff.source.file}:${simplified.cutoff.source.line}:${simplified.cutoff.source.column}`), 'Simplified witness retains the actual omitted source location');
+      const noise = page.locator('#stateStrip tbody tr').filter({has:page.locator('td:nth-child(2) code', {hasText:/^noise$/})});
+      assert((await noise.locator('td').nth(2).textContent()).trim()==='0', 'Simplified root snapshot was regenerated rather than copied');
+    }
+
     // Test 8: Integrity & Console Sanity
     // -------------------------------------------------------------
     console.log('\nTest 8: Console and error integrity');

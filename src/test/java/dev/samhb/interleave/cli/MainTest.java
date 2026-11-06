@@ -271,6 +271,80 @@ class MainTest {
         assertTrue(bad.output().contains("syntax"), bad.output());
     }
 
+    /** The explicit operation emits a direct, viewer-compatible incomplete trace with fresh snapshots.
+     * Writes build/source-simplified-cutoff.json for the browser integration suite.
+     * @param directory temporary source files
+     * @throws Exception if process execution or fixture I/O fails
+     */
+    @Test
+    void cutoffSimplificationProducesDirectTrace(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var source = directory.resolve("noise.ilv");
+        java.nio.file.Files.writeString(source, "program noise { shared int noise = 0; thread 0 { repeat 4 { atomic { noise = noise + 1; } } } thread 1 { atomic { while (true) limit 0 {} } } }");
+        CliResult result = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS", "--simplify-cutoff");
+        assertEquals(0, result.exitCode(), result.output());
+        var json = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output());
+        assertEquals("INCOMPLETE", json.get("outcome").getAsString());
+        assertEquals(0, json.getAsJsonArray("threads").size());
+        assertEquals(1, json.getAsJsonArray("states").size());
+        assertEquals(0, json.getAsJsonArray("states").get(0).getAsJsonObject().getAsJsonObject("fields").get("noise").getAsInt());
+        assertEquals("LOOP_LIMIT", json.getAsJsonObject("cutoff").get("reason").getAsString());
+        assertEquals(0, json.getAsJsonObject("cutoff").get("limit").getAsInt());
+        assertEquals(1, json.getAsJsonObject("cutoff").get("threadId").getAsInt());
+        assertFalse(json.has("benchmarks"));
+        var artifact = java.nio.file.Path.of("build/source-simplified-cutoff.json");
+        java.nio.file.Files.createDirectories(artifact.getParent());
+        java.nio.file.Files.writeString(artifact, result.output());
+        var original = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS");
+        var report = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(original.output());
+        assertEquals(4, report.getAsJsonArray("benchmarks").get(0).getAsJsonObject().getAsJsonObject("incompleteTrace").getAsJsonArray("threads").size());
+    }
+
+    /** A scheduling cutoff preserves K and a live last-owner choice instead of producing an empty trace.
+     * @param directory temporary source files
+     * @throws Exception if process execution or fixture I/O fails
+     */
+    @Test
+    void cutoffSimplificationPreservesPreemptionBound(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var source = directory.resolve("switches.ilv");
+        java.nio.file.Files.writeString(source, "program switches { shared int noise = 0; thread 0 { repeat 4 { atomic {} } } thread 1 { repeat 4 { atomic {} } } }");
+        CliResult result = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "CONTEXT_BOUNDED", "--max-preemptions", "0", "--simplify-cutoff");
+        assertEquals(0, result.exitCode(), result.output());
+        var json = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output());
+        assertEquals("INCOMPLETE", json.get("outcome").getAsString());
+        assertEquals(1, json.getAsJsonArray("threads").size());
+        assertEquals(2, json.getAsJsonArray("states").size());
+        assertEquals("PREEMPTION_BOUND", json.getAsJsonObject("cutoff").get("reason").getAsString());
+        assertEquals(0, json.getAsJsonObject("cutoff").get("limit").getAsInt());
+    }
+
+    /** Rejects ambiguous/non-source selections and runs with no usable incomplete witness.
+     * @param directory temporary source files
+     * @throws Exception if process execution or fixture I/O fails
+     */
+    @Test
+    void cutoffSimplificationRejectsInvalidSelections(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var source = directory.resolve("complete.ilv");
+        java.nio.file.Files.writeString(source, "program complete { shared int x = 0; thread 0 { atomic {} } }");
+        for (String[] args : List.of(
+                new String[]{"--source", source.toString(), "--store", "exact", "--strategy", "DFS", "--simplify-cutoff"},
+                new String[]{"--source", source.toString(), "--json", "--strategy", "DFS", "--simplify-cutoff"},
+                new String[]{"--source", source.toString(), "--json", "--store", "exact", "--simplify-cutoff"},
+                new String[]{"--source", source.toString(), "--json", "--store", "bitstate", "--strategy", "DFS", "--simplify-cutoff"},
+                new String[]{"peterson", "--json", "--store", "exact", "--strategy", "DFS", "--simplify-cutoff"},
+                new String[]{"--all", "--json", "--store", "exact", "--strategy", "DFS", "--simplify-cutoff"})) {
+            CliResult result = invokeCli(args);
+            assertEquals(1, result.exitCode());
+            assertTrue(result.output().contains("--simplify-cutoff requires"), result.output());
+        }
+        CliResult absent = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS", "--simplify-cutoff");
+        assertEquals(1, absent.exitCode());
+        assertTrue(absent.output().contains("INCOMPLETE selected run with cutoff evidence"), absent.output());
+        java.nio.file.Files.writeString(source, "program mixed { shared int x = 0; thread 0 { assert (false); } thread 1 { while (true) limit 0 {} } }");
+        CliResult mixed = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS", "--simplify-cutoff");
+        assertEquals(1, mixed.exitCode());
+        assertTrue(mixed.output().contains("INCOMPLETE selected run with cutoff evidence"), mixed.output());
+    }
+
     /** Runs the actual entry point in a child JVM because validation calls System.exit.
      * @param arguments CLI arguments
      * @return exit status and merged output

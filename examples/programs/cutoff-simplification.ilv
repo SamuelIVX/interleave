@@ -1,0 +1,10 @@
+program cutoff_simplification {
+  shared int noise = 0;
+  thread 0 {
+    repeat 4 { atomic { noise = noise + 1; } }
+  }
+  thread 1 {
+    atomic { while (true) limit 0 {} }
+  }
+  invariant always (noise >= 0);
+}

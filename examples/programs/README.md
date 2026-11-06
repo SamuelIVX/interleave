@@ -22,6 +22,7 @@ apply. Each outer `atomic` is one scheduling action; an outer condition is a sep
 |---|---|
 | `split-increment.ilv` | Two reads before either write leave 1; serial increments leave 2. Final `counter == 2` can fail. Matches the hand-authored typed `lost-update.json` teaching case. |
 | `atomic-increment.ilv` | Either ordering increments twice: final value 2, PASS. |
+| `cutoff-simplification.ilv` | DFS first records four noise actions before a loop cutoff; dedicated simplification removes all four while retaining the same bound, INCOMPLETE. |
 | `statement-assertions.ilv` | Scheduled and private assertions all hold; PASS. |
 | `assertion-rollback.ilv` | A private assertion sees tentative 7 and fails; rollback leaves counter 0 and the global property true, VIOLATION. |
 | `nested-atomic.ilv` | Nested load/store grouping shares one outer action per owner: counter 2, PASS. |
@@ -43,3 +44,8 @@ or allow interleaving. Inner guards remain unsupported. See `nested-atomic.ilv`.
 A bound allows N bodies and then tests once more: true means unexplored behavior, so INCOMPLETE.
 Exact-store PASS proves the selected finite model; bitstate absence is APPROXIMATE_PASS. These files
 model chosen behavior and do not parse or execute Java projects.
+
+The cutoff example can be shortened with `--source examples/programs/cutoff-simplification.ilv
+--store exact --strategy DFS --json --simplify-cutoff` (one command line). Output is one existing-
+format trace with fresh snapshots, ready for the viewer. A shorter witness explains the same
+omitted action; it does not establish anything about unexplored behavior.

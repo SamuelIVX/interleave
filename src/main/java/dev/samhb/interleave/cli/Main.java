@@ -15,6 +15,8 @@ import dev.samhb.interleave.report.BenchmarkHarness;
 import dev.samhb.interleave.report.BenchmarkResult;
 import dev.samhb.interleave.report.ReportWriter;
 import dev.samhb.interleave.report.StoreType;
+import dev.samhb.interleave.minimize.CutoffSimplifier;
+import dev.samhb.interleave.search.TraceReplayer;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -83,6 +85,7 @@ public final class Main {
         // Parse flags
         boolean json = false;
         boolean all = false;
+        boolean simplifyCutoff = false;
         String storeFilter = null;
         String strategyFilter = null;
         int bitstateSize = 1_000_003;
@@ -96,6 +99,10 @@ public final class Main {
             switch (args[i]) {
                 case "--json" -> {
                     json = true;
+                    i++;
+                }
+                case "--simplify-cutoff" -> {
+                    simplifyCutoff = true;
                     i++;
                 }
                 case "--all" -> {
@@ -225,6 +232,12 @@ public final class Main {
             System.exit(1);
         }
 
+        if (simplifyCutoff && (all || program == null || !program.program().isSource()
+                || !json || !EXACT.equals(storeFilter) || strategyFilter == null)) {
+            System.err.println("Error: --simplify-cutoff requires --source, --json, --store exact and an explicit --strategy");
+            System.exit(1);
+        }
+
         // Reject the combination that produces the most misleading possible report.
         if (isUnsoundBitstateBound(storeFilter, strategyFilter, maxPreemptions)) {
             System.err.println("Error: --max-preemptions " + maxPreemptions
@@ -245,6 +258,19 @@ public final class Main {
             allResults = harness.runAll();
         } else {
             allResults = harness.runProgram(program);
+        }
+
+        if (simplifyCutoff) {
+            BenchmarkResult selected = allResults.getFirst();
+            if (!"INCOMPLETE".equals(selected.verdict()) || selected.incompleteTraces().isEmpty()
+                    || selected.incompleteTraces().getFirst().cutoff() == null) {
+                System.err.println("Error: --simplify-cutoff requires an INCOMPLETE selected run with cutoff evidence");
+                System.exit(1);
+            }
+            var shorter = new CutoffSimplifier().simplify(program.program(), selected.incompleteTraces().getFirst(),
+                program.invariant().orElse(null));
+            System.out.println(new TraceReplayer().enrich(program.program(), shorter.toRecord()).toJson());
+            return;
         }
 
         // Generate report using all results (preserves soundness attestation and baseline data)
@@ -341,6 +367,7 @@ public final class Main {
         System.out.println();
         System.out.println("Flags:");
         System.out.println("  --json                    Output as JSON (default: Markdown)");
+        System.out.println("  --simplify-cutoff         Emit one shorter INCOMPLETE source trace; requires --json --store exact --strategy");
         System.out.println("  --store exact|bitstate    Filter by store type (default: both)");
         System.out.println("  --strategy DFS|STATIC_POR|DPOR|CONTEXT_BOUNDED  Filter by strategy (default: all)");
         System.out.println("  --max-preemptions N       Preemption bound for CONTEXT_BOUNDED (default: "
