@@ -72,6 +72,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | `--all` | Run entire corpus |
 | `--file <path>` | Load program from JSON file |
 | `--source <path>` | Load a bounded concurrent `.ilv` source model |
+| `--symmetry` | Opt-in source-thread symmetry; requires `--store exact --strategy DFS` |
 
 ### Examples
 
@@ -168,9 +169,10 @@ CodeRabbit’s 80% docstring threshold is a minimum; every new function requires
 documentation. PR #45’s remote CodeRabbit review was skipped due to its file limit, so no remote
 coverage percentage was produced. The local audit, Javadoc checks, and two local reviews passed.
 
-[Spec 75](docs/specs/active/75-thread-symmetry-canonicalization.md) begins roadmap #10 with
-internal thread-orbit keys and reversible owner mappings. This foundation does not enable runtime
-symmetry pruning; program/property eligibility and exact-search integration follow separately.
+[Spec 75](docs/specs/active/75-thread-symmetry-canonicalization.md) provides thread-orbit keys and
+reversible owner mappings. [Spec 76](docs/specs/active/76-source-symmetry-exact-search.md) integrates
+conservative source eligibility and opt-in exact DFS. POR/DPOR/CBS and bitstate composition remain
+unsupported in this phase of roadmap #10.
 
 ## Tech stack
 
@@ -322,6 +324,29 @@ program increments {
 block. A false private assertion rolls back the outer action and reports its own source location.
 See [passing assertions](examples/programs/statement-assertions.ilv) and
 [assertion rollback](examples/programs/assertion-rollback.ilv).
+
+Use `--symmetry --store exact --strategy DFS` to explore one representative of each interchangeable
+source-thread orbit. The checker groups structurally identical instructions with equal initial
+locals and no `tid` observations; other owners stay fixed. It accepts absent or compiler-built
+shared source properties and rejects unknown callbacks or a model with no eligible group. Actual
+execution and replay traces retain original thread IDs and source locations. Reports/viewer label
+counts as orbit representatives; this is a state-count reduction, not a runtime-speedup claim.
+
+```bash
+./gradlew --max-workers=1 -PpitestThreads=1 run --args="--source examples/programs/symmetry-counter.ilv --store exact --strategy DFS --symmetry --json"
+```
+
+This four-owner example visits five representatives instead of 16 concrete states. Library use:
+
+```java
+var model = new SourceProgramLoader().loadFromFile(Path.of("examples/programs/symmetry-counter.ilv"));
+var result = InterleaveRunner.builder().symmetryReduction(true)
+    .invariant(model.invariant().orElse(null)).build().run(model.program());
+```
+
+The library mode requires DFS and its built-in exact store; explicitly supplied stores/factories
+reject rather than being ignored. Reduced strategies, CBS options and bitstate combinations reject
+until their separate composition argument/integration lands. Default runs remain unchanged.
 
 To shorten a bound explanation, use `--simplify-cutoff` with a source model, `--json`,
 `--store exact` and one `--strategy`. It emits one direct trace for the existing viewer, preserving

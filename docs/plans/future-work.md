@@ -42,7 +42,7 @@ Continue sequentially through active follow-ups only. Sam explicitly deferred 9-
 items and unmet conditional recommendations remain parked and do not become implementation
 commitments merely because their IDs are next. Do not ask for repeated selection of active items.
 9-F2–F4 and 9-F9 are merged; the selected active follow-up backlog is complete. Next is #10,
-symmetry reduction, beginning with the inert canonicalization foundation in Spec 75. Parked work includes 9-V5 representation
+symmetry reduction: Spec 75 foundations merged in PR #117; Spec 76 exact-DFS integration is implemented and verified, awaiting merge. Parked work includes 9-V5 representation
 changes, 9-V6 research, conditional 9-F1, 9-F5–F8, conditional 9-F10 and deferred 9-F11.
 Items #10–12 remain separate later workstreams
 under the prerequisite above. Count overlapping mutation cases once and shared groundwork once. **Separate workstream** means staged, coherent
@@ -158,10 +158,11 @@ Start these only after the active preceding follow-up backlog and bug fixes are 
 Deferred and unmet conditional follow-ups remain parked under Sam's current active-items-only
 scope. The order below does not make these workstreams a substitute for completing active fixes.
 Keep symmetry reduction, relaxed memory models and actual Java input as separate workstreams.
+Sam selected #10 as the stopping point: finish it, explicitly report completion, then stop before #11/#12.
 
 | # | Item | LOE | Spec Needed? | Why | PR grouping / boundary |
 |---|---|---|---|---|---|
-| 10 | Symmetry reduction | High | Spec-set | [Spec 75](../specs/active/75-thread-symmetry-canonicalization.md): internal value canonicalization, mapping witnesses and conditional proof implemented and verified, awaiting merge; search integration remains pending. | Target 2–3 PRs: canonicalization and identity-mapping proof/tests; complete exact-search integration with conservative program/property eligibility, original-identity traces/replay and CLI/report support; reduced-strategy integration with its own applicability proof. Preserve safe behavior for unsupported combinations until that integration lands. |
+| 10 | Symmetry reduction | High | Spec-set | [Spec 75](../specs/active/75-thread-symmetry-canonicalization.md) merged in PR #117 at `ac16444`. [Spec 76](../specs/active/76-source-symmetry-exact-search.md) adds checked opt-in exact DFS, library/CLI and reports; implemented and verified, awaiting merge. Strategy composition remains a later #10 stage. | Target 2–3 PRs: canonicalization and identity-mapping proof/tests; complete exact-search integration with conservative program/property eligibility, original-identity traces/replay and CLI/report support; reduced-strategy integration with its own applicability proof. Preserve safe behavior for unsupported combinations until that integration lands. |
 | 11 | Relaxed memory models | Very High | Spec-set | Fundamental semantics change — needs formal spec | Stage one selected memory model: state/transition foundations; complete execution and witness support; supported search/reduction integration. Keep each additional memory model separate. Exact PR count follows the semantics/proof scope. |
 | 12 | Real Java bytecode instrumentation | Very High | Spec-set | Entirely new subsystem with external deps (ASM/Javassist) | Stage supported-bytecode ingestion and rejection rules; execution/lowering with source identities and replay; CLI/library integration and differential corpus verification. Group broader bytecode coverage by supported capability, not individual opcodes. Exact PR count follows the selected Java subset. |
 

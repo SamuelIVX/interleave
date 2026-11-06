@@ -10,11 +10,20 @@ import java.util.*;
 final class SourceInstruction implements SourceStep {
     /** Immutable source text, independent of parser state. */
     private final SourceText text;
+    /** Expanded typed syntax, including diagnostic metadata retained only for actual execution. */
     private final Node node;
     /** Stable helper callsite chain, empty for ordinary source actions. */
     private final String callLabel;
-    private final int yes, no, owner;
-    private final Set<MemoryLocation> reads, writes;
+    /** Strictly forward true/success continuation. */
+    private final int yes;
+    /** Strictly forward false continuation. */
+    private final int no;
+    /** Original owner used to resolve local references. */
+    private final int owner;
+    /** Complete conservative reads for ordinary reduction strategies. */
+    private final Set<MemoryLocation> reads;
+    /** Complete conservative writes for ordinary reduction strategies. */
+    private final Set<MemoryLocation> writes;
     /** Freezes targets and recursively derives every control/effect dependency.
      * @param node expanded atomic, decision or limit instruction
      * @param yes strictly forward true/success target
@@ -33,6 +42,73 @@ final class SourceInstruction implements SourceStep {
         else ExpressionReads.collect(node.test(), owner, r);
         this.reads = Set.copyOf(r); this.writes = Set.copyOf(w);
     }
+    /** Validates original owner/targets and returns metadata-free execution shape.
+     * @param expectedOwner actual containing thread slot
+     * @param pc actual instruction position
+     * @param end termination position for the containing thread
+     * @return immutable structural value, or null when this owner's behavior observes tid
+     * @throws IllegalArgumentException for a mismatched binding or non-forward/out-of-range target
+     */
+    Object symmetryShape(int expectedOwner, int pc, int end) {
+        if (owner != expectedOwner || yes <= pc || no <= pc || yes > end || no > end) {
+            throw new IllegalArgumentException("Symmetry requires correctly bound forward source instructions");
+        }
+        SymmetryNode shape = symmetryNode(node);
+        return shape == null ? null : new SymmetryInstruction(yes, no, shape);
+    }
+
+    /** Removes only diagnostic source identity, retaining every semantic expression/control value.
+     * @param node expanded source syntax whose metadata is intentionally ignored
+     * @return immutable semantic tree, or null for any nested tid observation
+     */
+    private static SymmetryNode symmetryNode(Node node) {
+        if (usesTid(node.test())) return null;
+        Effect effect = node.effect();
+        if (effect != null && (usesTid(effect.rhs())
+                || effect.lhs() instanceof Lhs.ArrayLhs a && usesTid(a.index())
+                || effect.lhs() instanceof Lhs.LocalArrayLhs a && usesTid(a.index()))) return null;
+        List<SymmetryNode> yes = node.yes().stream().map(SourceInstruction::symmetryNode).toList();
+        List<SymmetryNode> no = node.no().stream().map(SourceInstruction::symmetryNode).toList();
+        if (yes.stream().anyMatch(Objects::isNull) || no.stream().anyMatch(Objects::isNull)) return null;
+        return new SymmetryNode(node.kind(), effect, node.test(), yes, no, node.count());
+    }
+
+    /** Finds identity observations even in short-circuited expressions and array indices.
+     * @param expression typed source expression, or null for an absent guard/effect
+     * @return true if any expression node observes tid
+     */
+    private static boolean usesTid(Expr expression) {
+        if (expression == null) return false;
+        return switch (expression) {
+            case Expr.TidRef ignored -> true;
+            case Expr.ArrayAccess a -> usesTid(a.index());
+            case Expr.UnaryOp u -> usesTid(u.operand());
+            case Expr.BinaryOp b -> usesTid(b.left()) || usesTid(b.right());
+            case Expr.IntLit ignored -> false;
+            case Expr.BoolLit ignored -> false;
+            case Expr.VarRef ignored -> false;
+            case Expr.LocalRef ignored -> false;
+        };
+    }
+
+    /** Complete instruction semantics without owner/source identity.
+     * @param yes forward true/success target
+     * @param no forward false target
+     * @param node metadata-free semantic tree
+     */
+    private record SymmetryInstruction(int yes, int no, SymmetryNode node) {}
+
+    /** Expanded private/scheduled syntax compared structurally, not through diagnostic strings.
+     * @param kind execution kind
+     * @param effect typed assignment, or null
+     * @param test typed guard/condition/assertion, or null
+     * @param yes semantic true/body sequence
+     * @param no semantic false sequence
+     * @param count loop limit used by cutoff execution
+     */
+    private record SymmetryNode(Kind kind, Effect effect, Expr test,
+                               List<SymmetryNode> yes, List<SymmetryNode> no, int count) {}
+
     /** Returns conservative reads including guards and terminal conditions.
      * @return conservative reads including guards and terminal conditions
      */
@@ -179,14 +255,20 @@ final class SourceInstruction implements SourceStep {
 
     /** Internal noncommitting terminal event; never escapes the transition boundary. */
     private static final class BoundedStop extends RuntimeException {
+        /** Actual exhausted loop occurrence with its source identity and limit. */
         private final Node node;
-        /** Retains the actual exhausted loop occurrence. */
+        /** Retains the actual exhausted loop occurrence.
+         * @param node expanded exhausted loop and source identity
+         */
         private BoundedStop(Node node) { this.node = node; }
     }
     /** Internal classified assertion or evaluation failure. */
     private static final class EvaluationFailure extends RuntimeException {
+        /** Artifact-safe classified failure, independent of host stack text. */
         private final FailureEvidence evidence;
-        /** Retains modeled failure evidence rather than a host stack trace in artifacts. */
+        /** Retains modeled failure evidence rather than a host stack trace in artifacts.
+         * @param evidence authenticated source failure category and observation point
+         */
         private EvaluationFailure(FailureEvidence evidence) { this.evidence = evidence; }
     }
 

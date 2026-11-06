@@ -8,6 +8,8 @@ import dev.samhb.interleave.core.ResourceLimitReason;
 
 /** Public verification outcome with categorized traces, measurements, and limit status. */
 public final class TestResult implements Serializable {
+    /** True only for checked source-orbit DFS results. */
+    private final boolean symmetryReduction;
     /** Strategy. */
     private final Strategy strategy;
     /** States explored. */
@@ -59,6 +61,7 @@ public final class TestResult implements Serializable {
         this.incompleteTraces = List.copyOf(incompleteTraces);
         this.limitExceeded = limitExceeded;
         this.approximate = null;
+        this.symmetryReduction = false;
         this.sourceModel = false;
         this.resourceLimitReason = null;
     }
@@ -68,13 +71,15 @@ public final class TestResult implements Serializable {
      * @param sourceModel whether source reporting rules apply
      * @param reason resource cause, or null
      * @param approximate true/false for a known store guarantee, null when unavailable
+     * @param symmetryReduction whether this result counts checked source-orbit representatives
      */
-    private TestResult(TestResult result, boolean sourceModel, ResourceLimitReason reason, Boolean approximate) {
+    private TestResult(TestResult result, boolean sourceModel, ResourceLimitReason reason, Boolean approximate, boolean symmetryReduction) {
         this.strategy = result.strategy; this.statesExplored = result.statesExplored; this.wallTimeMs = result.wallTimeMs;
         this.heapDeltaBytes = result.heapDeltaBytes; this.failingTraces = result.failingTraces;
         this.deadlockedTraces = result.deadlockedTraces; this.completedTraces = result.completedTraces;
         this.incompleteTraces = result.incompleteTraces; this.limitExceeded = result.limitExceeded;
         this.sourceModel = sourceModel; this.resourceLimitReason = reason; this.approximate = approximate;
+        this.symmetryReduction = symmetryReduction;
     }
 
     /**
@@ -84,7 +89,7 @@ public final class TestResult implements Serializable {
      * @return immutable enriched result
      */
     public TestResult withRunMetadata(boolean sourceModel, ResourceLimitReason reason) {
-        return new TestResult(this, sourceModel, reason, approximate);
+        return new TestResult(this, sourceModel, reason, approximate, symmetryReduction);
     }
 
     /**
@@ -95,8 +100,20 @@ public final class TestResult implements Serializable {
      * @return immutable enriched result
      */
     public TestResult withRunMetadata(boolean sourceModel, ResourceLimitReason reason, boolean approximate) {
-        return new TestResult(this, sourceModel, reason, approximate);
+        return new TestResult(this, sourceModel, reason, approximate, symmetryReduction);
     }
+
+    /** Attaches the checked mode after the runner has validated and executed symmetry DFS.
+     * @return immutable result preserving run metadata and representative witnesses
+     */
+    TestResult withSymmetryReduction() {
+        return new TestResult(this, sourceModel, resourceLimitReason, approximate, true);
+    }
+
+    /** Returns whether counts refer to checked source-orbit representatives.
+     * @return true for explicitly selected checked source symmetry
+     */
+    public boolean symmetryReduction() { return symmetryReduction; }
 
     /** Returns resource stop cause, or null when no resource check stopped this run.
      * @return resource stop cause, or null when no resource check stopped this run
@@ -237,6 +254,7 @@ public final class TestResult implements Serializable {
     public String toJson() {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
+        if (symmetryReduction) sb.append("  \"symmetryReduction\": true,\n");
         sb.append("  \"strategy\": \"").append(strategy).append("\",\n");
         sb.append("  \"statesExplored\": ").append(statesExplored).append(",\n");
         sb.append("  \"wallTimeMs\": ").append(wallTimeMs).append(",\n");

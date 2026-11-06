@@ -1,0 +1,12 @@
+program symmetry_counter {
+    shared int counter = 0;
+    helper increment {
+        atomic { counter = counter + 1; }
+    }
+    thread 0 { call increment; }
+    thread 1 { call increment; }
+    thread 2 { call increment; }
+    thread 3 { call increment; }
+    invariant final (counter == 4);
+    expected PASS;
+}

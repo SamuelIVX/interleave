@@ -345,6 +345,94 @@ class MainTest {
         assertTrue(mixed.output().contains("INCOMPLETE selected run with cutoff evidence"), mixed.output());
     }
 
+    /** Exercises the real CLI before/after and writes build/source-symmetry-visualizer.json for browser CI.
+     * @throws Exception if child JVM execution or artifact writing fails
+     */
+    @Test void sourceSymmetryCliCountsAndReportIdentity() throws Exception {
+        String source = "examples/programs/symmetry-counter.ilv";
+        var ordinary = invokeCli("--source", source, "--store", "exact", "--strategy", "DFS", "--json");
+        var reduced = invokeCli("--source", source, "--store", "exact", "--strategy", "DFS", "--symmetry", "--json");
+        assertEquals(0, ordinary.exitCode(), ordinary.output());
+        assertEquals(0, reduced.exitCode(), reduced.output());
+        var before = com.google.gson.JsonParser.parseString(ordinary.output()).getAsJsonObject();
+        var after = com.google.gson.JsonParser.parseString(reduced.output()).getAsJsonObject();
+        var oldRow = before.getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        var row = after.getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals(16, oldRow.get("statesExplored").getAsInt());
+        assertFalse(oldRow.has("symmetryReduction"));
+        assertEquals(5, row.get("statesExplored").getAsInt());
+        assertTrue(row.get("symmetryReduction").getAsBoolean());
+        assertEquals("DFS", row.get("strategy").getAsString());
+        assertEquals("EXACT", row.get("storeType").getAsString());
+        assertEquals("PASS", row.get("verdict").getAsString());
+        assertTrue(after.get("soundness").getAsBoolean());
+        var markdown = invokeCli("--source", source, "--store", "exact", "--strategy", "DFS", "--symmetry");
+        assertEquals(0, markdown.exitCode(), markdown.output());
+        assertTrue(markdown.output().contains("DFS + symmetry (exact): 5 states"));
+        assertTrue(markdown.output().contains("orbit representatives"));
+        var artifact = java.nio.file.Path.of("build/source-symmetry-visualizer.json");
+        java.nio.file.Files.createDirectories(artifact.getParent());
+        java.nio.file.Files.writeString(artifact, reduced.output());
+    }
+
+    /** Unsupported CLI selections reject instead of silently falling back.
+     * @throws Exception if child JVM execution fails
+     */
+    @Test void sourceSymmetryCliRejectsUnsupportedSelections() throws Exception {
+        for (var selection : List.of(List.<String>of(), List.of("--store", "exact"),
+                List.of("--store", "bitstate", "--strategy", "DFS"),
+                List.of("--store", "exact", "--strategy", "STATIC_POR"),
+                List.of("--store", "exact", "--strategy", "DPOR"),
+                List.of("--store", "exact", "--strategy", "CONTEXT_BOUNDED"),
+                List.of("--store", "exact", "--strategy", "DFS", "--max-preemptions", "0"),
+                List.of("--store", "exact", "--strategy", "DFS", "--iterative-deepening"))) {
+            var args = new java.util.ArrayList<>(List.of("--source", "examples/programs/symmetry-counter.ilv", "--symmetry"));
+            args.addAll(selection);
+            var result = invokeCli(args.toArray(String[]::new));
+            assertEquals(1, result.exitCode(), result.output());
+            assertTrue(result.output().contains("--symmetry requires"), result.output());
+        }
+        var legacy = invokeCli("lost-update", "--symmetry", "--store", "exact", "--strategy", "DFS");
+        assertEquals(1, legacy.exitCode());
+        assertTrue(legacy.output().contains("--symmetry requires"));
+    }
+
+    /** Source errors and property failures keep authenticated representative evidence.
+     * @param dir isolated source fixtures
+     * @throws Exception if writing a fixture or invoking the CLI fails
+     */
+    @Test void sourceSymmetryCliFailureAndIneligibleModel(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        var source = dir.resolve("split.ilv");
+        java.nio.file.Files.writeString(source, "program split { shared int x = 0; local int r = 0;"
+            + "helper inc { atomic { local.r = x; } atomic { x = local.r + 1; } }"
+            + "thread 0 { call inc; } thread 1 { call inc; } invariant final (x == 2); }");
+        var failed = invokeCli("--source", source.toString(), "--store", "exact", "--strategy", "DFS", "--symmetry", "--json");
+        assertEquals(0, failed.exitCode(), failed.output());
+        var report = com.google.gson.JsonParser.parseString(failed.output()).getAsJsonObject();
+        var row = report.getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals(8, row.get("statesExplored").getAsInt());
+        assertEquals("VIOLATION", row.get("verdict").getAsString());
+        assertTrue(report.get("soundness").getAsBoolean());
+        var trace = row.getAsJsonObject("failingTrace");
+        assertEquals(4, trace.getAsJsonArray("threads").size());
+        assertEquals(5, trace.getAsJsonArray("states").size());
+        java.nio.file.Files.writeString(source, "program loops { shared int x = 0; thread 0 { while (true) limit 0 {} }"
+            + "thread 1 { while (true) limit 0 {} } }");
+        var cutoff = invokeCli("--source", source.toString(), "--store", "exact", "--strategy", "DFS", "--symmetry", "--json", "--simplify-cutoff");
+        assertEquals(0, cutoff.exitCode(), cutoff.output());
+        var witness = com.google.gson.JsonParser.parseString(cutoff.output()).getAsJsonObject();
+        assertEquals("INCOMPLETE", witness.get("outcome").getAsString());
+        assertEquals(0, witness.getAsJsonArray("threads").size());
+        assertEquals(0, witness.getAsJsonObject("cutoff").get("threadId").getAsInt());
+        assertEquals(0, witness.getAsJsonObject("cutoff").get("limit").getAsInt());
+        assertEquals(1, witness.getAsJsonArray("states").size());
+        java.nio.file.Files.writeString(source, "program unique { shared int x = 0; thread 0 { atomic {} } }");
+        var ineligible = invokeCli("--source", source.toString(), "--store", "exact", "--strategy", "DFS", "--symmetry");
+        assertEquals(1, ineligible.exitCode());
+        assertTrue(ineligible.output().contains("no interchangeable"), ineligible.output());
+        assertFalse(ineligible.output().contains("Exception in thread"));
+    }
+
     /** Runs the actual entry point in a child JVM because validation calls System.exit.
      * @param arguments CLI arguments
      * @return exit status and merged output

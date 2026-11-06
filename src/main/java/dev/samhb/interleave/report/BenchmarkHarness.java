@@ -44,6 +44,8 @@ public final class BenchmarkHarness {
     private final boolean iterativeDeepening;
     /** Store filter. */
     private final Set<StoreType> storeFilter;
+    /** Opt-in checked source symmetry, restricted to exact DFS in this phase. */
+    private final boolean symmetryReduction;
     /** Strategy filter. */
     private final Set<String> strategyFilter;
 
@@ -90,13 +92,38 @@ public final class BenchmarkHarness {
     public BenchmarkHarness(int bitstateSize, int bitstateK,
                             Set<StoreType> storeFilter, Set<String> strategyFilter,
                             int maxPreemptions, boolean iterativeDeepening) {
+        this(bitstateSize, bitstateK, storeFilter, strategyFilter, maxPreemptions, iterativeDeepening, false);
+    }
+
+    /**
+     * Creates a filtered harness with optional checked source symmetry.
+     * Filters are copied at construction. For symmetry, explicitly select EXACT and DFS;
+     * source eligibility is validated per program.
+     * @param bitstateSize approximate-store bit capacity for ordinary runs
+     * @param bitstateK approximate-store probe count for ordinary runs
+     * @param storeFilter selected stores; symmetry requires exactly EXACT
+     * @param strategyFilter selected strategies; symmetry requires exactly DFS
+     * @param maxPreemptions ordinary CBS bound
+     * @param iterativeDeepening ordinary CBS increasing-bound mode; unsupported with symmetry
+     * @param symmetryReduction whether to enable checked source-orbit DFS
+     * @throws IllegalArgumentException for a negative bound or unsupported symmetry selection
+     * @throws NullPointerException if a supplied filter contains null
+     */
+    public BenchmarkHarness(int bitstateSize, int bitstateK,
+                            Set<StoreType> storeFilter, Set<String> strategyFilter,
+                            int maxPreemptions, boolean iterativeDeepening, boolean symmetryReduction) {
+        this.storeFilter = storeFilter == null ? null : Set.copyOf(storeFilter);
+        this.strategyFilter = strategyFilter == null ? null : Set.copyOf(strategyFilter);
+        if (symmetryReduction && (!Set.of(StoreType.EXACT).equals(this.storeFilter)
+                || !Set.of("DFS").equals(this.strategyFilter) || iterativeDeepening)) {
+            throw new IllegalArgumentException("Symmetry requires only exact DFS; reduced, bounded and bitstate combinations are unsupported");
+        }
+        this.symmetryReduction = symmetryReduction;
         if (maxPreemptions < 0) {
             throw new IllegalArgumentException("maxPreemptions must not be negative");
         }
         this.bitstateSize = bitstateSize;
         this.bitstateK = bitstateK;
-        this.storeFilter = storeFilter;
-        this.strategyFilter = strategyFilter;
         this.maxPreemptions = maxPreemptions;
         this.iterativeDeepening = iterativeDeepening;
     }
@@ -173,7 +200,9 @@ public final class BenchmarkHarness {
         if (runDfs) {
             DfsExplorer dfsExplorer = new DfsExplorer();
             StateStore dfsStore = storeFactory.get();
-            DfsResultWithTiming dfsResult = runExplorer(() -> dfsExplorer.explore(program.program(), invariant, dfsStore, null));
+            DfsResultWithTiming dfsResult = runExplorer(() -> symmetryReduction
+                ? new dev.samhb.interleave.search.SymmetryDfsExplorer().explore(program.program(), invariant)
+                : dfsExplorer.explore(program.program(), invariant, dfsStore, null));
             String dfsVerdict = actualVerdict(dfsResult.result());
             String expectedVerdict = program.expectedVerdict();
             if (expectedVerdict != null && storeType == StoreType.EXACT && !expectedVerdict.equals(dfsVerdict)
@@ -334,11 +363,11 @@ public final class BenchmarkHarness {
             return new BenchmarkResult(strategy, bugName, result.result().statesExplored(),
                 result.wallTimeMs(), result.heapDeltaBytes(), verdict,
                 failingTrace, storeType,
-                bs.estimatedFalsePositiveRate(), bs.bitCount(), bs.bitDensity(), preemptionsUsed, states).withExploration(program, result.result());
+                bs.estimatedFalsePositiveRate(), bs.bitCount(), bs.bitDensity(), preemptionsUsed, states).withExploration(program, result.result(), symmetryReduction);
         }
         return new BenchmarkResult(strategy, bugName, result.result().statesExplored(),
             result.wallTimeMs(), result.heapDeltaBytes(), verdict,
-            failingTrace, storeType, 0.0, 0, 0.0, preemptionsUsed, states).withExploration(program, result.result());
+            failingTrace, storeType, 0.0, 0, 0.0, preemptionsUsed, states).withExploration(program, result.result(), symmetryReduction);
     }
 
     /**

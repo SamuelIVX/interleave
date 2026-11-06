@@ -178,7 +178,7 @@ function normalize(raw){
     if(value.failure!=null && value.cutoff!=null) throw new Error('Conflicting terminal evidence');
     return {sourceDigest:value.sourceDigest,executedSteps:value.executedSteps,cutoff:value.cutoff,failure:value.failure};
   };
-  const runDiagnostics = value => ({programKind:value.programKind,storeType:value.storeType,resourceLimitReason:value.resourceLimitReason,incompletenessReasons:value.incompletenessReasons});
+  const runDiagnostics = value => ({symmetryReduction:value.symmetryReduction===true,programKind:value.programKind,storeType:value.storeType,resourceLimitReason:value.resourceLimitReason,incompletenessReasons:value.incompletenessReasons});
 
   if(Array.isArray(raw.threads)){
     return { trace: { ...diagnostics(raw, raw.threads), threads: raw.threads, outcomes: raw.outcomes, outcome: raw.outcome, programHash: raw.programHash, states: raw.states }, meta: { verdict: raw.outcome, bug: raw.programHash } };
@@ -316,6 +316,7 @@ function renderHeader(){
   const parts = [];
   if(currentMeta.strategy) parts.push(addKV('strategy', capStr(currentMeta.strategy)));
   if(currentMeta.storeType) parts.push(addKV('store', capStr(currentMeta.storeType)));
+  if(currentMeta.symmetryReduction===true) parts.push(addKV('reduction', 'Thread symmetry (orbit representatives)'));
   if(currentMeta.statesExplored != null) parts.push(addKV('states', asNum(currentMeta.statesExplored)));
   if(currentMeta.wallTimeMs != null) parts.push(addKV('time', asNum(currentMeta.wallTimeMs) + ' ms'));
   if(currentMeta.heapDeltaBytes != null) parts.push(addKV('heap', asNum(currentMeta.heapDeltaBytes)));

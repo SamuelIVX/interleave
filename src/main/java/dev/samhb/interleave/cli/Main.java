@@ -86,6 +86,7 @@ public final class Main {
         boolean json = false;
         boolean all = false;
         boolean simplifyCutoff = false;
+        boolean symmetryReduction = false;
         String storeFilter = null;
         String strategyFilter = null;
         int bitstateSize = 1_000_003;
@@ -99,6 +100,10 @@ public final class Main {
             switch (args[i]) {
                 case "--json" -> {
                     json = true;
+                    i++;
+                }
+                case "--symmetry" -> {
+                    symmetryReduction = true;
                     i++;
                 }
                 case "--simplify-cutoff" -> {
@@ -232,6 +237,13 @@ public final class Main {
             System.exit(1);
         }
 
+        if (symmetryReduction && (all || program == null || !program.program().isSource()
+                || !EXACT.equals(storeFilter) || !"DFS".equals(strategyFilter) || iterativeDeepening
+                || Arrays.asList(args).contains("--max-preemptions"))) {
+            System.err.println("Error: --symmetry requires --source --store exact --strategy DFS without CBS options");
+            System.exit(1);
+        }
+
         if (simplifyCutoff && (all || program == null || !program.program().isSource()
                 || !json || !EXACT.equals(storeFilter) || strategyFilter == null)) {
             System.err.println("Error: --simplify-cutoff requires --source, --json, --store exact and an explicit --strategy");
@@ -251,13 +263,19 @@ public final class Main {
         Set<StoreType> storeFilterSet = storeFilter != null ? Set.of(StoreType.valueOf(storeFilter)) : null;
         Set<String> strategyFilterSet = strategyFilter != null ? Set.of(strategyFilter) : null;
         BenchmarkHarness harness = new BenchmarkHarness(
-            bitstateSize, bitstateK, storeFilterSet, strategyFilterSet, maxPreemptions, iterativeDeepening);
+            bitstateSize, bitstateK, storeFilterSet, strategyFilterSet, maxPreemptions, iterativeDeepening, symmetryReduction);
 
         List<BenchmarkResult> allResults;
-        if (all) {
-            allResults = harness.runAll();
-        } else {
-            allResults = harness.runProgram(program);
+        try {
+            if (all) {
+                allResults = harness.runAll();
+            } else {
+                allResults = harness.runProgram(program);
+            }
+        } catch (IllegalArgumentException e) {
+            System.err.println("Error: " + e.getMessage());
+            System.exit(1);
+            return;
         }
 
         if (simplifyCutoff) {
@@ -367,6 +385,7 @@ public final class Main {
         System.out.println();
         System.out.println("Flags:");
         System.out.println("  --json                    Output as JSON (default: Markdown)");
+        System.out.println("  --symmetry                Checked source-thread symmetry; requires --store exact --strategy DFS");
         System.out.println("  --simplify-cutoff         Emit one shorter INCOMPLETE source trace; requires --json --store exact --strategy");
         System.out.println("  --store exact|bitstate    Filter by store type (default: both)");
         System.out.println("  --strategy DFS|STATIC_POR|DPOR|CONTEXT_BOUNDED  Filter by strategy (default: all)");
