@@ -41,10 +41,11 @@ PR counts below are provisional grouping targets, not implementation commitments
 Continue sequentially through active follow-ups only. Sam explicitly deferred 9-F5; deferred
 items and unmet conditional recommendations remain parked and do not become implementation
 commitments merely because their IDs are next. Do not ask for repeated selection of active items.
-9-F2–F4 and 9-F9 are merged; the selected active follow-up backlog is complete. #10 is in its final stage,
-symmetry reduction: Spec 75 foundations merged in PR #117; Spec 76 exact-DFS integration merged in PR #118 at `5f04f83`; Spec 77 implements the final exact-strategy composition stage. Parked work includes 9-V5 representation
-changes, 9-V6 research, conditional 9-F1, 9-F5–F8, conditional 9-F10 and deferred 9-F11.
-Items #10–12 remain separate later workstreams
+9-F2–F4 and 9-F9 are merged; the selected active follow-up backlog is complete. **#10 is complete**:
+symmetry reduction shipped in Specs 75–77 / PRs #117–119, with final exact-strategy composition
+merged in PR #119 at `d8ad49e`. Sam's selected stopping point is reached; **stop before #11/#12**.
+Parked work includes 9-V5 representation changes, 9-V6 research, conditional 9-F1, 9-F5–F8,
+conditional 9-F10 and deferred 9-F11. Items #11–12 remain separate future workstreams
 under the prerequisite above. Count overlapping mutation cases once and shared groundwork once. **Separate workstream** means staged, coherent
 PRs for a larger subsystem, rather than one PR per small helper or test family.
 
@@ -162,7 +163,7 @@ Sam selected #10 as the stopping point: finish it, explicitly report completion,
 
 | # | Item | LOE | Spec Needed? | Why | PR grouping / boundary |
 |---|---|---|---|---|---|
-| 10 | Symmetry reduction | High | Spec-set | [Spec 75](../specs/active/75-thread-symmetry-canonicalization.md) merged in PR #117 at `ac16444`. [Spec 76](../specs/active/76-source-symmetry-exact-search.md) merged in PR #118 at `5f04f83`: checked opt-in exact DFS, library/CLI and reports. [Spec 77](../specs/active/77-source-symmetry-strategy-composition.md) implements the final exact POR/DPOR/CBS composition stage; implemented and verified, awaiting final PR merge. Stop after this stage and its merge, before #11/#12. | Three coherent stages: PR #117 canonicalization/mappings; PR #118 checked exact DFS and evidence; Spec 77 exact POR/DPOR/CBS composition with its applicability proof, callers and regressions. Final PR awaits merge, then #10 is complete and work stops before #11/#12. Bitstate/custom-store composition stays unsupported. |
+| 10 | Symmetry reduction — complete | High | Spec-set | [Spec 75](../specs/active/75-thread-symmetry-canonicalization.md), [Spec 76](../specs/active/76-source-symmetry-exact-search.md) and [Spec 77](../specs/active/77-source-symmetry-strategy-composition.md) shipped in PRs #117–119. Final composition merged at `d8ad49e`: checked source symmetry for exact DFS, static POR, DPOR and CBS, including iterative CBS and original-identity evidence. | Completed in three coherent stages: canonicalization/mappings; checked exact DFS and evidence; exact POR/DPOR/CBS composition with proof, callers and regressions. Bitstate/custom-store composition remains unsupported. Sam's stopping point is reached; stop before #11/#12. |
 | 11 | Relaxed memory models | Very High | Spec-set | Fundamental semantics change — needs formal spec | Stage one selected memory model: state/transition foundations; complete execution and witness support; supported search/reduction integration. Keep each additional memory model separate. Exact PR count follows the semantics/proof scope. |
 | 12 | Real Java bytecode instrumentation | Very High | Spec-set | Entirely new subsystem with external deps (ASM/Javassist) | Stage supported-bytecode ingestion and rejection rules; execution/lowering with source identities and replay; CLI/library integration and differential corpus verification. Group broader bytecode coverage by supported capability, not individual opcodes. Exact PR count follows the selected Java subset. |
 
@@ -197,7 +198,7 @@ planned. **PR grouping:** none while deferred; do not bundle with active visuali
 
 9. **Concurrent-program parser** — Shipped in [PR #57](https://github.com/SamuelIVX/interleave/pull/57), with all implementation PR checks passing. [Spec 16](../specs/active/16-concurrent-program-parser/README.md) records measured acceptance and review evidence. Readable source models compile into finite forward control flow with atomic interiors, explicit loop cutoffs and shared execution/reduction machinery. Actual Java project ingestion remains item #12; follow-up candidates are grouped above.
 
-10. **Symmetry reduction** — Specs 75–76 merged in PRs #117–118; Spec 77 implements the final exact DFS/POR/DPOR/CBS composition, with checked source eligibility, original-identity evidence and separate preservation arguments. Await this final stage's PR merge, then report #10 complete and stop before #11/#12.
+10. **Symmetry reduction — complete** — Specs 75–77 merged in PRs #117–119; final exact DFS/POR/DPOR/CBS composition merged at `d8ad49e`. Checked source eligibility, original-identity evidence and separate preservation arguments are included. Sam's selected stopping point is reached: stop before #11/#12.
 
 11. **Relaxed memory models** — support weak consistency models (e.g., ARM/POWER) instead of assuming sequential consistency. Fundamental change to `Configuration` snapshot semantics and step execution.
 
