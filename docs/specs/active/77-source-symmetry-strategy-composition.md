@@ -46,6 +46,11 @@ thread IDs, errors, cutoff attempts and replay choices remain those of the actua
   **not** lift the ordinary raw-key subset-antichain rule across permutations. Empty, stale and
   distinct action-PC contexts remain distinguishable. Ordinary DPOR keeps its prior antichain path.
 
+**Superseding alias support:** [Spec 81](81-aliased-source-symmetry.md) replaces the rejection below
+with first-occurrence action tokens and matching alias-partition certification within each DPOR
+group. Unique-object programs retain their original PC tokens. The paragraph below records this
+spec's original boundary; it is not the current rejection policy for matching alias layouts.
+
 The compiler normally creates distinct instruction objects for each PC. Public `Program`
 recomposition can repeat the same trusted forward instruction object in one owner's list. DPOR's
 existing sleep relation uses action object identity, so this alias pattern is not faithfully

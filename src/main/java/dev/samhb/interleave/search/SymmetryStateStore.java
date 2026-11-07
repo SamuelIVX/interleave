@@ -31,7 +31,7 @@ public final class SymmetryStateStore implements StateStore {
     private final Map<String, Integer> minimumCosts = new HashMap<>();
     /** Exact copied sleep contexts per value orbit. */
     private final Map<String, Set<Set<SleepingAction>>> sleepCoverage = new HashMap<>();
-    /** Unique owner-local instruction positions for DPOR action transport. */
+    /** First owner-local occurrence of each instruction identity for DPOR action transport. */
     private final List<IdentityHashMap<Step, Integer>> occurrences = new ArrayList<>();
 
     /** Constructs an empty capability after source eligibility is checked.
@@ -39,6 +39,7 @@ public final class SymmetryStateStore implements StateStore {
      * @param invariant bound compiler property, or null
      * @param strategy built-in search using this store
      * @param groups certified interchangeable owners
+     * @throws IllegalArgumentException if a DPOR group has inconsistent instruction-alias partitions
      */
     private SymmetryStateStore(Program program, Invariant invariant, Strategy strategy, List<List<Integer>> groups) {
         this.program = program;
@@ -46,14 +47,24 @@ public final class SymmetryStateStore implements StateStore {
         this.strategy = strategy;
         this.canonicalizer = new ThreadSymmetryCanonicalizer(program.threadCount(), groups);
         if (strategy == Strategy.DPOR) {
+            var partitions = new ArrayList<List<Integer>>();
             for (var thread : program.threads()) {
                 var indices = new IdentityHashMap<Step, Integer>();
+                var partition = new ArrayList<Integer>();
                 for (int pc = 0; pc < thread.steps().size(); pc++) {
-                    if (indices.put(thread.steps().get(pc), pc) != null) {
-                        throw new IllegalArgumentException("Symmetry DPOR requires distinct step objects at each owner PC");
-                    }
+                    Step action = thread.steps().get(pc);
+                    indices.putIfAbsent(action, pc);
+                    partition.add(indices.get(action));
                 }
                 occurrences.add(indices);
+                partitions.add(List.copyOf(partition));
+            }
+            for (var group : groups) {
+                for (int owner : group) {
+                    if (!partitions.get(group.getFirst()).equals(partitions.get(owner))) {
+                        throw new IllegalArgumentException("Symmetry DPOR requires matching instruction-alias partitions within each group");
+                    }
+                }
             }
         }
     }
@@ -65,7 +76,7 @@ public final class SymmetryStateStore implements StateStore {
      * @param invariant null or a compiler-built shared-state property
      * @param strategy built-in strategy to bind
      * @return fresh store bound to these exact objects and strategy
-     * @throws IllegalArgumentException for unsupported source semantics or aliased DPOR steps
+     * @throws IllegalArgumentException for unsupported source semantics or mismatched DPOR alias partitions
      * @throws NullPointerException for a null program or strategy
      */
     public static SymmetryStateStore forRun(Program program, Invariant invariant, Strategy strategy) {
@@ -127,8 +138,9 @@ public final class SymmetryStateStore implements StateStore {
 
     /**
      * Records an exact mapped DPOR sleep context, returning true only for a previously recorded one.
-     * Call after the explorer's all-asleep normalization. Tokens retain owner and instruction PC,
-     * including stale sleepers; no subset subsumption is inferred across orbit permutations.
+     * Call after the explorer's all-asleep normalization. Tokens retain owner and instruction identity,
+     * using each object's first occurrence, including stale sleepers. No subset subsumption is inferred
+     * across orbit permutations.
      * @param config current original configuration
      * @param sleeping actual owner/action entries, read only and copied before retention
      * @return true if this orbit and mapped sleep context were already recorded
@@ -148,9 +160,9 @@ public final class SymmetryStateStore implements StateStore {
         return !sleepCoverage.computeIfAbsent(position.key(), ignored -> new HashSet<>()).add(Set.copyOf(tokens));
     }
 
-    /** Canonical owner and lexical action position, with no metadata or object identity in equality.
+    /** Canonical owner and representative action position, with no metadata or object identity in equality.
      * @param owner owner after the same frame permutation used by the value key
-     * @param pc instruction's fixed lexical position
+     * @param pc first lexical occurrence of the instruction object
      */
     private record SleepingAction(int owner, int pc) {}
 
