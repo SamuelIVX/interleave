@@ -150,7 +150,8 @@ public final class DporExplorer {
                          StateVisitor stateVisitor,
                          Set<MemoryLocation> observations,
                          Map<String, List<SleepSet>> sleepCoverage) {
-        boolean seen = stateStore.isVisited(config);
+        // Checked symmetry stores are source-only; mapped sleep coverage below decides revisits.
+        boolean seen = !(stateStore instanceof SymmetryStateStore) && stateStore.isVisited(config);
         if (program.isSource()) {
             List<Integer> enabledHere = config.enabledThreadIds();
             boolean allSleeping = !enabledHere.isEmpty();

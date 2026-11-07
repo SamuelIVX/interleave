@@ -60,6 +60,13 @@ class SymmetryCompositionTest {
         var model = new SourceProgramLoader().load("program four { shared int x = 0; "
             + "thread 0 { atomic { x = x + 1; } } thread 1 { atomic { x = x + 1; } }"
             + "thread 2 { atomic { x = x + 1; } } thread 3 { atomic { x = x + 1; } } invariant final (x == 4); }");
+        var traversal = explore(model,strategy,0);
+        assertEquals(5,traversal.statesExplored());
+        assertEquals(Set.of(TraceOutcome.COMPLETED),outcomes(traversal));
+        for (var trace : traversal.traces()) {
+            var end = new TraceReplayer().replay(model.program(),trace,model.invariant().orElseThrow());
+            assertEquals(4,((dev.samhb.interleave.format.dsl.DynamicState) end.state()).getInt("x"));
+        }
         var builder = InterleaveRunner.builder().strategy(strategy).symmetryReduction(true).invariant(model.invariant().orElseThrow());
         if (strategy == Strategy.CONTEXT_BOUNDED) builder.maxPreemptions(0);
         var runner = builder.build();

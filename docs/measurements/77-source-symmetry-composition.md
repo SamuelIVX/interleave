@@ -205,3 +205,22 @@ Publication XML: `/private/tmp/interleave-symmetry-composition-publish-default.x
 Bitstate/custom-store symmetry, arbitrary callbacks, dynamic owners, weak memory and liveness stay
 outside this completed #10 source/exact-strategy boundary. Merge of this final stage completes #10;
 do not start #11/#12. Publication is draft; no CI/review watching is authorized after publication.
+
+
+## PR #119 trivial feedback follow-up
+
+The DPOR symmetry path no longer calls ordinary `isVisited` before exact mapped sleep coverage;
+its result was unused and incurred one extra whole-state canonicalization for every visit. The
+checked store factory and explorer binding guarantee source-only symmetry, so testing the final
+store type is sufficient. Other stores retain the same lookup and source/approximate coverage
+behavior. Successful symmetry visits still mark membership as before.
+
+The existing independently derived four-owner regression now also calls each explorer directly,
+asserts literal five representative visits and only completion, and replays each witness to shared
+x=4. These are the same five completed-owner layers and four increments justified above; no new
+oracle formula or state-count claim is introduced. This is an optimization of unused work, not a
+new pruning rule. Earlier mutation figures remain snapshots of their stated revisions/scopes.
+
+Validation for this follow-up: build, all 1,615 tests and strict Javadoc pass. No CodeRabbit CLI,
+PIT or browser rerun: this removes an unused read, changes no default PIT targets or viewer code,
+and retains the original pruning decisions. Prior mutation/browser figures remain historical.
