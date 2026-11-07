@@ -289,8 +289,8 @@ class SymmetryCompositionTest {
             all.stream().map(BenchmarkResult::strategy).collect(Collectors.toSet()));
     }
 
-    /** Recomposition can alias forward instructions; only DPOR's action transport must reject it. */
-    @Test void rejectsAliasedActionOccurrencesOnlyForDpor() {
+    /** Matching repeated objects retain original execution and runner metadata under symmetry DPOR. */
+    @Test void acceptsMatchingAliasedActionsForDpor() {
         var model = pair("atomic {} atomic {}", "");
         var threads = new ArrayList<ModelThread>();
         for (var thread : model.program().threads()) {
@@ -298,8 +298,160 @@ class SymmetryCompositionTest {
             threads.add(new ModelThread(thread.id(), List.of(jump,jump)));
         }
         var program = new Program(model.program().initialConfiguration().state(), threads, model.program().sourceDigest());
-        assertDoesNotThrow(() -> SymmetryStateStore.forRun(program,null,Strategy.DFS));
-        assertThrows(IllegalArgumentException.class, () -> SymmetryStateStore.forRun(program,null,Strategy.DPOR));
+        var result = InterleaveRunner.builder().strategy(Strategy.DPOR).symmetryReduction(true).build().run(program);
+        assertTrue(result.symmetryReduction());
+        assertFalse(result.hasViolation());
+        assertEquals(3, result.statesExplored());
+        assertEquals(List.of(0,1), result.completedTraces().getFirst().threadIds());
+        var traversal = dispatch(program,null,Strategy.DPOR,SymmetryStateStore.forRun(program,null,Strategy.DPOR),0);
+        assertEquals(Set.of(TraceOutcome.COMPLETED),outcomes(traversal));
+        for (var trace : traversal.traces()) assertDoesNotThrow(() -> new TraceReplayer().replay(program,trace));
+    }
+
+    /** Equal execution shapes alone cannot certify DPOR identity transport, including later aliases. */
+    @Test void rejectsDifferentAliasPartitionsOnlyForDpor() {
+        String branch = "if (local.r == 0) { atomic {} } else { atomic {} } ";
+        var model = pair(branch + branch + "atomic {}", "");
+        var firstMismatch = aliasBranches(model,Set.of(0),1);
+        var laterThreads = new ArrayList<ModelThread>(aliasBranches(model,Set.of(0,1),1).threads());
+        laterThreads.set(0,aliasBranches(model,Set.of(0),1,4).threads().get(0));
+        var laterMismatch = new Program(model.program().initialConfiguration().state(),laterThreads,model.program().sourceDigest());
+        for (var program : List.of(firstMismatch,laterMismatch)) {
+            assertEquals(List.of(List.of(0,1)),dev.samhb.interleave.format.dsl.SourceSymmetry.groups(program,null));
+            for (var strategy : List.of(Strategy.DFS,Strategy.STATIC_POR,Strategy.CONTEXT_BOUNDED)) {
+                assertDoesNotThrow(() -> SymmetryStateStore.forRun(program,null,strategy));
+            }
+            assertThrows(IllegalArgumentException.class,() -> SymmetryStateStore.forRun(program,null,Strategy.DPOR));
+        }
+    }
+
+    /** Aliases map as one identity, distinct objects/owners stay distinct, and run state stays isolated. */
+    @Test void aliasedSleepContextsPreserveIdentityAndOwnerMapping() {
+        var model = pair("if (local.r == 0) { atomic {} } else { atomic {} } atomic {}", "");
+        var program = aliasBranches(model,Set.of(0,1),1);
+        var store = SymmetryStateStore.forRun(program,null,Strategy.DPOR);
+        var initial = program.initialConfiguration();
+        var left = TransitionExecutor.execute(program,initial,0).successor();
+        var right = TransitionExecutor.execute(program,initial,1).successor();
+        assertEquals(List.of(1,0),left.programCounters());
+        assertEquals(List.of(0,1),right.programCounters());
+        assertFalse(store.sleepCovered(left,Set.of(Map.entry(0,program.threads().get(0).steps().get(1)))));
+        assertTrue(store.sleepCovered(right,Set.of(Map.entry(1,program.threads().get(1).steps().get(2)))));
+        assertFalse(store.sleepCovered(right,Set.of(Map.entry(1,program.threads().get(1).steps().get(3)))));
+        assertFalse(store.sleepCovered(right,Set.of(Map.entry(0,program.threads().get(0).steps().get(1)))));
+        assertFalse(store.sleepCovered(right,Set.of()));
+        assertTrue(store.sleepCovered(right,Set.of()));
+        assertThrows(IllegalArgumentException.class,() -> store.sleepCovered(right,
+            Set.of(Map.entry(1,model.program().threads().get(1).steps().get(1)))));
+        assertFalse(((SymmetryStateStore)store.freshCopy()).sleepCovered(right,Set.of()));
+        store.clear();
+        assertFalse(store.sleepCovered(right,Set.of()));
+    }
+
+    /** Fixed owners need no identity correspondence with a distinct interchangeable group. */
+    @Test void fixedOwnerMayHaveItsOwnAliasPartition() {
+        String branch = "if (local.r == 0) { atomic {} } else { atomic {} } atomic {}";
+        var model = new SourceProgramLoader().load("program fixed { shared int x = 0; local int r = 0; "
+            + "thread 0 { atomic {} atomic {} } thread 1 { " + branch + " } thread 2 { " + branch + " } }");
+        var threads = new ArrayList<>(aliasBranches(model,Set.of(1,2),1).threads());
+        Step jump = threads.get(0).steps().get(1);
+        threads.set(0,new ModelThread(0,List.of(jump,jump)));
+        var program = new Program(model.program().initialConfiguration().state(),threads,model.program().sourceDigest());
+        assertEquals(List.of(List.of(1,2)),dev.samhb.interleave.format.dsl.SourceSymmetry.groups(program,null));
+        var result = dispatch(program,null,Strategy.DPOR,SymmetryStateStore.forRun(program,null,Strategy.DPOR),0);
+        assertEquals(Set.of(TraceOutcome.COMPLETED),outcomes(result));
+        for (var trace : result.traces()) assertDoesNotThrow(() -> new TraceReplayer().replay(program,trace));
+    }
+
+    /** Both reachable branch occurrences preserve explicit terminal outcomes and original replay.
+     * @param strategy built-in exact search strategy
+     */
+    @ParameterizedTest @EnumSource(Strategy.class)
+    void aliasedBranchesPreserveTerminalEvidence(Strategy strategy) {
+        for (int initial : List.of(0,1)) {
+            for (String tail : List.of("atomic { x = x + 1; }", "assert(false);",
+                    "atomic { x = 1 % (local.r - local.r); }", "while (true) limit 1 { atomic {} }",
+                    "atomic when (false) {}")) {
+                String branch = "if (local.r == 0) { atomic { x = x + 1; } } else { atomic { x = x + 1; } } ";
+                var model = new SourceProgramLoader().load("program aliases { shared int x = 0; local int r = " + initial
+                    + "; thread 0 { " + branch + tail + " } thread 1 { " + branch + tail + " } }");
+                var program = aliasBranches(model,Set.of(0,1),1);
+                var expected = tail.startsWith("while") ? Set.of(TraceOutcome.INCOMPLETE)
+                    : tail.contains("when") ? Set.of(TraceOutcome.DEADLOCK)
+                    : tail.startsWith("assert") || tail.contains("1 %") ? Set.of(TraceOutcome.VIOLATION)
+                    : Set.of(TraceOutcome.COMPLETED);
+                assertEquals(expected,outcomes(new DfsExplorer().explore(program)));
+                var result = dispatch(program,null,strategy,SymmetryStateStore.forRun(program,null,strategy),20);
+                assertEquals(expected,outcomes(result),strategy + ": " + initial + ": " + tail);
+                int checkedOwners = 0;
+                for (var trace : result.traces()) {
+                    assertDoesNotThrow(() -> new TraceReplayer().replay(program,trace));
+                    if (tail.startsWith("assert")) {
+                        assertEquals(FailureEvidence.Kind.ASSERTION,trace.failure().kind());
+                        assertEquals(FailureEvidence.Phase.STEP,trace.failure().phase());
+                    } else if (tail.contains("1 %")) {
+                        assertEquals(FailureEvidence.Kind.RUNTIME_ERROR,trace.failure().kind());
+                        assertEquals(FailureEvidence.Category.MODULO_BY_ZERO,trace.failure().category());
+                    } else if (tail.startsWith("while")) {
+                        assertEquals(CutoffEvidence.Reason.LOOP_LIMIT,trace.cutoff().reason());
+                        assertEquals(1,trace.cutoff().limit());
+                        assertEquals(1,trace.cutoff().iterations());
+                    }
+                    for (int owner : List.of(0,1)) {
+                        var pcs = new ArrayList<Integer>();
+                        for (int edge = 0; edge < trace.threadIds().size(); edge++) {
+                            if (trace.threadIds().get(edge) == owner) pcs.add(trace.evidence().executedSteps().get(edge).instructionIndex());
+                        }
+                        if (pcs.size() >= 2) {
+                            assertEquals(List.of(0,initial == 0 ? 1 : 2),pcs.subList(0,2));
+                            checkedOwners++;
+                        }
+                    }
+                }
+                assertTrue(checkedOwners > 0,"Expected a trace to execute the aliased branch action");
+                if (expected.contains(TraceOutcome.COMPLETED)) {
+                    assertEquals(Set.of(4),result.states().values().stream().filter(Configuration::allTerminated)
+                        .map(c -> ((dev.samhb.interleave.format.dsl.DynamicState)c.state()).getInt("x")).collect(Collectors.toSet()));
+                }
+            }
+        }
+    }
+
+    /** Final shared properties still fail on the actual terminal values with original evidence. */
+    @Test void aliasedActionsPreserveFinalPropertyViolation() {
+        var model = pair("if (local.r == 0) { atomic { x = x + 1; } } else { atomic { x = x + 1; } } "
+            + "atomic { x = x + 1; }", "invariant final (x == 5);");
+        var program = aliasBranches(model,Set.of(0,1),1);
+        var invariant = model.invariant().orElseThrow();
+        assertEquals(Set.of(TraceOutcome.VIOLATION),outcomes(new DfsExplorer().explore(program,invariant)));
+        var result = dispatch(program,invariant,Strategy.DPOR,SymmetryStateStore.forRun(program,invariant,Strategy.DPOR),0);
+        assertEquals(Set.of(TraceOutcome.VIOLATION),outcomes(result));
+        assertEquals(Set.of(4),result.states().values().stream().filter(Configuration::allTerminated)
+            .map(c -> ((dev.samhb.interleave.format.dsl.DynamicState)c.state()).getInt("x")).collect(Collectors.toSet()));
+        for (var trace : result.traces()) {
+            assertEquals(FailureEvidence.Kind.INVARIANT,trace.failure().kind());
+            assertEquals(FailureEvidence.Phase.PROPERTY,trace.failure().phase());
+            assertDoesNotThrow(() -> new TraceReplayer().replay(program,trace,invariant));
+        }
+    }
+
+    /** Reuses the second compiled branch action at each supplied pair while retaining bound owners.
+     * @param model trusted compiled instructions with two one-action branch arms
+     * @param owners owners whose listed action pairs will share the second object
+     * @param starts first arm's PC for each pair, followed immediately by the second arm
+     * @return immutable recomposed program retaining the actual source instructions
+     * @throws IndexOutOfBoundsException if an action pair lies outside the compiled owner list
+     */
+    private static Program aliasBranches(BenchmarkProgram model, Set<Integer> owners, int... starts) {
+        var threads = new ArrayList<ModelThread>();
+        for (var thread : model.program().threads()) {
+            var steps = new ArrayList<>(thread.steps());
+            if (owners.contains(thread.id())) {
+                for (int first : starts) steps.set(first,steps.get(first + 1));
+            }
+            threads.add(new ModelThread(thread.id(),steps));
+        }
+        return new Program(model.program().initialConfiguration().state(),threads,model.program().sourceDigest());
     }
 
     /** Compiles a two-owner model with identical bodies and optional shared property.
