@@ -82,6 +82,8 @@ public final class ReportWriter {
      * Each benchmark entry includes: bug, strategy, storeType, statesExplored,
      * wallTimeMs, heapDeltaBytes, verdict, failingTrace (if present),
      * and bitstateMetrics (for bitstate runs).
+     * Strategy/verdict strings are JSON escaped after legacy string conversion; null remains
+     * the JSON string {@code "null"}, rather than a JSON null value.
      *
      * @return the JSON report as a string
      */
@@ -96,7 +98,7 @@ public final class ReportWriter {
             sb.append("    {\n");
             if (symmetryReduction) sb.append("      \"symmetryReduction\": true,\n");
             sb.append("      \"bug\": ").append(GSON.toJson(result.bugName())).append(",\n");
-            sb.append(String.format("      \"strategy\": \"%s\",\n", result.strategy()));
+            sb.append("      \"strategy\": ").append(GSON.toJson(String.valueOf(result.strategy()))).append(",\n");
             sb.append(String.format("      \"storeType\": \"%s\",\n", result.storeType()));
             sb.append(String.format(java.util.Locale.ROOT, "      \"statesExplored\": %d,\n", result.statesExplored()));
             sb.append(String.format(java.util.Locale.ROOT, "      \"wallTimeMs\": %d,\n", result.wallTimeMs()));
@@ -126,7 +128,7 @@ public final class ReportWriter {
                 sb.append(",\n");
             }
 
-            sb.append(String.format("      \"verdict\": \"%s\"\n", result.verdict()));
+            sb.append("      \"verdict\": ").append(GSON.toJson(String.valueOf(result.verdict()))).append("\n");
             sb.append("    }");
             if (i < results.size() - 1) sb.append(",");
             sb.append("\n");

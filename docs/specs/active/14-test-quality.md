@@ -51,6 +51,11 @@ All six checks ran in an isolated checkout after a passing unmodified control. E
 
 `ReportWriter.writeJson` interpolates free-form bug names, strategy and verdict without JSON escaping; `TraceRecord.toJson` does the same for `programHash`. Two isolated regression probes confirmed that embedded quotes in a benchmark name and a trace hash both cause Gson `MalformedJsonException`. An embedded quote or backslash can produce invalid JSON. Fixing that serialization contract is separate production work. Ordinary fixtures are checked strictly here; their success does not establish arbitrary-string serialization correctness.
 
+**Follow-up status:** report bug-name and trace program-hash escaping were fixed subsequently.
+[Spec 78](78-report-string-escaping.md) defines the remaining strategy/verdict escaping contract.
+Its bundle A implementation status and strict round-trip/preserved-null verification are recorded
+there separately from this historical test-quality snapshot.
+
 ## Acceptance
 
 - Clean build, full tests (524 / 524), public Javadoc and private-member doclint pass. No skips or disabled gates.
