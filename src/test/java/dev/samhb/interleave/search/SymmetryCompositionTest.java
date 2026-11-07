@@ -63,6 +63,11 @@ class SymmetryCompositionTest {
         var traversal = explore(model,strategy,0);
         assertEquals(5,traversal.statesExplored());
         assertEquals(Set.of(TraceOutcome.COMPLETED),outcomes(traversal));
+        // All strategies choose enabled owners in ascending original-ID order. These writes
+        // conflict, so POR retains them and DPOR cannot sleep them. Each owner terminates in
+        // one action, making every CBS switch free at K=0. The first path is 0,1,2,3; orbit
+        // pruning covers every other ordering. Keep this literal independent of replay/evidence.
+        assertEquals(List.of(List.of(0,1,2,3)),traversal.traces().stream().map(Trace::threadIds).toList());
         for (var trace : traversal.traces()) {
             var end = new TraceReplayer().replay(model.program(),trace,model.invariant().orElseThrow());
             assertEquals(4,((dev.samhb.interleave.format.dsl.DynamicState) end.state()).getInt("x"));

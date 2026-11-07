@@ -224,3 +224,15 @@ new pruning rule. Earlier mutation figures remain snapshots of their stated revi
 Validation for this follow-up: build, all 1,615 tests and strict Javadoc pass. No CodeRabbit CLI,
 PIT or browser rerun: this removes an unused read, changes no default PIT targets or viewer code,
 and retains the original pruning decisions. Prior mutation/browser figures remain historical.
+
+
+A second trivial PR #119 comment strengthens original-owner evidence: the four-strategy counter
+fixture now asserts the literal emitted schedule `[0,1,2,3]`, including its single-trace multiplicity,
+independently of replay and source metadata. All enabled choices are ordered by original ID;
+shared conflicting writes prevent sleeping/component exclusion, and one-action owners terminate
+before every CBS switch. The first path therefore chooses 0, then 1, then 2, then 3; the other
+orders reach covered orbits. Consistent relabeling of both trace and metadata now fails this literal
+assertion. Existing DFS identity assertions and replay checks remain intact. No production changes.
+
+Owner-ID follow-up validation: build and all 1,615 tests pass; Javadoc task succeeds unchanged.
+No CodeRabbit CLI, PIT or browser rerun for this test/documentation-only change.
