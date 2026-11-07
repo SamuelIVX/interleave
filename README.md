@@ -360,10 +360,12 @@ var result = InterleaveRunner.builder().symmetryReduction(true)
 The library mode supports all four built-in strategies with its built-in exact store; explicitly
 supplied stores/factories reject. Supplying a symmetry store as an ordinary custom runner store
 also rejects, ensuring quotient counts carry their result marker. Omit CLI `--strategy` to run all four; select `CONTEXT_BOUNDED`
-for CBS bounds or iterative deepening. DPOR retains exact mapped sleep context and rejects aliased
-instruction objects in recomposed programs. CBS retains mapped last owner and minimum cost.
+for CBS bounds or iterative deepening. DPOR retains exact mapped sleep context. Repeated instruction objects in recomposed programs are
+supported when interchangeable owners have matching alias patterns; incompatible patterns reject.
+CBS retains mapped last owner and minimum cost.
 Counts can include revisits with different strategy context. Bitstate symmetry is unsupported.
-See [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) for applicability/proof.
+See [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) for strategy composition
+and [Spec 81](docs/specs/active/81-aliased-source-symmetry.md) for alias eligibility and transport.
 
 To shorten a bound explanation, use `--simplify-cutoff` with a source model, `--json`,
 `--store exact` and one `--strategy`. It emits one direct trace for the existing viewer, preserving
