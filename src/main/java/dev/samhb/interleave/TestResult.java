@@ -15,7 +15,7 @@ import dev.samhb.interleave.core.ResourceLimitReason;
  * A changed UID deliberately prevents older readers from silently dropping symmetry metadata.
  */
 public final class TestResult implements Serializable {
-    /** True only for checked source-orbit DFS results. */
+    /** True only for checked source-orbit search results. */
     private final boolean symmetryReduction;
     /** Strategy. */
     private final Strategy strategy;
@@ -78,7 +78,7 @@ public final class TestResult implements Serializable {
      * @param sourceModel whether source reporting rules apply
      * @param reason resource cause, or null
      * @param approximate true/false for a known store guarantee, null when unavailable
-     * @param symmetryReduction whether this result counts checked source-orbit representatives
+     * @param symmetryReduction whether this result counts checked source representative visits
      */
     private TestResult(TestResult result, boolean sourceModel, ResourceLimitReason reason, Boolean approximate, boolean symmetryReduction) {
         this.strategy = result.strategy; this.statesExplored = result.statesExplored; this.wallTimeMs = result.wallTimeMs;
@@ -110,7 +110,7 @@ public final class TestResult implements Serializable {
         return new TestResult(this, sourceModel, reason, approximate, symmetryReduction);
     }
 
-    /** Attaches the checked mode after the runner has validated and executed symmetry DFS.
+    /** Attaches the checked mode after the runner has validated and executed symmetry search.
      * @return immutable result preserving run metadata and representative witnesses
      */
     TestResult withSymmetryReduction() {

@@ -292,13 +292,13 @@ async function runTests() {
     if(process.env.SOURCE_SYMMETRY_JSON){
       const symmetryJson = readFileSync(join(projectRoot, process.env.SOURCE_SYMMETRY_JSON), 'utf8');
       const symmetry = JSON.parse(symmetryJson).benchmarks[0];
-      assert(symmetry.symmetryReduction===true && symmetry.statesExplored===5, 'Actual symmetry CLI artifact contains five orbit representatives');
+      assert(symmetry.symmetryReduction===true && symmetry.statesExplored===5, 'Actual symmetry CLI artifact contains five representative visits');
       await page.locator('#clearBtn').click();
       await page.locator('#paste').fill(symmetryJson);
       await page.locator('#loadPaste').click();
       await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('Thread symmetry'));
       const meta = await page.locator('#meta').textContent();
-      assert(meta.includes('orbit representatives'), 'Viewer explicitly identifies quotient counts');
+      assert(meta.includes('representative visits'), 'Viewer explicitly identifies quotient counts');
       assert(meta.includes('DFS') && meta.includes('EXACT'), 'Actual strategy and exact-store identities remain visible');
       assert((await page.locator('#verdictBadge').textContent()).includes('PASS'), 'Symmetry report retains the actual PASS verdict');
     }

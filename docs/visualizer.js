@@ -316,7 +316,7 @@ function renderHeader(){
   const parts = [];
   if(currentMeta.strategy) parts.push(addKV('strategy', capStr(currentMeta.strategy)));
   if(currentMeta.storeType) parts.push(addKV('store', capStr(currentMeta.storeType)));
-  if(currentMeta.symmetryReduction===true) parts.push(addKV('reduction', 'Thread symmetry (orbit representatives)'));
+  if(currentMeta.symmetryReduction===true) parts.push(addKV('reduction', 'Thread symmetry (representative visits)'));
   if(currentMeta.statesExplored != null) parts.push(addKV('states', asNum(currentMeta.statesExplored)));
   if(currentMeta.wallTimeMs != null) parts.push(addKV('time', asNum(currentMeta.wallTimeMs) + ' ms'));
   if(currentMeta.heapDeltaBytes != null) parts.push(addKV('heap', asNum(currentMeta.heapDeltaBytes)));

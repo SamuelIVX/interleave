@@ -66,13 +66,13 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 |------|-------------|
 | `--json` | Output as JSON (default: Markdown) |
 | `--store exact\|bitstate` | Filter by store type (default: both) |
-| `--strategy DFS\|STATIC_POR\|DPOR` | Filter by strategy (default: all) |
+| `--strategy DFS\|STATIC_POR\|DPOR\|CONTEXT_BOUNDED` | Filter by strategy (default: all) |
 | `--bitstate-size N` | Bitstate bit-array size (default: 1,000,003) |
 | `--bitstate-k N` | Bitstate hash function count (default: 4) |
 | `--all` | Run entire corpus |
 | `--file <path>` | Load program from JSON file |
 | `--source <path>` | Load a bounded concurrent `.ilv` source model |
-| `--symmetry` | Opt-in source-thread symmetry; requires `--store exact --strategy DFS` |
+| `--symmetry` | Opt-in source-thread symmetry; requires `--source --store exact` |
 
 ### Examples
 
@@ -171,8 +171,8 @@ coverage percentage was produced. The local audit, Javadoc checks, and two local
 
 [Spec 75](docs/specs/active/75-thread-symmetry-canonicalization.md) provides thread-orbit keys and
 reversible owner mappings. [Spec 76](docs/specs/active/76-source-symmetry-exact-search.md) integrates
-conservative source eligibility and opt-in exact DFS. POR/DPOR/CBS and bitstate composition remain
-unsupported in this phase of roadmap #10.
+conservative source eligibility and opt-in exact DFS. [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) composes exact
+static POR, DPOR and CBS with checked source symmetry. Bitstate composition remains unsupported.
 
 ## Tech stack
 
@@ -251,7 +251,7 @@ An older Java reader therefore cannot silently treat a new symmetry result as or
 Keep the exact writer build available when upgrading stored Java results. Read them with that
 build and export `TestResult.toJson()` before upgrading, or recompute them with the new build.
 Use JSON for interchange/archive data, preserving its named fields; consumers of symmetry results
-must retain `symmetryReduction` and treat counts as orbit representatives. A matching version
+must retain `symmetryReduction` and treat counts as representative visits with strategy context. A matching version
 string alone is insufficient for development builds: retain the artifact/revision. Do not force
 an old UID onto the new class: old readers would ignore the new field and lose the reduction marker.
 
@@ -343,7 +343,7 @@ source-thread orbit. The checker groups structurally identical instructions with
 locals and no `tid` observations; other owners stay fixed. It accepts absent or compiler-built
 shared source properties and rejects unknown callbacks or a model with no eligible group. Actual
 execution and replay traces retain original thread IDs and source locations. Reports/viewer label
-counts as orbit representatives; this is a state-count reduction, not a runtime-speedup claim.
+counts as representative visits with strategy context; this is not a runtime-speedup claim.
 
 ```bash
 ./gradlew --max-workers=1 -PpitestThreads=1 run --args="--source examples/programs/symmetry-counter.ilv --store exact --strategy DFS --symmetry --json"
@@ -357,9 +357,13 @@ var result = InterleaveRunner.builder().symmetryReduction(true)
     .invariant(model.invariant().orElse(null)).build().run(model.program());
 ```
 
-The library mode requires DFS and its built-in exact store; explicitly supplied stores/factories
-reject rather than being ignored. Reduced strategies, CBS options and bitstate combinations reject
-until their separate composition argument/integration lands. Default runs remain unchanged.
+The library mode supports all four built-in strategies with its built-in exact store; explicitly
+supplied stores/factories reject. Supplying a symmetry store as an ordinary custom runner store
+also rejects, ensuring quotient counts carry their result marker. Omit CLI `--strategy` to run all four; select `CONTEXT_BOUNDED`
+for CBS bounds or iterative deepening. DPOR retains exact mapped sleep context and rejects aliased
+instruction objects in recomposed programs. CBS retains mapped last owner and minimum cost.
+Counts can include revisits with different strategy context. Bitstate symmetry is unsupported.
+See [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) for applicability/proof.
 
 To shorten a bound explanation, use `--simplify-cutoff` with a source model, `--json`,
 `--store exact` and one `--strategy`. It emits one direct trace for the existing viewer, preserving

@@ -44,7 +44,7 @@ public final class BenchmarkHarness {
     private final boolean iterativeDeepening;
     /** Store filter. */
     private final Set<StoreType> storeFilter;
-    /** Opt-in checked source symmetry, restricted to exact DFS in this phase. */
+    /** Opt-in checked source symmetry, restricted to exact stores. */
     private final boolean symmetryReduction;
     /** Strategy filter. */
     private final Set<String> strategyFilter;
@@ -97,15 +97,15 @@ public final class BenchmarkHarness {
 
     /**
      * Creates a filtered harness with optional checked source symmetry.
-     * Filters are copied at construction. For symmetry, explicitly select EXACT and DFS;
+     * Filters are copied at construction. For symmetry, explicitly select EXACT;
      * source eligibility is validated per program.
      * @param bitstateSize approximate-store bit capacity for ordinary runs
      * @param bitstateK approximate-store probe count for ordinary runs
      * @param storeFilter selected stores; symmetry requires exactly EXACT
-     * @param strategyFilter selected strategies; symmetry requires exactly DFS
+     * @param strategyFilter selected strategies; null selects all four built-in strategies
      * @param maxPreemptions ordinary CBS bound
-     * @param iterativeDeepening ordinary CBS increasing-bound mode; unsupported with symmetry
-     * @param symmetryReduction whether to enable checked source-orbit DFS
+     * @param iterativeDeepening CBS increasing-bound mode
+     * @param symmetryReduction whether to enable checked source-orbit search
      * @throws IllegalArgumentException for a negative bound or unsupported symmetry selection
      * @throws NullPointerException if a supplied filter contains null
      */
@@ -115,8 +115,10 @@ public final class BenchmarkHarness {
         this.storeFilter = storeFilter == null ? null : Set.copyOf(storeFilter);
         this.strategyFilter = strategyFilter == null ? null : Set.copyOf(strategyFilter);
         if (symmetryReduction && (!Set.of(StoreType.EXACT).equals(this.storeFilter)
-                || !Set.of("DFS").equals(this.strategyFilter) || iterativeDeepening)) {
-            throw new IllegalArgumentException("Symmetry requires only exact DFS; reduced, bounded and bitstate combinations are unsupported");
+                || (this.strategyFilter != null && (this.strategyFilter.isEmpty()
+                    || !Set.of("DFS", "STATIC_POR", "DPOR", CONTEXT_BOUNDED).containsAll(this.strategyFilter)))
+                || (iterativeDeepening && this.strategyFilter != null && !this.strategyFilter.contains(CONTEXT_BOUNDED)))) {
+            throw new IllegalArgumentException("Symmetry requires an exact store and built-in strategies; iterative deepening requires CBS");
         }
         this.symmetryReduction = symmetryReduction;
         if (maxPreemptions < 0) {
@@ -199,10 +201,8 @@ public final class BenchmarkHarness {
         // DFS
         if (runDfs) {
             DfsExplorer dfsExplorer = new DfsExplorer();
-            StateStore dfsStore = storeFactory.get();
-            DfsResultWithTiming dfsResult = runExplorer(() -> symmetryReduction
-                ? new dev.samhb.interleave.search.SymmetryDfsExplorer().explore(program.program(), invariant)
-                : dfsExplorer.explore(program.program(), invariant, dfsStore, null));
+            StateStore dfsStore = newStore(program.program(), invariant, storeFactory, dev.samhb.interleave.Strategy.DFS);
+            DfsResultWithTiming dfsResult = runExplorer(() -> dfsExplorer.explore(program.program(), invariant, dfsStore, null));
             String dfsVerdict = actualVerdict(dfsResult.result());
             String expectedVerdict = program.expectedVerdict();
             if (expectedVerdict != null && storeType == StoreType.EXACT && !expectedVerdict.equals(dfsVerdict)
@@ -217,7 +217,7 @@ public final class BenchmarkHarness {
         // STATIC_POR
         if (runPor) {
             StaticPorExplorer porExplorer = new StaticPorExplorer();
-            StateStore porStore = storeFactory.get();
+            StateStore porStore = newStore(program.program(), invariant, storeFactory, dev.samhb.interleave.Strategy.STATIC_POR);
             DfsResultWithTiming porResult = runExplorer(() -> porExplorer.explore(program.program(), invariant, porStore, null));
             String porVerdict = actualVerdict(porResult.result());
             Trace porFailing = findFailingTrace(porResult.result());
@@ -227,7 +227,7 @@ public final class BenchmarkHarness {
         // DPOR
         if (runDpor) {
             DporExplorer dporExplorer = new DporExplorer();
-            StateStore dporStore = storeFactory.get();
+            StateStore dporStore = newStore(program.program(), invariant, storeFactory, dev.samhb.interleave.Strategy.DPOR);
             DfsResultWithTiming dporResult = runExplorer(() -> dporExplorer.explore(program.program(), invariant, dporStore, null));
             String dporVerdict = actualVerdict(dporResult.result());
             Trace dporFailing = findFailingTrace(dporResult.result());
@@ -237,8 +237,8 @@ public final class BenchmarkHarness {
         // CONTEXT_BOUNDED
         if (runCb) {
             CbRun cbRun = iterativeDeepening
-                ? runCbsIterative(program.program(), invariant, storeFactory)
-                : runCbsSingle(program.program(), invariant, storeFactory.get());
+                ? runCbsIterative(program.program(), invariant, () -> newStore(program.program(), invariant, storeFactory, dev.samhb.interleave.Strategy.CONTEXT_BOUNDED))
+                : runCbsSingle(program.program(), invariant, newStore(program.program(), invariant, storeFactory, dev.samhb.interleave.Strategy.CONTEXT_BOUNDED));
 
             DfsResultWithTiming result = cbRun.result();
             String verdict = cbVerdict(result.result(), storeType);
@@ -251,6 +251,22 @@ public final class BenchmarkHarness {
         }
 
         return results;
+    }
+
+    /** Creates the selected run's store without invoking an unused ordinary factory.
+     * @param program immutable source model when symmetry is enabled
+     * @param invariant property for this run, or null
+     * @param ordinaryFactory caller's ordinary storage policy
+     * @param strategy algorithm whose search context must be preserved
+     * @return fresh checked orbit store, or the ordinary factory's store
+     * @throws IllegalArgumentException if checked source/property eligibility fails, including aliased DPOR steps
+     */
+    private StateStore newStore(Program program, Invariant invariant,
+                               java.util.function.Supplier<StateStore> ordinaryFactory,
+                               dev.samhb.interleave.Strategy strategy) {
+        return symmetryReduction
+            ? dev.samhb.interleave.search.SymmetryStateStore.forRun(program, invariant, strategy)
+            : ordinaryFactory.get();
     }
 
     /**

@@ -92,6 +92,7 @@ public final class Main {
         int bitstateSize = 1_000_003;
         int bitstateK = 4;
         int maxPreemptions = ContextBoundedExplorer.DEFAULT_MAX_PREEMPTIONS;
+        boolean maxPreemptionsExplicit = false;
         boolean iterativeDeepening = false;
         BenchmarkProgram program = null;
 
@@ -140,6 +141,7 @@ public final class Main {
                     i += 2;
                 }
                 case "--max-preemptions" -> {
+                    maxPreemptionsExplicit = true;
                     if (i + 1 >= args.length) {
                         System.err.println("Error: --max-preemptions requires a non-negative integer");
                         System.exit(1);
@@ -238,9 +240,10 @@ public final class Main {
         }
 
         if (symmetryReduction && (all || program == null || !program.program().isSource()
-                || !EXACT.equals(storeFilter) || !"DFS".equals(strategyFilter) || iterativeDeepening
-                || Arrays.asList(args).contains("--max-preemptions"))) {
-            System.err.println("Error: --symmetry requires --source --store exact --strategy DFS without CBS options");
+                || !EXACT.equals(storeFilter)
+                || (strategyFilter != null && !"CONTEXT_BOUNDED".equals(strategyFilter)
+                    && (iterativeDeepening || maxPreemptionsExplicit)))) {
+            System.err.println("Error: --symmetry requires --source --store exact; CBS options require a CBS selection");
             System.exit(1);
         }
 
@@ -385,7 +388,7 @@ public final class Main {
         System.out.println();
         System.out.println("Flags:");
         System.out.println("  --json                    Output as JSON (default: Markdown)");
-        System.out.println("  --symmetry                Checked source-thread symmetry; requires --store exact --strategy DFS");
+        System.out.println("  --symmetry                Checked source-thread symmetry; requires --source --store exact");
         System.out.println("  --simplify-cutoff         Emit one shorter INCOMPLETE source trace; requires --json --store exact --strategy");
         System.out.println("  --store exact|bitstate    Filter by store type (default: both)");
         System.out.println("  --strategy DFS|STATIC_POR|DPOR|CONTEXT_BOUNDED  Filter by strategy (default: all)");

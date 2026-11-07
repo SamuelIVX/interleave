@@ -431,7 +431,10 @@ pitest {
 // Measured total is 449. The unchanged 94% floor requires ceil(94*449/100)=423 kills;
 // 433 assertion kills leave ten kills of headroom, versus seven before the added population.
 // See docs/measurements/75-thread-symmetry-foundations.md for failed-run and identity accounting.
-val EXPECTED_TOTAL_MUTANTS = 449
+// Spec 77 adds two killed CBS run-binding guards; 324 state mutants are unchanged.
+// Default 435/451: ceil(94*451/100)=424, eleven kills of headroom (previously ten).
+// No scope/operator/filter change. See docs/measurements/77-source-symmetry-composition.md.
+val EXPECTED_TOTAL_MUTANTS = 451
 
 /**
  * Per-class kills/total, checked against the measurement on every run and reported as a WARNING only.
@@ -451,7 +454,7 @@ val EXPECTED_PER_CLASS = mapOf(
     "dev.samhb.interleave.state.CanonicalEncoder" to "18/19",
     "dev.samhb.interleave.state.HashingStateStore" to "45/52",
     "dev.samhb.interleave.state.BitstateStore" to "95/97",
-    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "125/125",
+    "dev.samhb.interleave.cb.ContextBoundedExplorer" to "127/127",
     "dev.samhb.interleave.state.ThreadSymmetryCanonicalizer" to "139/145",
     "dev.samhb.interleave.state.ThreadSymmetryCanonicalizer\$CanonicalPosition" to "11/11",
 )
@@ -469,6 +472,8 @@ val EXPECTED_PER_CLASS = mapOf(
  * Spec 75 adds 156 new state-package mutants: 94*449 = 42206 requires 423 kills.
  * The unchanged percentage allows ten lost kills at 433/449, versus seven at 283/293;
  * this population-induced slack is explicit, not a change of floor or filter.
+ * Spec 77 adds two killed CBS guards: 94*451 = 42394 requires 424 kills.
+ * At 435/451 the margin is eleven, one more than the prior ten; same 94% floor.
  * Historical arithmetic against the 268-mutant population: 94*268 = 25192, so 252 kills clear the gate and 251
  * does not. That is one lost kill more permissive than the 270-mutant arithmetic (94*270 = 25380, so
  * 254 cleared and 253 did not) — a fixed percentage against a smaller denominator buys a little slack.

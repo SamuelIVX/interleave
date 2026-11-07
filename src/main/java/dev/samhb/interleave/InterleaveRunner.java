@@ -28,7 +28,7 @@ import java.util.function.LongSupplier;
 public final class InterleaveRunner implements Serializable {
     /** Strategy. */
     private final Strategy strategy;
-    /** Whether checked source-orbit DFS is selected. */
+    /** Whether checked source-orbit search is selected. */
     private final boolean symmetryReduction;
     /** Invariant. */
     private final Invariant invariant;
@@ -58,6 +58,23 @@ public final class InterleaveRunner implements Serializable {
         this.iterativeDeepening = builder.iterativeDeepening;
     }
 
+    /** Creates membership while preventing an unmarked symmetry result through a custom factory.
+     * Checked mode uses the built-in store; the builder rejects explicit stores/factories.
+     * @param program model being checked by this run or iterative bound
+     * @return selected per-run store; ordinary null-factory behavior remains delegated to explorers
+     * @throws IllegalArgumentException if a custom factory supplies a symmetry store, or source/property
+     *         eligibility fails (including aliased DPOR steps)
+     * @throws NullPointerException for a null program in checked mode
+     */
+    private StateStore newRunStore(Program program) {
+        if (symmetryReduction) return SymmetryStateStore.forRun(program, invariant, strategy);
+        StateStore store = stateStoreFactory.get();
+        if (store instanceof SymmetryStateStore) {
+            throw new IllegalArgumentException("Use symmetryReduction(true) instead of supplying a symmetry store");
+        }
+        return store;
+    }
+
     /**
      * Runs verification on the given program with the configured strategy and limits.
      * Obtains and clears a configured {@link StateStore} for each search; isolation depends on
@@ -71,7 +88,7 @@ public final class InterleaveRunner implements Serializable {
      * @return the test result including states explored, verdict, and traces
      * @throws IllegalStateException if iterative deepening receives a previously used store instance
      * @throws IllegalArgumentException if a bitstate store cannot represent the current preemption bound
-     *         or requested symmetry fails source/property eligibility
+     *         or requested symmetry fails source/property eligibility, or a custom factory supplies a symmetry store
      * @throws ArithmeticException if the time limit overflows when converted to milliseconds
      */
     public TestResult run(Program program) {
@@ -104,7 +121,7 @@ public final class InterleaveRunner implements Serializable {
         StateStore[] storeSlot = new StateStore[1];
         Supplier<StateStore> runStore = () -> {
             if (storeSlot[0] == null) {
-                storeSlot[0] = stateStoreFactory.get();
+                storeSlot[0] = newRunStore(program);
                 limitState.approximate |= storeSlot[0] instanceof dev.samhb.interleave.state.BitstateStore;
             }
             return storeSlot[0];
@@ -117,9 +134,7 @@ public final class InterleaveRunner implements Serializable {
             switch (strategy) {
                 case DFS -> {
                     DfsExplorer explorer = new DfsExplorer();
-                    result = symmetryReduction
-                        ? new SymmetryDfsExplorer().explore(program, invariant, visitor, Long.MAX_VALUE)
-                        : explorer.explore(program, invariant, runStore.get(), visitor);
+                    result = explorer.explore(program, invariant, runStore.get(), visitor);
                 }
                 case STATIC_POR -> {
                     StaticPorExplorer explorer = new StaticPorExplorer();
@@ -374,7 +389,7 @@ public final class InterleaveRunner implements Serializable {
             // maxStates is a total budget across the whole deepening run.
             limitState.partialResult = limitState.partialResult.withTracesCleared();
 
-            StateStore freshStore = stateStoreFactory.get();
+            StateStore freshStore = newRunStore(program);
             limitState.approximate |= freshStore instanceof dev.samhb.interleave.state.BitstateStore;
             if (!seenStores.add(freshStore)) {
                 throw new IllegalStateException(
@@ -534,8 +549,8 @@ public final class InterleaveRunner implements Serializable {
         }
 
         /**
-         * Selects checked exact source-orbit DFS, retaining original execution and trace identities.
-         * Requires DFS and the built-in store, plus source/property eligibility checked at run time.
+         * Selects checked exact source-orbit search, retaining original execution and trace identities.
+         * Requires a built-in strategy and the built-in exact store, plus source/property eligibility checked at run time.
          * For example, builder().symmetryReduction(true).build().run(sourceProgram) explores orbits.
          * @param enabled whether to enable the conservative source symmetry mode
          * @return this builder
@@ -651,12 +666,12 @@ public final class InterleaveRunner implements Serializable {
          *
          * @return a configured {@link InterleaveRunner}
          * @throws IllegalArgumentException if a context-bounded option was explicitly set on a
-         *         strategy that would ignore it, or symmetry is combined with a non-DFS strategy
+         *         strategy that would ignore it, or symmetry is combined with a null strategy
          *         or an explicitly supplied store/factory
          */
         public InterleaveRunner build() {
-            if (symmetryReduction && (strategy != Strategy.DFS || stateStoreExplicit)) {
-                throw new IllegalArgumentException("Symmetry requires Strategy.DFS and its built-in exact store; custom stores are unsupported");
+            if (symmetryReduction && (strategy == null || stateStoreExplicit)) {
+                throw new IllegalArgumentException("Symmetry requires a built-in strategy and its built-in exact store; custom stores are unsupported");
             }
             // Only reject an *explicit* set. A caller who never touched these options and chose
             // DFS must keep working; a caller who named a context-bounded option while on another

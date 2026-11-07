@@ -2,10 +2,7 @@
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.core.*;
-import dev.samhb.interleave.format.dsl.DynamicState;
-import dev.samhb.interleave.format.dsl.SourceSymmetry;
-import dev.samhb.interleave.state.ThreadSymmetryCanonicalizer;
-import java.util.*;
+import dev.samhb.interleave.Strategy;
 
 /** Owns eligibility and an isolated exact orbit store; never executes canonicalized configurations. */
 public final class SymmetryDfsExplorer {
@@ -39,43 +36,8 @@ public final class SymmetryDfsExplorer {
      * @throws NullPointerException for a null program
      */
     public DfsResult explore(Program program, Invariant invariant, StateVisitor visitor, long maxStates) {
-        var groups = SourceSymmetry.groups(program, invariant);
-        var canonicalizer = new ThreadSymmetryCanonicalizer(program.threadCount(), groups);
-        return new DfsExplorer().explore(program, invariant, new OrbitStore(canonicalizer), visitor, maxStates);
+        return new DfsExplorer().explore(program, invariant,
+            SymmetryStateStore.forRun(program, invariant, Strategy.DFS), visitor, maxStates);
     }
 
-    /** Private per-run membership; cannot be reused with an uncertified program/property pair. */
-    private static final class OrbitStore implements StateStore {
-        /** Immutable partition/owner-value canonicalization for this checked run. */
-        private final ThreadSymmetryCanonicalizer canonicalizer;
-        /** Full opaque keys, without probabilistic equality or diagnostic text. */
-        private final Set<String> visited = new HashSet<>();
-
-        /** Binds this empty store to the already checked run's owner partition.
-         * @param canonicalizer immutable owner-value canonicalizer
-         */
-        private OrbitStore(ThreadSymmetryCanonicalizer canonicalizer) { this.canonicalizer = canonicalizer; }
-
-        /** Tests the actual configuration's orbit without retaining mutable values.
-         * @param config original source configuration, read only
-         * @return whether this complete value orbit was recorded
-         */
-        @Override public boolean isVisited(Configuration config) { return visited.contains(key(config)); }
-
-        /** Records an immutable orbit key while execution retains original IDs.
-         * @param config original source configuration, read only
-         */
-        @Override public void markVisited(Configuration config) { visited.add(key(config)); }
-
-        /** Clears this run's orbit membership; no program definitions are modified. */
-        @Override public void clear() { visited.clear(); }
-
-        /** Encodes complete PC/local frames and fixed shared values.
-         * @param config original configuration from the validated source program
-         * @return opaque exact orbit-value key
-         */
-        private String key(Configuration config) {
-            return canonicalizer.canonicalize((DynamicState) config.state(), config.programCounters()).key();
-        }
-    }
 }

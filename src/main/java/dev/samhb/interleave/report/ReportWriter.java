@@ -54,7 +54,7 @@ public final class ReportWriter {
         StringBuilder sb = new StringBuilder();
         sb.append("# interleave Benchmark Report\n\n");
         if (results.stream().anyMatch(BenchmarkResult::symmetryReduction)) {
-            sb.append("**Thread symmetry:** marked DFS rows count orbit representatives, not every concrete state or schedule.\n\n");
+            sb.append("**Thread symmetry:** marked rows count representative visits with strategy context (including revisits), not every concrete state or schedule.\n\n");
         }
 
         StatesExploredTable table = new StatesExploredTable(results);

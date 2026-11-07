@@ -82,9 +82,13 @@ public final class StaticPorExplorer {
      * @param stateStore the visited store, or null for a fresh {@link HashingStateStore}
      * @param stateVisitor notified of each explored configuration, or null; must not mutate it
      * @return visited configurations, recorded traces, and exploration count
+     * @throws IllegalArgumentException if a symmetry store is bound to another program, property or strategy
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
+        if (effectiveStateStore instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+            symmetry.requireRun(program, invariant, dev.samhb.interleave.Strategy.STATIC_POR);
+        }
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues
         Map<String, Configuration> visitedStates = new LinkedHashMap<>();
         List<Trace> traces = new ArrayList<>();
