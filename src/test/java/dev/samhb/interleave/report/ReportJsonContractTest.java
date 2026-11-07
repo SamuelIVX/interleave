@@ -6,6 +6,8 @@ import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.format.SourceProgramLoader;
 import dev.samhb.interleave.search.*;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Stream;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import java.util.Locale;
@@ -13,10 +15,70 @@ import org.junit.jupiter.api.parallel.ResourceLock;
 import org.junit.jupiter.api.parallel.Resources;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.Arguments;
 import static dev.samhb.interleave.testsupport.JsonAssertions.parseObject;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ReportJsonContractTest {
+    /** Public custom row strings survive strict JSON parsing without changing the report schema.
+     * @param field strategy, verdict or both string fields to vary independently
+     * @param scenario readable case name, avoiding control characters in test display names
+     * @param value original caller value expected after parsing
+     */
+    @ParameterizedTest(name = "{0}: {1}")
+    @MethodSource("customReportStrings")
+    void customStrategyAndVerdictRoundTrip(String field, String scenario, String value) {
+        String strategy = field.equals("verdict") ? "DFS" : value;
+        String verdict = field.equals("strategy") ? "PASS" : value;
+        var result = new BenchmarkResult(strategy,"custom",7,11,13,verdict);
+        var document = parseObject(new ReportWriter(List.of(result),List.of()).writeJson());
+        assertEquals(Set.of("benchmarks","soundness"),document.keySet());
+        assertTrue(document.get("soundness").getAsBoolean());
+        var rows = document.getAsJsonArray("benchmarks");
+        assertEquals(1,rows.size());
+        var row = rows.get(0).getAsJsonObject();
+        assertEquals(Set.of("bug","strategy","storeType","statesExplored","wallTimeMs",
+            "heapDeltaBytes","preemptionsUsed","verdict"),row.keySet());
+        assertTrue(row.getAsJsonPrimitive("strategy").isString());
+        assertTrue(row.getAsJsonPrimitive("verdict").isString());
+        assertEquals(strategy,row.get("strategy").getAsString());
+        assertEquals(verdict,row.get("verdict").getAsString());
+        assertEquals(7,row.get("statesExplored").getAsLong());
+    }
+
+    /** Crosses each public string position with independently supplied escaping/value examples.
+     * @return field selector, display label and unencoded caller value
+     */
+    private static Stream<Arguments> customReportStrings() {
+        var values = List.of(Map.entry("plain","custom"),Map.entry("empty",""),
+            Map.entry("quote","custom\"name"),Map.entry("backslash","custom\\path\\tail"),
+            Map.entry("controls","\000\b\f\n\r\t"),Map.entry("Unicode","café 雪 🚦"),
+            Map.entry("JSON-looking","x\",\"statesExplored\":999,\"unused\":\"y"),
+            Map.entry("HTML characters","<>&='"));
+        return Stream.of("strategy","verdict","both").flatMap(field -> values.stream()
+            .map(value -> Arguments.of(field,value.getKey(),value.getValue())));
+    }
+
+    /** Preserve the legacy percent-s string conversion of null independently of JSON null. */
+    @Test void nullStrategyAndVerdictRemainLiteralNullStrings() {
+        var rows = List.of(new BenchmarkResult(null,"both-null",1,2,3,null),
+            new BenchmarkResult(null,"strategy-null",1,2,3,"PASS"),
+            new BenchmarkResult("DFS","verdict-null",1,2,3,null),
+            new BenchmarkResult("null","literal-null",1,2,3,"null"));
+        var parsed = parseObject(new ReportWriter(rows,List.of()).writeJson()).getAsJsonArray("benchmarks");
+        for (int index : List.of(0,1,3)) {
+            assertTrue(parsed.get(index).getAsJsonObject().getAsJsonPrimitive("strategy").isString());
+            assertEquals("null",parsed.get(index).getAsJsonObject().get("strategy").getAsString());
+        }
+        for (int index : List.of(0,2,3)) {
+            assertTrue(parsed.get(index).getAsJsonObject().getAsJsonPrimitive("verdict").isString());
+            assertEquals("null",parsed.get(index).getAsJsonObject().get("verdict").getAsString());
+        }
+        assertEquals("PASS",parsed.get(1).getAsJsonObject().get("verdict").getAsString());
+        assertEquals("DFS",parsed.get(2).getAsJsonObject().get("strategy").getAsString());
+    }
+
     /** JSON numbers retain ASCII syntax and literal values independently of the process format locale.
      * @param tag Latin-digit or Arabic-digit format locale
      */
