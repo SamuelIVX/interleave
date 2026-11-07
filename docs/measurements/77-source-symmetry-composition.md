@@ -110,6 +110,11 @@ each in static POR and DFS. Method/descriptor/mutator/description/status residua
 exactly with fresh baselines. Census artifacts are under
 `/private/tmp/interleave-symmetry-composition-search-identity.txt`.
 
+**Later triage:** [Spec 80](../specs/active/80-explorer-residual-triage.md) remeasures these three
+explorers at merged main `b51fcf7`, reconciles all 34 residuals with Specs 30–39 and records their
+contract limits and reopening owners. The historical snapshot below stays unchanged; Spec 80
+does not credit dispositions as kills or claim universal equivalence.
+
 The 34 inherited non-kills below remain visible as limitations of these broader explorer scopes:
 16 raw survivors and 18 uncovered cases. They are not established equivalent or closed by #10;
 this stage adds no whole-checker mutation completeness claim. Several lie in legacy/unknown-property
