@@ -191,6 +191,50 @@ class SymmetryCompositionTest {
         assertThrows(IllegalArgumentException.class, () -> SymmetryStateStore.forRun(program,null,Strategy.DFS).sleepCovered(right, Set.of()));
     }
 
+    /** Equal-frame ties retain exact stale-action contexts rather than applying subset dominance. */
+    @Test void equalFrameSleepContextsKeepOwnersSubsetsAndActionPcsDistinct() {
+        var model = pair("atomic {} atomic {}", "");
+        var program = model.program();
+        var store = SymmetryStateStore.forRun(program,null,Strategy.DPOR);
+        var first = TransitionExecutor.execute(program,program.initialConfiguration(),0).successor();
+        var tied = TransitionExecutor.execute(program,first,1).successor();
+        assertEquals(List.of(1,1),tied.programCounters());
+        var stale0 = Map.entry(0,program.threads().get(0).steps().get(0));
+        var stale1 = Map.entry(1,program.threads().get(1).steps().get(0));
+        assertFalse(store.sleepCovered(tied,Set.of()));
+        assertFalse(store.sleepCovered(tied,Set.of(stale0)));
+        assertFalse(store.sleepCovered(tied,Set.of(stale1)));
+        assertFalse(store.sleepCovered(tied,Set.of(stale0,stale1)));
+        assertTrue(store.sleepCovered(tied,Set.of(stale0)));
+        assertTrue(store.sleepCovered(tied,Set.of(stale1)));
+        assertTrue(store.sleepCovered(tied,Set.of(stale0,stale1)));
+        assertFalse(store.sleepCovered(tied,Set.of(Map.entry(0,program.threads().get(0).steps().get(1)))));
+        assertTrue(store.sleepCovered(tied,Set.of()));
+    }
+
+    /** A partial tie can lose one permutation's match while preserving another exact context witness. */
+    @Test void partialFrameTiesUseOneConsistentMappedSleepWitness() {
+        String body = "atomic { local.r = 1; } atomic {}";
+        var model = new SourceProgramLoader().load("program tie { shared int x = 0; local int r = 0;"
+            + " thread 0 { " + body + " } thread 1 { " + body + " } thread 2 { " + body + " } }");
+        var program = model.program();
+        var store = SymmetryStateStore.forRun(program,null,Strategy.DPOR);
+        var left = TransitionExecutor.execute(program,program.initialConfiguration(),0).successor();
+        var right = TransitionExecutor.execute(program,program.initialConfiguration(),2).successor();
+        var canonicalizer = new dev.samhb.interleave.state.ThreadSymmetryCanonicalizer(3,List.of(List.of(0,1,2)));
+        assertEquals(List.of(1,2,0),canonicalizer.canonicalize(
+            (dev.samhb.interleave.format.dsl.DynamicState) left.state(),left.programCounters()).canonicalToOriginal());
+        assertEquals(List.of(0,1,2),canonicalizer.canonicalize(
+            (dev.samhb.interleave.format.dsl.DynamicState) right.state(),right.programCounters()).canonicalToOriginal());
+        assertFalse(store.sleepCovered(left,Set.of(Map.entry(0,program.threads().get(0).steps().get(0)))));
+        assertTrue(store.sleepCovered(right,Set.of(Map.entry(2,program.threads().get(2).steps().get(0)))));
+        assertFalse(store.sleepCovered(left,Set.of(Map.entry(1,program.threads().get(1).steps().get(0)))));
+        // Swapping owners 0 and 2 keeps physical owner 1 fixed, but its tie rank changes.
+        assertFalse(store.sleepCovered(right,Set.of(Map.entry(1,program.threads().get(1).steps().get(0)))));
+        // Another valid permutation maps the old owner 1 to new owner 0 and preserves this context.
+        assertTrue(store.sleepCovered(right,Set.of(Map.entry(0,program.threads().get(0).steps().get(0)))));
+    }
+
     /** Direct explorer entry points reject a capability bound to another run before traversal.
      * @param strategy requested algorithm
      */

@@ -18,9 +18,10 @@ class ThreadSymmetryCanonicalizerTest {
 
     /** Each component of a whole frame controls ordering without dropping the other components.
      * @param axis PC, integer, boolean or second array element being varied
+     * @throws ReflectiveOperationException if the comparator contract cannot be inspected
      */
     @ParameterizedTest @ValueSource(strings = {"pc", "integer", "boolean", "array"})
-    void canonicalizesAllSmallTypedFramePermutations(String axis) {
+    void canonicalizesAllSmallTypedFramePermutations(String axis) throws ReflectiveOperationException {
         var state = state(3);
         List<Integer> pcs = axis.equals("pc") ? List.of(2, 0, 1) : List.of(0, 0, 0);
         if (axis.equals("integer")) {
@@ -33,7 +34,9 @@ class ThreadSymmetryCanonicalizerTest {
         }
         var canonicalizer = new ThreadSymmetryCanonicalizer(3, List.of(List.of(2, 0, 1)));
         var original = canonicalizer.canonicalize(state, pcs);
-        assertEquals(axis.equals("boolean") ? List.of(1, 0, 2) : List.of(1, 2, 0), original.canonicalToOriginal());
+        var expected = axis.equals("boolean") ? List.of(1,0,2) : List.of(1,2,0);
+        assertComparatorLaws(state,pcs,null,expected);
+        assertEquals(expected,original.canonicalToOriginal());
         var before = state.deepCopy();
         for (var permutation : THREE_PERMUTATIONS) {
             var reordered = permute(state, permutation);
@@ -157,6 +160,37 @@ class ThreadSymmetryCanonicalizerTest {
         assertEquals(List.of(0, 1, 2), canonicalizer.canonicalize(state, pcs).canonicalToOriginal());
     }
 
+    /** The maximum group keeps literal original-ID tie order with the last owner at its end.
+     * Direct comparator checks cover both argument orientations, which collection sorting may omit.
+     * @param context -2 for plain keys, -1 for initial scheduling, otherwise the last owner
+     * @param order independently enumerated canonical-to-original owner sequence
+     * @throws ReflectiveOperationException if the comparator contract cannot be inspected
+     */
+    @ParameterizedTest
+    @CsvSource({
+        "-2, 0 1 2 3 4 5 6 7", "-1, 0 1 2 3 4 5 6 7",
+        "0, 1 2 3 4 5 6 7 0", "1, 0 2 3 4 5 6 7 1",
+        "2, 0 1 3 4 5 6 7 2", "3, 0 1 2 4 5 6 7 3",
+        "4, 0 1 2 3 5 6 7 4", "5, 0 1 2 3 4 6 7 5",
+        "6, 0 1 2 3 4 5 7 6", "7, 0 1 2 3 4 5 6 7"
+    })
+    void maximumEqualFrameGroupHasTotalContextOrder(int context, String order) throws ReflectiveOperationException {
+        var state = state(8);
+        var pcs = List.of(0,0,0,0,0,0,0,0);
+        var expected = Arrays.stream(order.split(" ")).map(Integer::valueOf).toList();
+        Integer last = context == -2 ? null : context;
+        var canonicalizer = new ThreadSymmetryCanonicalizer(8,List.of(List.of(7,6,5,4,3,2,1,0)));
+        var position = last == null ? canonicalizer.canonicalize(state,pcs)
+            : canonicalizer.canonicalize(state,pcs,last);
+        assertEquals(expected,position.canonicalToOriginal());
+        assertComparatorLaws(state,pcs,last,expected);
+        assertMappings(position,8);
+        if (context >= 0) {
+            assertEquals(7,position.canonicalThreadId(context));
+            assertEquals(canonicalizer.canonicalize(state,pcs,0).key(),position.key());
+        }
+    }
+
     /** Input collections, returned maps and state-array values never alias across canonicalization. */
     @Test void freezesPartitionsResultsAndOriginalState() {
         var members = new ArrayList<>(List.of(1, 0));
@@ -260,6 +294,43 @@ class ThreadSymmetryCanonicalizerTest {
         assertThrows(IllegalArgumentException.class, () -> canonicalizer.canonicalize(state, List.of(0, 0), 2));
         var single = new ThreadSymmetryCanonicalizer(1, List.of());
         assertEquals(List.of(0), single.canonicalize(state(1), List.of(0)).canonicalToOriginal());
+    }
+
+    /** Checks reflexivity, antisymmetry and transitivity of the actual frame comparator.
+     * Reflection avoids exposing a production test seam. Sort-based tests alone need not exercise
+     * self-comparisons or both argument orientations; an asymmetric comparator can otherwise survive.
+     * Public mapping assertions separately establish the fixture's literal value/context order.
+     * Equal value frames may compare equal: do not turn the stable-sort ID fallback into a new
+     * externally observable requirement merely to kill a known redundant mutation.
+     * @param state immutable typed owner frames
+     * @param pcs owner-bound counters
+     * @param last null/plain, -1/initial, or a valid original last owner
+     * @param owners complete fixture owner domain, in any order
+     * @throws ReflectiveOperationException if lookup or invocation of the contract fails
+     */
+    private static void assertComparatorLaws(DynamicState state, List<Integer> pcs, Integer last,
+                                             List<Integer> owners) throws ReflectiveOperationException {
+        var compare = ThreadSymmetryCanonicalizer.class.getDeclaredMethod("compareFrames",
+            DynamicState.class,List.class,Integer.class,int.class,int.class);
+        compare.setAccessible(true);
+        int[][] signs = new int[owners.size()][owners.size()];
+        for (int left = 0; left < owners.size(); left++) {
+            for (int right = 0; right < owners.size(); right++) {
+                signs[left][right] = Integer.signum((int) compare.invoke(null,state,pcs,last,
+                    owners.get(left),owners.get(right)));
+            }
+        }
+        for (int left = 0; left < owners.size(); left++) {
+            assertEquals(0,signs[left][left]);
+            for (int right = 0; right < owners.size(); right++) {
+                assertEquals(0,signs[left][right] + signs[right][left]);
+                for (int later = 0; later < owners.size(); later++) {
+                    if (signs[left][right] <= 0 && signs[right][later] <= 0) {
+                        assertTrue(signs[left][later] <= 0);
+                    }
+                }
+            }
+        }
     }
 
     /** A result is a checked full bijection, independent of how many groups were explicit.

@@ -455,7 +455,8 @@ val EXPECTED_PER_CLASS = mapOf(
     "dev.samhb.interleave.state.HashingStateStore" to "45/52",
     "dev.samhb.interleave.state.BitstateStore" to "95/97",
     "dev.samhb.interleave.cb.ContextBoundedExplorer" to "127/127",
-    "dev.samhb.interleave.state.ThreadSymmetryCanonicalizer" to "139/145",
+    // Spec 79: one assertion-earned comparator kill; unchanged 145-mutant population.
+    "dev.samhb.interleave.state.ThreadSymmetryCanonicalizer" to "140/145",
     "dev.samhb.interleave.state.ThreadSymmetryCanonicalizer\$CanonicalPosition" to "11/11",
 )
 

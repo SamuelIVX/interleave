@@ -81,6 +81,11 @@ pass. All 293 inherited semantic identities/statuses exactly match the fresh bas
 
 ## Six retained final residuals
 
+**Later assurance update:** [Spec 79](../specs/active/79-symmetry-comparator-context-assurance.md)
+kills the previously unproven `compareFrames /119/40` mutation with direct comparator-law
+regressions. The other five raw survivors remain. The six-entry table and figures below are the
+original Spec 75 snapshot; they are not a current-head census.
+
 All are NonVoidMethodCallMutator. Fully qualified descriptors/identities remain in local XML;
 indices/blocks below identify the final bounded population. No disposition is a kill or a filter.
 
