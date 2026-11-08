@@ -309,9 +309,11 @@ deepening narrow instead of widen.
 
 ## Readable concurrent models
 
-Reusable zero-argument `helper` definitions can call earlier helpers and expand into existing
-scheduled instructions. See [the helper examples](examples/programs/helper-increment.ilv) and
-[bounded helper rules](docs/specs/active/71-bounded-source-helpers.md).
+Reusable `helper` definitions can call earlier helpers. Optional read-only `int`/`bool` parameters
+are captured by value at one call-entry action; a final scalar `return` is assigned at one exit
+action. Parameter slots count toward the existing eight-local limit. Zero-argument void helpers
+retain their existing actions. See [scalar helper values](examples/programs/helper-values.ilv) and
+[Spec 83](docs/specs/active/83-bounded-helper-values.md).
 
 Use `.ilv` to describe a small concurrent model directly. Assignments inside one `atomic` block run
 together, including nested atomic blocks. Inner braces add no scheduling or commit boundary.

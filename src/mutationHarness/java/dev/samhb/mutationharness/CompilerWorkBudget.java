@@ -24,7 +24,7 @@ final class CompilerWorkBudget {
     private static final String TOKENIZE = "()Ljava/util/List;";
 
     /** Erased delimiter scanner signature. */
-    private static final String UNTIL = "(Ljava/lang/String;)Ljava/lang/String;";
+    private static final String UNTIL = "(Ljava/util/Set;Ljava/lang/String;)Ljava/lang/String;";
     /** Immutable token-list type used to derive the delimiter bound. */
     private static final ClassDesc LIST = ClassDesc.of("java.util.List");
 
@@ -52,7 +52,7 @@ final class CompilerWorkBudget {
         if (!model.thisClass().asInternalName().equals(TARGET)
                 || model.methods().stream().filter(m -> matches(m, "expand", EXPAND)).count() != 1
                 || model.methods().stream().filter(m -> matches(m, "tokenize", TOKENIZE)).count() != 1
-                || model.methods().stream().filter(m -> matches(m, "until", UNTIL)).count() != 1
+                || model.methods().stream().filter(m -> matches(m, "untilAny", UNTIL)).count() != 1
                 || model.fields().stream().filter(f -> f.fieldName().equalsString("tokens")
                     && f.fieldType().equalsString("Ljava/util/List;")
                     && f.flags().has(java.lang.reflect.AccessFlag.FINAL)
@@ -129,7 +129,7 @@ final class CompilerWorkBudget {
                     code.with(element);
                 }
             }));
-        var delimiters = ClassTransform.transformingMethodBodies(m -> matches(m, "until", UNTIL),
+        var delimiters = ClassTransform.transformingMethodBodies(m -> matches(m, "untilAny", UNTIL),
             CodeTransform.ofStateful(() -> new CodeTransform() {
                 /** Long slot for the immutable token count plus one. */
                 private int remaining;

@@ -63,6 +63,10 @@ retain their PC. Reject malformed compiled targets before search. No source back
 - Outer atomic blocks become one global instruction, irrespective of their internal operation count.
   Unguarded nested atomic bodies flatten into private statements in source order, preserving their
   inner diagnostic spans. They create no instruction or independent transaction.
+- A scalar-parameter helper call lowers to one private capture atomic, its ordinary body and one
+  return/reset atomic. A zero-argument result needs only its return exit; legacy void calls keep
+  body-only scheduling. Generated instructions retain actual call/definition spans and original
+  caller ownership. No runtime call stack or new transition kind is introduced (Spec 83).
 - A scheduled assertion becomes one instruction with complete expression reads. True advances;
   false produces ASSERTION/STEP evidence with no successor. A private assertion shares the outer
   scratch state and rollback boundary.

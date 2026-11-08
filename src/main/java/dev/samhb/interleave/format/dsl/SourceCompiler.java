@@ -24,6 +24,15 @@ public final class SourceCompiler {
     private final SourceText sourceText;
     /** Earlier immutable helper definitions; declaration order makes calls acyclic. */
     private final Map<String, Helper> helpers = new LinkedHashMap<>();
+    /** All written tokens; generated names cannot be forged by source. */
+    private final Set<String> occupiedNames;
+    /** Read-only formals visible only while parsing their helper definition. */
+    private Map<String, Parameter> parameterScope = Map.of();
+    /** Declared result type and parsed final return for the current helper only. */
+    private FieldType resultType;
+    private ReturnValue returned;
+    /** Monotonic candidate suffix bounds fresh-name allocation by source tokens plus slot count. */
+    private int nextSlot;
     /** Current token and validated declarations. */
     private int position;
     /** Shared state shape. */
@@ -40,6 +49,7 @@ public final class SourceCompiler {
         this.sourceText = new SourceText(source, name);
         this.clean = maskComments();
         this.tokens = tokenize();
+        this.occupiedNames = new HashSet<>(tokens.stream().map(Token::text).toList());
     }
 
     /**
@@ -83,12 +93,22 @@ public final class SourceCompiler {
             if (helpers.size() == 16) throw error(start, "limit", "At most 16 helper declarations");
             String id = identifier();
             if (!names.add(id)) throw error(start, "name", "Duplicate declaration '" + id + "'");
+            List<Parameter> parameters = parameters(id, names);
+            resultType = take("-") ? returnType() : null;
+            returned = null;
+            parameterScope = parameters.stream().collect(java.util.stream.Collectors.toUnmodifiableMap(Parameter::name, value -> value));
             List<Node> body = block(false, 1);
+            if (resultType != null && returned == null) throw error(start, "syntax", "Value helpers require one final top-level return");
             long actions = work(body), expressions = expressionWork(body);
+            if (!parameters.isEmpty()) actions = cappedAdd(actions, 1, 64);
+            if (!parameters.isEmpty() || returned != null) actions = cappedAdd(actions, 1, 64);
+            expressions = cappedAdd(expressions, 3L * parameters.size(), 5000);
+            if (returned != null) expressions = cappedAdd(expressions, Expr.nodeCount(returned.expression()) + 1L, 5000);
             if (actions > 64) throw error(start, "limit", "Expanded helper instructions exceed 64");
             if (expressions > 5000) throw error(start, "limit", "Expanded helper expression nodes exceed 5000");
             checkHelperAtomics(body);
-            helpers.put(id, new Helper(id, body, actions, expressions));
+            helpers.put(id, new Helper(id, parameters, resultType, returned, body, actions, expressions));
+            parameterScope = Map.of(); resultType = null; returned = null;
         }
         List<List<Node>> bodies = new ArrayList<>();
         List<Integer> threadOffsets = new ArrayList<>();
@@ -143,6 +163,184 @@ public final class SourceCompiler {
             threads.add(new ModelThread(owner, instructions));
         }
         return new BenchmarkProgram(programName, new Program(new DynamicState(decl, threads.size()), threads, digest()), expected, invariant);
+    }
+
+    /** Parses scalar formals and charges their hygienic slots to the existing eight-local cap.
+     * @param helper source helper name used only for readable generated names
+     * @param names declared shared/local/helper names that formals cannot shadow
+     * @return immutable positional formals; empty for legacy syntax
+     * @throws RegistryException for invalid types/names, collisions or excess local slots
+     */
+    private List<Parameter> parameters(String helper, Set<String> names) {
+        if (!take("(")) return List.of();
+        List<Parameter> result = new ArrayList<>(); Set<String> formalNames = new HashSet<>();
+        if (!peek(")")) do {
+            FieldType type = scalarType(); int start = current().start(); String name = identifier();
+            if (names.contains(name) || !formalNames.add(name)) throw error(start, "name", "Duplicate or shadowing helper parameter '" + name + "'");
+            if (decl.locals().size() == 8) throw error(start, "limit", "Expanded local slots exceed 8");
+            String prefix = "helper_" + helper + "_" + name;
+            prefix = prefix.substring(0, Math.min(prefix.length(), 48)) + "_";
+            String slot = freshSlot(prefix);
+            List<LocalDecl> locals = new ArrayList<>(decl.locals()); locals.add(new LocalDecl(slot, type, 0, false));
+            decl = new StateDecl(decl.fields(), locals);
+            result.add(new Parameter(name, type, slot));
+        } while (take(","));
+        expect(")"); return List.copyOf(result);
+    }
+
+    /** Finds a fresh slot within the source-name bound; monotonic suffixes separate all allocations.
+     * @param prefix valid bounded identifier prefix ending in an underscore
+     * @return unique name absent from every written token
+     * @throws IllegalStateException if the bounded fresh-name invariant is violated
+     */
+    private String freshSlot(String prefix) {
+        for (int attempt = 0; attempt <= occupiedNames.size(); attempt++) {
+            String slot = prefix + nextSlot++;
+            if (!occupiedNames.contains(slot)) return slot;
+        }
+        throw new IllegalStateException("Cannot allocate a helper slot within the source-name bound");
+    }
+
+    /** Reads a scalar helper type without enabling array parameters or results.
+     * @return int or bool
+     * @throws RegistryException for an unknown or array type
+     */
+    private FieldType scalarType() {
+        FieldType type;
+        if (take("int")) type = FieldType.INT;
+        else if (take("bool")) type = FieldType.BOOL;
+        else throw error(current().start(), "type", "Helper scalar type must be int or bool");
+        if (peek("[")) throw error(current().start(), "unsupported", "Helper parameters and results must be scalar");
+        return type;
+    }
+
+    /** Completes the two-token return arrow and reads its scalar type.
+     * @return declared result type
+     * @throws RegistryException for malformed arrow or type
+     */
+    private FieldType returnType() { expect(">"); return scalarType(); }
+
+    /** Parses and type-checks actual values/result targets even in unused or zero-repeat code.
+     * @param helper earlier acyclic definition
+     * @param start original call keyword offset for arity/type diagnostics
+     * @return immutable invocation with saturated complete expression cost
+     * @throws RegistryException for syntax, arity, type or target errors
+     */
+    private Invocation invocation(Helper helper, int start) {
+        List<Argument> arguments = new ArrayList<>();
+        if (take("(")) {
+            if (!peek(")")) do {
+                int begin = current().start();
+                try {
+                    Expr expression = boundExpression(untilAny(Set.of(",", ")"), "',' or ')'"), begin);
+                    FieldType type = TypeChecker.check(expression, decl);
+                    arguments.add(new Argument(expression, type, begin, current().start()));
+                } catch (RegistryException e) { throw diagnostic(begin, "type", e); }
+            } while (take(","));
+            expect(")");
+        }
+        if (arguments.size() != helper.parameters().size()) throw error(start, "type", "Expected " + helper.parameters().size() + " helper arguments");
+        for (int i = 0; i < arguments.size(); i++) {
+            if (arguments.get(i).type() != helper.parameters().get(i).type()) {
+                throw error(arguments.get(i).start(), "type", "Helper argument type mismatch");
+            }
+        }
+        Lhs target = null;
+        if (take("-")) {
+            expect(">"); int begin = current().start();
+            if (helper.resultType() == null) throw error(begin, "type", "Void helpers have no return target");
+            target = take("local") ? localTarget() : new Lhs.FieldLhs(identifier());
+            if (peek("[")) throw error(begin, "unsupported", "Helper results require scalar targets");
+            try {
+                target = bindEffect(new Effect(target, new Expr.IntLit(0))).lhs();
+                if (TypeChecker.check(targetExpression(target), decl) != helper.resultType()) throw new RegistryException("Helper result target type mismatch");
+            } catch (RegistryException e) { throw diagnostic(begin, "type", e); }
+        } else if (helper.resultType() != null) throw error(current().start(), "type", "Value helpers require a return target");
+        expect(";");
+        long expressions = helper.expressionWork();
+        for (Argument argument : arguments) expressions = cappedAdd(expressions, Expr.nodeCount(argument.expression()), 5000);
+        return new Invocation(helper, List.copyOf(arguments), target, expressions);
+    }
+
+    /** Reads an explicit caller-local scalar target after the contextual local keyword.
+     * @return source local assignment target
+     * @throws RegistryException for malformed local reference
+     */
+    private Lhs localTarget() { expect("."); return new Lhs.LocalLhs(identifier()); }
+
+    /** Checks hostile raw expression bounds before recursively binding read-only formal references.
+     * @param text original comment-masked expression
+     * @param start source offset used for bounded-validation diagnostics
+     * @return expression using existing AST forms and owner-local formal slots
+     * @throws RegistryException for malformed or over-budget expressions
+     */
+    private Expr boundExpression(String text, int start) {
+        Expr expression = new Parser(text).parseExpr(); checkExpression(expression, start);
+        return bindParameters(expression);
+    }
+
+    /** Rewrites lexical formal reads to hygienic slots without changing expression size or timing.
+     * @param expression already depth/node-validated expression
+     * @return bound immutable expression; unchanged outside a parameter scope
+     */
+    private Expr bindParameters(Expr expression) {
+        if (parameterScope.isEmpty()) return expression;
+        return switch (expression) {
+            case Expr.VarRef v -> parameterScope.containsKey(v.name()) ? new Expr.LocalRef(parameterScope.get(v.name()).slot()) : v;
+            case Expr.UnaryOp u -> new Expr.UnaryOp(u.op(), bindParameters(u.operand()));
+            case Expr.BinaryOp b -> new Expr.BinaryOp(bindParameters(b.left()), b.op(), bindParameters(b.right()));
+            case Expr.ArrayAccess a -> new Expr.ArrayAccess(a.arrayName(), bindParameters(a.index()));
+            default -> expression;
+        };
+    }
+
+    /** Binds index/RHS formal reads while rejecting all direct writes to a formal.
+     * @param effect raw validated-depth assignment
+     * @return immutable bound effect
+     * @throws RegistryException if a read-only formal is used as an assignment destination
+     */
+    private Effect bindEffect(Effect effect) {
+        if (parameterScope.isEmpty()) return effect;
+        Lhs lhs = effect.lhs();
+        if (lhs instanceof Lhs.FieldLhs f && parameterScope.containsKey(f.name())) throw new RegistryException("Helper parameters are read-only");
+        if (lhs instanceof Lhs.ArrayLhs a) lhs = new Lhs.ArrayLhs(a.arrayName(), bindParameters(a.index()));
+        else if (lhs instanceof Lhs.LocalArrayLhs a) lhs = new Lhs.LocalArrayLhs(a.localName(), bindParameters(a.index()));
+        return new Effect(lhs, bindParameters(effect.rhs()));
+    }
+
+    /** Builds one simultaneous caller-state capture action; only inaccessible callee slots are written.
+     * @param call parsed invocation and original call span
+     * @param path enclosing expanded loop ancestry
+     * @return ordinary trusted atomic capture action
+     */
+    private Node capture(Node call, List<ExecutedStep.Expansion> path) {
+        List<Node> assignments = new ArrayList<>();
+        for (int i = 0; i < call.invocation().arguments().size(); i++) {
+            Argument argument = call.invocation().arguments().get(i);
+            String slot = call.invocation().helper().parameters().get(i).slot();
+            assignments.add(new Node(Kind.ASSIGN, new Effect(new Lhs.LocalLhs(slot), argument.expression()), null,
+                List.of(), List.of(), 0, argument.start(), argument.end(), path, null));
+        }
+        return new Node(Kind.ATOMIC, null, null, List.copyOf(assignments), List.of(), 0, call.start(), call.end(), path, null);
+    }
+
+    /** Builds the sole return/reset commit, retaining definition spans for result evaluation errors.
+     * @param call parsed invocation and optional scalar destination
+     * @param path enclosing expanded loop ancestry
+     * @return ordinary atomic return/reset action
+     */
+    private Node complete(Node call, List<ExecutedStep.Expansion> path) {
+        Helper helper = call.invocation().helper(); ReturnValue value = helper.returned();
+        int start = value == null ? call.start() : value.start(), end = value == null ? call.end() : value.end();
+        List<Node> assignments = new ArrayList<>();
+        if (value != null) assignments.add(new Node(Kind.ASSIGN, new Effect(call.invocation().target(), value.expression()), null,
+            List.of(), List.of(), 0, start, end, path, null));
+        for (Parameter parameter : helper.parameters()) {
+            Expr zero = parameter.type() == FieldType.INT ? new Expr.IntLit(0) : new Expr.BoolLit(false);
+            assignments.add(new Node(Kind.ASSIGN, new Effect(new Lhs.LocalLhs(parameter.slot()), zero), null,
+                List.of(), List.of(), 0, start, end, path, null));
+        }
+        return new Node(Kind.ATOMIC, null, null, List.copyOf(assignments), List.of(), 0, start, end, path, null);
     }
 
     /** Parses one initialized declaration, preserving the shared DSL declaration validator.
@@ -210,6 +408,15 @@ public final class SourceCompiler {
                 Expr test = condition(); expect("limit"); int count = count();
                 List<Node> body = block(insideAtomic, depth + 1);
                 nodes.add(new Node(Kind.WHILE, null, test, body, List.of(), count, start, previous().end(), List.of(), null));
+            } else if (!insideAtomic && take("return")) {
+                if (depth != 1 || resultType == null) throw error(start, "unsupported", "Return requires a value helper's final top-level statement");
+                int expressionStart = current().start();
+                try {
+                    Expr value = boundExpression(until(";"), expressionStart); expect(";");
+                    if (TypeChecker.check(value, decl) != resultType) throw new RegistryException("Helper return type mismatch");
+                    returned = new ReturnValue(value, start, previous().end());
+                } catch (RegistryException e) { throw diagnostic(expressionStart, "type", e); }
+                if (!peek("}")) throw error(current().start(), "syntax", "Return must be the helper's final statement");
             } else if (peek("assert") && tokens.get(position + 1).text().equals("(")) {
                 position++;
                 Expr test = condition(); expect(";");
@@ -220,18 +427,18 @@ public final class SourceCompiler {
                 position++;
                 int target = current().start();
                 String id = identifier();
-                if (peek("(")) throw error(current().start(), "unsupported", "Helper arguments are unsupported; use call name;");
-                expect(";");
                 Helper helper = helpers.get(id);
                 if (helper == null) throw error(target, "name", "Helper '" + id + "' must be declared before use; recursive calls are unsupported");
-                nodes.add(new Node(Kind.CALL, null, null, List.of(), List.of(), 0, start, previous().end(), List.of(), helper));
+                Invocation invocation = invocation(helper, start);
+                nodes.add(new Node(Kind.CALL, null, null, List.of(), List.of(), 0, start, previous().end(), List.of(), invocation));
             } else if (insideAtomic) {
                 String effectText = until(";"); expect(";");
                 Effect effect;
                 try {
                     effect = new Parser(effectText).parseEffect();
+                    checkExpression(targetExpression(effect.lhs()), start); checkExpression(effect.rhs(), start);
+                    effect = bindEffect(effect);
                     Expr target = targetExpression(effect.lhs());
-                    checkExpression(target, start); checkExpression(effect.rhs(), start);
                     if (TypeChecker.check(target, decl) != TypeChecker.check(effect.rhs(), decl)) throw new RegistryException("Assignment type mismatch");
                 } catch (RegistryException e) { throw diagnostic(start, "type", e); }
                 nodes.add(new Node(Kind.ASSIGN, effect, null, List.of(), List.of(), 0, start, previous().end(), List.of(), null));
@@ -247,7 +454,7 @@ public final class SourceCompiler {
     private Expr condition() {
         expect("("); int start = current().start(); String text = until(")"); expect(")");
         try {
-            Expr expr = new Parser(text).parseExpr(); checkExpression(expr, start); TypeChecker.requireBool(expr, decl); return expr;
+            Expr expr = boundExpression(text, start); TypeChecker.requireBool(expr, decl); return expr;
         } catch (RegistryException e) { throw diagnostic(start, "type", e); }
     }
 
@@ -278,18 +485,26 @@ public final class SourceCompiler {
      * @return comment-masked original expression slice
      * @throws RegistryException for EOF, braces, or unmatched parentheses/brackets
      */
-    private String until(String delimiter) {
+    private String until(String delimiter) { return untilAny(Set.of(delimiter), "'" + delimiter + "'"); }
+
+    /** Reads to one of several balanced delimiters without consuming it.
+     * @param delimiters accepted boundary tokens at expression depth zero
+     * @param expected diagnostic description of those boundary tokens
+     * @return same-length comment-masked expression text
+     * @throws RegistryException for EOF, braces or unmatched delimiters
+     */
+    private String untilAny(Set<String> delimiters, String expected) {
         int start = current().start(), parens = 0, brackets = 0;
         while (!peek("")) {
             String token = current().text();
-            if (token.equals(delimiter) && parens == 0 && brackets == 0) return clean.substring(start, current().start());
-            if (token.equals("{") || token.equals("}")) throw error(current().start(), "syntax", "Expected '" + delimiter + "'");
+            if (delimiters.contains(token) && parens == 0 && brackets == 0) return clean.substring(start, current().start());
+            if (token.equals("{") || token.equals("}")) throw error(current().start(), "syntax", "Expected " + expected);
             if (token.equals("(")) parens++; else if (token.equals(")")) parens--;
             if (token.equals("[")) brackets++; else if (token.equals("]")) brackets--;
             if (parens < 0 || brackets < 0) throw error(current().start(), "syntax", "Unmatched expression delimiter");
             position++;
         }
-        throw error(current().start(), "syntax", "Expected '" + delimiter + "' before EOF");
+        throw error(current().start(), "syntax", "Expected " + expected + " before EOF");
     }
 
     /** Validates private budgets in every helper definition before any call can expand it.
@@ -323,7 +538,7 @@ public final class SourceCompiler {
                 case REPEAT -> cappedMultiply(n.count(), body, 64);
                 case WHILE -> cappedAdd((long) n.count() + 1, cappedMultiply(n.count(), body, 64), 64);
                 case LIMIT -> 1;
-                case CALL -> n.helper().work();
+                case CALL -> n.invocation().helper().work();
             };
             result = cappedAdd(result, amount, 64);
         }
@@ -341,7 +556,7 @@ public final class SourceCompiler {
             long own = n.effect() == null ? test : Expr.nodeCount(n.effect().rhs()) + Expr.nodeCount(targetExpression(n.effect().lhs()));
             long body = expressionWork(n.yes());
             long amount = switch (n.kind()) {
-                case CALL -> n.helper().expressionWork();
+                case CALL -> n.invocation().expressionWork();
                 case REPEAT -> cappedMultiply(n.count(), body, 5000);
                 case WHILE -> cappedAdd(cappedMultiply((long) n.count() + 1, test, 5000), cappedMultiply(n.count(), body, 5000), 5000);
                 default -> cappedAdd(own, cappedAdd(body, expressionWork(n.no()), 5000), 5000);
@@ -361,9 +576,14 @@ public final class SourceCompiler {
         List<Node> result = new ArrayList<>();
         for (Node n : nodes) {
             if (n.kind() == Kind.CALL) {
-                if (n.helper().work() == 0) continue;
-                result.add(new Node(Kind.CALL, null, null, expand(n.helper().body(), path), List.of(), 0,
-                    n.start(), n.end(), path, n.helper()));
+                Helper helper = n.invocation().helper();
+                if (helper.work() == 0) continue;
+                List<Node> invoked = new ArrayList<>();
+                if (!helper.parameters().isEmpty()) invoked.add(capture(n, path));
+                invoked.addAll(expand(helper.body(), path));
+                if (!helper.parameters().isEmpty() || helper.returned() != null) invoked.add(complete(n, path));
+                result.add(new Node(Kind.CALL, null, null, List.copyOf(invoked), List.of(), 0,
+                    n.start(), n.end(), path, n.invocation()));
             } else if (n.kind() == Kind.REPEAT) {
                 if (work(n.yes()) == 0) continue;
                 for (int i = 0; i < n.count(); i++) result.addAll(expand(n.yes(), ancestry(path, n.start(), i)));
@@ -394,7 +614,7 @@ public final class SourceCompiler {
         for (Node n : nodes) {
             if (n.kind() == Kind.CALL) {
                 SourceLocation call = location(n.start(), n.end());
-                String context = callLabel + "call " + n.helper().name() + " at " + call.line() + ":" + call.column() + " -> ";
+                String context = callLabel + "call " + n.invocation().helper().name() + " at " + call.line() + ":" + call.column() + " -> ";
                 Fragment invoked = lower(n.yes(), drafts, context);
                 if (invoked.start() < 0) continue;
                 if (start < 0) start = invoked.start();
@@ -619,9 +839,44 @@ public final class SourceCompiler {
     enum Kind { ASSIGN, ATOMIC, IF, REPEAT, WHILE, LIMIT, CALL, ASSERT, GUARD }
     /** Immutable syntax and retained source ancestry. */
     record Node(Kind kind, Effect effect, Expr test, List<Node> yes, List<Node> no, int count,
-                        int start, int end, List<ExecutedStep.Expansion> path, Helper helper) {}
-    /** Earlier definition and cached saturated costs; all bodies are immutable and acyclic. */
-    record Helper(String name, List<Node> body, long work, long expressionWork) {}
+                        int start, int end, List<ExecutedStep.Expansion> path, Invocation invocation) {}
+    /** Earlier immutable definition with scalar frame slots and cached saturated costs.
+     * @param name source helper name
+     * @param parameters read-only positional values, with disjoint owner-local slots
+     * @param resultType scalar result type, or null for void
+     * @param returned final expression/span, or null for void
+     * @param body scheduled source syntax without a return statement
+     * @param work complete scheduled cost including generated capture/exit
+     * @param expressionWork cached cost excluding caller-specific argument expressions
+     */
+    record Helper(String name, List<Parameter> parameters, FieldType resultType, ReturnValue returned,
+                  List<Node> body, long work, long expressionWork) {}
+    /** One read-only scalar formal with a hygienic owner-local slot.
+     * @param name source spelling
+     * @param type scalar int or bool
+     * @param slot unique valid local name absent from written input
+     */
+    record Parameter(String name, FieldType type, String slot) {}
+    /** Final return expression and original definition span.
+     * @param expression bound scalar result expression
+     * @param start original return keyword offset
+     * @param end end of the return statement
+     */
+    record ReturnValue(Expr expression, int start, int end) {}
+    /** Bound actual argument with its original callsite span.
+     * @param expression scalar argument expression
+     * @param type checked scalar type cached once per parsed argument
+     * @param start first argument token offset
+     * @param end argument boundary offset
+     */
+    record Argument(Expr expression, FieldType type, int start, int end) {}
+    /** Immutable invocation with cached total expression work, avoiding exponential DAG walks.
+     * @param helper earlier definition
+     * @param arguments typed actual values in declaration order
+     * @param target scalar return destination, or null for void
+     * @param expressionWork full cached cost including argument expressions
+     */
+    record Invocation(Helper helper, List<Argument> arguments, Lhs target, long expressionWork) {}
     /** Pending forward continuation. */
     private record Edge(int pc, boolean yes) {}
     /** Lowered entry and unresolved exits. */

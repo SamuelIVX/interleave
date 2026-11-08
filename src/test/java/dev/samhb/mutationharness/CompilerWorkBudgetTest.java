@@ -71,7 +71,7 @@ class CompilerWorkBudgetTest {
      * @param method one instrumented method
      * @throws Exception if bytecode or the child JVM cannot be prepared
      */
-    @ParameterizedTest @ValueSource(strings = {"expand", "tokenize", "until"})
+    @ParameterizedTest @ValueSource(strings = {"expand", "tokenize", "untilAny"})
     void verifiesRemovedCheckpointAndRejectsInitialDrift(String method) throws Exception {
         int[] removed = {0};
         ClassFile file = classFile();
@@ -99,7 +99,7 @@ class CompilerWorkBudgetTest {
      * @param method one required method to remove
      * @throws Exception if the compiler definition cannot be read
      */
-    @ParameterizedTest @ValueSource(strings = {"expand", "tokenize", "until"})
+    @ParameterizedTest @ValueSource(strings = {"expand", "tokenize", "untilAny"})
     void rejectsMissingMethod(String method) throws Exception {
         ClassFile file = classFile();
         byte[] changed = file.transformClass(file.parse(compiler()), ClassTransform.dropping(
@@ -151,7 +151,7 @@ class CompilerWorkBudgetTest {
         int[] removed = {0};
         ClassFile file = classFile();
         byte[] changed = file.transformClass(file.parse(compiler()), ClassTransform.transformingMethodBodies(
-            method -> method.methodName().equalsString("until"), (code, element) -> {
+            method -> method.methodName().equalsString("untilAny"), (code, element) -> {
                 if (element instanceof InvokeInstruction invoke
                         && invoke.owner().asInternalName().equals("dev/samhb/interleave/format/dsl/SourceCompiler")
                         && invoke.name().equalsString("peek")

@@ -27,6 +27,7 @@ apply. Each outer `atomic` is one scheduling action; an outer condition is a sep
 | `assertion-rollback.ilv` | A private assertion sees tentative 7 and fails; rollback leaves counter 0 and the global property true, VIOLATION. |
 | `guarded-nested-handoff.ilv` | False inner guard rolls back tentative writes; ready writer runs first, then one commit changes counter 0 to 3, PASS. |
 | `nested-atomic.ilv` | Nested load/store grouping shares one outer action per owner: counter 2, PASS. |
+| `helper-values.ilv` | Two by-value calls add 2 then 3; six actions retain counter/result 5 and reset parameter slots, PASS. |
 | `helper-increment.ilv` | Two calls to one atomic increment helper retain final value 2, PASS. |
 | `helper-split-increment.ilv` | Caller-local load/store helper permits final values 1 and 2, VIOLATION. |
 | `branching-flag.ilv` | Decision before producer selects value 2, even if producer runs before the body; producer before decision selects 1. PASS. |
@@ -35,9 +36,12 @@ apply. Each outer `atomic` is one scheduling action; an outer condition is a sep
 | `atomic-runtime-error.ilv` | Modulo by zero aborts the whole atomic block. VIOLATION with unchanged counter 0; the always predicate itself holds. |
 | `guarded-handoff.ilv` | Consumer waits for producer, then commits value 8 and clears ready. PASS. Removing producer's action leaves a genuine DEADLOCK, unlike loop cutoff. |
 
-Helpers are zero-argument scheduled sequences declared before threads; calls may reference earlier
-helpers. Their bodies bind locals/tid to the caller. Calls add no extra action; all existing expanded
-work limits still apply. Calls inside atomic interiors and recursive calls are rejected.
+Helpers are scheduled sequences declared before threads; calls may reference earlier helpers.
+Optional scalar parameters capture entry values and one final return writes a scalar caller target.
+Parameterized calls add entry/exit actions and consume formal slots within the eight-local cap;
+legacy zero-argument void calls retain body-only actions. Their bodies bind locals/tid to the caller.
+All expanded work limits remain. Calls inside atomic interiors, forward references and recursion
+are rejected. See `helper-values.ilv` and [Spec 83](../../docs/specs/active/83-bounded-helper-values.md).
 
 Unguarded nested atomic blocks share the outer action: inner closing braces do not commit writes
 or allow interleaving. A reached false inner guard disables the entire outer action and rolls back

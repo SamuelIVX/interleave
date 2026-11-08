@@ -38,7 +38,7 @@ truncation, hidden splitting of atomic blocks or clamping of counts is permitted
 | Identifier | 64 ASCII characters, grammar/reserved rules in 01 |
 | Source block nesting | 16; program body is depth 1, every braced body adds 1 |
 | Shared declarations | 1–32 |
-| Common local declarations | 0–8 |
+| Common local slots | 0–8 total: declared locals plus helper formal slots |
 | Arrays | 0–64 integer elements, shared or per-thread |
 | Helpers | 0–16, earlier definitions only; each at most 64 actions and 5,000 expression nodes |
 | Threads | 1–8, sequential IDs in declaration order |
@@ -65,7 +65,13 @@ instruction. Every expanded assertion expression occurrence contributes to the g
 Budget expression occurrences conservatively: each expanded expression in an instruction/atomic
 tree counts, even when immutable nodes could be shared in memory. Detect sums/products exceeding
 the cap before allocation, using checked long arithmetic or cap-saturating calculations. A huge
-zero-work repeat can be eliminated without iterating its literal count. Helper costs are cached once
+zero-work repeat can be eliminated without iterating its literal count. Typed helper costs include
+generated entry/exit work, argument expressions, scalar return assignment
+and parameter resets. Each invocation caches its argument-inclusive expression cost. Raw expression
+depth is checked before lexical binding; binding changes formal leaves to owner-local leaves without
+expression growth. Slot generation tries at most written-token count plus one candidates, with
+monotonic suffixes and valid bounded names absent from input. See [Spec 83](../83-bounded-helper-values.md).
+Helper costs are cached once
 in declaration order; each call contributes those costs, including across owners. Zero-work calls are removed before expansion. Every private atomic body in a helper
 is checked against 64, including unused and zero-repeat branches; helper-free dead-code handling
 is unchanged. Recursive traversal is bounded by validated source braces, at most 16 acyclic helper
