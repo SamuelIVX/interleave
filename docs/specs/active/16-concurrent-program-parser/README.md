@@ -76,7 +76,8 @@ Bounded reusable sequences are added by [Spec 71](../71-bounded-source-helpers.m
 nested atomic syntax by [Spec 72](../72-nested-atomic-source.md). Statement assertions are added by
 [Spec 73](../73-source-statement-assertions.md), beyond the original Spec 16 scope.
 Guarded nested atomics are added by [Spec 82](../82-guarded-nested-atomics.md).
-Unbounded control flow, parameterized/recursive functions, dynamic thread creation, Java/C
+Scalar helper values are added by [Spec 83](../83-bounded-helper-values.md).
+Unbounded control flow, recursive functions, dynamic thread creation, Java/C
 compatibility, explicit jumps, weak memory,
 new liveness guarantees and graph rendering remain outside the current language. Source files execute no host code or I/O. A PASS describes the finite model
 and selected store guarantees, not the original application.

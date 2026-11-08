@@ -22,8 +22,13 @@ sharedDecl  = "shared", type, IDENT, "=", initializer, ";" ;
 localDecl   = "local", type, IDENT, "=", initializer, ";" ;
 type        = "int" | "bool" | "int", "[", "]" ;
 initializer = signedInt | "true" | "false" | "[", [signedInt, {",", signedInt}], "]" ;
-helperDecl  = "helper", IDENT, block ;
-helperCall  = "call", IDENT, ";" ;
+helperDecl  = "helper", IDENT, [formals], ["->", scalarType], helperBody ;
+formals     = "(", [parameter, {",", parameter}], ")" ;
+parameter   = scalarType, IDENT ;
+scalarType  = "int" | "bool" ;
+helperBody  = "{", {statement}, ["return", expr, ";"], "}" ;
+helperCall  = "call", IDENT, ["(", [expr, {",", expr}], ")"], ["->", scalarTarget], ";" ;
+scalarTarget= IDENT | "local", ".", IDENT ;
 threadDecl  = "thread", UINT, block ;
 block       = "{", {statement}, "}" ;
 statement   = atomic | conditional | repetition | boundedLoop | helperCall | assertion ;
@@ -66,12 +71,22 @@ The expected verdict is metadata, never evidence and never an input to search pr
 ## Reusable scheduled helpers
 
 `helper` and `call` are contextual words, so existing declarations with those names remain legal.
-A helper takes no arguments and returns no value. It may call earlier definitions only; forward
-references and recursion are rejected. Calls are allowed in scheduled thread/helper control flow,
-including branches and loops, but not inside atomic interiors. Definition bodies are validated even
-when unused. Shared/local/tid references bind to the caller owner. Expansion adds no scheduled action
-or PC beyond the body, preserving the actions and footprints of manual inlining. See
-[Spec 71](../71-bounded-source-helpers.md) for bounds and acceptance evidence.
+Legacy helpers take no arguments and return no value. Optional typed scalar formals and one final
+scalar return are defined in [Spec 83](../83-bounded-helper-values.md). Formals are read-only bare
+names; actual arguments are captured together before the scheduled body. Return expressions read
+completion-time state and copy into a required scalar field/local target. A value helper requires
+one final top-level return; void helpers cannot return. The contextual return word preserves existing
+fields with that name. Arrays as parameters/results/return targets remain unsupported.
+
+Helpers may call earlier definitions only; forward references and recursion are rejected. Calls
+are allowed in scheduled control flow, including branches/loops, but not inside atomic interiors.
+Unused definitions/zero-repeat calls are still validated. Formals use hygienic per-owner slots,
+charged with declared locals toward eight total slots and reset on successful completion. Acyclic
+calls cannot reenter the same helper while its slots are active. Active values participate in
+state identity and symmetry frames. Nonempty parameters add one atomic entry and one exit; a
+zero-argument value helper adds only a return exit. Zero-argument void calls retain body-only PCs.
+Definition/argument/return spans and actual generated PCs remain replayable. Existing zero-argument
+bounds and evidence are in [Spec 71](../71-bounded-source-helpers.md).
 
 ## Statement assertions
 

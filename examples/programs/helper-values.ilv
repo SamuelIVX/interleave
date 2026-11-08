@@ -1,0 +1,14 @@
+program helper_values {
+  shared int counter = 0;
+  local int last = 0;
+  helper add(int amount) -> int {
+    atomic { counter = counter + amount; }
+    return counter;
+  }
+  thread 0 {
+    call add(2) -> local.last;
+    call add(3) -> local.last;
+  }
+  invariant final (counter == 5);
+  expected PASS;
+}

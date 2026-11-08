@@ -81,7 +81,7 @@ class SourceAcceptanceTest {
             Map.entry("split-increment", "VIOLATION"), Map.entry("atomic-increment", "PASS"),
             Map.entry("branching-flag", "PASS"), Map.entry("bounded-loops", "INCOMPLETE"),
             Map.entry("atomic-cutoff", "INCOMPLETE"), Map.entry("atomic-runtime-error", "VIOLATION"),
-            Map.entry("guarded-handoff", "PASS"), Map.entry("guarded-nested-handoff", "PASS"), Map.entry("helper-increment", "PASS"),
+            Map.entry("guarded-handoff", "PASS"), Map.entry("guarded-nested-handoff", "PASS"), Map.entry("helper-increment", "PASS"), Map.entry("helper-values", "PASS"),
             Map.entry("helper-split-increment", "VIOLATION"), Map.entry("nested-atomic", "PASS"),
             Map.entry("statement-assertions", "PASS"), Map.entry("assertion-rollback", "VIOLATION"),
             Map.entry("cutoff-simplification", "INCOMPLETE"));

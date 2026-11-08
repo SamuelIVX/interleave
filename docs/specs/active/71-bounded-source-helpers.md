@@ -24,6 +24,10 @@ thread 0 { call twice; }
 thread 1 { call increment; }
 ```
 
+**Later extension:** [Spec 83](83-bounded-helper-values.md) adds bounded scalar parameters and a
+final return. The original zero-argument contracts/evidence below remain historical; legacy void
+calls retain those actions and behavior.
+
 A call is `call name;`, with no arguments/return value. Bodies contain the existing scheduled
 atomic/if/repeat/while forms and calls to earlier helpers. Definitions are parsed/type-checked even
 when unused or called from a zero-repeat/unchosen branch. Helpers share the existing declaration

@@ -189,8 +189,8 @@ class SourceHelpersTest {
             Arguments.of("helper first { call second; } helper second { call first; } thread 0 {}", "must be declared before use"),
             Arguments.of("helper counter {} thread 0 {}", "Duplicate declaration"),
             Arguments.of("helper first {} helper first {} thread 0 {}", "Duplicate declaration"),
-            Arguments.of("helper first {} thread 0 { call first(1); }", "Helper arguments are unsupported"),
-            Arguments.of("helper first(value) {} thread 0 {}", "Expected '{'"),
+            Arguments.of("helper first {} thread 0 { call first(1); }", "Expected 0 helper arguments"),
+            Arguments.of("helper first(value) {} thread 0 {}", "Helper scalar type must be int or bool"),
             Arguments.of("helper first {} thread 0 { atomic { call first; } }", "Helper calls inside atomic blocks are unsupported"),
             Arguments.of("helper invalid { atomic { missing = 1; } } thread 0 {}", "Unknown"),
             Arguments.of("thread 0 {} helper late {}", "Expected '}'"));
