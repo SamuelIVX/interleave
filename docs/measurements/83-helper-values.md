@@ -5,9 +5,9 @@
 
 Fresh main `dff320e` measured compiler **859/910 K + 29 S + 22 NC** and instruction
 **210/214 K + 4 S** before changes. Final scalar helper values measured compiler
-**1144/1200 K + 34 S + 22 NC** and instruction **210/214 K + 4 S**.
+**1,144/1,200 K + 34 S + 22 NC** and instruction **210/214 K + 4 S**.
 No timeout, memory, nonviable or run-error outcome is counted as a kill. The scoped R6 gate passes;
-R5/R7 require the separate default gate. Default **436/451 K + 15 S** passes all gates, with all
+scoped R5/R7 were not evaluated. The separate default run **436/451 K + 15 S** passes R5/R6/R7, with all
 451 exact mutant identities/statuses matching the fresh baseline. Operators, targets, targetTests,
 floors, local worker limits and CI parallelism are unchanged.
 

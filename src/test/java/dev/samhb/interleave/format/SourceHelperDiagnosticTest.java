@@ -14,7 +14,6 @@ class SourceHelperDiagnosticTest {
      */
     static Stream<Arguments> cases() {
         String header = "program diagnostics {\nshared int counter = 0;\n";
-        String values = header;
         return Stream.of(
             Arguments.of(header + "helper noop {}\nthread 0 { call missing; }\n}",
                 "<source>:4:17: name: Helper 'missing' must be declared before use; recursive calls are unsupported"),
@@ -24,25 +23,25 @@ class SourceHelperDiagnosticTest {
                 "<source>:3:1: limit: Expanded helper instructions exceed 64"),
             Arguments.of(header + "helper invalid {\nif (true) {} else {\natomic { repeat 65 { counter = counter + 1; } }\n}\n}\nthread 0 {}\n}",
                 "<source>:5:1: limit: Atomic internal instructions exceed 64"),
-            Arguments.of(values + "helper f(int counter) {}\nthread 0 {}\n}",
+            Arguments.of(header + "helper f(int counter) {}\nthread 0 {}\n}",
                 "<source>:3:14: name: Duplicate or shadowing helper parameter 'counter'"),
-            Arguments.of(values + "helper f(string value) {}\nthread 0 {}\n}",
+            Arguments.of(header + "helper f(string value) {}\nthread 0 {}\n}",
                 "<source>:3:10: type: Helper scalar type must be int or bool"),
-            Arguments.of(values + "helper f(int[] value) {}\nthread 0 {}\n}",
+            Arguments.of(header + "helper f(int[] value) {}\nthread 0 {}\n}",
                 "<source>:3:13: unsupported: Helper parameters and results must be scalar"),
-            Arguments.of(values + "helper f(int value) {}\nthread 0 { call f(true); }\n}",
+            Arguments.of(header + "helper f(int value) {}\nthread 0 { call f(true); }\n}",
                 "<source>:4:19: type: Helper argument type mismatch"),
-            Arguments.of(values + "helper f(int value) {}\nthread 0 { call f(missing); }\n}",
+            Arguments.of(header + "helper f(int value) {}\nthread 0 { call f(missing); }\n}",
                 "<source>:4:19: name: Unknown field 'missing'"),
-            Arguments.of(values + "helper f(int value) {}\nthread 0 { call f(); }\n}",
+            Arguments.of(header + "helper f(int value) {}\nthread 0 { call f(); }\n}",
                 "<source>:4:12: type: Expected 1 helper arguments"),
-            Arguments.of(values + "helper f() -> bool { return true; }\nthread 0 { call f() -> counter; }\n}",
+            Arguments.of(header + "helper f() -> bool { return true; }\nthread 0 { call f() -> counter; }\n}",
                 "<source>:4:24: type: Helper result target type mismatch"),
-            Arguments.of(values + "helper f(int value) -> int { return value; }\nthread 0 { call f(1); }\n}",
+            Arguments.of(header + "helper f(int value) -> int { return value; }\nthread 0 { call f(1); }\n}",
                 "<source>:4:21: type: Value helpers require a return target"),
-            Arguments.of(values + "helper f() -> int {\nreturn true;\n}\nthread 0 {}\n}",
+            Arguments.of(header + "helper f() -> int {\nreturn true;\n}\nthread 0 {}\n}",
                 "<source>:4:8: type: Helper return type mismatch"),
-            Arguments.of(values + "helper f() -> int {\nreturn 1;\natomic {}\n}\nthread 0 {}\n}",
+            Arguments.of(header + "helper f() -> int {\nreturn 1;\natomic {}\n}\nthread 0 {}\n}",
                 "<source>:5:1: syntax: Return must be the helper's final statement"));
     }
 

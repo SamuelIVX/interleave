@@ -57,7 +57,11 @@ class SourceHelperValuesTest {
         }
     }
 
-    /** Nested acyclic calls retain outer values and reused frames reset between loop iterations. */
+    /**
+     * Verifies nested calls keep the outer parameter separate from the increment helper's slot.
+     * Two iterations produce twelve actions and result four, retain both call labels, and clear
+     * every helper slot after completion so the next iteration cannot reuse stale values.
+     */
     @Test void nestedAndRepeatedCallsHaveDisjointFiniteSlots() {
         var model = load("shared int x = 0; local int temp = 0; local int result = 0; "
             + "helper increment(int amount) -> int { return amount + 1; } "
@@ -75,7 +79,11 @@ class SourceHelperValuesTest {
         assertCleared(end,Set.of("result","temp"));
     }
 
-    /** Boolean values, contextual return identifiers, empty calls and scalar targets remain typed. */
+    /**
+     * Verifies typed boolean capture, negation and return to shared and caller-local targets.
+     * An empty legacy call adds no action, while the scalar calls produce seven actions and
+     * retain the shared field named return; successful exits reset boolean slots to false.
+     */
     @Test void booleanAndEmptyCallsPreserveLegacyAndContextualNames() {
         var model = load("shared bool ready = false; shared int return = 0; local bool result = false; "
             + "helper none {} helper negate(bool flag) -> bool { return !flag; } "
