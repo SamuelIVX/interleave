@@ -31,7 +31,7 @@ assertion   = "assert", "(", expr, ")", ";" ;
 atomic      = "atomic", ["when", "(", expr, ")"], atomicBlock ;
 atomicBlock = "{", {atomicStmt}, "}" ;
 atomicStmt  = assignment, ";" | atomicIf | atomicRepeat | atomicLoop | nestedAtomic | assertion ;
-nestedAtomic= "atomic", atomicBlock ;
+nestedAtomic= "atomic", ["when", "(", expr, ")"], atomicBlock ;
 conditional = "if", "(", expr, ")", block, ["else", block] ;
 repetition  = "repeat", UINT, block ;
 boundedLoop = "while", "(", expr, ")", "limit", UINT, block ;
@@ -99,8 +99,12 @@ valid; expansion inserts no synthetic no-op action for them.
 `atomic when (g)` has one outer entry guard. False disables this thread's next action until the
 state changes. A guard evaluation error remains enabled so execution can report VIOLATION.
 An unguarded nested `atomic { ... }` groups private statements within the outer action; it adds no
-scheduling, observation, commit or rollback boundary. Empty nested blocks add no work. Inner entry
-guards remain unsupported, including in unchosen/zero-repeat bodies. With live threads but no
+scheduling, observation, commit or rollback boundary. Empty nested blocks add no work. A reached
+inner `atomic when (g)` reads tentative values in source order. False disables the entire outer
+action, discarding all tentative writes and retaining its PC. Earlier failure/cutoff wins; later
+code is not reached. Unchosen branches/zero repetitions do not evaluate their guards. Enabledness
+previews guarded interiors on a private copy; errors/cutoffs stay enabled for actual evidence.
+See [Spec 82](../82-guarded-nested-atomics.md). With live threads but no
 enabled action, the configuration is a deadlock; a loop cutoff is a different terminal event.
 
 ## Repetition and errors

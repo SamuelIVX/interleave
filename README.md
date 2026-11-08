@@ -314,8 +314,11 @@ scheduled instructions. See [the helper examples](examples/programs/helper-incre
 [bounded helper rules](docs/specs/active/71-bounded-source-helpers.md).
 
 Use `.ilv` to describe a small concurrent model directly. Assignments inside one `atomic` block run
-together, including any unguarded nested atomic blocks. Inner braces add no scheduling or commit
-boundary; inner guards remain unsupported. See [the nested atomic example](examples/programs/nested-atomic.ilv).
+together, including nested atomic blocks. Inner braces add no scheduling or commit boundary.
+A reached false inner `atomic when` guard disables the entire outer action and discards tentative
+writes; earlier failures/cutoffs remain observable. Guards read preceding tentative values. See the
+[nested example](examples/programs/nested-atomic.ilv) and
+[guarded handoff](examples/programs/guarded-nested-handoff.ilv).
 Thread-level `if` and `while` conditions are separate scheduling actions; another thread
 can run between a decision and its body.
 

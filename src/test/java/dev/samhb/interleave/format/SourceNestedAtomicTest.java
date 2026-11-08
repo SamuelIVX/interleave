@@ -134,7 +134,7 @@ class SourceNestedAtomicTest {
         return java.util.stream.Stream.of(false, true).flatMap(cutoff -> Arrays.stream(Mode.values()).map(mode -> Arguments.of(cutoff, mode)));
     }
 
-    /** Only the outer guard controls enabledness; nested syntax cannot bypass it.
+    /** The outer guard disables the whole action even with nested unguarded work.
      * @param enabled value of the outer entry guard
      */
     @ParameterizedTest @ValueSource(booleans = {false, true})
@@ -177,7 +177,7 @@ class SourceNestedAtomicTest {
         assertTrue(error.getMessage().contains("Expanded expression nodes exceed 5000"));
     }
 
-    /** Guarded inner blocks are rejected even when their containing source is unused.
+    /** Guarded inner blocks are parsed and validated even when their containing source is unused.
      * @param body scheduled thread or unused helper source
      */
     @ParameterizedTest @ValueSource(strings = {
@@ -185,9 +185,8 @@ class SourceNestedAtomicTest {
         "thread 0 { atomic { if (false) { atomic when (true) {} } } }",
         "thread 0 { atomic { repeat 0 { atomic when (true) {} } } }",
         "helper unused { atomic { atomic when (true) {} } } thread 0 {}"})
-    void guardedNestingRemainsUnsupported(String body) {
-        var error = assertThrows(RegistryException.class, () -> load("shared int counter = 0; " + body));
-        assertTrue(error.getMessage().contains("Guarded nested atomic blocks are unsupported"));
+    void guardedNestingIsAcceptedInEveryParsedBody(String body) {
+        assertDoesNotThrow(() -> load("shared int counter = 0; " + body));
     }
 
     /** Builds source input with 1,250 leaves/1,249 operators, plus one target = 2,500 nodes.
