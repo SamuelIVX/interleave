@@ -8,6 +8,10 @@ the existing outer action. It adds no action, PC, guard, observation, commit or 
 Statements execute in source order against the outer tentative state. Empty inner blocks do
 nothing; an empty outer block still has its existing one successful action.
 
+**Superseded guard boundary:** [Spec 82](82-guarded-nested-atomics.md) adds guarded interiors with
+whole-action disablement and bounded enabledness previews. The following paragraph records the
+original Spec 72 boundary, not the current language restriction.
+
 An inner `atomic when (...)` remains unsupported, even in unchosen or zero-repeat bodies.
 Only the outer guard controls enabledness. Helper calls inside atomic interiors remain rejected.
 Helpers may themselves contain the new nesting as part of their ordinary outer atomic actions.

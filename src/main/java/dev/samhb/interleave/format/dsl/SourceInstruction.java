@@ -24,6 +24,8 @@ final class SourceInstruction implements SourceStep {
     private final Set<MemoryLocation> reads;
     /** Complete conservative writes for ordinary reduction strategies. */
     private final Set<MemoryLocation> writes;
+    /** Whether enabledness needs a bounded preview of private guards. */
+    private final boolean guardedInterior;
     /** Freezes targets and recursively derives every control/effect dependency.
      * @param node expanded atomic, decision or limit instruction
      * @param yes strictly forward true/success target
@@ -38,8 +40,8 @@ final class SourceInstruction implements SourceStep {
         this.callLabel = callLabel;
         this.node = node; this.yes = yes; this.no = no; this.owner = owner;
         Set<MemoryLocation> r = new HashSet<>(), w = new HashSet<>();
-        if (node.kind() == Kind.ATOMIC) footprint(node, owner, shape, r, w);
-        else ExpressionReads.collect(node.test(), owner, r);
+        if (node.kind() == Kind.ATOMIC) guardedInterior = footprint(node, owner, shape, r, w);
+        else { guardedInterior = false; ExpressionReads.collect(node.test(), owner, r); }
         this.reads = Set.copyOf(r); this.writes = Set.copyOf(w);
     }
     /** Validates original owner/targets and returns metadata-free execution shape.
@@ -119,15 +121,17 @@ final class SourceInstruction implements SourceStep {
      */
     @Override
     public Set<MemoryLocation> writes() { return writes; }
-    /** Returns false only for a successfully evaluated false outer entry guard.
-     * @param state committed or attempt-owned values used only for the outer guard
-     * @return false only for a successfully evaluated false outer entry guard; guard errors stay enabled
+    /** Checks whole-action guards without publishing tentative values or terminal evidence.
+     * @param state committed values; private guarded work runs only on an isolated copy
+     * @return false for the first reached false guard; modeled failures/cutoffs stay enabled
      */
     @Override
     public boolean enabled(SharedState state) {
-        if (node.kind() != Kind.ATOMIC || node.test() == null) return true;
-        try { return Evaluator.eval(node.test(), (DynamicState) state, owner).asBool(); }
-        catch (RuntimeException e) { return true; }
+        if (node.kind() != Kind.ATOMIC) return true;
+        try {
+            if (node.test() != null && !Evaluator.eval(node.test(), (DynamicState) state, owner).asBool()) return false;
+            return !guardedInterior || executeNodes(node.yes(), (DynamicState) state.deepCopy(), owner);
+        } catch (RuntimeException e) { return true; }
     }
     /** Executes privately and publishes only a complete successful state.
      * @param threads immutable definitions used to derive the successor
@@ -143,11 +147,11 @@ final class SourceInstruction implements SourceStep {
         int target = yes;
         try {
             if (node.kind() == Kind.ATOMIC) {
-                if (!enabled(scratch)) return new StepTransition(StepOutcome.BLOCKED,
-                    parent.successorAt(threadId, StepOutcome.BLOCKED, threads, parent.state(), parent.programCounters().get(threadId)), null, null);
-                // Re-evaluate erroring guards so they become failures, not disabled actions.
-                if (node.test() != null) evaluate(node.test(), (DynamicState) scratch, owner, node);
-                executeNodes(node.yes(), (DynamicState) scratch, owner);
+                boolean entry = node.test() == null || evaluate(node.test(), (DynamicState) scratch, owner, node).asBool();
+                if (!entry || !executeNodes(node.yes(), (DynamicState) scratch, owner)) {
+                    return new StepTransition(StepOutcome.BLOCKED,
+                        parent.successorAt(threadId, StepOutcome.BLOCKED, threads, parent.state(), parent.programCounters().get(threadId)), null, null);
+                }
             } else if (node.kind() == Kind.ASSERT) {
                 checkAssertion(node, (DynamicState) scratch, owner);
             } else {
@@ -182,25 +186,29 @@ final class SourceInstruction implements SourceStep {
      * @param decl declarations for existing assignment footprint derivation
      * @param reads mutable destination for conditions, guards and assignment reads
      * @param writes mutable destination for all possible assignment writes
+     * @return whether any private guard requires tentative-state enabledness evaluation
      */
-    private static void footprint(Node node, int owner, StateDecl decl, Set<MemoryLocation> reads, Set<MemoryLocation> writes) {
+    private static boolean footprint(Node node, int owner, StateDecl decl, Set<MemoryLocation> reads, Set<MemoryLocation> writes) {
         if (node.test() != null) ExpressionReads.collect(node.test(), owner, reads);
         if (node.effect() != null) {
             DynamicStep assignment = new DynamicStep(owner, null, List.of(node.effect()), decl, null);
             reads.addAll(assignment.reads()); writes.addAll(assignment.writes());
         }
-        for (Node n : node.yes()) footprint(n, owner, decl, reads, writes);
-        for (Node n : node.no()) footprint(n, owner, decl, reads, writes);
+        boolean guarded = node.kind() == Kind.GUARD;
+        for (Node n : node.yes()) guarded |= footprint(n, owner, decl, reads, writes);
+        for (Node n : node.no()) guarded |= footprint(n, owner, decl, reads, writes);
+        return guarded;
     }
 
     /** Executes expanded atomic syntax without creating scheduler-visible intermediate states.
      * @param nodes private expanded statements in source order
      * @param state attempt-owned tentative state
      * @param owner local-state owner
+     * @return false to abort the entire action on a reached false private guard, true otherwise
      * @throws BoundedStop on a true final loop test
      * @throws EvaluationFailure on a false assertion or modeled runtime error
      */
-    private void executeNodes(List<Node> nodes, DynamicState state, int owner) {
+    private boolean executeNodes(List<Node> nodes, DynamicState state, int owner) {
         for (Node node : nodes) {
             switch (node.kind()) {
                 case ASSIGN -> {
@@ -208,11 +216,17 @@ final class SourceInstruction implements SourceStep {
                     catch (Evaluator.EvalException | IndexOutOfBoundsException e) { throw evaluationFailure(e, node, FailureEvidence.Phase.STEP); }
                 }
                 case ASSERT -> checkAssertion(node, state, owner);
-                case IF -> executeNodes(evaluate(node.test(), state, owner, node).asBool() ? node.yes() : node.no(), state, owner);
+                case IF -> {
+                    if (!executeNodes(evaluate(node.test(), state, owner, node).asBool() ? node.yes() : node.no(), state, owner)) return false;
+                }
+                case GUARD -> {
+                    if (!evaluate(node.test(), state, owner, node).asBool() || !executeNodes(node.yes(), state, owner)) return false;
+                }
                 case LIMIT -> { if (evaluate(node.test(), state, owner, node).asBool()) throw new BoundedStop(node); }
                 default -> throw new IllegalStateException("Unexpanded atomic instruction");
             }
         }
+        return true;
     }
 
     /** Evaluates a scheduled or private assertion at its actual observation point.

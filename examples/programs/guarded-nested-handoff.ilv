@@ -1,0 +1,14 @@
+program guarded_nested_handoff {
+  shared int counter = 0;
+  shared bool ready = false;
+  thread 0 {
+    atomic {
+      counter = 1;
+      atomic when (ready) { counter = 2; }
+      counter = 3;
+    }
+  }
+  thread 1 { atomic { ready = true; } }
+  invariant always (counter == 0 || counter == 3);
+  expected PASS;
+}

@@ -56,6 +56,10 @@ Each thread retains a finite immutable instruction list, with end index `size` a
 sentinel. A successful source transition must select `pc < nextPc <= size`; blocked transitions
 retain their PC. Reject malformed compiled targets before search. No source back edge is emitted.
 
+- Guarded inner atomic bodies retain private GUARD nodes. A reached false guard propagates through
+  private conditional/loop bodies to disable the outer action. Enabledness previews only actions
+  containing private guards, on deep copies; actual transitions retain sole commit/evidence ownership.
+  GUARD tests/bodies contribute complete dependency footprints and structural symmetry shapes.
 - Outer atomic blocks become one global instruction, irrespective of their internal operation count.
   Unguarded nested atomic bodies flatten into private statements in source order, preserving their
   inner diagnostic spans. They create no instruction or independent transaction.

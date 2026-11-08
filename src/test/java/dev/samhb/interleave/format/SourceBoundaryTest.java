@@ -26,7 +26,7 @@ class SourceBoundaryTest {
 
     /** Unsupported/malformed source is rejected instead of acquiring accidental semantics. */
     @ParameterizedTest
-    @ValueSource(strings = {"counter = 1;", "atomic { atomic when (true) {} }", "while (true) {}", "repeat -1 {}",
+    @ValueSource(strings = {"counter = 1;", "atomic { atomic when (1) {} }", "while (true) {}", "repeat -1 {}",
         "atomic { counter++; }", "atomic { counter = 1 / 2; }", "if (1) {}", "atomic when (1) {}",
         "atomic { counter = false; }", "atomic { local.missing = 1; }", "atomic { counter = ; }", "if (true) {"})
     void rejectsMalformedOrUnsupportedBodies(String body) {

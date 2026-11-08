@@ -56,6 +56,9 @@ even if a condition is a constant. Unreachable `repeat 0` bodies are still parse
 but contribute zero expanded executable work; original source/nesting limits still apply.
 Unguarded nested atomic braces count toward source nesting before flattening; their statements
 share the outer private instruction/expression budgets. Braces add no private instruction.
+A guarded inner block adds one private condition plus its body to that same cap, never another
+global instruction. Its expanded guard expressions count toward the existing node budget; retained
+GUARD trees cannot hide work in nested bodies. See [Spec 82](../82-guarded-nested-atomics.md).
 Each scheduled assertion counts one global instruction; each private assertion counts one private
 instruction. Every expanded assertion expression occurrence contributes to the global node budget.
 

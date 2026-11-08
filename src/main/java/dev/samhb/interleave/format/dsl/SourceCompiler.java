@@ -180,7 +180,7 @@ public final class SourceCompiler {
     }
 
     /** Parses one braced body, distinguishing scheduled statements from atomic interiors.
-     * @param insideAtomic whether statements belong to an outer atomic action; inner blocks flatten
+     * @param insideAtomic whether statements belong to an outer action; unguarded inner blocks flatten
      * @param depth current braced-body depth relative to the enclosing program
      * @return immutable source-order syntax nodes
      * @throws RegistryException for invalid syntax/types or nesting beyond 16 program/body levels
@@ -192,12 +192,12 @@ public final class SourceCompiler {
             if (peek("")) throw error(current().start(), "syntax", "Expected '}' before EOF");
             int start = current().start();
             if (take("atomic")) {
-                if (insideAtomic && peek("when")) throw error(start, "unsupported", "Guarded nested atomic blocks are unsupported");
                 Expr guard = take("when") ? condition() : null;
                 List<Node> body = block(true, depth + 1);
                 // Inner braces group private work; only the outer action owns scheduling and rollback.
-                if (insideAtomic) nodes.addAll(body);
-                else nodes.add(new Node(Kind.ATOMIC, null, guard, body, List.of(), 0, start, previous().end(), List.of(), null));
+                if (insideAtomic && guard == null) nodes.addAll(body);
+                else nodes.add(new Node(insideAtomic ? Kind.GUARD : Kind.ATOMIC, null, guard, body, List.of(), 0,
+                    start, previous().end(), List.of(), null));
             } else if (take("if")) {
                 Expr test = condition();
                 List<Node> yes = block(insideAtomic, depth + 1);
@@ -318,6 +318,7 @@ public final class SourceCompiler {
             long amount = switch (n.kind()) {
                 case ASSIGN, ASSERT -> 1;
                 case ATOMIC -> 1;
+                case GUARD -> cappedAdd(1, body, 64);
                 case IF -> cappedAdd(1, cappedAdd(body, work(n.no()), 64), 64);
                 case REPEAT -> cappedMultiply(n.count(), body, 64);
                 case WHILE -> cappedAdd((long) n.count() + 1, cappedMultiply(n.count(), body, 64), 64);
@@ -615,7 +616,7 @@ public final class SourceCompiler {
     /** Parsed source token. */
     private record Token(String text, int start, int end) {}
     /** Syntax node variants before/after bounded expansion. */
-    enum Kind { ASSIGN, ATOMIC, IF, REPEAT, WHILE, LIMIT, CALL, ASSERT }
+    enum Kind { ASSIGN, ATOMIC, IF, REPEAT, WHILE, LIMIT, CALL, ASSERT, GUARD }
     /** Immutable syntax and retained source ancestry. */
     record Node(Kind kind, Effect effect, Expr test, List<Node> yes, List<Node> no, int count,
                         int start, int end, List<ExecutedStep.Expansion> path, Helper helper) {}

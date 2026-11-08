@@ -25,6 +25,7 @@ apply. Each outer `atomic` is one scheduling action; an outer condition is a sep
 | `cutoff-simplification.ilv` | DFS first records four noise actions before a loop cutoff; dedicated simplification removes all four while retaining the same bound, INCOMPLETE. |
 | `statement-assertions.ilv` | Scheduled and private assertions all hold; PASS. |
 | `assertion-rollback.ilv` | A private assertion sees tentative 7 and fails; rollback leaves counter 0 and the global property true, VIOLATION. |
+| `guarded-nested-handoff.ilv` | False inner guard rolls back tentative writes; ready writer runs first, then one commit changes counter 0 to 3, PASS. |
 | `nested-atomic.ilv` | Nested load/store grouping shares one outer action per owner: counter 2, PASS. |
 | `helper-increment.ilv` | Two calls to one atomic increment helper retain final value 2, PASS. |
 | `helper-split-increment.ilv` | Caller-local load/store helper permits final values 1 and 2, VIOLATION. |
@@ -39,7 +40,8 @@ helpers. Their bodies bind locals/tid to the caller. Calls add no extra action; 
 work limits still apply. Calls inside atomic interiors and recursive calls are rejected.
 
 Unguarded nested atomic blocks share the outer action: inner closing braces do not commit writes
-or allow interleaving. Inner guards remain unsupported. See `nested-atomic.ilv`.
+or allow interleaving. A reached false inner guard disables the entire outer action and rolls back
+tentative writes. See `nested-atomic.ilv` and `guarded-nested-handoff.ilv`.
 
 A bound allows N bodies and then tests once more: true means unexplored behavior, so INCOMPLETE.
 Exact-store PASS proves the selected finite model; bitstate absence is APPROXIMATE_PASS. These files
@@ -49,3 +51,8 @@ The cutoff example can be shortened with `--source examples/programs/cutoff-simp
 --store exact --strategy DFS --json --simplify-cutoff` (one command line). Output is one existing-
 format trace with fresh snapshots, ready for the viewer. A shorter witness explains the same
 omitted action; it does not establish anything about unexplored behavior.
+
+`guarded-nested-handoff.ilv` demonstrates whole-action disablement: a false inner guard rolls back
+prior tentative writes. The ready writer runs first, then the entire waiting outer action commits.
+The always property sees only counter 0 or 3. Guard failures/cutoffs reached before a false guard
+remain observable; see [Spec 82](../../docs/specs/active/82-guarded-nested-atomics.md).
