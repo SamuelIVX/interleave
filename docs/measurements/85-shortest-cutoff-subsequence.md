@@ -90,7 +90,9 @@ payloads with fresh snapshots; its temporary diagnostic envelope is not a new pr
 The probe's initial missing import was corrected before these passing runs. Actual legacy CLI calls
 under DFS/static POR/DPOR/CBS retain INCOMPLETE, empty simplified prefix and one snapshot. All eight
 fresh direct payloads normalize, plus 22 compatibility verdict cases/four symmetry assertions.
-No DOM rerun: no schema/normalizer/renderer change. I1 does not expose proof metadata through the CLI.
+Initial feature checks omitted the DOM rerun because schema/normalizer/renderer were unchanged.
+The post-review CI follow-up below runs the complete browser suite. I1 does not expose proof metadata
+through the CLI.
 
 CodeRabbit 0.8.1 completed all eight submitted files with two minor documentation findings: numeric
 spacing and pending measured evidence. Both are patched with the actual values. No CLI rerun for
@@ -102,3 +104,26 @@ review. No outstanding supported-path correctness defect was found in this selec
 Artifacts use `/private/tmp/interleave-shortest-cutoff-`: baseline.xml, first-scoped.xml,
 final-scoped.xml, default-baseline.xml, default-final.xml, corresponding logs and review.ndjson.
 Temporary artifacts may expire; this document retains the counts, lineage and raw dispositions.
+
+## PR #127 review and CI follow-up
+
+The one actionable web review finding is valid: the plan's old best-found/1-minimal phrase
+contradicted the partial-result contract. It now states shortestProven false and no deletion-1-minimal
+guarantee after an early budget stop, and links ShortestCutoffSubsequenceTest alongside the legacy tests.
+
+[Original visualizer job](https://github.com/SamuelIVX/interleave/actions/runs/42758864622/job/129639550082)
+started at 04:55:27Z and completed cancellation/cleanup at 05:00:42Z. Browser installation ran
+04:55:34Z–05:00:19Z (285 seconds); Gradle started at 05:00:24Z. The check annotation says the job
+exceeded its 5m0s maximum. Build and Mutation jobs succeeded, and browser tests never started.
+This is cold-setup allowance exhaustion, not evidence of a Java assertion failure.
+
+Increase only the visualizer job timeout from five to fifteen minutes and explain that it includes
+setup and Java report generation. YAML budget validation reproduces the insufficient 300-second
+allowance against the observed 315-second failed run, then passes at 900 seconds. Keep all test
+commands/assertions, PIT limits, dependency versions and CI parallelism unchanged.
+
+The affected local CI path passes **47 generator tests** and creates all four source report/trace
+artifacts. With those actual files, npm test passes **22 verdict compatibility cases, four symmetry
+assertions and 49 browser checks**, with zero browser console errors. Linux apt/download timing is
+not reproduced on macOS; the updated remote outcome is left to Sam, without CI watchers.
+No CodeRabbit CLI or mutation rerun is needed for this small docs/CI configuration patch.

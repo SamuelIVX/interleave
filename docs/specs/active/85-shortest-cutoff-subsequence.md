@@ -110,13 +110,29 @@ K identities; moved authentication/lambdas and new populations are accounted sep
 [measurement ledger](../../measurements/85-shortest-cutoff-subsequence.md), including all eight raw survivors.
 
 Final default remains **436/451 K + 15 S**, R5/R6/R7 pass and all 451 exact baseline
-identities/statuses are retained. Mutation filters/operators/target tests/floors/resources and CI
+identities/statuses are retained. Mutation filters/operators/target tests/floors/resources and CI parallelism
 are unchanged. Standalone built-library checks pass the four budget/proof cases. Actual legacy
 CLI calls under all four strategies retain INCOMPLETE, empty prefixes and fresh one-snapshot payloads.
 All eight fresh direct payloads normalize; 22 compatibility cases and four symmetry assertions pass.
-No DOM rerun because consumers/schema are unchanged. No CLI proof presentation is enabled by I1.
+The initial feature checks omitted a DOM rerun because consumers/schema were unchanged.
+The PR review/CI follow-up below subsequently verifies the full browser suite. No CLI proof
+presentation is enabled by I1.
 
 CodeRabbit 0.8.1 completed all eight submitted files, two minor documentation findings. Numeric
 spacing and pending measurement text are corrected with actual results; no CLI rerun for minor
 feedback. Local review additionally gates both concurrent tasks at one start. I1 is locally complete
 awaiting merge; I2 CLI proof presentation remains the next B7 PR.
+
+## PR #127 review and CI follow-up
+
+Corrected the B7 plan's stale best-found/1-minimal wording: an early budget stop returns
+best-found evidence with shortestProven false and need not be deletion-1-minimal. The evidence cell
+now links both legacy and shortest-subsequence tests. Production behavior is unchanged.
+
+The original Build workflow's Build and Mutation jobs passed. Visualizer compatibility hit its
+five-minute job limit: browser/OS installation consumed 4m45s and Gradle began after 4m57s. The
+GitHub annotation explicitly reports the exceeded five-minute maximum. Increase only that job's
+allowance to fifteen minutes; retain all generation/browser assertions, dependencies and CI parallelism.
+Local verification passes 47 report-generator tests, all four fresh artifacts, normalization checks
+and 49 browser checks with zero console errors. This does not claim the updated remote run is green;
+Sam supplies its result. See the measurement follow-up for the original CI evidence.

@@ -19,7 +19,8 @@ jobs:
   visualizer:
     name: Visualizer compatibility
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Includes cold browser/OS setup and Java report generation before browser assertions.
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Code
