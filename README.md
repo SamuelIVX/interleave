@@ -404,7 +404,20 @@ minimality. The budget counts candidate prefixes, excluding original authenticat
 bound elapsed time or memory. A proof concerns the original choice subsequences, not all legal
 schedules or unexplored model behavior. Empty originals still authenticate. Search can be exponential;
 use it outside the exploration hot path. See [Spec 85](docs/specs/active/85-shortest-cutoff-subsequence.md).
-CLI proof presentation is a separate B7 stage; `--simplify-cutoff` retains its existing contract.
+Use `--shortest-cutoff N` for the same operation through the CLI, with an explicit non-negative
+candidate allowance (up to 2147483647). Require `--source`, `--json`, `--store exact` and an explicit
+`--strategy`; this flag is mutually exclusive with `--simplify-cutoff`, which keeps its existing contract.
+
+```bash
+./gradlew --max-workers=1 -PpitestThreads=1 run --args="--source examples/programs/cutoff-simplification.ilv --store exact --strategy DFS --json --shortest-cutoff 100"
+```
+
+The direct INCOMPLETE trace includes `cutoffSearch`: `domain: "ORIGINAL_SUBSEQUENCES"`,
+`shortestProven`, `candidatesChecked` and `candidateLimit`. The viewer displays the proof state,
+work and limited scope. A budget stop is best-found only and need not be deletion-1-minimal;
+a proven answer is shortest only among the supplied original witness's subsequences.
+This never certifies PASS or a globally shortest legal schedule. The metadata is a producer claim,
+not an independently replay-verified proof certificate. See [Spec 86](docs/specs/active/86-shortest-cutoff-cli.md).
 
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to
