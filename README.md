@@ -362,15 +362,22 @@ var result = InterleaveRunner.builder().symmetryReduction(true)
     .invariant(model.invariant().orElse(null)).build().run(model.program());
 ```
 
-The library mode supports all four built-in strategies with its built-in exact store; explicitly
-supplied stores/factories reject. Supplying a symmetry store as an ordinary custom runner store
-also rejects, ensuring quotient counts carry their result marker. Omit CLI `--strategy` to run all four; select `CONTEXT_BOUNDED`
+The library mode supports all four built-in strategies. HASHED remains the default backend;
+select natural-order tree membership with `.symmetryBackend(SymmetryBackend.ORDERED)` on a builder
+that enables symmetry. The runner owns fresh storage per run and iterative bound; both backends
+retain complete keys, exact CBS cost handling and DPOR sleep contexts. This storage choice makes
+no speed or memory promise. Checked symmetry still rejects arbitrary supplied stores/factories.
+Ordinary runner mode rejects supplied symmetry stores too, ensuring quotient counts carry their
+result marker.
+Omit CLI `--strategy` to run all four; select `CONTEXT_BOUNDED`
 for CBS bounds or iterative deepening. DPOR retains exact mapped sleep context. Repeated instruction objects in recomposed programs are
 supported when interchangeable owners have matching alias patterns; incompatible patterns reject.
 CBS retains mapped last owner and minimum cost.
 Counts can include revisits with different strategy context. Bitstate symmetry is unsupported.
-See [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) for strategy composition
-and [Spec 81](docs/specs/active/81-aliased-source-symmetry.md) for alias eligibility and transport.
+See [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) for strategy composition,
+[Spec 81](docs/specs/active/81-aliased-source-symmetry.md) for alias eligibility and transport,
+and [Spec 84](docs/specs/active/84-certified-symmetry-backends.md) for certified library backends.
+The CLI/harness retain HASHED; backend selection adds no report field or CLI flag.
 
 To shorten a bound explanation, use `--simplify-cutoff` with a source model, `--json`,
 `--store exact` and one `--strategy`. It emits one direct trace for the existing viewer, preserving

@@ -122,11 +122,14 @@ class SymmetryCompositionTest {
         }
     }
 
-    /** Public store reuse must clear prior unbounded membership as well as bounded/sleep maps. */
-    @Test void unboundedMembershipClearsBeforeReusingTheSameStore() {
+    /** Public store reuse must clear prior unbounded membership as well as bounded/sleep maps.
+     * @param backend certified exact collection implementation
+     */
+    @ParameterizedTest @EnumSource(SymmetryBackend.class)
+    void unboundedMembershipClearsBeforeReusingTheSameStore(SymmetryBackend backend) {
         var model = pair("atomic {}", "");
         var program = model.program();
-        var store = SymmetryStateStore.forRun(program,null,Strategy.DFS);
+        var store = SymmetryStateStore.forRun(program,null, Strategy.DFS, backend);
         var initial = program.initialConfiguration();
         var left = TransitionExecutor.execute(program,initial,0).successor();
         var right = TransitionExecutor.execute(program,initial,1).successor();
@@ -141,10 +144,13 @@ class SymmetryCompositionTest {
         assertEquals(3,dispatch(program,null,Strategy.DFS,store,0).statesExplored());
     }
 
-    /** Last-owner context and minimum cost transport together; clearing/copying isolate every map. */
-    @Test void boundedMembershipPreservesMappedOwnerAndMinimumCost() {
+    /** Last-owner context and minimum cost transport together; clearing/copying isolate every map.
+     * @param backend certified exact collection implementation
+     */
+    @ParameterizedTest @EnumSource(SymmetryBackend.class)
+    void boundedMembershipPreservesMappedOwnerAndMinimumCost(SymmetryBackend backend) {
         var model = pair("atomic {} atomic {}", "");
-        var store = SymmetryStateStore.forRun(model.program(), null, Strategy.CONTEXT_BOUNDED);
+        var store = SymmetryStateStore.forRun(model.program(), null, Strategy.CONTEXT_BOUNDED, backend);
         var initial = model.program().initialConfiguration();
         var left = TransitionExecutor.execute(model.program(), initial, 0).successor();
         var right = TransitionExecutor.execute(model.program(), initial, 1).successor();
@@ -166,11 +172,14 @@ class SymmetryCompositionTest {
         assertThrows(IllegalArgumentException.class, () -> store.isVisited(left,2,0));
     }
 
-    /** Exact DPOR contexts map owner and action PC and never collapse distinct or subset sleepers. */
-    @Test void sleepingMembershipTransportsWholeContextAndCopiesEntries() {
+    /** Exact DPOR contexts map owner and action PC and never collapse distinct or subset sleepers.
+     * @param backend certified exact collection implementation
+     */
+    @ParameterizedTest @EnumSource(SymmetryBackend.class)
+    void sleepingMembershipTransportsWholeContextAndCopiesEntries(SymmetryBackend backend) {
         var model = pair("atomic {} atomic {}", "");
         var program = model.program();
-        var store = SymmetryStateStore.forRun(program, null, Strategy.DPOR);
+        var store = SymmetryStateStore.forRun(program, null, Strategy.DPOR, backend);
         var initial = program.initialConfiguration();
         var left = TransitionExecutor.execute(program, initial, 0).successor();
         var right = TransitionExecutor.execute(program, initial, 1).successor();
@@ -188,14 +197,17 @@ class SymmetryCompositionTest {
         assertThrows(IllegalArgumentException.class, () -> store.sleepCovered(right, Set.of(Map.entry(-1,program.threads().get(0).steps().get(0)))));
         assertThrows(IllegalArgumentException.class, () -> store.sleepCovered(right, Set.of(Map.entry(2,program.threads().get(0).steps().get(0)))));
         assertThrows(IllegalArgumentException.class, () -> store.sleepCovered(right, Set.of(Map.entry(0,program.threads().get(1).steps().get(0)))));
-        assertThrows(IllegalArgumentException.class, () -> SymmetryStateStore.forRun(program,null,Strategy.DFS).sleepCovered(right, Set.of()));
+        assertThrows(IllegalArgumentException.class, () -> SymmetryStateStore.forRun(program,null, Strategy.DFS, backend).sleepCovered(right, Set.of()));
     }
 
-    /** Equal-frame ties retain exact stale-action contexts rather than applying subset dominance. */
-    @Test void equalFrameSleepContextsKeepOwnersSubsetsAndActionPcsDistinct() {
+    /** Equal-frame ties retain exact stale-action contexts rather than applying subset dominance.
+     * @param backend certified exact collection implementation
+     */
+    @ParameterizedTest @EnumSource(SymmetryBackend.class)
+    void equalFrameSleepContextsKeepOwnersSubsetsAndActionPcsDistinct(SymmetryBackend backend) {
         var model = pair("atomic {} atomic {}", "");
         var program = model.program();
-        var store = SymmetryStateStore.forRun(program,null,Strategy.DPOR);
+        var store = SymmetryStateStore.forRun(program,null, Strategy.DPOR, backend);
         var first = TransitionExecutor.execute(program,program.initialConfiguration(),0).successor();
         var tied = TransitionExecutor.execute(program,first,1).successor();
         assertEquals(List.of(1,1),tied.programCounters());
@@ -212,13 +224,16 @@ class SymmetryCompositionTest {
         assertTrue(store.sleepCovered(tied,Set.of()));
     }
 
-    /** A partial tie can lose one permutation's match while preserving another exact context witness. */
-    @Test void partialFrameTiesUseOneConsistentMappedSleepWitness() {
+    /** A partial tie can lose one permutation's match while preserving another exact context witness.
+     * @param backend certified exact collection implementation
+     */
+    @ParameterizedTest @EnumSource(SymmetryBackend.class)
+    void partialFrameTiesUseOneConsistentMappedSleepWitness(SymmetryBackend backend) {
         String body = "atomic { local.r = 1; } atomic {}";
         var model = new SourceProgramLoader().load("program tie { shared int x = 0; local int r = 0;"
             + " thread 0 { " + body + " } thread 1 { " + body + " } thread 2 { " + body + " } }");
         var program = model.program();
-        var store = SymmetryStateStore.forRun(program,null,Strategy.DPOR);
+        var store = SymmetryStateStore.forRun(program,null, Strategy.DPOR, backend);
         var left = TransitionExecutor.execute(program,program.initialConfiguration(),0).successor();
         var right = TransitionExecutor.execute(program,program.initialConfiguration(),2).successor();
         var canonicalizer = new dev.samhb.interleave.state.ThreadSymmetryCanonicalizer(3,List.of(List.of(0,1,2)));
@@ -289,8 +304,11 @@ class SymmetryCompositionTest {
             all.stream().map(BenchmarkResult::strategy).collect(Collectors.toSet()));
     }
 
-    /** Matching repeated objects retain original execution and runner metadata under symmetry DPOR. */
-    @Test void acceptsMatchingAliasedActionsForDpor() {
+    /** Matching repeated objects retain original execution and runner metadata under symmetry DPOR.
+     * @param backend certified exact collection implementation
+     */
+    @ParameterizedTest @EnumSource(SymmetryBackend.class)
+    void acceptsMatchingAliasedActionsForDpor(SymmetryBackend backend) {
         var model = pair("atomic {} atomic {}", "");
         var threads = new ArrayList<ModelThread>();
         for (var thread : model.program().threads()) {
@@ -298,18 +316,21 @@ class SymmetryCompositionTest {
             threads.add(new ModelThread(thread.id(), List.of(jump,jump)));
         }
         var program = new Program(model.program().initialConfiguration().state(), threads, model.program().sourceDigest());
-        var result = InterleaveRunner.builder().strategy(Strategy.DPOR).symmetryReduction(true).build().run(program);
+        var result = InterleaveRunner.builder().strategy(Strategy.DPOR).symmetryReduction(true).symmetryBackend(backend).build().run(program);
         assertTrue(result.symmetryReduction());
         assertFalse(result.hasViolation());
         assertEquals(3, result.statesExplored());
         assertEquals(List.of(0,1), result.completedTraces().getFirst().threadIds());
-        var traversal = dispatch(program,null,Strategy.DPOR,SymmetryStateStore.forRun(program,null,Strategy.DPOR),0);
+        var traversal = dispatch(program,null,Strategy.DPOR,SymmetryStateStore.forRun(program,null, Strategy.DPOR, backend),0);
         assertEquals(Set.of(TraceOutcome.COMPLETED),outcomes(traversal));
         for (var trace : traversal.traces()) assertDoesNotThrow(() -> new TraceReplayer().replay(program,trace));
     }
 
-    /** Equal execution shapes alone cannot certify DPOR identity transport, including later aliases. */
-    @Test void rejectsDifferentAliasPartitionsOnlyForDpor() {
+    /** Equal execution shapes alone cannot certify DPOR identity transport, including later aliases.
+     * @param backend certified exact collection implementation
+     */
+    @ParameterizedTest @EnumSource(SymmetryBackend.class)
+    void rejectsDifferentAliasPartitionsOnlyForDpor(SymmetryBackend backend) {
         String branch = "if (local.r == 0) { atomic {} } else { atomic {} } ";
         var model = pair(branch + branch + "atomic {}", "");
         var firstMismatch = aliasBranches(model,Set.of(0),1);
@@ -319,17 +340,20 @@ class SymmetryCompositionTest {
         for (var program : List.of(firstMismatch,laterMismatch)) {
             assertEquals(List.of(List.of(0,1)),dev.samhb.interleave.format.dsl.SourceSymmetry.groups(program,null));
             for (var strategy : List.of(Strategy.DFS,Strategy.STATIC_POR,Strategy.CONTEXT_BOUNDED)) {
-                assertDoesNotThrow(() -> SymmetryStateStore.forRun(program,null,strategy));
+                assertDoesNotThrow(() -> SymmetryStateStore.forRun(program,null, strategy, backend));
             }
-            assertThrows(IllegalArgumentException.class,() -> SymmetryStateStore.forRun(program,null,Strategy.DPOR));
+            assertThrows(IllegalArgumentException.class,() -> SymmetryStateStore.forRun(program,null, Strategy.DPOR, backend));
         }
     }
 
-    /** Aliases map as one identity, distinct objects/owners stay distinct, and run state stays isolated. */
-    @Test void aliasedSleepContextsPreserveIdentityAndOwnerMapping() {
+    /** Aliases map as one identity, distinct objects/owners stay distinct, and run state stays isolated.
+     * @param backend certified exact collection implementation
+     */
+    @ParameterizedTest @EnumSource(SymmetryBackend.class)
+    void aliasedSleepContextsPreserveIdentityAndOwnerMapping(SymmetryBackend backend) {
         var model = pair("if (local.r == 0) { atomic {} } else { atomic {} } atomic {}", "");
         var program = aliasBranches(model,Set.of(0,1),1);
-        var store = SymmetryStateStore.forRun(program,null,Strategy.DPOR);
+        var store = SymmetryStateStore.forRun(program,null, Strategy.DPOR, backend);
         var initial = program.initialConfiguration();
         var left = TransitionExecutor.execute(program,initial,0).successor();
         var right = TransitionExecutor.execute(program,initial,1).successor();

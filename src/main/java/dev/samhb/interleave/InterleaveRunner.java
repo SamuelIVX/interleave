@@ -30,6 +30,8 @@ public final class InterleaveRunner implements Serializable {
     private final Strategy strategy;
     /** Whether checked source-orbit search is selected. */
     private final boolean symmetryReduction;
+    /** Certified exact symmetry storage, immutable and independent of membership. */
+    private final SymmetryBackend symmetryBackend;
     /** Invariant. */
     private final Invariant invariant;
     /** State store factory. */
@@ -50,6 +52,7 @@ public final class InterleaveRunner implements Serializable {
     private InterleaveRunner(Builder builder) {
         this.strategy = builder.strategy;
         this.symmetryReduction = builder.symmetryReduction;
+        this.symmetryBackend = builder.symmetryBackend;
         this.invariant = builder.invariant;
         this.stateStoreFactory = builder.stateStoreFactory;
         this.maxStates = builder.maxStates;
@@ -59,7 +62,7 @@ public final class InterleaveRunner implements Serializable {
     }
 
     /** Creates membership while preventing an unmarked symmetry result through a custom factory.
-     * Checked mode uses the built-in store; the builder rejects explicit stores/factories.
+     * Checked mode owns a fresh certified backend; the builder rejects explicit stores/factories.
      * @param program model being checked by this run or iterative bound
      * @return selected per-run store; ordinary null-factory behavior remains delegated to explorers
      * @throws IllegalArgumentException if a custom factory supplies a symmetry store, or source/property
@@ -67,7 +70,7 @@ public final class InterleaveRunner implements Serializable {
      * @throws NullPointerException for a null program in checked mode
      */
     private StateStore newRunStore(Program program) {
-        if (symmetryReduction) return SymmetryStateStore.forRun(program, invariant, strategy);
+        if (symmetryReduction) return SymmetryStateStore.forRun(program, invariant, strategy, symmetryBackend);
         StateStore store = stateStoreFactory.get();
         if (store instanceof SymmetryStateStore) {
             throw new IllegalArgumentException("Use symmetryReduction(true) instead of supplying a symmetry store");
@@ -516,6 +519,10 @@ public final class InterleaveRunner implements Serializable {
         private Strategy strategy = Strategy.DFS;
         /** Opt-in checked source symmetry; ordinary verification remains unchanged. */
         private boolean symmetryReduction;
+        /** Selected certified exact backend; membership is allocated only for each run/bound. */
+        private SymmetryBackend symmetryBackend = SymmetryBackend.HASHED;
+        /** Whether storage selection was explicit and must not be silently ignored. */
+        private boolean symmetryBackendExplicit;
         /** Whether a caller supplied a store contract that symmetry must not silently ignore. */
         private boolean stateStoreExplicit;
         /** Invariant. */
@@ -550,13 +557,27 @@ public final class InterleaveRunner implements Serializable {
 
         /**
          * Selects checked exact source-orbit search, retaining original execution and trace identities.
-         * Requires a built-in strategy and the built-in exact store, plus source/property eligibility checked at run time.
+         * Requires a built-in strategy and a certified exact backend, plus source/property eligibility checked at run time.
          * For example, builder().symmetryReduction(true).build().run(sourceProgram) explores orbits.
          * @param enabled whether to enable the conservative source symmetry mode
          * @return this builder
          */
         public Builder symmetryReduction(boolean enabled) {
             this.symmetryReduction = enabled;
+            return this;
+        }
+
+        /** Selects certified exact storage without implicitly enabling symmetry reduction.
+         * Selection is immutable; the runner allocates fresh membership per run and iterative bound.
+         * For example, builder().symmetryReduction(true).symmetryBackend(SymmetryBackend.ORDERED).
+         * Arbitrary StateStore instances/factories remain unsupported in checked mode.
+         * @param backend HASHED for the default or ORDERED for natural-order tree collections
+         * @return this builder
+         * @throws NullPointerException if backend is null
+         */
+        public Builder symmetryBackend(SymmetryBackend backend) {
+            this.symmetryBackend = java.util.Objects.requireNonNull(backend, "backend");
+            this.symmetryBackendExplicit = true;
             return this;
         }
 
@@ -667,11 +688,14 @@ public final class InterleaveRunner implements Serializable {
          * @return a configured {@link InterleaveRunner}
          * @throws IllegalArgumentException if a context-bounded option was explicitly set on a
          *         strategy that would ignore it, or symmetry is combined with a null strategy
-         *         or an explicitly supplied store/factory
+         *         or an explicitly supplied store/factory, or a backend is selected without symmetry
          */
         public InterleaveRunner build() {
+            if (symmetryBackendExplicit && !symmetryReduction) {
+                throw new IllegalArgumentException("symmetryBackend requires symmetryReduction(true)");
+            }
             if (symmetryReduction && (strategy == null || stateStoreExplicit)) {
-                throw new IllegalArgumentException("Symmetry requires a built-in strategy and its built-in exact store; custom stores are unsupported");
+                throw new IllegalArgumentException("Symmetry requires a built-in strategy and a certified exact backend; explicit stores/factories are unsupported");
             }
             // Only reject an *explicit* set. A caller who never touched these options and chose
             // DFS must keep working; a caller who named a context-bounded option while on another

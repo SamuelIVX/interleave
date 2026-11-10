@@ -25,12 +25,14 @@ public final class SymmetryStateStore implements StateStore {
     private final Strategy strategy;
     /** Whole-frame permutation and exact value encoder for the certified groups. */
     private final ThreadSymmetryCanonicalizer canonicalizer;
+    /** Certified exact storage configuration retained by copies. */
+    private final SymmetryBackend backend;
     /** Recorded value orbits for unbounded traversal. */
-    private final Set<String> visited = new HashSet<>();
+    private final Set<String> visited;
     /** Lowest known cost per CBS orbit and mapped last owner. */
-    private final Map<String, Integer> minimumCosts = new HashMap<>();
+    private final Map<String, Integer> minimumCosts;
     /** Exact copied sleep contexts per value orbit. */
-    private final Map<String, Set<Set<SleepingAction>>> sleepCoverage = new HashMap<>();
+    private final Map<String, Set<Set<SleepingAction>>> sleepCoverage;
     /** First owner-local occurrence of each instruction identity for DPOR action transport. */
     private final List<IdentityHashMap<Step, Integer>> occurrences = new ArrayList<>();
 
@@ -39,12 +41,17 @@ public final class SymmetryStateStore implements StateStore {
      * @param invariant bound compiler property, or null
      * @param strategy built-in search using this store
      * @param groups certified interchangeable owners
+     * @param backend validated exact storage choice, allocating independent containers
      * @throws IllegalArgumentException if a DPOR group has inconsistent instruction-alias partitions
      */
-    private SymmetryStateStore(Program program, Invariant invariant, Strategy strategy, List<List<Integer>> groups) {
+    private SymmetryStateStore(Program program, Invariant invariant, Strategy strategy, List<List<Integer>> groups, SymmetryBackend backend) {
         this.program = program;
         this.invariant = invariant;
         this.strategy = strategy;
+        this.backend = backend;
+        this.visited = backend.newSet();
+        this.minimumCosts = backend.newMap();
+        this.sleepCoverage = backend.newMap();
         this.canonicalizer = new ThreadSymmetryCanonicalizer(program.threadCount(), groups);
         if (strategy == Strategy.DPOR) {
             var partitions = new ArrayList<List<Integer>>();
@@ -80,9 +87,30 @@ public final class SymmetryStateStore implements StateStore {
      * @throws NullPointerException for a null program or strategy
      */
     public static SymmetryStateStore forRun(Program program, Invariant invariant, Strategy strategy) {
-        Objects.requireNonNull(strategy, "strategy");
-        return new SymmetryStateStore(program, invariant, strategy, SourceSymmetry.groups(program, invariant));
+        return forRun(program, invariant, strategy, SymmetryBackend.HASHED);
     }
+
+    /** Validates one run and allocates fresh membership using a certified exact backend.
+     * For example, forRun(program, property, Strategy.DPOR, SymmetryBackend.ORDERED) uses tree storage.
+     * No user store, comparator or factory is admitted; keys/context and eligibility remain checked.
+     * @param program immutable compiled source program
+     * @param invariant null or its compiler-built shared-state property
+     * @param strategy built-in strategy to bind
+     * @param backend exact hash-based or naturally ordered membership
+     * @return empty store bound to the exact objects, strategy and backend
+     * @throws IllegalArgumentException for unsupported source/property semantics or DPOR alias layout
+     * @throws NullPointerException for a null program, strategy or backend
+     */
+    public static SymmetryStateStore forRun(Program program, Invariant invariant, Strategy strategy, SymmetryBackend backend) {
+        Objects.requireNonNull(strategy, "strategy");
+        Objects.requireNonNull(backend, "backend");
+        return new SymmetryStateStore(program, invariant, strategy, SourceSymmetry.groups(program, invariant), backend);
+    }
+
+    /** Reports the immutable storage choice without exposing live membership containers.
+     * @return certified backend used by this store and its fresh copies
+     */
+    public SymmetryBackend backend() { return backend; }
 
     /** Rejects reuse with a different program, property or algorithm before any execution.
      * @param program requested program object
@@ -169,10 +197,10 @@ public final class SymmetryStateStore implements StateStore {
     /** Clears all value, budget and sleep coverage while retaining the validated run binding. */
     @Override public void clear() { visited.clear(); minimumCosts.clear(); sleepCoverage.clear(); }
 
-    /** Creates empty membership for the same run contract.
+    /** Creates empty membership for the same run contract and selected backend.
      * @return independent empty membership with the same validated binding
      */
-    @Override public StateStore freshCopy() { return forRun(program, invariant, strategy); }
+    @Override public StateStore freshCopy() { return forRun(program, invariant, strategy, backend); }
 
     /** Encodes a whole-frame value orbit with a reversible owner map.
      * @param config actual source configuration

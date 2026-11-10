@@ -8,6 +8,14 @@ existing conservative source/property eligibility, original-identity execution a
 No bitstate/custom-store composition, arbitrary Java callbacks, dynamic owners, weak memory,
 liveness or unbounded execution is claimed. Stop after #10; #11/#12 are separate workstreams.
 
+## Superseding certified backend selection
+
+[Spec 84](84-certified-symmetry-backends.md) adds explicit HASHED/ORDERED library backend selection.
+The three-argument store factory, CLI and benchmark harness retain HASHED. Both certified choices
+own fresh full-key membership per run/bound and preserve this spec's context, binding and reporting
+contracts. Arbitrary StateStore injection and bitstate composition remain unsupported. References
+below to the built-in store mean the checked store with a certified backend, not a generic adapter.
+
 ## Run ownership and public paths
 
 `SymmetryStateStore.forRun(program, invariant, strategy)` validates `SourceSymmetry.groups` and
@@ -15,7 +23,8 @@ binds those exact program/property objects and strategy. All four explorer entry
 binding before clearing membership or obtaining an initial configuration. A mismatch rejects.
 The final store cannot be subclassed. `freshCopy` retains the binding but owns empty membership;
 `clear` empties ordinary, CBS and sleeping coverage. Stores are mutable and not concurrency safe;
-the immutable runner obtains a fresh one per run and per iterative bound. Existing ordinary-store
+the immutable runner obtains a fresh one per run and per iterative bound. Its
+`symmetryBackend(...)` builder selection chooses HASHED or ORDERED under Spec 84. Existing ordinary-store
 behavior stays unchanged. The `SymmetryDfsExplorer` convenience API delegates to the same store.
 
 The runner's existing boolean opts in for all built-in strategies. Explicit stores/factories reject
