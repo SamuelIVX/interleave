@@ -47,8 +47,9 @@ Fresh baseline and final default both report **436/451 K + 15 S**, with R5/R6/R7
 All **451 exact mutation identities/statuses match** using the same descriptor/index/block identity
 as above. The fifteen raw survivors are unchanged; see the existing default mutation ledger and
 Spec 85 evidence for their dispositions. No status is promoted through population growth.
-Final log: `/private/tmp/interleave-shortest-cli-default-final.log`;
-XML baseline/final: `/private/tmp/interleave-shortest-cli-default-{baseline,final}.xml`.
+The figures above summarize the measured XML inline. The measured baseline is merged I1
+[`fc10c62`](https://github.com/SamuelIVX/interleave/commit/fc10c62); the measured feature is
+[`81e5dfd`](https://github.com/SamuelIVX/interleave/commit/81e5dfd).
 
 ## CLI and consumer checks
 
@@ -78,7 +79,32 @@ The CI selector includes the artifact generator and both new environment paths; 
 assertion/selector is removed. CI parallelism, mutation resources/filters/floors and dependencies
 are unchanged. The merged fifteen-minute visualizer allowance is retained.
 
-## Review and local artifacts
+## Reproducing the measurements
+
+In separate clean checkouts of `fc10c62` and `81e5dfd`, use Java 26 and run:
+
+```bash
+./gradlew --max-workers=1 -PpitestThreads=1 build javadoc --no-daemon
+./gradlew --max-workers=1 -PpitestThreads=1 pitest -PpitestTargetOverride=dev.samhb.interleave.cli.Main --no-daemon
+```
+
+The test counts come from `build/test-results/test/TEST-*.xml`; scoped counts and identities come
+from `build/reports/pitest/mutations.xml`. Preserve each scoped XML before running the default gate,
+which writes the same report path:
+
+```bash
+./gradlew --max-workers=1 -PpitestThreads=1 pitest --no-daemon
+```
+
+Compare the baseline/final XML by the identity fields above and count each raw status separately.
+The per-method table accounts for every scoped non-kill; the default totals and lineage are
+summarized above. For the 48-test generator/six-artifact browser pipeline at `81e5dfd`, use the
+selectors, environment paths and commands in the checked-in
+[Visualizer compatibility job](../../.github/workflows/build.yml), adding the two local worker
+flags to its Gradle command. The measurements describe these revisions; they do not claim a fresh
+run for later documentation-only edits.
+
+## Review
 
 CodeRabbit 0.8.1 completed all ten submitted files, four findings (one minor, three trivial).
 Fixed directory creation, browser banner placement, a directly tested package-private payload seam
@@ -87,8 +113,6 @@ No rerun for minor/trivial feedback. Final measured ledger/table changes receive
 Independent local passes check mode guards, JSON compatibility, effective wrapper verdicts,
 source authentication/property forwarding and safe text-node presentation. No subagents used.
 
-Local evidence prefix `/private/tmp/interleave-shortest-cli-`: baseline-build.log, baseline.xml,
-default-baseline.xml, final-build.log, final-scoped.xml, browser-final.log, browser-ci.log, ci-generator.log, packaged.json and review.ndjson.
-Temporary artifacts are diagnostic and not repository inputs. Sam supplies remote CI/review/merge
-outcomes after publication; no watcher runs. B7 remains active until I2 merges; B8/#11/#12 and
-parked work remain excluded.
+I2 is published in [PR #128](https://github.com/SamuelIVX/interleave/pull/128), awaiting merge.
+Sam supplies remote CI/review/merge outcomes; no watcher runs. B7 remains active until I2 merges;
+B8/#11/#12 and parked work remain excluded.

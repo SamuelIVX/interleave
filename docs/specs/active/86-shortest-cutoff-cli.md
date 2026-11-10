@@ -55,5 +55,6 @@ R5/R6/R7 pass and all 451 exact identities/statuses match baseline. **61 browser
 zero console errors; normalization rejects malformed proof metadata and conflicting effective verdicts.
 CodeRabbit completed ten initial files with one minor/three trivial findings, all patched and locally
 verified without rerun. See the [measurement ledger](../../measurements/86-shortest-cutoff-cli.md)
-for lineage, raw coverage limits, independent literals, consumer checks and local artifacts.
-I2 is locally complete awaiting publication/merge; B7 completes only when I2 merges.
+for lineage, raw coverage limits, independent literals, consumer checks and reproduction commands.
+I2 is implemented and published in [PR #128](https://github.com/SamuelIVX/interleave/pull/128),
+awaiting merge. B7 completes only when I2 merges.
