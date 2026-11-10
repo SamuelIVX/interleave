@@ -18,6 +18,9 @@ import dev.samhb.interleave.report.StoreType;
 import dev.samhb.interleave.minimize.CutoffSimplifier;
 import dev.samhb.interleave.search.TraceReplayer;
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import dev.samhb.interleave.search.Trace;
 import com.google.gson.GsonBuilder;
 
 import java.nio.file.Paths;
@@ -86,6 +89,7 @@ public final class Main {
         boolean json = false;
         boolean all = false;
         boolean simplifyCutoff = false;
+        Integer shortestCutoffCandidates = null;
         boolean symmetryReduction = false;
         String storeFilter = null;
         String strategyFilter = null;
@@ -110,6 +114,24 @@ public final class Main {
                 case "--simplify-cutoff" -> {
                     simplifyCutoff = true;
                     i++;
+                }
+                case "--shortest-cutoff" -> {
+                    if (shortestCutoffCandidates != null) {
+                        System.err.println("Error: --shortest-cutoff may be supplied only once");
+                        System.exit(1);
+                    }
+                    if (i + 1 >= args.length) {
+                        System.err.println("Error: --shortest-cutoff requires a non-negative integer candidate limit");
+                        System.exit(1);
+                    }
+                    try {
+                        shortestCutoffCandidates = Integer.parseInt(args[i + 1]);
+                        if (shortestCutoffCandidates < 0) throw new NumberFormatException();
+                    } catch (NumberFormatException e) {
+                        System.err.println("Error: --shortest-cutoff must be a non-negative integer candidate limit");
+                        System.exit(1);
+                    }
+                    i += 2;
                 }
                 case "--all" -> {
                     all = true;
@@ -247,9 +269,15 @@ public final class Main {
             System.exit(1);
         }
 
-        if (simplifyCutoff && (all || program == null || !program.program().isSource()
+        if (simplifyCutoff && shortestCutoffCandidates != null) {
+            System.err.println("Error: --simplify-cutoff and --shortest-cutoff are mutually exclusive");
+            System.exit(1);
+        }
+
+        String cutoffMode = shortestCutoffCandidates != null ? "--shortest-cutoff" : "--simplify-cutoff";
+        if ((simplifyCutoff || shortestCutoffCandidates != null) && (all || program == null || !program.program().isSource()
                 || !json || !EXACT.equals(storeFilter) || strategyFilter == null)) {
-            System.err.println("Error: --simplify-cutoff requires --source, --json, --store exact and an explicit --strategy");
+            System.err.println("Error: " + cutoffMode + " requires --source, --json, --store exact and an explicit --strategy");
             System.exit(1);
         }
 
@@ -281,12 +309,17 @@ public final class Main {
             return;
         }
 
-        if (simplifyCutoff) {
+        if (simplifyCutoff || shortestCutoffCandidates != null) {
             BenchmarkResult selected = allResults.getFirst();
             if (!"INCOMPLETE".equals(selected.verdict()) || selected.incompleteTraces().isEmpty()
                     || selected.incompleteTraces().getFirst().cutoff() == null) {
-                System.err.println("Error: --simplify-cutoff requires an INCOMPLETE selected run with cutoff evidence");
+                System.err.println("Error: " + cutoffMode + " requires an INCOMPLETE selected run with cutoff evidence");
                 System.exit(1);
+            }
+            if (shortestCutoffCandidates != null) {
+                var payload = shortestCutoffPayload(program, selected.incompleteTraces().getFirst(), shortestCutoffCandidates);
+                System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(payload));
+                return;
             }
             var shorter = new CutoffSimplifier().simplify(program.program(), selected.incompleteTraces().getFirst(),
                 program.invariant().orElse(null));
@@ -302,6 +335,30 @@ public final class Main {
         } else {
             System.out.println(writer.writeMarkdown());
         }
+    }
+
+    /**
+     * Searches an authenticated source cutoff and builds its direct CLI trace with proof/work metadata.
+     * Enrichment regenerates snapshots from the returned choices; the metadata describes producer
+     * search results and is not an independently replay-verified proof certificate.
+     * @param model source program and its actual invariant
+     * @param witness original reproducible loop/preemption cutoff
+     * @param candidateLimit non-negative maximum candidate evaluations, excluding authentication
+     * @return fresh direct INCOMPLETE trace payload, scoped to original witness subsequences
+     * @throws IllegalArgumentException if the witness, source or budget is unsupported or invalid
+     */
+    static JsonObject shortestCutoffPayload(BenchmarkProgram model, Trace witness, int candidateLimit) {
+        var search = new CutoffSimplifier().shortestSubsequence(model.program(), witness,
+            model.invariant().orElse(null), candidateLimit);
+        var payload = JsonParser.parseString(
+            new TraceReplayer().enrich(model.program(), search.trace().toRecord()).toJson()).getAsJsonObject();
+        var metadata = new JsonObject();
+        metadata.addProperty("domain", "ORIGINAL_SUBSEQUENCES");
+        metadata.addProperty("shortestProven", search.shortestProven());
+        metadata.addProperty("candidatesChecked", search.candidatesChecked());
+        metadata.addProperty("candidateLimit", search.candidateLimit());
+        payload.add("cutoffSearch", metadata);
+        return payload;
     }
 
     /**
@@ -387,6 +444,7 @@ public final class Main {
         System.out.println("       interleave generate --template <id> [flags]");
         System.out.println();
         System.out.println("Flags:");
+        System.out.println("  --shortest-cutoff N       Best cutoff subsequence within N candidate checks; JSON includes proof/work metadata");
         System.out.println("  --json                    Output as JSON (default: Markdown)");
         System.out.println("  --symmetry                Checked source-thread symmetry; requires --source --store exact");
         System.out.println("  --simplify-cutoff         Emit one shorter INCOMPLETE source trace; requires --json --store exact --strategy");

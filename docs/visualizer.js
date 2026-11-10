@@ -151,7 +151,7 @@ function renderValCell(val, isChanged){
  */
 function normalize(raw){
   if(!raw || typeof raw !== 'object') throw new Error('JSON must be an object');
-  const diagnostics = (value, threads) => {
+  const diagnostics = (value, threads, outcome = value.outcome) => {
     const validSpan = (span) => span && typeof span.file === 'string' &&
       ['line','column','endLine','endColumn'].every(k=>Number.isSafeInteger(span[k]) && span[k]>0) &&
       (span.endLine>span.line || (span.endLine===span.line && span.endColumn>=span.column));
@@ -176,7 +176,13 @@ function normalize(raw){
           f.category!=null || f.phase!==(f.kind==='ASSERTION' ? 'STEP' : 'PROPERTY'))) throw new Error('Invalid failure evidence');
     }
     if(value.failure!=null && value.cutoff!=null) throw new Error('Conflicting terminal evidence');
-    return {sourceDigest:value.sourceDigest,executedSteps:value.executedSteps,cutoff:value.cutoff,failure:value.failure};
+    if(Object.hasOwn(value, 'cutoffSearch')){
+      const search=value.cutoffSearch;
+      if(!search || search.domain!=='ORIGINAL_SUBSEQUENCES' || typeof search.shortestProven!=='boolean' ||
+        !['candidatesChecked','candidateLimit'].every(k=>Number.isSafeInteger(search[k]) && search[k]>=0) ||
+        search.candidatesChecked>search.candidateLimit || outcome!=='INCOMPLETE' || !value.cutoff) throw new Error('Invalid cutoff search metadata');
+    }
+    return {sourceDigest:value.sourceDigest,executedSteps:value.executedSteps,cutoff:value.cutoff,failure:value.failure,cutoffSearch:value.cutoffSearch};
   };
   const runDiagnostics = value => ({symmetryReduction:value.symmetryReduction===true,programKind:value.programKind,storeType:value.storeType,resourceLimitReason:value.resourceLimitReason,incompletenessReasons:value.incompletenessReasons});
 
@@ -191,7 +197,7 @@ function normalize(raw){
       const threads = ft.threads || ft.threadIds;
       if(!Array.isArray(threads)) throw new Error('benchmarks[].failingTrace missing threads/threadIds');
       const outcome = entry.verdict || ft.outcome || (entry.failingTrace ? 'VIOLATION' : 'INCOMPLETE');
-      return { trace: { ...diagnostics(ft, threads), threads, outcomes: ft.outcomes, outcome, programHash: entry.bug, states: ft.states }, meta: { ...runDiagnostics(entry), verdict: outcome, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
+      return { trace: { ...diagnostics(ft, threads, outcome), threads, outcomes: ft.outcomes, outcome, programHash: entry.bug, states: ft.states }, meta: { ...runDiagnostics(entry), verdict: outcome, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
     }
     return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { ...runDiagnostics(entry), verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
   }
@@ -218,7 +224,7 @@ function normalize(raw){
     // viewer can do, so it must not be reachable.
     let outcome = incomplete ? (raw.programKind==='SOURCE' ? 'INCOMPLETE' : 'LIMIT EXCEEDED') : (tr.outcome || (raw.hasViolation ? 'VIOLATION' : 'PASS'));
     if(raw.programKind==='SOURCE' && ['PASS','COMPLETED'].includes(outcome) && ['EXACT','BITSTATE'].includes(raw.storeType)) outcome = raw.storeType==='BITSTATE' ? 'APPROXIMATE_PASS' : 'PASS';
-    return { trace: { ...diagnostics(tr, threads), threads, outcomes: tr.outcomes, outcome, programHash: tr.programHash, states: tr.states }, meta: { ...runDiagnostics(raw), verdict: outcome, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, hasViolation: raw.hasViolation, limitExceeded: raw.limitExceeded === true } };
+    return { trace: { ...diagnostics(tr, threads, outcome), threads, outcomes: tr.outcomes, outcome, programHash: tr.programHash, states: tr.states }, meta: { ...runDiagnostics(raw), verdict: outcome, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, hasViolation: raw.hasViolation, limitExceeded: raw.limitExceeded === true } };
   }
   throw new Error('Unrecognized shape — expected TraceRecord {threads}, TestResult {failingTraces|incompleteTraces}, or ReportWriter {benchmarks}.');
 }
@@ -323,6 +329,12 @@ function renderHeader(){
   if(currentMeta.limitExceeded) parts.push(addKV('limit', 'exceeded'));
   if(currentMeta.resourceLimitReason) parts.push(addKV('resource', capStr(currentMeta.resourceLimitReason)));
   if(Array.isArray(currentMeta.incompletenessReasons)) parts.push(addKV('bounds', capStr(currentMeta.incompletenessReasons.join(', '))));
+  if(currentTrace.cutoffSearch){
+    const search=currentTrace.cutoffSearch;
+    parts.push(addKV('cutoff search', search.shortestProven ? 'Shortest among original subsequences' : 'Best found; shortest not proven'));
+    parts.push(addKV('candidate checks', `${search.candidatesChecked} / ${search.candidateLimit}`));
+    parts.push(addKV('search scope', 'Original subsequences only; no global shortest guarantee'));
+  }
   if(currentTrace.sourceDigest) parts.push(addKV('source digest', currentTrace.sourceDigest));
   const terminal = currentTrace.cutoff || currentTrace.failure;
   if(terminal){

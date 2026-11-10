@@ -303,6 +303,28 @@ async function runTests() {
       assert((await page.locator('#verdictBadge').textContent()).includes('PASS'), 'Symmetry report retains the actual PASS verdict');
     }
 
+    if(process.env.SOURCE_SHORTEST_CUTOFF_PROVEN_JSON && process.env.SOURCE_SHORTEST_CUTOFF_PARTIAL_JSON){
+      for(const [path, proven, length, work] of [
+        [process.env.SOURCE_SHORTEST_CUTOFF_PROVEN_JSON, true, 0, '4 / 4'],
+        [process.env.SOURCE_SHORTEST_CUTOFF_PARTIAL_JSON, false, 3, '1 / 1']
+      ]){
+        const payload = readFileSync(join(projectRoot, path), 'utf8');
+        const raw = JSON.parse(payload);
+        assert(raw.cutoffSearch.shortestProven===proven, 'Fresh Java proof metadata matches fixture');
+        await page.locator('#clearBtn').click();
+        await page.locator('#paste').fill(payload);
+        await page.locator('#loadPaste').click();
+        const expected = proven ? 'Shortest among original subsequences' : 'Best found; shortest not proven';
+        await page.waitForFunction(text=>document.querySelector('#meta')?.textContent.includes(text), expected);
+        const meta = await page.locator('#meta').textContent();
+        assert(meta.includes(expected) && meta.includes(work), 'Viewer shows actual proof state and candidate usage');
+        assert(meta.includes('no global shortest guarantee'), 'Viewer limits the proof to original subsequences');
+        assert((await page.locator('#verdictBadge').textContent())==='INCOMPLETE', 'Shortest search never changes INCOMPLETE to PASS');
+        assert(await page.locator('#timeline tbody tr').count()===length+1, 'Fresh shortened snapshots align with executed choices');
+        assert(meta.includes('LOOP_LIMIT') && meta.includes(raw.sourceDigest), 'Cutoff and current source identity remain visible');
+      }
+    }
+
     // Test 8: Integrity & Console Sanity
     // -------------------------------------------------------------
     console.log('\nTest 8: Console and error integrity');

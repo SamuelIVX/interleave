@@ -299,6 +299,160 @@ class MainTest {
         assertEquals(4, report.getAsJsonArray("benchmarks").get(0).getAsJsonObject().getAsJsonObject("incompleteTrace").getAsJsonArray("threads").size());
     }
 
+    /** Checks literal budget/proof boundaries and fresh snapshots through actual CLI processes.
+     * Writes proven and partial artifacts for consumer verification.
+     * @param directory temporary source files
+     * @throws Exception if process execution or file I/O fails
+     */
+    @Test
+    void shortestCutoffProducesProofArtifacts(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var source = directory.resolve("noise.ilv");
+        java.nio.file.Files.writeString(source, "program noise { shared int noise = 0; thread 0 { repeat 4 { atomic { noise = noise + 1; } } } thread 1 { atomic { while (true) limit 0 {} } } }");
+        for (int budget : new int[]{0, 1, 3, 4, Integer.MAX_VALUE}) {
+            var result = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS", "--shortest-cutoff", Integer.toString(budget));
+            assertEquals(0, result.exitCode(), result.output());
+            var trace = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output());
+            var search = trace.getAsJsonObject("cutoffSearch");
+            assertEquals("ORIGINAL_SUBSEQUENCES", search.get("domain").getAsString());
+            assertEquals(budget >= 4, search.get("shortestProven").getAsBoolean());
+            int length = budget == 0 ? 4 : budget == 1 ? 3 : budget == 3 ? 1 : 0;
+            int checked = budget == 0 ? 0 : budget == 1 ? 1 : budget == 3 ? 3 : 4;
+            assertEquals(checked, search.get("candidatesChecked").getAsInt());
+            assertEquals(budget, search.get("candidateLimit").getAsInt());
+            assertEquals("INCOMPLETE", trace.get("outcome").getAsString());
+            assertEquals(length, trace.getAsJsonArray("threads").size());
+            assertEquals(length, trace.getAsJsonArray("executedSteps").size());
+            assertEquals(length + 1, trace.getAsJsonArray("states").size());
+            assertEquals(length, trace.getAsJsonArray("states").get(length).getAsJsonObject().getAsJsonObject("fields").get("noise").getAsInt());
+            assertEquals("LOOP_LIMIT", trace.getAsJsonObject("cutoff").get("reason").getAsString());
+            assertEquals(1, trace.getAsJsonObject("cutoff").get("threadId").getAsInt());
+            assertEquals(0, trace.getAsJsonObject("cutoff").get("limit").getAsInt());
+            if (budget == 1 || budget == 4) {
+                var artifact = java.nio.file.Path.of("build/source-shortest-cutoff-" + (budget == 4 ? "proven" : "partial") + ".json");
+                java.nio.file.Files.createDirectories(artifact.getParent());
+                java.nio.file.Files.writeString(artifact, result.output());
+            }
+        }
+        for (String strategy : List.of("DFS", "STATIC_POR", "DPOR", "CONTEXT_BOUNDED")) {
+            java.nio.file.Files.writeString(source, "program empty { shared int x = 0; thread 0 { while (true) limit 0 {} } thread 1 { while (true) limit 0 {} } }");
+            var result = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", strategy, "--shortest-cutoff", "0", "--symmetry");
+            assertEquals(0, result.exitCode(), result.output());
+            var trace = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output());
+            assertTrue(trace.getAsJsonObject("cutoffSearch").get("shortestProven").getAsBoolean());
+            assertEquals(0, trace.getAsJsonObject("cutoffSearch").get("candidatesChecked").getAsInt());
+            assertEquals(0, trace.getAsJsonArray("threads").size());
+            assertEquals("INCOMPLETE", trace.get("outcome").getAsString());
+        }
+        java.nio.file.Files.writeString(source, "program switches { shared int x = 0; thread 0 { repeat 4 { atomic {} } } thread 1 { repeat 4 { atomic {} } } }");
+        var bounded = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "CONTEXT_BOUNDED", "--max-preemptions", "0", "--shortest-cutoff", "100");
+        assertEquals(0, bounded.exitCode(), bounded.output());
+        var trace = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(bounded.output());
+        assertEquals("PREEMPTION_BOUND", trace.getAsJsonObject("cutoff").get("reason").getAsString());
+        assertEquals(0, trace.getAsJsonObject("cutoff").get("limit").getAsInt());
+        assertEquals(1, trace.getAsJsonArray("threads").size());
+        assertTrue(trace.getAsJsonObject("cutoffSearch").get("shortestProven").getAsBoolean());
+    }
+
+    /** Gives PIT in-process coverage of CLI payload construction without replacing the search.
+     * Numeric expectations come from four removable noise actions and the empty lower bound.
+     * @param directory temporary source files
+     * @throws Exception if source I/O fails
+     */
+    @Test
+    void shortestCutoffPayloadContract(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var source = directory.resolve("noise.ilv");
+        java.nio.file.Files.writeString(source, "program noise { shared int noise = 0; thread 0 { repeat 4 { atomic { noise = noise + 1; } } } thread 1 { atomic { while (true) limit 0 {} } } }");
+        var model = new dev.samhb.interleave.format.SourceProgramLoader().loadFromFile(source);
+        var original = new BenchmarkHarness(1_000_003, 4, java.util.Set.of(StoreType.EXACT),
+            java.util.Set.of("DFS"), 2, false).runProgram(model).getFirst().incompleteTraces().getFirst();
+        assertThrows(IllegalArgumentException.class, () -> Main.shortestCutoffPayload(model, original, -1));
+        for (int budget : new int[]{0, 1, 4}) {
+            var json = Main.shortestCutoffPayload(model, original, budget);
+            var search = json.getAsJsonObject("cutoffSearch");
+            assertEquals("ORIGINAL_SUBSEQUENCES", search.get("domain").getAsString());
+            assertEquals(budget == 4, search.get("shortestProven").getAsBoolean());
+            assertEquals(budget, search.get("candidateLimit").getAsInt());
+            assertEquals(budget, search.get("candidatesChecked").getAsInt());
+            int length = budget == 0 ? 4 : budget == 1 ? 3 : 0;
+            assertEquals(length, json.getAsJsonArray("threads").size());
+            assertEquals(length + 1, json.getAsJsonArray("states").size());
+            assertEquals("INCOMPLETE", json.get("outcome").getAsString());
+            assertEquals("LOOP_LIMIT", json.getAsJsonObject("cutoff").get("reason").getAsString());
+        }
+        var legacy = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS", "--simplify-cutoff");
+        var legacyJson = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(legacy.output());
+        assertFalse(legacyJson.has("cutoffSearch"));
+        assertEquals(0, legacyJson.getAsJsonArray("threads").size());
+        var ordinary = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS");
+        var ordinaryJson = dev.samhb.interleave.testsupport.JsonAssertions.parseObject(ordinary.output());
+        assertFalse(ordinaryJson.has("cutoffSearch"));
+        assertEquals("INCOMPLETE", ordinaryJson.getAsJsonArray("benchmarks").get(0).getAsJsonObject().get("verdict").getAsString());
+    }
+
+    /** The presentation seam must pass the source property into shortest search.
+     * The weights 1,2,4,8 permit x=5 or 15 at the cutoff; the property forbids the pair for 5.
+     * All fifteen proper subsets therefore reject; removing the property would return two choices.
+     */
+    @Test
+    void shortestCutoffPayloadPreservesSourceProperty() {
+        var model = new dev.samhb.interleave.format.SourceProgramLoader().load(
+            "program weighted { shared int x = 0; thread 0 { atomic { x = x + 1; } } "
+            + "thread 1 { atomic { x = x + 2; } } thread 2 { atomic { x = x + 4; } } "
+            + "thread 3 { atomic { x = x + 8; } } "
+            + "thread 4 { atomic when (x == 5 || x == 15) { while (true) limit 0 {} } } invariant always (x != 5); }");
+        var execution = new dev.samhb.interleave.core.ExecutionDriver().runDetailed(model.program(),
+            new dev.samhb.interleave.core.Schedule(List.of(0, 1, 2, 3, 4)), model.invariant().orElseThrow());
+        assertEquals(dev.samhb.interleave.core.ScheduleExecution.Kind.INCOMPLETE, execution.kind());
+        var payload = Main.shortestCutoffPayload(model, execution.trace(), 15);
+        assertEquals(4, payload.getAsJsonArray("threads").size());
+        assertEquals(5, payload.getAsJsonArray("states").size());
+        assertEquals(15, payload.getAsJsonObject("cutoffSearch").get("candidatesChecked").getAsInt());
+        assertTrue(payload.getAsJsonObject("cutoffSearch").get("shortestProven").getAsBoolean());
+        assertEquals("INCOMPLETE", payload.get("outcome").getAsString());
+    }
+
+    /** Rejects malformed budgets, ambiguous selections and conclusive runs without a cutoff result.
+     * @param directory temporary source files
+     * @throws Exception if process execution or file I/O fails
+     */
+    @Test
+    void shortestCutoffRejectsInvalidSelections(@org.junit.jupiter.api.io.TempDir java.nio.file.Path directory) throws Exception {
+        var source = directory.resolve("complete.ilv");
+        java.nio.file.Files.writeString(source, "program complete { shared int x = 0; thread 0 { atomic {} } }");
+        for (String budget : List.of("-1", "1.5", "abc", "2147483648")) {
+            var result = invokeCli("--source", source.toString(), "--shortest-cutoff", budget);
+            assertEquals(1, result.exitCode());
+            assertTrue(result.output().contains("--shortest-cutoff must be a non-negative integer"), result.output());
+        }
+        assertTrue(invokeCli("--shortest-cutoff").output().contains("--shortest-cutoff requires a non-negative integer"));
+        for (String[] args : List.of(
+            new String[]{"--source", source.toString(), "--store", "exact", "--strategy", "DFS"},
+            new String[]{"--source", source.toString(), "--json", "--strategy", "DFS"},
+            new String[]{"--source", source.toString(), "--json", "--store", "exact"},
+            new String[]{"--source", source.toString(), "--json", "--store", "bitstate", "--strategy", "DFS"},
+            new String[]{"peterson", "--json", "--store", "exact", "--strategy", "DFS"},
+            new String[]{"--all", "--json", "--store", "exact", "--strategy", "DFS"})) {
+            var arguments = new java.util.ArrayList<>(List.of(args));
+            arguments.addAll(List.of("--shortest-cutoff", "0"));
+            var result = invokeCli(arguments.toArray(String[]::new));
+            assertEquals(1, result.exitCode());
+            assertTrue(result.output().contains("--shortest-cutoff requires"), result.output());
+        }
+        var duplicate = invokeCli("--source", source.toString(), "--shortest-cutoff", "0", "--shortest-cutoff", "4");
+        assertEquals(1, duplicate.exitCode());
+        assertTrue(duplicate.output().contains("may be supplied only once"));
+        var conflict = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS", "--simplify-cutoff", "--shortest-cutoff", "1");
+        assertEquals(1, conflict.exitCode());
+        assertTrue(conflict.output().contains("mutually exclusive"));
+        var absent = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS", "--shortest-cutoff", "0");
+        assertEquals(1, absent.exitCode());
+        assertTrue(absent.output().contains("INCOMPLETE selected run with cutoff evidence"));
+        java.nio.file.Files.writeString(source, "program mixed { shared int x = 0; thread 0 { assert (false); } thread 1 { while (true) limit 0 {} } }");
+        var mixed = invokeCli("--source", source.toString(), "--json", "--store", "exact", "--strategy", "DFS", "--shortest-cutoff", "1");
+        assertEquals(1, mixed.exitCode());
+        assertTrue(mixed.output().contains("INCOMPLETE selected run with cutoff evidence"));
+    }
+
     /** A scheduling cutoff preserves K and a live last-owner choice instead of producing an empty trace.
      * @param directory temporary source files
      * @throws Exception if process execution or fixture I/O fails

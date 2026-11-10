@@ -34,6 +34,24 @@ for (const raw of [
 ]) assert.equal(normalize(raw).meta.symmetryReduction, true);
 assert.equal(normalize({benchmarks:[{verdict:'PASS',symmetryReduction:'true'}]}).meta.symmetryReduction, false);
 
+// Proof metadata is producer information, scoped strictly to original subsequences.
+const cutoff = {reason:'LOOP_LIMIT',threadId:0,instructionIndex:0,limit:0,iterations:0};
+const cutoffSearch = {domain:'ORIGINAL_SUBSEQUENCES',shortestProven:false,candidatesChecked:1,candidateLimit:4};
+const partial = {threads:[0],outcome:'INCOMPLETE',cutoff,cutoffSearch};
+assert.deepEqual(normalize(partial).trace.cutoffSearch, cutoffSearch);
+assert.equal(normalize({...partial,cutoffSearch:{...cutoffSearch,shortestProven:true}}).trace.cutoffSearch.shortestProven, true);
+for(const invalid of [null, {}, {...cutoffSearch,domain:'GLOBAL'}, {...cutoffSearch,shortestProven:'true'},
+  {...cutoffSearch,candidatesChecked:-1}, {...cutoffSearch,candidatesChecked:5},
+  {...cutoffSearch,candidateLimit:0.5}, {...cutoffSearch,candidateLimit:Number.MAX_SAFE_INTEGER+1}]) {
+  assert.throws(()=>normalize({...partial,cutoffSearch:invalid}), /Invalid cutoff search/);
+}
+assert.throws(()=>normalize({...partial,outcome:'PASS'}), /Invalid cutoff search/);
+assert.throws(()=>normalize({...partial,cutoff:undefined}), /Invalid cutoff search/);
+assert.equal(normalize({threads:[],outcome:'INCOMPLETE',cutoff}).trace.cutoffSearch, undefined);
+assert.deepEqual(normalize({benchmarks:[{verdict:'INCOMPLETE',incompleteTrace:partial}]}).trace.cutoffSearch, cutoffSearch);
+assert.deepEqual(normalize({incompleteTraces:[partial]}).trace.cutoffSearch, cutoffSearch);
+assert.throws(()=>normalize({benchmarks:[{verdict:'PASS',incompleteTrace:partial}]}), /Invalid cutoff search/);
+
 let fails = 0;
 const check = (name, raw, expected) => {
   let got;

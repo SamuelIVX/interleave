@@ -120,8 +120,7 @@ presentation is enabled by I1.
 
 CodeRabbit 0.8.1 completed all eight submitted files, two minor documentation findings. Numeric
 spacing and pending measurement text are corrected with actual results; no CLI rerun for minor
-feedback. Local review additionally gates both concurrent tasks at one start. I1 is locally complete
-awaiting merge; I2 CLI proof presentation remains the next B7 PR.
+feedback. Local review additionally gates both concurrent tasks at one start. I1 merged as PR #127 at `fc10c62`. [Spec 86](86-shortest-cutoff-cli.md) defines I2 CLI proof presentation.
 
 ## PR #127 review and CI follow-up
 
