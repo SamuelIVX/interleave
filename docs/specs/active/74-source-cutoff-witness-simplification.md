@@ -11,6 +11,15 @@ A shorter INCOMPLETE witness explains an exhausted bound; it is never a failure 
 proof about unexplored executions. DeltaDebugger continues rejecting INCOMPLETE. No search,
 reduction, visited-store, limit, verdict, failure-evidence or trace-field change is required.
 
+## Additive bounded shortest-subsequence operation
+
+[Spec 85](85-shortest-cutoff-subsequence.md) adds an opt-in library operation with an explicit
+candidate budget and shortest-length proof status, scoped to subsequences of the supplied witness.
+Its best-found answer can be unproven and need not be deletion-1-minimal after a budget stop.
+The existing simplify method and CLI below retain their original chunk-deletion contract. Both
+operations share original authentication and candidate execution/replay; exact cutoff values and
+INCOMPLETE meaning remain unchanged. CLI proof presentation belongs to the next B7 stage.
+
 ## Input and preserved contract
 
 `CutoffSimplifier.simplify(Program, Trace, Invariant)` accepts source programs and actual INCOMPLETE

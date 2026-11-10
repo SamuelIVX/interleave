@@ -83,8 +83,11 @@ source replay and validate 04's failure kind rather than infer it from the rolle
 Continue rejecting INCOMPLETE failure minimization, including source loop cutoffs.
 [Spec 74](../74-source-cutoff-witness-simplification.md) supplies a separate CutoffSimplifier for
 source loop/preemption witnesses: retain the entire cutoff value and authenticate every shortened
-nonterminal prefix with the actual property. The result stays INCOMPLETE and deletion-1-minimal,
-not necessarily globally shortest. Resource-only witnesses remain unsupported. The explicit CLI
+nonterminal prefix with the actual property. The existing simplify result stays INCOMPLETE and deletion-1-minimal,
+not necessarily globally shortest. [Spec 85](../85-shortest-cutoff-subsequence.md) adds a separate bounded
+shortest-subsequence library search: return best-found evidence and explicit proof/work metadata.
+Its proof excludes shorter subsequences of the supplied original, not every legal schedule; a
+budget-stopped result need not be deletion-1-minimal. Resource-only witnesses remain unsupported. The explicit CLI
 operation exports a direct trace with fresh snapshots; normal search reports remain unchanged. Update CBS-specific
 error text to describe bounded/incomplete evidence generally.
 
