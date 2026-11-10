@@ -388,6 +388,24 @@ selected run; this operation does not hide a known violation or minimize failure
 ./gradlew --max-workers=1 -PpitestThreads=1 run --args="--source examples/programs/cutoff-simplification.ilv --store exact --strategy DFS --json --simplify-cutoff"
 ```
 
+The existing CLI operation is deletion-1-minimal, not necessarily shortest. Library callers can
+opt into bounded exact search among subsequences of an authenticated cutoff witness:
+
+```java
+var search = new CutoffSimplifier().shortestSubsequence(model.program(), witness,
+    model.invariant().orElse(null), 10_000);
+Trace best = search.trace(); // Still INCOMPLETE; the entire omitted cutoff is unchanged.
+boolean shortestWithinOriginalChoices = search.shortestProven();
+long checked = search.candidatesChecked();
+```
+
+A stopped search returns its best-found witness without claiming shortest length or deletion-1
+minimality. The budget counts candidate prefixes, excluding original authentication; it does not
+bound elapsed time or memory. A proof concerns the original choice subsequences, not all legal
+schedules or unexplored model behavior. Empty originals still authenticate. Search can be exponential;
+use it outside the exploration hot path. See [Spec 85](docs/specs/active/85-shortest-cutoff-subsequence.md).
+CLI proof presentation is a separate B7 stage; `--simplify-cutoff` retains its existing contract.
+
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to
 the existing runner. Load failures are `RegistryException` diagnostics with file, line, column
