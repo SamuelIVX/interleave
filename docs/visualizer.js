@@ -141,8 +141,51 @@ function renderValCell(val, isChanged){
 }
 
 /**
+ * Normalize captured resource evidence without treating a reported replay as a run verdict.
+ * SECURITY: validates resource/source alignment and snapshot shape before DOM assignment.
+ * @param {Object} value - standalone resource-prefix payload
+ * @param {Function} diagnostics - existing source/failure diagnostic validator
+ * @returns {{trace: Object, meta: Object}} original incomplete prefix and separate observations
+ * @throws {Error} on invalid or conflicting resource evidence
+ */
+function normalizeResourcePrefix(value, diagnostics){
+  const object = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+  const snapshot = v => object(v) && object(v.fields) && object(v.locals) &&
+    Object.entries(v.locals).every(([owner, locals])=>/^(0|[1-9][0-9]*)$/.test(owner) &&
+      Number(owner)<value.programCounters.length && object(locals));
+  const sameValue = (a, b) => a === b || (object(a) && object(b) || Array.isArray(a) && Array.isArray(b)) &&
+    Object.keys(a).length === Object.keys(b).length && Object.keys(a).every(k=>Object.hasOwn(b,k) && sameValue(a[k],b[k]));
+  if(!object(value) || value.outcome!=='INCOMPLETE' || !['MAX_STATES','MAX_TIME'].includes(value.resourceLimitReason) ||
+    value.cutoff!=null || value.failure!=null || value.cutoffSearch!=null || typeof value.sourceDigest!=='string' ||
+    !Array.isArray(value.executedSteps) || !Array.isArray(value.threads) || value.threads.length>MAX_SCHEDULE ||
+    !Array.isArray(value.outcomes) || value.outcomes.length!==value.threads.length ||
+    !value.outcomes.every(v=>['ADVANCED','BLOCKED','TERMINATED'].includes(v)) ||
+    !Array.isArray(value.programCounters) || value.programCounters.length>MAX_THREADS ||
+    !value.programCounters.every(v=>Number.isSafeInteger(v) && v>=0) ||
+    !value.threads.every(v=>Number.isSafeInteger(v) && v>=0 && v<value.programCounters.length) ||
+    !snapshot(value.terminalState)) throw new Error('Invalid resource prefix');
+  const source = diagnostics(value, value.threads);
+  let states = Array(value.threads.length+1).fill(null);
+  states[value.threads.length] = value.terminalState;
+  const meta = {verdict:'INCOMPLETE',programKind:'SOURCE',limitExceeded:true,resourcePrefix:true,
+    resourceLimitReason:value.resourceLimitReason,programCounters:value.programCounters};
+  if(Object.hasOwn(value,'replay')){
+    const r = value.replay;
+    if(!object(r) || !['PREFIX','COMPLETED','DEADLOCK','VIOLATION','INCOMPLETE'].includes(r.kind) ||
+      typeof r.propertyChecked!=='boolean' || !Array.isArray(r.states) || r.states.length!==states.length ||
+      !r.states.every(snapshot) || !sameValue(r.states.at(-1), value.terminalState) ||
+      (r.kind==='VIOLATION' ? !r.failure || !r.propertyChecked || r.failure.phase!=='PROPERTY' : r.failure!=null) ||
+      r.cutoff!=null) throw new Error('Invalid resource replay observation');
+    diagnostics({failure:r.failure}, value.threads);
+    states = r.states;
+    meta.replayKind = r.kind; meta.propertyChecked = r.propertyChecked; meta.replayFailure = r.failure;
+  }
+  return {trace:{...source,threads:value.threads,outcomes:value.outcomes,outcome:'INCOMPLETE',states},meta};
+}
+
+/**
  * Normalize any supported raw JSON payload into a {trace, meta} pair.
- * Supports TraceRecord {threads}, ReportWriter {benchmarks}, and TestResult
+ * Supports resource prefixes, TraceRecord {threads}, ReportWriter {benchmarks}, and TestResult
  * {failingTraces|deadlockedTraces|completedTraces|incompleteTraces}.
  * SECURITY: treats all fields as untrusted — never uses innerHTML, validates shapes.
  * @param {*} raw - parsed JSON payload
@@ -158,7 +201,7 @@ function normalize(raw){
     const validPath = path => Array.isArray(path) && path.every(p=>p && Number.isSafeInteger(p.sourceOffset) && p.sourceOffset>=0 && Number.isSafeInteger(p.iteration) && p.iteration>=0);
     if(value.sourceDigest != null && (typeof value.sourceDigest !== 'string' || !/^[0-9a-f]{64}$/.test(value.sourceDigest))) throw new Error('Invalid sourceDigest');
     if(value.executedSteps != null){
-      if(!Array.isArray(value.executedSteps) || value.executedSteps.length!==threads.length || value.executedSteps.length>5000) throw new Error('Misaligned executedSteps');
+      if(!Array.isArray(value.executedSteps) || value.executedSteps.length!==threads.length || value.executedSteps.length>MAX_SCHEDULE) throw new Error('Misaligned executedSteps');
       for(const step of value.executedSteps){
         if(!step || !Number.isSafeInteger(step.instructionIndex) || step.instructionIndex<0 || typeof step.label!=='string' || !validSpan(step.source)) throw new Error('Invalid executedSteps source identity');
         if(!validPath(step.expansionPath)) throw new Error('Invalid source expansion path');
@@ -186,6 +229,9 @@ function normalize(raw){
   };
   const runDiagnostics = value => ({symmetryReduction:value.symmetryReduction===true,programKind:value.programKind,storeType:value.storeType,resourceLimitReason:value.resourceLimitReason,incompletenessReasons:value.incompletenessReasons});
 
+  if(Array.isArray(raw.threads) && Object.hasOwn(raw,'resourceLimitReason')){
+    return normalizeResourcePrefix(raw, diagnostics);
+  }
   if(Array.isArray(raw.threads)){
     return { trace: { ...diagnostics(raw, raw.threads), threads: raw.threads, outcomes: raw.outcomes, outcome: raw.outcome, programHash: raw.programHash, states: raw.states }, meta: { verdict: raw.outcome, bug: raw.programHash } };
   }
@@ -203,13 +249,17 @@ function normalize(raw){
   }
   if(Array.isArray(raw.failingTraces) || Array.isArray(raw.deadlockedTraces) || Array.isArray(raw.completedTraces) || Array.isArray(raw.incompleteTraces)){
     const pick = (arr) => arr && arr.length ? arr[0] : null;
-    // Precedence mirrors cbVerdict: a conclusive failure wins, then DEADLOCK, then INCOMPLETE,
-    // then a completed schedule. A run that found a violation must show the violation, not the
-    // partial schedule that came with it. INCOMPLETE outranks a completed schedule because a
-    // bounded run produces both, and rendering the completed one drops the run's boundedness:
-    // the viewer would present a partial exploration as an exhaustive PASS. A completed schedule
-    // is the fallback and is only reached when the search genuinely was exhaustive.
-    let tr = pick(raw.failingTraces) || pick(raw.deadlockedTraces) || pick(raw.incompleteTraces) || pick(raw.completedTraces);
+    // Earlier conclusive failures retain priority; otherwise show the actual interrupted position
+    // before modeled cutoffs or completed paths. A completed path cannot establish exhaustive PASS.
+    let tr = pick(raw.failingTraces) || pick(raw.deadlockedTraces);
+    if(!tr && Object.hasOwn(raw,'resourcePrefix')){
+      if(raw.programKind!=='SOURCE' || raw.limitExceeded!==true || raw.hasViolation===true || !raw.resourcePrefix ||
+        raw.resourceLimitReason!==raw.resourcePrefix.resourceLimitReason || Object.hasOwn(raw.resourcePrefix,'replay')) throw new Error('Conflicting resource prefix provenance');
+      const prefix = normalizeResourcePrefix(raw.resourcePrefix, diagnostics);
+      return {trace:prefix.trace,meta:{...runDiagnostics(raw),strategy:raw.strategy,statesExplored:raw.statesExplored,
+        wallTimeMs:raw.wallTimeMs,heapDeltaBytes:raw.heapDeltaBytes,...prefix.meta}};
+    }
+    tr ||= pick(raw.incompleteTraces) || pick(raw.completedTraces);
     if(!tr) {
       const incomplete = raw.limitExceeded === true && !raw.hasViolation;
       const verdict = raw.hasViolation ? 'VIOLATION' : incomplete ? (raw.programKind==='SOURCE' ? 'INCOMPLETE' : 'LIMIT EXCEEDED') : (raw.programKind==='SOURCE' ? (raw.storeType==='BITSTATE' ? 'APPROXIMATE_PASS' : raw.storeType==='EXACT' ? 'PASS' : 'UNKNOWN') : 'PASS');
@@ -328,6 +378,23 @@ function renderHeader(){
   if(currentMeta.heapDeltaBytes != null) parts.push(addKV('heap', asNum(currentMeta.heapDeltaBytes)));
   if(currentMeta.limitExceeded) parts.push(addKV('limit', 'exceeded'));
   if(currentMeta.resourceLimitReason) parts.push(addKV('resource', capStr(currentMeta.resourceLimitReason)));
+  if(currentMeta.resourcePrefix){
+    parts.push(addKV('evidence', 'Captured resource prefix; original run incomplete'));
+    parts.push(addKV('owner counters', currentMeta.programCounters.join(', ')));
+    parts.push(addKV('snapshots', currentMeta.replayKind ? 'Explicit replay; initial through final' : 'Captured final position only'));
+    if(currentMeta.replayKind){
+      parts.push(addKV('reported replay', currentMeta.replayKind));
+      parts.push(addKV('property checked', currentMeta.propertyChecked ? 'yes' : 'no'));
+      parts.push(addKV('replay scope', 'One prefix; no exhaustive PASS or reproduced resource limit'));
+      if(currentMeta.replayFailure){
+        parts.push(addKV('replay failure', currentMeta.replayFailure.kind));
+        parts.push(addKV('replay phase', currentMeta.replayFailure.phase));
+        if(currentMeta.replayFailure.category) parts.push(addKV('replay category', currentMeta.replayFailure.category));
+        const source = currentMeta.replayFailure.source;
+        if(source) parts.push(addKV('replay source', `${capName(source.file)}:${source.line}:${source.column}–${source.endLine}:${source.endColumn}`));
+      }
+    }
+  }
   if(Array.isArray(currentMeta.incompletenessReasons)) parts.push(addKV('bounds', capStr(currentMeta.incompletenessReasons.join(', '))));
   if(currentTrace.cutoffSearch){
     const search=currentTrace.cutoffSearch;
@@ -490,6 +557,12 @@ function renderStateStrip(){
   const snapshot = currentTrace.states && Array.isArray(currentTrace.states) ? currentTrace.states[selectedIdx] : null;
   const prevSnapshot = currentTrace.states && Array.isArray(currentTrace.states) && selectedIdx > 0 ? currentTrace.states[selectedIdx - 1] : null;
 
+  if(currentMeta.resourcePrefix && !snapshot){
+    const p = document.createElement('p'); p.className = 'placeholder';
+    p.textContent = 'Earlier state unavailable: this capture contains only the final position. Explicit replay is required for intermediate snapshots.';
+    el.append(p);
+    return;
+  }
   if(!programDef && !snapshot){
     const p = document.createElement('p'); p.className='placeholder';
     p.append(document.createTextNode('No program JSON loaded — load a program file (e.g. '));

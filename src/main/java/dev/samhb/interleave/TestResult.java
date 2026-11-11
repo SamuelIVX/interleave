@@ -284,7 +284,8 @@ public final class TestResult implements Serializable {
     }
 
     /**
-     * Returns JSON containing the recorded outcomes and execution metrics.
+     * Returns JSON containing the recorded outcomes, execution metrics and optional raw resource prefix.
+     * Serialization exports captured values only; it never replays the model or evaluates a property.
      * @return JSON containing this result’s recorded values
      */
     public String toJson() {
@@ -303,7 +304,8 @@ public final class TestResult implements Serializable {
         }
         if (resourceLimitReason != null) sb.append("  \"resourceLimitReason\": \"").append(resourceLimitReason).append("\",\n");
         if (!incompletenessReasons().isEmpty()) sb.append("  \"incompletenessReasons\": ")
-            .append(new com.google.gson.Gson().toJson(incompletenessReasons())).append(",\n");
+            .append(ResultJson.GSON.toJson(incompletenessReasons())).append(",\n");
+        if (resourcePrefix != null) sb.append("  \"resourcePrefix\": ").append(resourcePrefix.toJson()).append(",\n");
         sb.append("  \"failingTraces\": ").append(jsonTraces(failingTraces)).append(",\n");
         sb.append("  \"deadlockedTraces\": ").append(jsonTraces(deadlockedTraces)).append(",\n");
         sb.append("  \"completedTraces\": ").append(jsonTraces(completedTraces)).append(",\n");

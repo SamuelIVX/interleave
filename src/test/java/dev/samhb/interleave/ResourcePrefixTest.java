@@ -42,8 +42,8 @@ class ResourcePrefixTest {
             assertEquals(limit, replay.states().size());
             assertEquals(length, replay.states().getLast().fields().get("x"));
             assertTrue(result.completedTraces().isEmpty(), "resource stop precedes terminal classification");
-            assertFalse(com.google.gson.JsonParser.parseString(result.toJson()).getAsJsonObject().has("resourcePrefix"),
-                "J1 does not change the JSON schema");
+            assertEquals(com.google.gson.JsonParser.parseString(prefix.toJson()),
+                com.google.gson.JsonParser.parseString(result.toJson()).getAsJsonObject().get("resourcePrefix"));
         }
     }
 

@@ -1,19 +1,16 @@
 /** Immutable public trace containing thread choices, step outcomes, and terminal verdict. */
 package dev.samhb.interleave;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import dev.samhb.interleave.core.StateSnapshot;
 import dev.samhb.interleave.core.StepOutcome;
 import dev.samhb.interleave.core.TraceEvidence;
 import dev.samhb.interleave.search.TraceOutcome;
 import java.io.Serializable;
 import java.util.List;
+import static dev.samhb.interleave.ResultJson.GSON;
 
 /** Immutable public trace containing thread choices, step outcomes, and terminal verdict. */
 public final class TraceRecord implements Serializable {
-    /** JSON serializer with standard string escaping and HTML escaping disabled. */
-    private static final Gson GSON = new GsonBuilder().disableHtmlEscaping().create();
     /** Thread ids. */
     private final List<Integer> threadIds;
     /** Outcomes. */

@@ -325,6 +325,58 @@ async function runTests() {
       }
     }
 
+    // Actual resource prefixes retain original-run provenance and separately reported replay observations.
+    if(process.env.SOURCE_RESOURCE_PREFIX_DIR){
+      console.log('\nTest 7g: Fresh Java resource-prefix payloads');
+      const resource = suffix => JSON.parse(readFileSync(join(projectRoot, process.env.SOURCE_RESOURCE_PREFIX_DIR, `source-resource-${suffix}.json`), 'utf8'));
+      for(const name of ['result','raw','root','time','replayed','completed','deadlock','hostile']){
+        const raw = resource(name);
+        const prefix = raw.resourcePrefix || raw;
+        await page.locator('#paste').fill(JSON.stringify(raw));
+        await page.locator('#loadPaste').click();
+        assert(!(await page.locator('#error').getAttribute('class')).includes('show'), `${name}: fresh Java resource payload accepted`);
+        assert((await page.locator('#verdictBadge').textContent())==='INCOMPLETE', `${name}: original run remains INCOMPLETE`);
+        const rows = page.locator('#timeline tbody tr');
+        assert(await rows.count()===prefix.threads.length+1, `${name}: no invented resource action`);
+        const meta = await page.locator('#meta').textContent();
+        assert(meta.includes(prefix.resourceLimitReason) && meta.includes(prefix.sourceDigest), `${name}: original resource/source provenance visible`);
+        assert(meta.includes('Captured resource prefix; original run incomplete'), `${name}: resource evidence distinguished from modeled cutoffs`);
+        if(prefix.replay){
+          assert(meta.includes(`reported replay ${prefix.replay.kind}`) && meta.includes(`property checked ${prefix.replay.propertyChecked ? 'yes' : 'no'}`), `${name}: replay kind and property flag shown separately`);
+          assert(meta.includes('no exhaustive PASS or reproduced resource limit'), `${name}: replay scope is explicit`);
+          assert(await page.locator('#timeline .fail-row').count()===0, `${name}: replay never relabels original run rows as violations`);
+          if(prefix.replay.failure) assert(meta.includes('replay failure INVARIANT') && meta.includes('replay phase PROPERTY'), 'Replayed final failure retains its own diagnostic classification');
+        } else {
+          assert(meta.includes('Captured final position only') && !meta.includes('reported replay'), `${name}: raw capture never claims an implicit replay`);
+        }
+        const field = Object.hasOwn(prefix.terminalState.fields,'x') ? 'x' : 'a';
+        const fieldRow = page.locator('#stateStrip tbody tr').filter({has:page.locator('td:nth-child(2) code').filter({hasText:new RegExp(`^${field}$`)})});
+        const cell = (await fieldRow.locator('td').nth(2).textContent()).trim();
+        assert(field==='x' ? cell===String(prefix.terminalState.fields.x) : cell==='[9, 2]', `${name}: exact captured field value rendered in its own row`);
+        if(prefix.threads.length){
+          await rows.first().click();
+          const state = await page.locator('#stateStrip').textContent();
+          assert(prefix.replay ? !state.includes('Earlier state unavailable') : state.includes('Earlier state unavailable'), `${name}: intermediate snapshots only appear after explicit replay`);
+        }
+      }
+      const earlier = resource('earlier-failure');
+      assert(earlier.failingTraces.length>0 && earlier.resourcePrefix, 'Fresh run genuinely contains both earlier failure and resource prefix');
+      await page.locator('#paste').fill(JSON.stringify(earlier));
+      await page.locator('#loadPaste').click();
+      assert((await page.locator('#verdictBadge').textContent())==='VIOLATION', 'Earlier failure keeps precedence over a resource prefix');
+      assert(!(await page.locator('#meta').textContent()).includes('Captured resource prefix'), 'Resource metadata is not attached to a different selected path');
+      const unsafe = resource('raw');
+      unsafe.executedSteps[0].label = '<img src=x onerror="window.resourceInjected=true">';
+      await page.locator('#paste').fill(JSON.stringify(unsafe));
+      await page.locator('#loadPaste').click();
+      assert((await page.locator('#timeline .cell-active').first().textContent())===unsafe.executedSteps[0].label, 'Untrusted resource labels render literally');
+      assert(await page.locator('#timeline img').count()===0 && !(await page.evaluate(()=>window.resourceInjected)), 'Resource JSON cannot create executable markup');
+      unsafe.replay = {kind:'COMPLETED',propertyChecked:false,states:[]};
+      await page.locator('#paste').fill(JSON.stringify(unsafe));
+      await page.locator('#loadPaste').click();
+      assert((await page.locator('#error').textContent()).includes('Invalid resource replay'), 'Browser rejects malformed replay snapshot alignment');
+    }
+
     // Test 8: Integrity & Console Sanity
     // -------------------------------------------------------------
     console.log('\nTest 8: Console and error integrity');

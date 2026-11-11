@@ -1,6 +1,7 @@
 /** Immutable source execution captured at an external resource interruption, with explicit replay. */
 package dev.samhb.interleave;
 
+import com.google.gson.JsonObject;
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
 import dev.samhb.interleave.state.CanonicalEncoder;
@@ -8,12 +9,13 @@ import java.io.Serializable;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import static dev.samhb.interleave.ResultJson.GSON;
 
 /**
  * Actual committed source path at a runner resource stop, distinct from an omitted-action witness.
  * The reason describes the original run; replay never reproduces its time/state accounting.
  * Contains no mutable model, search configuration, store or callback. Native object streams are
- * build-specific as documented by {@link TestResult}; JSON presentation belongs to Spec 88.
+ * build-specific as documented by {@link TestResult}; {@link #toJson()} exports captured values.
  */
 public final class ResourcePrefix implements Serializable {
     /** Internal search-prefix carrier, never exposed as an ordinary cutoff/failure trace. */
@@ -78,6 +80,28 @@ public final class ResourcePrefix implements Serializable {
      */
     public StateSnapshot terminalState() { return terminalState; }
 
+    /** Exports captured source choices, final values and original resource provenance only.
+     * No replay or property evaluation occurs, and no modeled cutoff is invented.
+     * @return standalone resource-prefix JSON with INCOMPLETE original-run classification
+     */
+    public String toJson() { return GSON.toJson(json()); }
+
+    /** Builds the shared raw-prefix payload without exposing private search identities.
+     * @return fresh JSON object containing captured values only
+     */
+    private JsonObject json() {
+        var json = new JsonObject();
+        json.addProperty("outcome", "INCOMPLETE");
+        json.addProperty("resourceLimitReason", reason.name());
+        json.add("threads", GSON.toJsonTree(threadIds()));
+        json.add("outcomes", GSON.toJsonTree(outcomes()));
+        json.addProperty("sourceDigest", evidence().sourceDigest());
+        json.add("executedSteps", GSON.toJsonTree(evidence().executedSteps()));
+        json.add("programCounters", GSON.toJsonTree(programCounters));
+        json.add("terminalState", GSON.toJsonTree(terminalState));
+        return json;
+    }
+
     /**
      * Authenticates this source path and observes its execution under the supplied property.
      * Reuses existing replay/driver passes; only explicit callers pay that diagnostic work.
@@ -110,12 +134,14 @@ public final class ResourcePrefix implements Serializable {
             throw new CorruptedTraceException("Resource prefix execution does not match the captured committed position");
         }
         FailureEvidence failure = execution.trace() == null ? null : execution.trace().failure();
-        return new Replay(execution.kind(), invariant != null, execution.states(), failure);
+        return new Replay(this, execution.kind(), invariant != null, execution.states(), failure);
     }
 
     /** Immutable observation from explicit replay; never a replacement run-level verdict.
      */
     public static final class Replay {
+        /** Immutable actual source prefix authenticated by this explicit replay. */
+        private final ResourcePrefix prefix;
         /** Actual execution classification at the consumed prefix. */
         private final ScheduleExecution.Kind kind;
         /** Whether an explicit property participated in this replay. */
@@ -126,13 +152,15 @@ public final class ResourcePrefix implements Serializable {
         private final FailureEvidence failure;
 
         /** Freezes validated replay observations; only the enclosing module constructs these values.
+         * @param prefix actual originating captured prefix
          * @param kind actual driver classification
          * @param propertyChecked whether a property was supplied
          * @param states actual committed snapshots, initial through final
          * @param failure classified terminal failure, or null
          */
-        private Replay(ScheduleExecution.Kind kind, boolean propertyChecked,
+        private Replay(ResourcePrefix prefix, ScheduleExecution.Kind kind, boolean propertyChecked,
                        List<StateSnapshot> states, FailureEvidence failure) {
+            this.prefix = prefix;
             this.kind = kind;
             this.propertyChecked = propertyChecked;
             this.states = List.copyOf(states);
@@ -158,5 +186,21 @@ public final class ResourcePrefix implements Serializable {
          * @return actual classified failure at the final position, or empty
          */
         public Optional<FailureEvidence> failure() { return Optional.ofNullable(failure); }
+
+        /** Exports this already-computed observation together with its own captured prefix.
+         * Serialization performs no execution. The outer INCOMPLETE describes the original run;
+         * the nested replay kind/property/failure describes only this explicit diagnostic replay.
+         * @return standalone resource-prefix JSON with a separate replay observation
+         */
+        public String toJson() {
+            JsonObject json = prefix.json();
+            var replay = new JsonObject();
+            replay.addProperty("kind", kind.name());
+            replay.addProperty("propertyChecked", propertyChecked);
+            replay.add("states", GSON.toJsonTree(states));
+            if (failure != null) replay.add("failure", GSON.toJsonTree(failure));
+            json.add("replay", replay);
+            return GSON.toJson(json);
+        }
     }
 }

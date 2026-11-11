@@ -14,17 +14,18 @@ const src = read('docs/visualizer.js');
 // Extract normalize(). A guard is required rather than a bare slice:
 // indexOf returns -1 on a rename or reformat, and slice(-1, ...) would then yield garbage and
 // report it as a per-case failure instead of naming the real cause.
-const start = src.indexOf('function normalize(');
-const endMarker = start < 0 ? -1 : src.indexOf('\n}\n', start);
-if (start < 0 || endMarker < 0) {
+const start = src.indexOf('function normalizeResourcePrefix(');
+const normalizeStart = src.indexOf('function normalize(');
+const endMarker = normalizeStart < 0 ? -1 : src.indexOf('\n}\n', normalizeStart);
+if (start < 0 || normalizeStart < start || endMarker < 0) {
   console.error('Cannot locate normalize() in docs/visualizer.js — extraction aborted.');
   process.exit(2);
 }
 const end = endMarker + 3;
-// normalize() uses no module-level constant, so nothing needs injecting. Passing MAX_NAME_LEN
-// here would restate it as a local (and previously at 200, diverging from the real 64), so a
-// future edit that started using it would silently be checked against the wrong limit.
-const normalize = new Function(src.slice(start, end) + '\nreturn normalize;')();
+// Read the production caps instead of restating them in this harness and silently drifting.
+const caps = src.match(/^const MAX_(?:SCHEDULE|THREADS) = [0-9]+;$/gm);
+assert.equal(caps?.length, 2, 'Cannot locate normalizer cap declarations');
+const normalize = new Function(caps.join('\n') + '\n' + src.slice(start, end) + '\nreturn normalize;')();
 
 // Explicit symmetry identity survives both report wrappers and library results; truthy strings do not enable it.
 for (const raw of [
@@ -109,5 +110,51 @@ for(const [name, raw] of [
   check(name, raw, 'VIOLATION');
   assert.deepEqual(normalize(raw).trace.failure, assertionFailure);
 }
+// Resource provenance never acts as a replayed cutoff or an exhaustive verdict.
+const terminalState = {fields:{x:1},locals:{'0':{own:[3,4]}}};
+const resource = {...sourceTrace,outcome:'INCOMPLETE',resourceLimitReason:'MAX_STATES',programCounters:[1],terminalState};
+const replay = {kind:'PREFIX',propertyChecked:false,states:[{fields:{x:0},locals:{'0':{own:[3,4]}}},terminalState]};
+assert.equal(normalize(resource).meta.verdict, 'INCOMPLETE');
+assert.deepEqual(normalize(resource).trace.states, [null, terminalState]);
+assert.equal(normalize(resource).meta.resourcePrefix, true);
+assert.deepEqual(normalize({...resource,replay}).trace.states, replay.states);
+for(const kind of ['PREFIX','COMPLETED','DEADLOCK','INCOMPLETE','VIOLATION']) {
+  const observed = {...replay,kind,propertyChecked:true,...(kind==='VIOLATION' ? {failure:{kind:'INVARIANT',phase:'PROPERTY'}} : {})};
+  const normalized = normalize({...resource,replay:observed});
+  assert.equal(normalized.meta.verdict, 'INCOMPLETE');
+  assert.equal(normalized.meta.replayKind, kind);
+  assert.equal(normalized.trace.failure, undefined);
+}
+const resourceRun = {programKind:'SOURCE',resourceLimitReason:'MAX_STATES',limitExceeded:true,
+  failingTraces:[],deadlockedTraces:[],incompleteTraces:[],completedTraces:[],resourcePrefix:resource};
+assert.equal(normalize(resourceRun).meta.resourcePrefix, true);
+assert.equal(normalize({...resourceRun,completedTraces:[sourceTrace]}).meta.resourcePrefix, true);
+assert.equal(normalize({...resourceRun,incompleteTraces:[partial]}).meta.resourcePrefix, true);
+assert.equal(normalize({...resourceRun,failingTraces:[assertionTrace],hasViolation:true}).meta.verdict, 'VIOLATION');
+assert.equal(normalize({...resourceRun,deadlockedTraces:[{threads:[],outcome:'DEADLOCK'}]}).meta.verdict, 'DEADLOCK');
+for(const invalid of [
+  {...resource,outcome:'PASS'}, {...resource,resourceLimitReason:'UNKNOWN'}, {...resource,cutoff},
+  {...resource,failure:{kind:'INVARIANT',phase:'PROPERTY'}}, {...resource,cutoffSearch},
+  {...resource,sourceDigest:null}, {...resource,executedSteps:null}, {...resource,outcomes:[]},
+  {...resource,threads:Array(5001).fill(0)},
+  {...resource,outcomes:['ASSERTION_FAILED']}, {...resource,threads:[-1]}, {...resource,threads:[0.5]},
+  {...resource,programCounters:[]}, {...resource,programCounters:[-1]}, {...resource,programCounters:Array(65).fill(1)},
+  {...resource,terminalState:null}, {...resource,terminalState:{fields:[],locals:{}}},
+  {...resource,terminalState:{fields:{},locals:{'0':null}}},
+  {...resource,terminalState:{fields:{},locals:{bad:{}}}},
+  {...resource,terminalState:{fields:{x:1},locals:{'1':{}}}},
+  {...resource,replay:null}, {...resource,replay:{...replay,kind:'PASS'}},
+  {...resource,replay:{...replay,propertyChecked:'true'}}, {...resource,replay:{...replay,states:[terminalState]}},
+  {...resource,replay:{...replay,states:[terminalState,{fields:{x:2},locals:{}}]}},
+  {...resource,replay:{...replay,states:[{fields:{x:0},locals:{'1':{}}},terminalState]}},
+  {...resource,replay:{...replay,kind:'VIOLATION'}},
+  {...resource,replay:{...replay,failure:{kind:'INVARIANT',phase:'PROPERTY'}}},
+  {...resource,replay:{...replay,kind:'VIOLATION',propertyChecked:false,failure:{kind:'INVARIANT',phase:'PROPERTY'}}},
+  {...resource,replay:{...replay,cutoff}},
+  {...resource,replay:{...replay,kind:'VIOLATION',propertyChecked:true,failure:{kind:'RUNTIME_ERROR',phase:'PROPERTY',category:'BAD'}}},
+  {...resourceRun,limitExceeded:false}, {...resourceRun,hasViolation:true}, {...resourceRun,programKind:'LEGACY'},
+  {...resourceRun,resourceLimitReason:'MAX_TIME'}, {...resourceRun,resourcePrefix:null}
+]) assert.throws(()=>normalize(invalid), /resource|Resource|source|Misaligned|failure/);
+assert.equal(normalize({...resource,replay:{...replay,states:[replay.states[0],{locals:terminalState.locals,fields:terminalState.fields}]}}).meta.verdict, 'INCOMPLETE');
 console.log(fails === 0 ? '\nall checks passed' : `\n${fails} FAILED`);
 process.exit(fails === 0 ? 0 : 1);
