@@ -169,6 +169,7 @@ public final class InterleaveRunner implements Serializable {
             }
             TestResult partial = convertToTestResult(limitState.partialResult, wallTime, heapDelta, true)
                 .withRunMetadata(program.isSource(), limitState.resourceLimitReason, limitState.approximate);
+            if (limitState.resourcePrefix != null) partial = partial.withResourcePrefix(limitState.resourcePrefix);
             return symmetryReduction ? partial.withSymmetryReduction() : partial;
         }
 
@@ -233,6 +234,14 @@ public final class InterleaveRunner implements Serializable {
 
             /** {@inheritDoc} */
             @Override
+            public void onInterruptedPrefix(Configuration config, Trace prefix) {
+                if (limitState.resourceLimitReason != null) {
+                    limitState.resourcePrefix = new ResourcePrefix(prefix, config, limitState.resourceLimitReason);
+                }
+            }
+
+            /** {@inheritDoc} */
+            @Override
             public void onTraceCreated(Trace trace) {
                 TraceRecord record = trace.toRecord();
                 if (program != null && (program.isSource() || record.outcome() == TraceOutcome.VIOLATION
@@ -262,6 +271,8 @@ public final class InterleaveRunner implements Serializable {
         final List<TraceRecord> sourceCutoffHistory = new ArrayList<>();
         /** Resource cause, checked in deterministic state-before-time order. */
         dev.samhb.interleave.core.ResourceLimitReason resourceLimitReason;
+        /** Source path frozen before traversal unwinds from the known resource interruption. */
+        ResourcePrefix resourcePrefix;
         /** Creates limit state with its default configuration. */
         private LimitState() {}
 

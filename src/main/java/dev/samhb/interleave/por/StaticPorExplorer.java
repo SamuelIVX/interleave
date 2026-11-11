@@ -148,7 +148,15 @@ public final class StaticPorExplorer {
         statesExplored[0]++;
 
         if (stateVisitor != null) {
-            stateVisitor.onStateVisited(config);
+            try {
+                stateVisitor.onStateVisited(config);
+            } catch (dev.samhb.interleave.LimitExceededException interrupted) {
+                if (program.isSource()) {
+                    stateVisitor.onInterruptedPrefix(config, prefix.trace(program, currentThreadIds, currentOutcomes,
+                        TraceOutcome.INCOMPLETE, null, config, null));
+                }
+                throw interrupted;
+            }
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {

@@ -87,7 +87,10 @@ nonterminal prefix with the actual property. The existing simplify result stays 
 not necessarily globally shortest. [Spec 85](../85-shortest-cutoff-subsequence.md) adds a separate bounded
 shortest-subsequence library search: return best-found evidence and explicit proof/work metadata.
 Its proof excludes shorter subsequences of the supplied original, not every legal schedule; a
-budget-stopped result need not be deletion-1-minimal. Resource-only witnesses remain unsupported. The explicit CLI
+budget-stopped result need not be deletion-1-minimal. Resource-only witnesses remain unsupported by these minimizers.
+[Spec 87](../87-resource-prefix-evidence.md) adds a distinct runner-owned ResourcePrefix value and
+explicit authenticated replay; its external stop remains separate from any modeled cutoff.
+B8/J2 will add its JSON/viewer presentation; no shortening mode is selected. The explicit CLI
 operation exports a direct trace with fresh snapshots; normal search reports remain unchanged. Update CBS-specific
 error text to describe bounded/incomplete evidence generally.
 

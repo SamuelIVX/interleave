@@ -419,6 +419,29 @@ a proven answer is shortest only among the supplied original witness's subsequen
 This never certifies PASS or a globally shortest legal schedule. The metadata is a producer claim,
 not an independently replay-verified proof certificate. See [Spec 86](docs/specs/active/86-shortest-cutoff-cli.md).
 
+Resource-interrupted library runs expose a separate actual execution prefix:
+
+```java
+var model = new SourceProgramLoader().loadFromFile(Path.of("examples/programs/cutoff-simplification.ilv"));
+var result = InterleaveRunner.builder().maxStates(2)
+    .invariant(model.invariant().orElse(null)).build().run(model.program());
+var prefix = result.resourcePrefix().orElseThrow();
+ResourcePrefix.Replay observed = prefix.replay(model.program(), model.invariant().orElse(null));
+```
+
+`ResourcePrefix` freezes the actual committed choices, outcomes, source identities, owner PCs and
+shared/local values at a known `MAX_STATES` or `MAX_TIME` interruption. Capturing it executes no
+modeled actions or properties. The optional accessor is empty for successful/legacy/unattributed
+interruptions; model loop/preemption witnesses retain their existing separate buckets.
+
+Explicit replay authenticates the prefix and returns fresh snapshots, its execution kind, whether
+a property was checked and any final-position failure. It can discover completion, deadlock or a
+property failure because the original resource check precedes those checks. It does not reproduce
+the resource budget or change the original result; one completed path never proves exhaustive PASS.
+Supply the original deterministic source model and actual property. Replay is additional diagnostic
+work outside the original allowance. [Spec 87](docs/specs/active/87-resource-prefix-evidence.md)
+owns J1; B8/J2 will add JSON/viewer presentation. No shortening or new CLI mode is selected.
+
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to
 the existing runner. Load failures are `RegistryException` diagnostics with file, line, column
