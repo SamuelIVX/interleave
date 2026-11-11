@@ -65,11 +65,14 @@ ordinary BitstateStore's per-cost vectors or exact CBS dominance/early-exhaustio
    than infer exhaustion. Actual failure/deadlock or existing resource interruption MAY stop it.
    Exact passes SHALL retain their existing no-cutoff shortcut. Apply the precision-aware condition
    in both runner and harness, including ordinary approximate stores on those shared paths.
-6. **R6 — Results.** WHEN a CBS row is emitted, THE SYSTEM SHALL retain BITSTATE and symmetry
-   identity, existing incomplete/resource/failure precedence and actual producing-pass statistics.
+6. **R6 — Results.** WHEN a checked approximate symmetry CBS row is emitted, THE SYSTEM SHALL
+   retain BITSTATE and symmetry identity. Exact and other rows SHALL retain their producing store
+   type and reduction identity. All rows SHALL retain existing incomplete/resource/failure precedence
+   and actual producing-pass statistics.
    `preemptionsUsed` SHALL mean the bound that produced the row, never a proven approximate minimum.
    Cleared-pass filters/statistics SHALL not be aggregated into that row's density or estimate.
-7. **R7 — Metrics.** WHEN CBS reports its heuristic, THE SYSTEM SHALL use the set's capped
+7. **R7 — Metrics.** WHEN the new checked approximate CBS mode reports its heuristic, THE SYSTEM
+   SHALL use the set's capped
    union-model estimate over complete cost lookups, retain actual bit count/density, and distinguish
    those diagnostics from behavior coverage or a probability that the model is correct.
 8. **R8 — Consumers.** WHEN CLI selects eligible source, explicit symmetry BITSTATE and CBS within
