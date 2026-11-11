@@ -139,7 +139,7 @@ and final returns merged in PR #125** at `a0b45b9` under [Spec 83](../specs/acti
 **B6 / H certified backend selection merged in PR #126** at `7c0072d` under
 [Spec 84](../specs/active/84-certified-symmetry-backends.md). **B7 / I1 bounded shortest-subsequence library search**
 merged PR #127 at `fc10c62` under [Spec 85](../specs/active/85-shortest-cutoff-subsequence.md).
-I2 CLI proof/work presentation and consumer validation merged PR #128 at `2f578cf` under [Spec 86](../specs/active/86-shortest-cutoff-cli.md); **B7 is complete**. **B8 / J1 capture/replay merged in PR #129 at `9abbc4f`** under [Spec 87](../specs/active/87-resource-prefix-evidence.md); J2 JSON/viewer presentation merged in PR #130 at `1db7870` under [Spec 88](../specs/active/88-resource-prefix-presentation.md); B8 is complete. B9 planning is captured in the [approved spec set](approximate-symmetry-contract.md), with implementation not started. Other B5 capabilities, arbitrary third-party
+I2 CLI proof/work presentation and consumer validation merged PR #128 at `2f578cf` under [Spec 86](../specs/active/86-shortest-cutoff-cli.md); **B7 is complete**. **B8 / J1 capture/replay merged in PR #129 at `9abbc4f`** under [Spec 87](../specs/active/87-resource-prefix-evidence.md); J2 JSON/viewer presentation merged in PR #130 at `1db7870` under [Spec 88](../specs/active/88-resource-prefix-presentation.md); B8 is complete. B9 planning is captured in the [B9 spec set](approximate-symmetry-contract.md), with implementation not started. Other B5 capabilities, arbitrary third-party
 backends and B9–B10 remain unimplemented; define concrete semantics before implementation. This approval does
 not activate excluded roadmap work or require combining independent capabilities.
 
