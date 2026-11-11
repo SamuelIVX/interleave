@@ -149,6 +149,24 @@ do not rerun merely for minor fixes. Record actual evidence without claiming imp
 The same complete-spec/implementation review gate applies to each future feature PR. Publish and
 stop for Sam's review/CI/merge update; no watcher or automatic next-phase implementation.
 
+## Specification-authoring verification
+
+Each document received a separate fresh-reader pass against the canonical template and relevant
+current source. Clarified verdict precedence, final builder settings, tied-frame DPOR matching,
+concrete integration paths and independent collision-free fixture obligations before publication.
+
+| Completed spec | CodeRabbit CLI result | Disposition |
+|---|---|---|
+| 89 | Completed review of initial spec/contract; zero findings | No patch required |
+| 90 | Completed review; one Minor finding | Scoped BITSTATE and the new metric model to their producing mode; exact/ordinary behavior preserved |
+| 91 | Completed integrated eight-file review; zero findings | Includes final Spec 89/90 refinements and shared contract/status updates |
+
+Canonical sections, requirement/test references, local links/anchors, source-path spelling and
+whitespace are checked for this specification-only PR. Numeric examples were cross-checked with
+Python math and Decimal, not with Java implementation code. No production, Java test, Gradle,
+mutation or browser changes/runs are part of this authoring task. Those acceptance gates remain
+required future work in each implementation phase; completed spec reviews do not satisfy them.
+
 ## References
 
 [Spec 76](../specs/active/76-source-symmetry-exact-search.md),
