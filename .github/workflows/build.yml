@@ -48,7 +48,7 @@ jobs:
           cache: gradle
 
       - name: Generate and validate fresh source report
-        run: ./gradlew test --tests dev.samhb.interleave.format.SourceProgramLoaderTest --tests dev.samhb.interleave.format.SourceAssertionTest --tests dev.samhb.interleave.cli.MainTest.cutoffSimplificationProducesDirectTrace --tests dev.samhb.interleave.cli.MainTest.sourceSymmetryCliCountsAndReportIdentity --tests dev.samhb.interleave.cli.MainTest.shortestCutoffProducesProofArtifacts --no-daemon
+        run: ./gradlew test --tests dev.samhb.interleave.format.SourceProgramLoaderTest --tests dev.samhb.interleave.format.SourceAssertionTest --tests dev.samhb.interleave.cli.MainTest.cutoffSimplificationProducesDirectTrace --tests dev.samhb.interleave.cli.MainTest.sourceSymmetryCliCountsAndReportIdentity --tests dev.samhb.interleave.cli.MainTest.shortestCutoffProducesProofArtifacts --tests dev.samhb.interleave.ResourcePrefixJsonTest --no-daemon
 
       - name: Run visualizer test suite
         env:
@@ -58,6 +58,7 @@ jobs:
           SOURCE_SYMMETRY_JSON: build/source-symmetry-visualizer.json
           SOURCE_SHORTEST_CUTOFF_PROVEN_JSON: build/source-shortest-cutoff-proven.json
           SOURCE_SHORTEST_CUTOFF_PARTIAL_JSON: build/source-shortest-cutoff-partial.json
+          SOURCE_RESOURCE_PREFIX_DIR: build
         run: npm test --prefix docs
 
   build:

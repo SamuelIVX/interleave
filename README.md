@@ -427,6 +427,9 @@ var result = InterleaveRunner.builder().maxStates(2)
     .invariant(model.invariant().orElse(null)).build().run(model.program());
 var prefix = result.resourcePrefix().orElseThrow();
 ResourcePrefix.Replay observed = prefix.replay(model.program(), model.invariant().orElse(null));
+String capturedJson = prefix.toJson();  // Captured final state only; no implicit replay.
+String replayJson = observed.toJson();  // Separate already-computed replay observation.
+String runJson = result.toJson();       // Optional raw resourcePrefix, with original run metadata.
 ```
 
 `ResourcePrefix` freezes the actual committed choices, outcomes, source identities, owner PCs and
@@ -440,7 +443,11 @@ property failure because the original resource check precedes those checks. It d
 the resource budget or change the original result; one completed path never proves exhaustive PASS.
 Supply the original deterministic source model and actual property. Replay is additional diagnostic
 work outside the original allowance. [Spec 87](docs/specs/active/87-resource-prefix-evidence.md)
-owns J1; B8/J2 will add JSON/viewer presentation. No shortening or new CLI mode is selected.
+owns capture/replay; [Spec 88](docs/specs/active/88-resource-prefix-presentation.md) owns JSON/viewer
+presentation. Load captured/replayed JSON into the existing viewer: raw prefixes show only the final
+snapshot; explicit replay adds intermediate states and separately labeled observations. A reported
+replay never changes the original INCOMPLETE verdict or independently authenticates uploaded JSON.
+Earlier recorded failures/deadlocks keep selection priority. No shortening or new CLI mode is selected.
 
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to

@@ -103,4 +103,4 @@ parallelism change. The [ledger](../../measurements/87-resource-prefix-evidence.
 The built-jar external consumer and existing normalization checks pass. CodeRabbit completed fifteen
 initial files with one minor stale-status finding, patched and locally verified without rerun. Final
 lifecycle/helper assertions and bookkeeping/evidence received local review. JSON/viewer delivery
-remains J2 after J1 merges; J1 is locally verified, with merge pending.
+is owned by J2 / [Spec 88](88-resource-prefix-presentation.md). J1 merged in PR #129 at `9abbc4f`.

@@ -62,7 +62,7 @@
   </section>
 
   <footer>
-    Static viewer. Handles <code>threads</code> / <code>threadIds</code>, <code>failingTraces</code> / <code>failingTrace</code> / <code>incompleteTraces</code>, <code>outcomes</code> present or absent. <code>INCOMPLETE</code> (a preemption bound was reached) and <code>LIMIT EXCEEDED</code> (a resource limit stopped the search) are shown as distinct verdicts, never as <code>PASS</code>. State values are schedule-only today — shows header from program JSON with graceful placeholder until a harness emits <code>states[]</code>.
+    Static viewer. Handles trace records, test results, reports and captured resource prefixes. Source bounds and resource interruptions remain <code>INCOMPLETE</code>; legacy resource-limited runs show <code>LIMIT EXCEEDED</code>. Captured resource prefixes show their final state; explicit replay exports add earlier snapshots and separately labeled observations. A completed replay never proves exhaustive <code>PASS</code>.
   </footer>
 </div>
 <script src="visualizer.js"></script>
