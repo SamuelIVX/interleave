@@ -53,9 +53,10 @@ ResourcePrefix classes total **97/97 K**, TestResult **133/133 K**. All 187 unch
 identities/statuses match. The sole inherited TraceRecord survivor is catalogued without a new
 equivalence claim. Scoped R6 passes; scoped R5/R7 are not enforced.
 
-Independently measured default baseline/final both yield **440/455 K + 15 S**, R5/R6/R7 pass;
-all 455 identities/statuses match, with the 94% floor and policy unchanged. The final JSON-only
-cutoff-reason regression is covered by the final affected census. Fresh Java-to-browser checks pass
+Independently measured default baseline and feature runs yield **440/455 K + 15 S**, R5/R6/R7 pass;
+all 455 identities/statuses match, with the 94% floor and policy unchanged. The feature default run
+used the final production code before the last JSON-only cutoff-reason regression test was added;
+the final affected census includes that test. Fresh Java-to-browser checks pass
 **135 assertions**, zero console errors. The external Java 26 built-jar consumer passes.
 
 CodeRabbit completed thirteen initial files with two minor findings, both fixed and locally verified
