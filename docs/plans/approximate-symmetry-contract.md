@@ -16,7 +16,7 @@ reachable behavior; found observations must still come from actual concrete exec
 | Phase | Document | Owns | Release boundary |
 |---|---|---|---|
 | K1 / 89 | [Approximate DFS/static POR](../specs/active/89-approximate-symmetry-dfs-por.md) | Shared filter, checked-store/precision interfaces, run binding and key encoding; DFS/POR; initial consumers and compatibility | Explicit DFS/POR selections only for approximate symmetry |
-| K2 / 90 | `90-approximate-symmetry-cbs.md` | Cost membership, iterative termination/isolation, CBS metrics and consumers | Adds CBS; DPOR and an all-strategy request still reject |
+| K2 / 90 | [Approximate CBS](../specs/active/90-approximate-symmetry-cbs.md) | Cost membership, iterative termination/isolation, CBS metrics and consumers | Adds CBS; DPOR and an all-strategy request still reject |
 | K3 / 91 | `91-approximate-symmetry-dpor.md` | Complete mapped sleep membership and final all-strategy consumers | Adds DPOR; strategy omission now supports all four |
 
 Implement in that order, one complete feature PR per phase. Later specs may update shared call
