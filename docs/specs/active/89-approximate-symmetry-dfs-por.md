@@ -28,7 +28,9 @@ interfaces, byte encoding, oracle rules, metrics and the three-PR release matrix
 - Adds `src/test/java/dev/samhb/interleave/search/BitstateSymmetryStoreTest.java` and
   `src/test/java/dev/samhb/interleave/ApproximateSymmetryRunTest.java`; extends existing
   `state/BitstateStoreDiagnosticsTest.java`, `search/SymmetryBackendTest.java`,
-  `search/SymmetryCompositionTest.java`, `cli/MainTest.java` and `report` contracts.
+  `search/SymmetryCompositionTest.java`, `cli/MainTest.java` and
+  `src/test/java/dev/samhb/interleave/report/{BenchmarkHarnessTest,BenchmarkResultTest,ReportJsonContractTest,SoundnessVerdictTest,SoundnessReplayTest}.java`
+  where existing contracts require integration cases.
   Updates README, `docs/visualizer-normalize-check.mjs`, `docs/visualizer-e2e.mjs`, and
   `.github/workflows/build.yml` for generated consumer fixtures. Viewer production edits belong
   only where required to display existing approximate metadata truthfully.

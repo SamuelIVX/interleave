@@ -449,6 +449,10 @@ snapshot; explicit replay adds intermediate states and separately labeled observ
 replay never changes the original INCOMPLETE verdict or independently authenticates uploaded JSON.
 Earlier recorded failures/deadlocks keep selection priority. No shortening or new CLI mode is selected.
 
+Planned B9 approximate symmetry is specified in the [three-phase spec set](docs/plans/approximate-symmetry-contract.md).
+It is not implemented: current symmetry still requires exact storage. The planned expansion covers
+all four strategies and existing consumers without claiming bounded total process memory.
+
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to
 the existing runner. Load failures are `RegistryException` diagnostics with file, line, column

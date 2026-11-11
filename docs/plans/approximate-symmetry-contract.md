@@ -17,7 +17,7 @@ reachable behavior; found observations must still come from actual concrete exec
 |---|---|---|---|
 | K1 / 89 | [Approximate DFS/static POR](../specs/active/89-approximate-symmetry-dfs-por.md) | Shared filter, checked-store/precision interfaces, run binding and key encoding; DFS/POR; initial consumers and compatibility | Explicit DFS/POR selections only for approximate symmetry |
 | K2 / 90 | [Approximate CBS](../specs/active/90-approximate-symmetry-cbs.md) | Cost membership, iterative termination/isolation, CBS metrics and consumers | Adds CBS; DPOR and an all-strategy request still reject |
-| K3 / 91 | `91-approximate-symmetry-dpor.md` | Complete mapped sleep membership and final all-strategy consumers | Adds DPOR; strategy omission now supports all four |
+| K3 / 91 | [Approximate DPOR](../specs/active/91-approximate-symmetry-dpor.md) | Complete mapped sleep membership and final all-strategy consumers | Adds DPOR; strategy omission now supports all four |
 
 Implement in that order, one complete feature PR per phase. Later specs may update shared call
 sites only for their owned behavior. Do not publish an unused foundation in a separate PR.
@@ -111,6 +111,18 @@ selection with symmetry. No additional wire field or CLI option is selected by t
 - Differential verdict/count checks against exact search require observed zero false-positive
   decisions in the fixture, confirmed by a test-only exact shadow at the membership seam. Do not
   assume a large filter cannot collide or require approximate runs always to match exact counts.
+  For finite fixtures, enumerate the complete relevant context universe independently and drive
+  the public store directly; use a fresh store for the actual explorer comparison. A sufficient
+  monotonicity check probes each absent target after inserting every noncovering candidate key.
+  CBS excludes intended q<=p covering marks from those negative cases; DPOR includes VALUE marks.
+  If that check finds a false positive, the fixture is not collision-free. Do not wrap a sealed
+  checked store as an ordinary StateStore and thereby exercise a different explorer dispatch.
+  A fixed fixture intended to be collision-free must fail the test if this check detects a false
+  positive; it must not skip differential assertions or select different runtime parameters.
+  DPOR oracles retain the existing value witness and physical-ID
+  tie break; they do not minimize sleeping tokens over further equal-frame permutations.
+  The package-owned encoding/mapping module is also an agreed internal test interface; no private
+  reflection or production callback hook is needed to check the specified byte layout.
 - Force collisions with tiny filters. Missing behavior is permitted; invented witnesses, exact
   PASS, changed original source identity and false resource/cutoff provenance are not.
 - Fresh merged-main and feature measurements are required for each implementation PR. Save raw

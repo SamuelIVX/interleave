@@ -62,4 +62,4 @@ the final affected census includes that test. Fresh Java-to-browser checks pass
 CodeRabbit completed thirteen initial files with two minor findings, both fixed and locally verified
 without a CLI rerun. The [ledger](../../measurements/88-resource-prefix-presentation.md) records
 scope boundaries, raw residual identity, late regression verification and reproduction commands.
-J2 is implemented and locally verified; merge remains pending. B8 completes on J2 merge.
+J2 merged in PR #130 at `1db7870`. B8 is complete.

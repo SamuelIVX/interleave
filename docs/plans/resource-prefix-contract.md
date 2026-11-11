@@ -26,8 +26,7 @@ A generic legal-prefix shortening rule would often return an empty answer, so it
 | **J1 / [Spec 87](../specs/active/87-resource-prefix-evidence.md)** | One interruption notification at the existing visitor seam; immutable runner-owned ResourcePrefix; Optional result accessor; explicit authenticated replay with immutable observations. | Actual paths across all strategies, no model/property execution during capture, terminal-at-stop observations, original metadata/buckets retained, corruption/immutability/reuse coverage. Existing JSON remains unchanged. |
 | **J2 / [Spec 88](../specs/active/88-resource-prefix-presentation.md)** | Shared Gson serialization of raw/replayed prefixes; optional TestResult JSON member; viewer normalization/display; fresh Java-to-browser checks. | No implicit replay during serialization; resource provenance separate from modeled cutoffs; reported replay observations separate from INCOMPLETE run completeness; existing rendering caps and failure precedence retained. |
 
-J1 merged in PR #129 at `9abbc4f`. Implement J2 against that fresh main,
-then publish and stop again. B8 completes only when J2 merges. Specs and measured evidence ship
+J1 merged in PR #129 at `9abbc4f`; J2 merged in PR #130 at `1db7870`. B8 is complete. Specs and measured evidence ship
 with their implementations; existing source trace/replay specifications retain ownership.
 
 B9/B10 require separate concrete eligibility/approximation contracts. Standalone roadmap #11/#12

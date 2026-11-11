@@ -20,9 +20,14 @@ one shared logical bit budget across all costs and reporting only observed, appr
   `src/main/java/dev/samhb/interleave/report/{BenchmarkHarness,BenchmarkResult,ReportWriter}.java`,
   and `src/main/java/dev/samhb/interleave/cli/Main.java` for CBS capability, iteration and reporting.
 - Adds `src/test/java/dev/samhb/interleave/search/BitstateSymmetryCbsTest.java` and extends
-  `ApproximateSymmetryRunTest.java`, `SymmetryCompositionTest.java`, `cli/MainTest.java`, CBS
-  and report/attestation contracts; updates README, browser normalization/e2e checks and CI fixture
-  generation when new actual CLI artifacts are introduced.
+  `src/test/java/dev/samhb/interleave/ApproximateSymmetryRunTest.java`,
+  `src/test/java/dev/samhb/interleave/search/SymmetryCompositionTest.java`,
+  `src/test/java/dev/samhb/interleave/cli/MainTest.java`,
+  `src/test/java/dev/samhb/interleave/cb/{ContextBoundedExplorerContractTest,CbsDifferentialTest,CbsMonotonicityTest}.java`,
+  and `src/test/java/dev/samhb/interleave/report/{BenchmarkHarnessCBTest,ReportingCBTest,ReportJsonContractTest,SoundnessReplayTest,SoundnessVerdictTest}.java`
+  where existing contracts require integration cases. Updates README,
+  `docs/visualizer-normalize-check.mjs`, `docs/visualizer-e2e.mjs` and
+  `.github/workflows/build.yml` when new actual CLI artifacts are introduced.
 - Off-limits: Spec 91's approximate sleep-context membership, exact symmetry/ordinary filter key
   formats owned by Specs 77/84/89, broader source eligibility and new result/wire fields.
 
