@@ -178,7 +178,11 @@ class ResourcePrefixTest {
             var ready = new CountDownLatch(2); var start = new CountDownLatch(1);
             Callable<ResourcePrefix.Replay> action = () -> { ready.countDown(); start.await(); return prefix.replay(model.program(),null); };
             var a=pool.submit(action); var b=pool.submit(action);
-            assertTrue(ready.await(10,TimeUnit.SECONDS)); start.countDown();
+            try {
+                assertTrue(ready.await(10, TimeUnit.SECONDS));
+            } finally {
+                start.countDown();
+            }
             assertEquals(ScheduleExecution.Kind.PREFIX,a.get(10,TimeUnit.SECONDS).kind());
             assertEquals(1,b.get(10,TimeUnit.SECONDS).states().getLast().fields().get("x"));
         }
@@ -198,7 +202,11 @@ class ResourcePrefixTest {
             var ready = new CountDownLatch(2); var start = new CountDownLatch(1);
             var a = pool.submit(() -> { ready.countDown(); start.await(); return runner.run(first.program()); });
             var b = pool.submit(() -> { ready.countDown(); start.await(); return runner.run(second.program()); });
-            assertTrue(ready.await(10, TimeUnit.SECONDS)); start.countDown();
+            try {
+                assertTrue(ready.await(10, TimeUnit.SECONDS));
+            } finally {
+                start.countDown();
+            }
             var left = a.get(10, TimeUnit.SECONDS).resourcePrefix().orElseThrow();
             var right = b.get(10, TimeUnit.SECONDS).resourcePrefix().orElseThrow();
             assertNotSame(original, left); assertNotSame(left, right);
