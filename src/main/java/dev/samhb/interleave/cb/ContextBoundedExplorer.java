@@ -162,7 +162,15 @@ public final class ContextBoundedExplorer {
         statesExplored++;
 
         if (stateVisitor != null) {
-            stateVisitor.onStateVisited(config, lastThreadId, currentPreemptions);
+            try {
+                stateVisitor.onStateVisited(config, lastThreadId, currentPreemptions);
+            } catch (dev.samhb.interleave.LimitExceededException interrupted) {
+                if (program.isSource()) {
+                    stateVisitor.onInterruptedPrefix(config, prefix.trace(program, currentThreadIds, currentOutcomes,
+                        TraceOutcome.INCOMPLETE, null, config, null));
+                }
+                throw interrupted;
+            }
         }
 
         if (invariant != null && !invariant.holds(config.state(), config)) {

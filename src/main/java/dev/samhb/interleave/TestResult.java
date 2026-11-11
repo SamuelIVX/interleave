@@ -41,6 +41,8 @@ public final class TestResult implements Serializable {
     private final boolean sourceModel;
     /** Explicit cause of a resource interruption, if known. */
     private final ResourceLimitReason resourceLimitReason;
+    /** Actual source path at a known resource interruption, absent otherwise. */
+    private final ResourcePrefix resourcePrefix;
 
     /**
      * Creates test result from the supplied values.
@@ -71,6 +73,7 @@ public final class TestResult implements Serializable {
         this.symmetryReduction = false;
         this.sourceModel = false;
         this.resourceLimitReason = null;
+        this.resourcePrefix = null;
     }
 
     /** Copies immutable results while attaching per-run reporting identity.
@@ -79,14 +82,20 @@ public final class TestResult implements Serializable {
      * @param reason resource cause, or null
      * @param approximate true/false for a known store guarantee, null when unavailable
      * @param symmetryReduction whether this result counts checked source representative visits
+     * @param resourcePrefix captured resource path, or null
+     * @throws IllegalArgumentException if the supplied run metadata contradicts a captured prefix
      */
-    private TestResult(TestResult result, boolean sourceModel, ResourceLimitReason reason, Boolean approximate, boolean symmetryReduction) {
+    private TestResult(TestResult result, boolean sourceModel, ResourceLimitReason reason, Boolean approximate, boolean symmetryReduction, ResourcePrefix resourcePrefix) {
         this.strategy = result.strategy; this.statesExplored = result.statesExplored; this.wallTimeMs = result.wallTimeMs;
         this.heapDeltaBytes = result.heapDeltaBytes; this.failingTraces = result.failingTraces;
         this.deadlockedTraces = result.deadlockedTraces; this.completedTraces = result.completedTraces;
         this.incompleteTraces = result.incompleteTraces; this.limitExceeded = result.limitExceeded;
         this.sourceModel = sourceModel; this.resourceLimitReason = reason; this.approximate = approximate;
         this.symmetryReduction = symmetryReduction;
+        if (resourcePrefix != null && (!sourceModel || !limitExceeded || reason != resourcePrefix.reason())) {
+            throw new IllegalArgumentException("Resource prefix requires matching source resource-stop metadata");
+        }
+        this.resourcePrefix = resourcePrefix;
     }
 
     /**
@@ -94,9 +103,10 @@ public final class TestResult implements Serializable {
      * @param sourceModel whether the input was compiled source
      * @param reason resource stop cause, or null
      * @return immutable enriched result
+     * @throws IllegalArgumentException if source/reason metadata contradicts an existing resource prefix
      */
     public TestResult withRunMetadata(boolean sourceModel, ResourceLimitReason reason) {
-        return new TestResult(this, sourceModel, reason, approximate, symmetryReduction);
+        return new TestResult(this, sourceModel, reason, approximate, symmetryReduction, resourcePrefix);
     }
 
     /**
@@ -105,16 +115,35 @@ public final class TestResult implements Serializable {
      * @param reason resource stop cause, or null
      * @param approximate whether an approximate store participated
      * @return immutable enriched result
+     * @throws IllegalArgumentException if source/reason metadata contradicts an existing resource prefix
      */
     public TestResult withRunMetadata(boolean sourceModel, ResourceLimitReason reason, boolean approximate) {
-        return new TestResult(this, sourceModel, reason, approximate, symmetryReduction);
+        return new TestResult(this, sourceModel, reason, approximate, symmetryReduction, resourcePrefix);
     }
 
     /** Attaches the checked mode after the runner has validated and executed symmetry search.
      * @return immutable result preserving run metadata and representative witnesses
      */
     TestResult withSymmetryReduction() {
-        return new TestResult(this, sourceModel, resourceLimitReason, approximate, true);
+        return new TestResult(this, sourceModel, resourceLimitReason, approximate, true, resourcePrefix);
+    }
+
+    /** Attaches a runner-owned source prefix without changing outcome categories or accounting.
+     * @param prefix immutable actual interrupted prefix
+     * @return result retaining all existing run metadata
+     * @throws NullPointerException if prefix is null
+     * @throws IllegalArgumentException if the prefix contradicts this result's source/stop metadata
+     */
+    TestResult withResourcePrefix(ResourcePrefix prefix) {
+        return new TestResult(this, sourceModel, resourceLimitReason, approximate, symmetryReduction,
+            java.util.Objects.requireNonNull(prefix, "prefix"));
+    }
+
+    /** Returns the actual source prefix captured at a known resource stop, independently of cutoffs.
+     * @return empty for successful, legacy or unattributed interruptions
+     */
+    public java.util.Optional<ResourcePrefix> resourcePrefix() {
+        return java.util.Optional.ofNullable(resourcePrefix);
     }
 
     /** Returns whether counts refer to checked source-orbit representatives.

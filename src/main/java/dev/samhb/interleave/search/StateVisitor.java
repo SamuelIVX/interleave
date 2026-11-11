@@ -29,6 +29,20 @@ public interface StateVisitor {
     }
 
     /**
+     * Observes a source execution prefix when a state-visit callback throws a limit interruption.
+     * Called synchronously before traversal unwinds. After successful notification the original
+     * exception is rethrown; exceptions from this notification propagate to the caller.
+     * The INCOMPLETE carrier has no omitted cutoff and does not authenticate a resource cause;
+     * the runner attaches its own observed cause separately. No property is evaluated to capture it.
+     * Implementations must not mutate or retain the supplied live configuration.
+     * @param config actual last committed configuration, borrowed for this callback only
+     * @param prefix immutable source choices/outcomes/identities, excluding any omitted action
+     */
+    default void onInterruptedPrefix(Configuration config, Trace prefix) {
+        // Observers without resource diagnostics retain their existing behavior.
+    }
+
+    /**
      * Observes a trace when exploration records it.
      * @param trace recorded execution to inspect or replay
      */
