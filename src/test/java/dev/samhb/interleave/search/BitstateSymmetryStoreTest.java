@@ -55,7 +55,7 @@ class BitstateSymmetryStoreTest {
         // Owned settings reject before source certification, rather than relying on filter allocation.
         assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(null,null,Strategy.DFS,0,4,0));
         assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(null,null,Strategy.DFS,1,0,0));
-        for (Strategy strategy : new Strategy[]{Strategy.DPOR,Strategy.CONTEXT_BOUNDED}) {
+        for (Strategy strategy : new Strategy[]{Strategy.DPOR}) {
             assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(model.program(),null,strategy,17,4,0));
         }
         assertThrows(NullPointerException.class, () -> BitstateSymmetryStateStore.forRun(model.program(),null,null,17,4,0));

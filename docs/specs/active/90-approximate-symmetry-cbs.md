@@ -1,4 +1,4 @@
-<!-- Planned B9/K2: one shared Bloom budget with cost dominance and honest iterative CBS results. -->
+<!-- Implemented B9/K2: one shared Bloom budget with cost dominance and honest iterative CBS results. -->
 # Spec 90: Approximate symmetry for context-bounded search
 
 ## Objective
@@ -7,8 +7,8 @@ Extend the checked approximate source store to CBS without losing mapped last-ow
 cost dominance. Deliver single-bound and iterative library/CLI/reporting behavior while keeping
 one shared logical bit budget across all costs and reporting only observed, approximate results.
 
-**Type: delta with a shared iterative-termination correction. Status: planned, not implemented.**
-[Spec 89](89-approximate-symmetry-dfs-por.md) must merge first. The
+**Type: delta with a shared iterative-termination correction. Status: implemented and locally verified.**
+[Spec 89](89-approximate-symmetry-dfs-por.md) merged in PR #132 at `aba13cc`. The
 [B9 set contract](../../plans/approximate-symmetry-contract.md) owns shared interfaces and oracles.
 
 ## Scope
@@ -160,8 +160,15 @@ The existing diagnostic configurations/traces may still grow; no total heap boun
   of exhaustive exploration for approximate storage.
 - [verified] BenchmarkResult documentation currently calls the iterative bound minimal; the new
   approximate mode cannot substantiate that claim. The current CLI bitstate bound limit is two.
-- [unverified] K1/K2 implementations, collision fixtures, memory measurements and mutation results
-  do not exist yet. Implementation must inspect actual merged K1 rather than assume it matches.
+- [verified] K2 extends the shared filter to CBS complete keys, cost validation/dominance and capped
+  query-history metrics. Runner/harness use precision-aware exhaustion and avoid retaining owned
+  stores in identity history; external factories keep identity-based reuse rejection.
+- [verified] An independent 270-product oracle and 36-product consumer shadow cover full frames,
+  last owner, costs, VALUE separation and fixed zero-false-positive decisions. A literal partial-
+  probe fixture rejects merging fragments from different candidate costs.
+- [verified] Actual CLI/browser cases cover approximate absence, replayed failure, modeled cutoff
+  and a later-pass resource prefix. No memory/speed measurement is claimed.
+- Evidence: [K2 ledger](../../measurements/90-approximate-symmetry-cbs.md).
 
 ## Tests
 

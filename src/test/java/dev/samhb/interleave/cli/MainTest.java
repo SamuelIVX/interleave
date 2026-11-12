@@ -578,6 +578,41 @@ class MainTest {
         }
     }
 
+    /** Fresh approximate CBS reports show the producing pass and authenticated observed evidence.
+     * @param dir isolated source fixtures
+     * @throws Exception if fixture writing or CLI execution fails
+     */
+    @Test void approximateCbsCliArtifacts(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        var absent = invokeCli("--source","examples/programs/symmetry-counter.ilv","--symmetry","--store","bitstate",
+            "--strategy","CONTEXT_BOUNDED","--max-preemptions","2","--iterative-deepening","--bitstate-size","1","--json");
+        assertEquals(0,absent.exitCode(),absent.output());
+        var report = com.google.gson.JsonParser.parseString(absent.output()).getAsJsonObject();
+        var row = report.getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals("BITSTATE",row.get("storeType").getAsString());assertTrue(row.get("symmetryReduction").getAsBoolean());
+        assertEquals("APPROXIMATE_PASS",row.get("verdict").getAsString());assertEquals(2,row.get("preemptionsUsed").getAsInt());
+        assertEquals(1,row.getAsJsonObject("bitstateMetrics").get("bitCount").getAsInt());
+        assertEquals(1.0,row.getAsJsonObject("bitstateMetrics").get("bitDensity").getAsDouble());
+        java.nio.file.Files.createDirectories(java.nio.file.Path.of("build"));
+        java.nio.file.Files.writeString(java.nio.file.Path.of("build/source-approximate-cbs-absence.json"),absent.output());
+        var source = dir.resolve("race.ilv");
+        java.nio.file.Files.writeString(source,"program split { shared int x = 0; local int r = 0; helper inc { atomic { local.r = x; } atomic { x = local.r + 1; } } thread 0 { call inc; } thread 1 { call inc; } invariant final (x == 2); }");
+        var failure = invokeCli("--source",source.toString(),"--symmetry","--store","bitstate","--strategy","CONTEXT_BOUNDED",
+            "--max-preemptions","2","--iterative-deepening","--json");
+        assertEquals(0,failure.exitCode(),failure.output());
+        var failed = com.google.gson.JsonParser.parseString(failure.output()).getAsJsonObject();
+        assertEquals("VIOLATION",failed.getAsJsonArray("benchmarks").get(0).getAsJsonObject().get("verdict").getAsString());
+        assertTrue(failed.get("soundness").getAsBoolean());
+        java.nio.file.Files.writeString(java.nio.file.Path.of("build/source-approximate-cbs-failure.json"),failure.output());
+        java.nio.file.Files.writeString(source,"program loops { shared int x = 0; thread 0 { while (true) limit 0 {} } thread 1 { while (true) limit 0 {} } }");
+        var cutoff = invokeCli("--source",source.toString(),"--symmetry","--store","bitstate","--strategy","CONTEXT_BOUNDED",
+            "--max-preemptions","2","--iterative-deepening","--json");
+        assertEquals(0,cutoff.exitCode(),cutoff.output());
+        var incomplete = com.google.gson.JsonParser.parseString(cutoff.output()).getAsJsonObject().getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals("INCOMPLETE",incomplete.get("verdict").getAsString());
+        assertEquals("LOOP_LIMIT",incomplete.getAsJsonObject("incompleteTrace").getAsJsonObject("cutoff").get("reason").getAsString());
+        java.nio.file.Files.writeString(java.nio.file.Path.of("build/source-approximate-cbs-cutoff.json"),cutoff.output());
+    }
+
     /** CLI default selection composes all four exact strategies, including iterative CBS.
      * @throws Exception if child JVM execution fails
      */
@@ -635,7 +670,6 @@ class MainTest {
         for (var selection : List.of(List.<String>of(),
                 List.of("--store", "bitstate"),
                 List.of("--store", "bitstate", "--strategy", "DPOR"),
-                List.of("--store", "bitstate", "--strategy", "CONTEXT_BOUNDED"),
                 List.of("--store", "exact", "--strategy", "STATIC_POR", "--max-preemptions", "0"),
                 List.of("--store", "exact", "--strategy", "DPOR", "--iterative-deepening"),
                 List.of("--store", "exact", "--strategy", "DFS", "--max-preemptions", "0"),

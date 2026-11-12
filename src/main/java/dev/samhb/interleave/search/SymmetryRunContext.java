@@ -91,6 +91,19 @@ final class SymmetryRunContext {
                 .putInt(orbit.length).put(orbit).array();
     }
 
+    /** Encodes one complete CBS product; the final four bytes hold its cost.
+     * @param config original source configuration
+     * @param lastThreadId actual last owner, or initial -1
+     * @param cost nonnegative cost validated by the owning store
+     * @return fresh version/domain/UTF-8 orbit/cost bytes in big-endian order
+     * @throws IllegalArgumentException if last owner is invalid
+     */
+    byte[] costBytes(Configuration config, int lastThreadId, int cost) {
+        byte[] orbit = costKey(config,lastThreadId).getBytes(StandardCharsets.UTF_8);
+        return ByteBuffer.allocate(10 + orbit.length).put((byte)1).put((byte)2)
+            .putInt(orbit.length).put(orbit).putInt(cost).array();
+    }
+
     /** Maps last owner with the same frames for existing exact CBS membership.
      * @param config original source configuration
      * @param lastThreadId actual last owner, or initial -1

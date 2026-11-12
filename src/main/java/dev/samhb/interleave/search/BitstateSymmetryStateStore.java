@@ -1,13 +1,14 @@
-/** Run-owned approximate membership over complete, source-certified value orbits. */
+/** Run-owned approximate membership over source-certified VALUE and CBS products. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.Strategy;
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.state.BitstateFilter;
 import java.util.*;
+import java.nio.ByteBuffer;
 
 /**
- * Bloom membership for source symmetry with DFS or static POR. Positive lookups may skip unseen
+ * Bloom membership for source symmetry with DFS, static POR or CBS. Positive lookups may skip unseen
  * states, so absence of a violation is approximate. The bit budget covers membership only, not
  * traversal, source metadata, temporary encodings or diagnostic maps. Not thread-safe.
  * For example, pass {@code forRun(program, property, Strategy.DFS, 1_000_003, 4, 0)}
@@ -24,26 +25,36 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
     private final BitstateFilter filter;
     /** Insertion count, including repeated keys. */
     private long marks;
+    /** Validated configured cost ceiling; not a per-cost allocation size. */
+    private final int maxPreemptions;
+    /** Whether this binding admits the cost-aware membership operations. */
+    private final boolean contextBounded;
+    /** Largest validated queried cost in this producing pass, initially zero. */
+    private int maximumQueriedCost;
 
     /** Allocates empty membership for a validated run.
      * @param context immutable checked binding
      * @param bits positive logical capacity
      * @param hashFunctions positive probe count
+     * @param maxPreemptions validated capacity
+     * @param contextBounded whether cost membership is enabled
      */
-    private BitstateSymmetryStateStore(SymmetryRunContext context, int bits, int hashFunctions) {
+    private BitstateSymmetryStateStore(SymmetryRunContext context, int bits, int hashFunctions, int maxPreemptions, boolean contextBounded) {
         this.context = context;
         this.bits = bits;
         this.hashFunctions = hashFunctions;
+        this.maxPreemptions = maxPreemptions;
+        this.contextBounded = contextBounded;
         filter = new BitstateFilter(bits, hashFunctions);
     }
 
-    /** Certifies source eligibility and allocates one VALUE filter.
+    /** Certifies source eligibility and allocates one shared VALUE/CBS filter.
      * @param program immutable compiled source program
      * @param invariant compiler-built shared property, or null
-     * @param strategy DFS or STATIC_POR
+     * @param strategy DFS, STATIC_POR or CONTEXT_BOUNDED
      * @param bits positive logical bit budget
      * @param hashFunctions positive probe count
-     * @param maxPreemptions zero; approximate CBS is not supported in this stage
+     * @param maxPreemptions nonnegative CBS ceiling; zero for non-CBS bindings
      * @return empty checked approximate membership
      * @throws NullPointerException if program or strategy is null
      * @throws IllegalArgumentException for invalid settings, unsupported strategy or source/property
@@ -51,13 +62,14 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
     public static BitstateSymmetryStateStore forRun(Program program, Invariant invariant,
             Strategy strategy, int bits, int hashFunctions, int maxPreemptions) {
         Objects.requireNonNull(strategy, "strategy");
-        if (bits <= 0 || hashFunctions <= 0 || maxPreemptions != 0) {
-            throw new IllegalArgumentException("Positive bits/probes and zero preemption capacity required");
+        if (bits <= 0 || hashFunctions <= 0 || maxPreemptions < 0
+                || (strategy != Strategy.CONTEXT_BOUNDED && maxPreemptions != 0)) {
+            throw new IllegalArgumentException("Positive bits/probes and a nonnegative CBS capacity (zero otherwise) required");
         }
-        if (strategy != Strategy.DFS && strategy != Strategy.STATIC_POR) {
-            throw new IllegalArgumentException("Approximate symmetry supports only DFS and static POR");
+        if (strategy != Strategy.DFS && strategy != Strategy.STATIC_POR && strategy != Strategy.CONTEXT_BOUNDED) {
+            throw new IllegalArgumentException("Approximate symmetry DPOR is not supported");
         }
-        return new BitstateSymmetryStateStore(new SymmetryRunContext(program, invariant, strategy), bits, hashFunctions);
+        return new BitstateSymmetryStateStore(new SymmetryRunContext(program, invariant, strategy), bits, hashFunctions, maxPreemptions, strategy == Strategy.CONTEXT_BOUNDED);
     }
 
     /** {@inheritDoc} */
@@ -80,20 +92,72 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
         filter.mark(Arrays.hashCode(context.valueBytes(config)));
         marks++;
     }
+    /** Probes each complete cost-q product separately for q no greater than the query cost.
+     * Canonicalizes once and reuses one encoded buffer; probe fragments from different q never mix.
+     * @param config DynamicState configuration from the certified source run
+     * @param lastThreadId original last owner, or initial -1
+     * @param preemptions queried cost within the configured ceiling
+     * @return false if definitely uncovered; true may be a Bloom false positive
+     * @throws ClassCastException if the state is not DynamicState
+     * @throws UnsupportedOperationException for a non-CBS binding
+     * @throws IllegalArgumentException for an invalid cost or last owner, without changing statistics
+     */
+    @Override public boolean isVisited(Configuration config, int lastThreadId, int preemptions) {
+        requireCost(preemptions);
+        var key = ByteBuffer.wrap(context.costBytes(config,lastThreadId,0));
+        maximumQueriedCost = Math.max(maximumQueriedCost,preemptions);
+        for (long cost = 0; cost <= preemptions; cost++) {
+            key.putInt(key.capacity() - Integer.BYTES,(int)cost);
+            if (filter.contains(Arrays.hashCode(key.array()))) return true;
+        }
+        return false;
+    }
+
+    /** Marks only the complete supplied-cost product in the one shared filter.
+     * @param config DynamicState configuration from the certified source run
+     * @param lastThreadId original last owner, or initial -1
+     * @param preemptions inserted cost within the configured ceiling
+     * @throws ClassCastException if the state is not DynamicState
+     * @throws UnsupportedOperationException for a non-CBS binding
+     * @throws IllegalArgumentException for an invalid cost or last owner, without partial writes
+     */
+    @Override public void markVisited(Configuration config, int lastThreadId, int preemptions) {
+        requireCost(preemptions);
+        byte[] key = context.costBytes(config,lastThreadId,preemptions);
+        filter.mark(Arrays.hashCode(key));
+        marks++;
+    }
+
+    /** Rejects unsupported or out-of-range cost operations before encoding or updating history.
+     * @param cost requested cost
+     * @throws ClassCastException if the state is not DynamicState
+     * @throws UnsupportedOperationException for a non-CBS binding
+     * @throws IllegalArgumentException if cost is negative or above the configured capacity
+     */
+    private void requireCost(int cost) {
+        if (!contextBounded) throw new UnsupportedOperationException("Cost membership requires a CBS binding");
+        if (cost < 0 || cost > maxPreemptions) throw new IllegalArgumentException("Cost is outside configured CBS capacity");
+    }
+
     /** {@inheritDoc} */
-    @Override public void clear() { filter.clear(); marks = 0; }
+    @Override public void clear() { filter.clear(); marks = 0; maximumQueriedCost = 0; }
     /** {@inheritDoc} */
-    @Override public StateStore freshCopy() { return new BitstateSymmetryStateStore(context, bits, hashFunctions); }
-    /** {@inheritDoc} */
+    @Override public StateStore freshCopy() { return new BitstateSymmetryStateStore(context, bits, hashFunctions, maxPreemptions, contextBounded); }
+    /** Reports the idealized single-lookup heuristic, scaled by the largest CBS query cost plus one.
+     * This capped union model is neither calibrated probability nor a behavior-coverage measure.
+     * VALUE-only runs have a zero query history and retain the single-lookup estimate.
+     * @return min(1,(pMax+1)*F), with empty membership yielding zero
+     */
     @Override public double estimatedFalsePositiveRate() {
-        return Math.pow(1 - Math.exp(-(double) hashFunctions * marks / bits), hashFunctions);
+        double singleLookup = Math.pow(1 - Math.exp(-(double) hashFunctions * marks / bits), hashFunctions);
+        return Math.min(1.0,((double)maximumQueriedCost + 1) * singleLookup);
     }
     /** {@inheritDoc} */
     @Override public int bitCount() { return filter.bitCount(); }
     /** {@inheritDoc} */
     @Override public double bitDensity() { return (double) bitCount() / bits; }
     /** {@inheritDoc} */
-    @Override public int maxPreemptions() { return 0; }
+    @Override public int maxPreemptions() { return maxPreemptions; }
     /** {@inheritDoc} */
     @Override public boolean sleepCovered(Configuration config, Set<Map.Entry<Integer, Step>> sleeping) {
         throw new UnsupportedOperationException("Approximate symmetry DPOR is not supported");

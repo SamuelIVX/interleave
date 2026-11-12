@@ -3,10 +3,11 @@
 
 ## Objective and status
 
-**K1 implemented in this change. K2/K3 remain planned.** This set delivers three sequential,
+**K1 merged; K2 implemented in this change; K3 remains planned.** This set delivers three sequential,
 complete feature PRs. K1 uses merged spec-set baseline `6dd7445019076f511cb85d479aa7d1d69f71198e`
 (PR #131). B8 is complete. See the [K1 evidence ledger](../measurements/89-approximate-symmetry-dfs-por.md)
-for verification and measured limits.
+for verification and measured limits. K2 baseline is merged PR #132 at `aba13cc`; see the
+[K2 evidence ledger](../measurements/90-approximate-symmetry-cbs.md).
 
 Sam selected all four strategies, Java library plus existing CLI/reports/viewer, approximation of
 the complete DPOR context, and one shared Bloom budget across CBS costs. Approximation may omit

@@ -97,7 +97,7 @@ class ApproximateSymmetryRunTest {
             if (!first) d.symmetryBitstate(10,4);
             assertThrows(IllegalArgumentException.class,d::build);
         }
-        for (var strategy : List.of(Strategy.DPOR,Strategy.CONTEXT_BOUNDED)) {
+        for (var strategy : List.of(Strategy.DPOR)) {
             assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true)
                 .symmetryBitstate(10,4).strategy(strategy).build());
         }
@@ -118,7 +118,7 @@ class ApproximateSymmetryRunTest {
             assertEquals(3,row.statesExplored()); assertTrue(row.symmetryReduction());
             assertTrue(row.bitstateBitCount()>0); assertTrue(row.bitstateBitDensity()>0); assertTrue(row.estimatedFalsePositiveRate()>0);
         }
-        for (var selection : List.of(Set.<String>of(),Set.of("DPOR"),Set.of("CONTEXT_BOUNDED"))) {
+        for (var selection : List.of(Set.<String>of(),Set.of("DPOR"))) {
             assertThrows(IllegalArgumentException.class, () -> new BenchmarkHarness(100,4,Set.of(StoreType.BITSTATE),selection,2,false,true));
         }
         assertThrows(IllegalArgumentException.class, () -> new BenchmarkHarness(100,4,Set.of(StoreType.BITSTATE),null,2,false,true));
