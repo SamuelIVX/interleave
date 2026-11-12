@@ -43,6 +43,15 @@ if(process.env.SOURCE_APPROXIMATE_SYMMETRY_JSON){
   assert.equal(normalized.meta.verdict, 'APPROXIMATE_PASS');
 }
 
+if(process.env.SOURCE_APPROXIMATE_CBS_DIR){
+  for(const [suffix,verdict] of [['absence','APPROXIMATE_PASS'],['failure','VIOLATION'],['cutoff','INCOMPLETE'],['resource','INCOMPLETE']]){
+    const normalized = normalize(JSON.parse(read(process.env.SOURCE_APPROXIMATE_CBS_DIR+'/source-approximate-cbs-'+suffix+'.json')));
+    assert.equal(normalized.meta.symmetryReduction,true);
+    assert.equal(normalized.meta.storeType,'BITSTATE');
+    assert.equal(normalized.meta.verdict,verdict);
+  }
+}
+
 // Proof metadata is producer information, scoped strictly to original subsequences.
 const cutoff = {reason:'LOOP_LIMIT',threadId:0,instructionIndex:0,limit:0,iterations:0};
 const cutoffSearch = {domain:'ORIGINAL_SUBSEQUENCES',shortestProven:false,candidatesChecked:1,candidateLimit:4};

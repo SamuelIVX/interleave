@@ -116,8 +116,8 @@ public final class BenchmarkHarness {
         this.strategyFilter = strategyFilter == null ? null : Set.copyOf(strategyFilter);
         boolean approximateSymmetry = symmetryReduction && Set.of(StoreType.BITSTATE).equals(this.storeFilter);
         if (approximateSymmetry && (bitstateSize <= 0 || bitstateK <= 0 || this.strategyFilter == null
-                || this.strategyFilter.isEmpty() || !Set.of("DFS", "STATIC_POR").containsAll(this.strategyFilter))) {
-            throw new IllegalArgumentException("Approximate symmetry requires positive bits/probes and explicit DFS/static POR");
+                || this.strategyFilter.isEmpty() || !Set.of("DFS", "STATIC_POR", CONTEXT_BOUNDED).containsAll(this.strategyFilter))) {
+            throw new IllegalArgumentException("Approximate symmetry requires positive bits/probes and explicit DFS/static POR/CBS");
         }
         if (symmetryReduction && ((!Set.of(StoreType.EXACT).equals(this.storeFilter) && !approximateSymmetry)
                 || (this.strategyFilter != null && (this.strategyFilter.isEmpty()
@@ -272,7 +272,7 @@ public final class BenchmarkHarness {
                                dev.samhb.interleave.Strategy strategy) {
         if (!symmetryReduction) return ordinaryFactory.get();
         return storeType == StoreType.BITSTATE
-            ? dev.samhb.interleave.search.BitstateSymmetryStateStore.forRun(program, invariant, strategy, bitstateSize, bitstateK, 0)
+            ? dev.samhb.interleave.search.BitstateSymmetryStateStore.forRun(program, invariant, strategy, bitstateSize, bitstateK, strategy == dev.samhb.interleave.Strategy.CONTEXT_BOUNDED ? maxPreemptions : 0)
             : dev.samhb.interleave.search.SymmetryStateStore.forRun(program, invariant, strategy);
     }
 
@@ -299,24 +299,25 @@ public final class BenchmarkHarness {
     }
 
     /**
-     * Runs increasing bounds, stopping at the first that fails, so the reported trace is the one
-     * needing the fewest preemptions. Each bound gets a genuinely fresh store: a shared visited set
+     * Runs increasing bounds, stopping at the first observed failure. Approximate results do not
+     * prove a minimum bound. Each bound gets a genuinely fresh store: a shared visited set
      * would make deepening narrow instead of widen, since states recorded at bound 0 satisfy
      * {@code min <= p} and would be pruned at bound 1. That is caught here, and here, because the
      * harness builds its own factory per store type.
      * @param program modeled program whose threads are explored
      * @param invariant property to check, or null when no property is supplied
      * @param storeFactory supplier returning a fresh store for each preemption bound
-     * @return first failing or exhaustive exploration with its bound, or the final bounded result
+     * @return first observed failure, exact exhaustion, or final bounded result with its producing bound
      */
     private CbRun runCbsIterative(Program program, Invariant invariant,
                                   java.util.function.Supplier<StateStore> storeFactory) {
         CbRun last = null;
+        // Owned checked stores are always fresh; do not retain their earlier filters in this set.
         Set<StateStore> seenStores = Collections.newSetFromMap(new IdentityHashMap<>());
 
-        for (int k = 0; k <= maxPreemptions; k++) {
+        for (long k = 0; k <= maxPreemptions; k++) {
             StateStore store = storeFactory.get();
-            if (!seenStores.add(store)) {
+            if (!symmetryReduction && !seenStores.add(store)) {
                 throw new IllegalStateException(
                     "Iterative deepening requires a fresh StateStore per bound, but storeFactory "
                     + "reused an instance. Iterations would share a visited set, so each deeper "
@@ -324,23 +325,19 @@ public final class BenchmarkHarness {
             }
 
             ContextBoundedExplorer explorer = new ContextBoundedExplorer();
-            int bound = k;
+            int bound = (int)k;
             DfsResultWithTiming result = runExplorer(
                 () -> explorer.explore(program, invariant, store, null, bound));
-            last = new CbRun(result, store, k);
+            last = new CbRun(result, store, bound);
 
             if (isFailure(result.result())) {
                 return last;
             }
-            // Only an INCOMPLETE trace justifies deepening: it proves the bound actually pruned
-            // something. Without one the bound covered the whole reachable space, so every deeper
-            // bound re-explores that same space and returns the same verdict. Each bound here
-            // gets its own store and its own state budget, so this costs wall time, not verdicts
-            // -- but the corpus runs dozens of CBS rows, and the redundant bounds are the bulk
-            // of that time.
+            // Missing cutoff evidence proves exhaustion only with exact membership. A Bloom
+            // false positive can hide the transition that would have exposed the cutoff.
             boolean pruned = result.result().traces().stream()
                 .anyMatch(t -> t.cutoff() != null && t.cutoff().reason() == dev.samhb.interleave.core.CutoffEvidence.Reason.PREEMPTION_BOUND);
-            if (!pruned) {
+            if (!pruned && !(store instanceof dev.samhb.interleave.search.ApproximateStateStore)) {
                 return last; // exhaustive at k; deeper bounds are redundant
             }
         }

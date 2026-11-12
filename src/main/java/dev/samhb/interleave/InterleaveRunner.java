@@ -78,7 +78,7 @@ public final class InterleaveRunner implements Serializable {
     private StateStore newRunStore(Program program) {
         if (symmetryReduction) {
             return symmetryBits > 0
-                ? BitstateSymmetryStateStore.forRun(program, invariant, strategy, symmetryBits, symmetryHashFunctions, 0)
+                ? BitstateSymmetryStateStore.forRun(program, invariant, strategy, symmetryBits, symmetryHashFunctions, strategy == Strategy.CONTEXT_BOUNDED ? maxPreemptions : 0)
                 : SymmetryStateStore.forRun(program, invariant, strategy, symmetryBackend);
         }
         StateStore store = stateStoreFactory.get();
@@ -385,7 +385,7 @@ public final class InterleaveRunner implements Serializable {
 
     /**
      * Runs the search at increasing preemption bounds, stopping at the first bound that produces a
-     * failure, so the returned trace is the one needing the fewest preemptions.
+     * failure. Exact search can establish its minimum; approximate search reports an observed bound.
      *
      * <p>{@link LimitExceededException} is deliberately not caught here. It propagates to
      * {@link #run}'s handler, which returns partial results with {@code limitExceeded} set.
@@ -399,15 +399,16 @@ public final class InterleaveRunner implements Serializable {
      * @param invariant property to check, or null when no property is supplied
      * @param visitor observer sharing the run’s limits and partial-result capture
      * @param limitState run-local counters and interruption state
-     * @return first failing or exhaustive result, or the result at the largest allowed bound
+     * @return first observed failure, exact exhaustion, or result at the largest allowed bound
      */
     private DfsResult runIterativeDeepening(Program program, Invariant invariant,
                                           StateVisitor visitor, LimitState limitState) {
         DfsResult lastResult = null;
         // Identity-based: two distinct stores that happen to compare equal must not be conflated.
+        // Only external factories need identity history; owned checked stores are fresh by construction.
         Set<StateStore> seenStores = Collections.newSetFromMap(new IdentityHashMap<>());
 
-        for (int k = 0; k <= maxPreemptions; k++) {
+        for (long k = 0; k <= maxPreemptions; k++) {
             // Each bound is a separate top-level search over a fresh store, so traces found by
             // the previous bound are stale. Cleared per bound; the state counter is not, because
             // maxStates is a total budget across the whole deepening run.
@@ -415,7 +416,7 @@ public final class InterleaveRunner implements Serializable {
 
             StateStore freshStore = newRunStore(program);
             limitState.approximate |= freshStore instanceof ApproximateStateStore;
-            if (!seenStores.add(freshStore)) {
+            if (!symmetryReduction && !seenStores.add(freshStore)) {
                 throw new IllegalStateException(
                     "Iterative deepening requires a fresh StateStore per bound, but the configured "
                     + "stateStoreFactory reused an instance. Iterations would share a visited set, "
@@ -424,20 +425,16 @@ public final class InterleaveRunner implements Serializable {
             }
 
             ContextBoundedExplorer explorer = new ContextBoundedExplorer();
-            lastResult = explorer.explore(program, invariant, freshStore, visitor, k);
+            lastResult = explorer.explore(program, invariant, freshStore, visitor, (int)k);
 
             if (isFailure(lastResult)) {
-                return lastResult; // minimal-K trace
+                return lastResult; // first observed failing bound; approximate search does not prove minimality
             }
-            // An INCOMPLETE trace at this bound is the only thing that justifies deepening: it
-            // proves the bound actually pruned something. Without one the search covered the whole
-            // reachable space, so every deeper bound re-explores that same space and returns the
-            // same verdict while the shared state counter keeps charging maxStates. Returning here
-            // is what stops a proven pass from being downgraded to limitExceeded by bounds that
-            // cannot change the answer.
+            // Only exact membership can establish exhaustion from missing cutoff evidence.
+            // Approximate pruning may have hidden the very transition that would expose a cutoff.
             boolean pruned = lastResult.traces().stream()
                 .anyMatch(t -> t.cutoff() != null && t.cutoff().reason() == dev.samhb.interleave.core.CutoffEvidence.Reason.PREEMPTION_BOUND);
-            if (!pruned) {
+            if (!pruned && !(freshStore instanceof ApproximateStateStore)) {
                 return lastResult; // exhaustive at k; deeper bounds are redundant
             }
         }
@@ -609,7 +606,7 @@ public final class InterleaveRunner implements Serializable {
         /** Selects owned approximate membership without implicitly enabling source symmetry.
          * Positive lookups may skip unseen states. The budget covers membership, not total heap.
          * For example, {@code builder().symmetryReduction(true).symmetryBitstate(1_000_003, 4)}.
-         * Requires DFS or static POR and rejects explicit exact backends or custom stores at build.
+         * Requires DFS, static POR or CBS and rejects explicit exact backends or custom stores at build.
          * Repeated calls replace the previous approximate settings.
          * @param bits positive logical bit capacity
          * @param hashFunctions positive number of probes
@@ -712,8 +709,8 @@ public final class InterleaveRunner implements Serializable {
 
         /**
          * Enables iterative deepening for {@link Strategy#CONTEXT_BOUNDED}: run the search at
-         * increasing preemption bounds and stop at the first failure, so the returned trace is
-         * the one needing the fewest preemptions.
+         * increasing preemption bounds and stop at the first observed failure. Approximate search
+         * cannot prove that the reported failure needs the fewest preemptions.
          *
          * @param iterativeDeepening whether to deepen
          * @return this builder
@@ -734,8 +731,8 @@ public final class InterleaveRunner implements Serializable {
          */
         public InterleaveRunner build() {
             if (symmetryBits > 0 && (!symmetryReduction || symmetryBackendExplicit || stateStoreExplicit
-                    || (strategy != Strategy.DFS && strategy != Strategy.STATIC_POR))) {
-                throw new IllegalArgumentException("symmetryBitstate requires symmetry, DFS/static POR, and no explicit backend/store/factory");
+                    || (strategy != Strategy.DFS && strategy != Strategy.STATIC_POR && strategy != Strategy.CONTEXT_BOUNDED))) {
+                throw new IllegalArgumentException("symmetryBitstate requires symmetry, DFS/static POR/CBS, and no explicit backend/store/factory");
             }
             if (symmetryBackendExplicit && !symmetryReduction) {
                 throw new IllegalArgumentException("symmetryBackend requires symmetryReduction(true)");

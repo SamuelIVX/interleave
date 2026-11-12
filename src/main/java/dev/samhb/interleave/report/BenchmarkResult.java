@@ -393,7 +393,7 @@ public final class BenchmarkResult {
      * bound.
      *
      * <p>This is the bound the search actually ran at, which under iterative deepening is the
-     * minimal K that produced the result -- not the configured ceiling. Reporting the ceiling
+     * first observed producing bound -- not necessarily a proven minimum with approximate membership. Reporting the ceiling
      * after the search stopped early would misstate how much was explored.
      *
      * @return the preemption bound, or null if not applicable

@@ -325,6 +325,32 @@ async function runTests() {
       }
     }
 
+    if(process.env.SOURCE_APPROXIMATE_CBS_DIR){
+      for(const [suffix, verdict] of [['absence','APPROXIMATE_PASS'],['failure','VIOLATION'],['cutoff','INCOMPLETE'],['resource','INCOMPLETE']]){
+        const payload = readFileSync(join(projectRoot,process.env.SOURCE_APPROXIMATE_CBS_DIR,'source-approximate-cbs-'+suffix+'.json'),'utf8');
+        const raw = JSON.parse(payload);
+        const row = raw.benchmarks?.[0] || raw;
+        assert(row.storeType==='BITSTATE' && row.symmetryReduction===true, 'Fresh CBS artifact identifies approximate symmetry');
+        if(suffix==='absence') assert(row.preemptionsUsed===2, 'Approximate iterative result records the producing ceiling');
+        await page.locator('#clearBtn').click();
+        await page.locator('#paste').fill(payload);
+        await page.locator('#loadPaste').click();
+        await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('CONTEXT_BOUNDED'));
+        const meta = await page.locator('#meta').textContent();
+        assert(meta.includes('BITSTATE') && meta.includes('Thread symmetry'), 'CBS identity and approximation remain visible');
+        assert((await page.locator('#verdictBadge').textContent()).includes(verdict), 'CBS retains actual verdict precedence: '+suffix);
+        if(suffix==='resource'){
+          assert(meta.includes('Captured resource prefix; original run incomplete') && meta.includes('MAX_STATES'), 'Later CBS resource provenance is visible');
+          assert(meta.includes('owner counters') && meta.includes('1, 0'), 'Later CBS owner counters [1,0] are rendered');
+          const timeline = page.locator('#timeline tbody tr');
+          assert(await timeline.count()===2 && await page.locator('#timeline .cell-active').count()===1, 'Captured choices contain exactly one action');
+          assert((await page.locator('#timeline thead').textContent()).includes('Thread 0'), 'Original owner zero is identified');
+          const x = page.locator('#stateStrip tbody tr').filter({has:page.locator('td:nth-child(2) code').filter({hasText:/^x$/})});
+          assert((await x.locator('td').nth(2).textContent()).trim()==='1', 'Later CBS captured x=1 remains visible');
+        }
+      }
+    }
+
     if(process.env.SOURCE_SHORTEST_CUTOFF_PROVEN_JSON && process.env.SOURCE_SHORTEST_CUTOFF_PARTIAL_JSON){
       for(const [path, proven, length, work] of [
         [process.env.SOURCE_SHORTEST_CUTOFF_PROVEN_JSON, true, 0, '4 / 4'],

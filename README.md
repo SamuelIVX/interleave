@@ -375,11 +375,18 @@ supported when interchangeable owners have matching alias patterns; incompatible
 CBS retains mapped last owner and minimum cost.
 Counts can include revisits with different strategy context.
 
-Approximate symmetry supports **DFS and static POR**. Select an explicit strategy with
-`--symmetry --store bitstate --strategy DFS` (or `STATIC_POR`), or use
+Approximate symmetry supports **DFS, static POR and context-bounded search (CBS)**. Select an explicit strategy with
+`--symmetry --store bitstate --strategy DFS` (or `STATIC_POR` / `CONTEXT_BOUNDED`), or use
 `.symmetryReduction(true).symmetryBitstate(1_000_003, 4)` on the library builder.
 An explicit exact backend or custom store/factory cannot be combined with this selection.
-CBS, DPOR and CLI strategy omission remain unsupported for approximate symmetry.
+DPOR and CLI strategy omission remain unsupported for approximate symmetry.
+For CBS, `.maxPreemptions(k)` selects library capacity; the CLI retains its bitstate limit of two.
+All checked CBS costs share one logical filter, with mapped last owner and cost encoded together.
+With `--iterative-deepening`, approximate runs continue to the requested ceiling unless actual
+failure/deadlock or a resource limit stops them. This also corrects ordinary approximate CBS:
+missing cutoff evidence cannot prove exhaustion. Exact searches keep their exhaustion shortcut.
+`preemptionsUsed` is the producing bound, not a proven approximate minimum. CBS's capped
+union-model false-positive estimate uses the largest validated queried cost in that pass.
 The complete value orbit is encoded before Bloom hashing; false positives may omit reachable
 behavior. Absence is `APPROXIMATE_PASS`, while actual violations and incomplete evidence keep
 precedence. Bit density and the false-positive heuristic are diagnostics, not coverage guarantees.
@@ -461,8 +468,8 @@ replay never changes the original INCOMPLETE verdict or independently authentica
 Earlier recorded failures/deadlocks keep selection priority. No shortening or new CLI mode is selected.
 
 B9 approximate symmetry is delivered in the [three-phase spec set](docs/plans/approximate-symmetry-contract.md).
-K1 supports DFS/static POR through the library and existing CLI/reports/viewer.
-K2 (CBS) and K3 (DPOR) remain planned; no bounded total-process memory or speedup is claimed.
+K1 (DFS/static POR) is merged and K2 adds CBS through the same library/CLI/reporting interfaces.
+K3 (DPOR) remains planned; no bounded total-process memory or speedup is claimed.
 
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to
