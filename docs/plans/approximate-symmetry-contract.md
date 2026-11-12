@@ -3,9 +3,10 @@
 
 ## Objective and status
 
-**Planned, not implemented.** This set turns the approved B9 design into three sequential,
-complete feature PRs. Inspected baseline: `1db78706314bf6845e9076d98986b91dbbe94570`, merged
-PR #130. B8 is complete. No B9 implementation or implementation measurements are claimed here.
+**K1 implemented in this change. K2/K3 remain planned.** This set delivers three sequential,
+complete feature PRs. K1 uses merged spec-set baseline `6dd7445019076f511cb85d479aa7d1d69f71198e`
+(PR #131). B8 is complete. See the [K1 evidence ledger](../measurements/89-approximate-symmetry-dfs-por.md)
+for verification and measured limits.
 
 Sam selected all four strategies, Java library plus existing CLI/reports/viewer, approximation of
 the complete DPOR context, and one shared Bloom budget across CBS costs. Approximation may omit

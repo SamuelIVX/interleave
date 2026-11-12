@@ -86,7 +86,7 @@ public final class StaticPorExplorer {
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
-        if (effectiveStateStore instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+        if (effectiveStateStore instanceof dev.samhb.interleave.search.CheckedSymmetryStore symmetry) {
             symmetry.requireRun(program, invariant, dev.samhb.interleave.Strategy.STATIC_POR);
         }
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues

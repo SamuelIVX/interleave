@@ -303,6 +303,28 @@ async function runTests() {
       assert((await page.locator('#verdictBadge').textContent()).includes('PASS'), 'Symmetry report retains the actual PASS verdict');
     }
 
+    if(process.env.SOURCE_APPROXIMATE_SYMMETRY_JSON){
+      const payload = readFileSync(join(projectRoot, process.env.SOURCE_APPROXIMATE_SYMMETRY_JSON), 'utf8');
+      const row = JSON.parse(payload).benchmarks[0];
+      assert(row.symmetryReduction===true && row.storeType==='BITSTATE' && row.verdict==='APPROXIMATE_PASS', 'Fresh Java approximate symmetry identity');
+      await page.locator('#clearBtn').click();
+      await page.locator('#paste').fill(payload);
+      await page.locator('#loadPaste').click();
+      await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('Thread symmetry'));
+      const meta = await page.locator('#meta').textContent();
+      assert(meta.includes('representative visits') && meta.includes('BITSTATE'), 'Approximate representative identity remains visible');
+      assert((await page.locator('#verdictBadge').textContent()).includes('APPROXIMATE_PASS'), 'Absence never renders as exact PASS');
+      for(const suffix of ['root','later']){
+        const resource = readFileSync(join(projectRoot, 'build/source-approximate-symmetry-resource-'+suffix+'.json'), 'utf8');
+        await page.locator('#clearBtn').click();
+        await page.locator('#paste').fill(resource);
+        await page.locator('#loadPaste').click();
+        await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('BITSTATE'));
+        assert((await page.locator('#meta').textContent()).includes('Thread symmetry'), 'Limited runs retain approximate symmetry identity');
+        assert((await page.locator('#verdictBadge').textContent()).includes('INCOMPLETE'), 'Resource interruption takes precedence over approximate absence');
+      }
+    }
+
     if(process.env.SOURCE_SHORTEST_CUTOFF_PROVEN_JSON && process.env.SOURCE_SHORTEST_CUTOFF_PARTIAL_JSON){
       for(const [path, proven, length, work] of [
         [process.env.SOURCE_SHORTEST_CUTOFF_PROVEN_JSON, true, 0, '4 / 4'],

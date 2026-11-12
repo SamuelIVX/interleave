@@ -1,4 +1,4 @@
-<!-- Planned B9/K1: shared approximate membership and complete DFS/static-POR delivery. -->
+<!-- Implemented B9/K1: shared approximate membership and complete DFS/static-POR delivery. -->
 # Spec 89: Approximate symmetry for DFS and static POR
 
 ## Objective
@@ -153,12 +153,15 @@ existing source shape and is outside the bit budget. Diagnostic visitedStates ma
   the new class would be mislabeled or unreported without migration.
 - [verified] Existing source/replay/viewer contracts distinguish approximate absence, real witnesses
   and original resource interruption; they are reused rather than replaced.
-- [unverified] New interfaces, extraction, approximate search, performance and mutation populations
-  have not been implemented or measured. Fresh baseline/final evidence is required, not inferred.
+- [verified] K1 implements the shared filter and run context, sealed checked capability, approximate
+  metric capability, VALUE membership, builder selection, CLI/harness integration and viewer fixtures.
+  CBS and DPOR approximate selection still reject. Exact convenience APIs remain exact.
+- Verification and mutation evidence: [K1 ledger](../../measurements/89-approximate-symmetry-dfs-por.md).
+  No speed or total-memory improvement is claimed.
 
 ## Tests
 
-Proposed tests cross the agreed store, runner, actual CLI/report and browser interfaces:
+Implemented tests cross the agreed store, runner, actual CLI/report and browser interfaces:
 
 - `ordinaryFilterExtractionPreservesProbeAndDiagnosticLiterals` (R2) — negative/zero hashes,
   repeated indices, int overflow, rotation/fallback, duplicate marks, lazy vectors and clear.

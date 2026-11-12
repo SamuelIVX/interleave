@@ -14,7 +14,7 @@ import java.util.*;
  * {@link DynamicState}; passing foreign configurations violates the run contract.
  * This mutable store must not be shared between concurrent explorations.
  */
-public final class SymmetryStateStore implements StateStore {
+public final class SymmetryStateStore implements CheckedSymmetryStore {
     /** Immutable checked run identity and owner/action mapping. */
     private final SymmetryRunContext context;
     /** Certified exact storage configuration retained by copies. */
@@ -79,7 +79,7 @@ public final class SymmetryStateStore implements StateStore {
      * @param strategy requested built-in algorithm
      * @throws IllegalArgumentException if any bound identity differs
      */
-    public void requireRun(Program program, Invariant invariant, Strategy strategy) {
+    @Override public void requireRun(Program program, Invariant invariant, Strategy strategy) {
         context.requireRun(program, invariant, strategy);
     }
 
@@ -133,7 +133,7 @@ public final class SymmetryStateStore implements StateStore {
      * @return true if this orbit and mapped sleep context were already recorded
      * @throws IllegalArgumentException if called outside DPOR or with foreign actions
      */
-    public boolean sleepCovered(Configuration config, Set<Map.Entry<Integer, Step>> sleeping) {
+    @Override public boolean sleepCovered(Configuration config, Set<Map.Entry<Integer, Step>> sleeping) {
         var incoming = context.sleepContext(config, sleeping);
         return !sleepCoverage.computeIfAbsent(incoming.key(), ignored -> new HashSet<>()).add(incoming.tokens());
     }

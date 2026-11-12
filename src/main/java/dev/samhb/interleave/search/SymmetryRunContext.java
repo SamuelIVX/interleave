@@ -7,6 +7,8 @@ import dev.samhb.interleave.format.dsl.DynamicState;
 import dev.samhb.interleave.format.dsl.SourceSymmetry;
 import dev.samhb.interleave.state.ThreadSymmetryCanonicalizer;
 import java.util.*;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 
 /** Program-sized metadata only; contains no visited positions or mutable membership. */
 final class SymmetryRunContext {
@@ -77,6 +79,16 @@ final class SymmetryRunContext {
      */
     ThreadSymmetryCanonicalizer.CanonicalPosition position(Configuration config) {
         return canonicalizer.canonicalize((DynamicState) config.state(), config.programCounters());
+    }
+
+    /** Encodes a complete orbit using version 1, VALUE domain 1 and a big-endian UTF-8 length.
+     * @param config original source configuration
+     * @return fresh domain-separated bytes compatible with DataOutputStream field order
+     */
+    byte[] valueBytes(Configuration config) {
+        byte[] orbit = position(config).key().getBytes(StandardCharsets.UTF_8);
+        return ByteBuffer.allocate(6 + orbit.length).put((byte) 1).put((byte) 1)
+                .putInt(orbit.length).put(orbit).array();
     }
 
     /** Maps last owner with the same frames for existing exact CBS membership.

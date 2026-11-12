@@ -3,6 +3,7 @@ package dev.samhb.interleave.state;
 
 import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.search.StateStore;
+import dev.samhb.interleave.search.ApproximateStateStore;
 import java.util.Arrays;
 
 /**
@@ -18,7 +19,7 @@ import java.util.Arrays;
  *
  * @see <a href="https://en.wikipedia.org/wiki/Bloom_filter">Bloom filter</a>
  */
-public final class BitstateStore implements StateStore {
+public final class BitstateStore implements ApproximateStateStore {
     /** Encoder. */
     private final CanonicalEncoder encoder;
     /** Bitset. */

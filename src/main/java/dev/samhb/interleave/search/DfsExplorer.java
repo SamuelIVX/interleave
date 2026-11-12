@@ -130,7 +130,7 @@ public final class DfsExplorer {
         this.stateStore = stateStore != null ? stateStore : defaultStateStore;
         this.stateVisitor = stateVisitor;
         this.maxStatesBudget = maxStates;
-        if (this.stateStore instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+        if (this.stateStore instanceof dev.samhb.interleave.search.CheckedSymmetryStore symmetry) {
             symmetry.requireRun(program, invariant, dev.samhb.interleave.Strategy.DFS);
         }
         this.stateStore.clear();
