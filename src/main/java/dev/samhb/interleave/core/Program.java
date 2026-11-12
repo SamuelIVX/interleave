@@ -64,6 +64,14 @@ public final class Program {
         this.sourceDigest = sourceDigest;
     }
 
+    /** Returns the stored initial snapshot's type without copying or invoking model callbacks.
+     * Checked integrations can reject unsupported state implementations before initial enabledness.
+     * The type belongs to the defensive snapshot retained at construction, not the caller's input.
+     * @return runtime class of the privately stored initial state
+     * @throws NullPointerException if a broken caller-supplied deepCopy returned null
+     */
+    public Class<? extends SharedState> initialStateType() { return initialState.getClass(); }
+
     /** Returns source fingerprint, or null for a legacy Java/JSON model.
      * @return source fingerprint, or null for a legacy Java/JSON model
      */

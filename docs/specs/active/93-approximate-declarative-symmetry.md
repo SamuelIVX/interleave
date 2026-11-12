@@ -7,7 +7,7 @@ Complete B10 by enabling certified declarative JSON symmetry with approximate bi
 across DFS, static POR, DPOR and CBS. Reuse B9's complete context encodings and L1's certification,
 concrete execution and witness checks; expose approximation honestly through every selected consumer.
 
-**Type: delta. Status: planned; depends on unimplemented L1. No new verification run.**
+**Type: delta. Status: planned; depends on unmerged L1. No new verification run.**
 The [B10 set contract](../../plans/declarative-symmetry-contract.md) owns common semantics/oracles;
 [Spec 92](92-certified-declarative-symmetry.md) owns certification and exact integration. Planning
 reference is `b1c7586fc34542e919b3f82d1dece87ade7dec86`; the implementation baseline must be the actual
@@ -179,8 +179,10 @@ counts or guaranteed discovery of every exact failure.
   precision unless the selected consumer predicates are broadened without changing source identity.
 - [verified] Existing generic non-source replay checks recorded execution outcomes but not full
   enabledness/terminal claims. L1 therefore owns the stricter private symmetry attestation path.
-- [unverified] L1 has not been implemented/merged. Its real base SHA, exact evidence, approximate
-  guard and reusable helper must be verified before beginning L2.
+- [verified] L1 is implemented in the Spec 92 change, with an explicit approximate guard and shared
+  certification/attestation; its merge is pending.
+- [unverified] The actual merged L1 SHA and freshly remeasured exact evidence remain prerequisites
+  for L2; an unmerged L1 worktree is not its implementation baseline.
 - [unverified] Declarative approximate context coverage, artifact consumers and mutation populations
   require new implementation measurements; no source fixture score proves them in advance.
 

@@ -34,6 +34,15 @@ import java.util.Set;
  */
 public final class DslLoader {
 
+    /** Sole capability authorizing objects that passed this loader's validation. */
+    private static final ValidationPermit VALIDATION_PERMIT = new ValidationPermit();
+
+    /** Unforgeable by ordinary same-package callers; never exposed by a loaded object. */
+    static final class ValidationPermit {
+        /** Only the enclosing loader can issue its private capability. */
+        private ValidationPermit() {}
+    }
+
     /** Prevents instantiation of this utility class. */
     private DslLoader() {}
 
@@ -218,7 +227,7 @@ public final class DslLoader {
                         throw new RegistryException("Unknown field '" + key + "' at " + path);
                     }
                 }
-                DynamicStep step = new DynamicStep(i, guard, effects, decl, name);
+                DynamicStep step = DynamicStep.validated(VALIDATION_PERMIT, i, guard, effects, decl, name);
                 steps.add(step);
             }
             threads.add(new ModelThread(i, steps));
@@ -308,7 +317,7 @@ public final class DslLoader {
                     predicates.add(pred);
                 }
             }
-            invariant = new DslInvariant(predicates, decl, when);
+            invariant = DslInvariant.validated(VALIDATION_PERMIT, predicates, decl, when);
         }
 
         Program program = new Program(initial, threads);

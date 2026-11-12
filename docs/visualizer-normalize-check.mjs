@@ -35,6 +35,37 @@ for (const raw of [
 ]) assert.equal(normalize(raw).meta.symmetryReduction, true);
 assert.equal(normalize({benchmarks:[{verdict:'PASS',symmetryReduction:'true'}]}).meta.symmetryReduction, false);
 
+// Certified declarative exact results retain precision and incomplete status without SOURCE identity.
+for(const traces of [[],[{threads:[0],outcome:'COMPLETED'}]]){
+  const raw={symmetryReduction:true,storeType:'EXACT',completedTraces:traces,hasViolation:false};
+  assert.equal(normalize(raw).meta.verdict,'PASS');
+  assert.equal(normalize({...raw,limitExceeded:true}).meta.verdict,'INCOMPLETE');
+}
+assert.equal(normalize({symmetryReduction:'true',storeType:'EXACT',completedTraces:[],limitExceeded:true}).meta.verdict,'LIMIT EXCEEDED');
+
+if(process.env.DECLARATIVE_SYMMETRY_DIR){
+  const directory=process.env.DECLARATIVE_SYMMETRY_DIR;
+  const report=JSON.parse(read(directory+'/declarative-symmetry-exact-report.json'));
+  assert.equal(report.benchmarks.length,4);
+  for(const row of report.benchmarks){
+    const value=normalize({...report,benchmarks:[row]});
+    assert.equal(value.meta.symmetryReduction,true);assert.equal(value.meta.storeType,'EXACT');
+    assert.equal(value.meta.verdict,'PASS');assert.equal(row.programKind,undefined);
+  }
+  for(const name of ['failure-report','failure-library','failure-cli']){
+    const raw=JSON.parse(read(directory+'/declarative-symmetry-'+name+'.json'));
+    const value=normalize(raw);assert.equal(value.meta.verdict,'VIOLATION');
+    assert.equal(value.trace.states.at(-1).fields.x,1);
+    assert(value.trace.states.every(state=>state.fields.x!==7));
+  }
+  for(const [name,verdict] of [['completed','PASS'],['resource-1','INCOMPLETE'],['resource-2','INCOMPLETE']]){
+    const raw=JSON.parse(read(directory+'/declarative-symmetry-'+name+'.json'));
+    assert.equal(raw.programKind,undefined);assert.equal(raw.resourcePrefix,undefined);
+    const value=normalize(raw);assert.equal(value.meta.verdict,verdict);
+    assert.equal(value.meta.symmetryReduction,true);assert.equal(value.meta.storeType,'EXACT');
+  }
+}
+
 // Fresh producer artifact verifies the combined symmetry/approximate shape used by browser CI.
 if(process.env.SOURCE_APPROXIMATE_SYMMETRY_JSON){
   const normalized = normalize(JSON.parse(read(process.env.SOURCE_APPROXIMATE_SYMMETRY_JSON)));

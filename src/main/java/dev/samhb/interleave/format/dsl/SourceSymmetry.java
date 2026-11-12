@@ -1,54 +1,74 @@
-/* Conservative structural eligibility for source-thread permutation groups. */
+/** Conservative structural eligibility for trusted source and declarative permutation groups. */
 package dev.samhb.interleave.format.dsl;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.Invariant;
 import java.util.*;
 
-/** Discovers interchangeable source owners without trusting arbitrary step/property callbacks. */
+/** Discovers interchangeable validated owners without trusting arbitrary step/property callbacks. */
 public final class SourceSymmetry {
     /** Prevents instances of this stateless eligibility utility. */
     private SourceSymmetry() {}
 
     /**
      * Derives disjoint groups with identical owner-independent instructions and initial locals.
-     * Only compiler-built source instructions and absent/compiler-built shared properties qualify.
+     * Only compiler-built source or loader-certified declarative semantics and shared properties qualify.
      * Non-grouped owners remain fixed, including owners whose instructions observe their own tid.
      * The returned partition certifies the supplied immutable program/property pair only.
-     * @param program source program to validate; callbacks/definitions must remain unchanged
-     * @param invariant absent or compiler-built source property actually used for the run
+     * @param program trusted program to validate; callbacks/definitions must remain unchanged
+     * @param invariant absent or matching trusted shared property actually used for the run
      * @return immutable groups of at least two owners, ordered by first owner
      * @throws NullPointerException for a null program
      * @throws IllegalArgumentException for unsupported semantics, invalid bindings or no valid group
      */
     public static List<List<Integer>> groups(Program program, Invariant invariant) {
         Objects.requireNonNull(program, "program");
-        if (!program.isSource() || (invariant != null && !(invariant instanceof SourceProperty))) {
-            throw new IllegalArgumentException("Symmetry requires compiled source and its shared-state property; custom callbacks are unsupported");
+        if (program.initialStateType() != DynamicState.class) {
+            throw new IllegalArgumentException("Symmetry requires a trusted DynamicState initial snapshot");
+        }
+        boolean source = program.isSource();
+        if (invariant != null && (source ? !(invariant instanceof SourceProperty) : !(invariant instanceof DslInvariant))) {
+            throw new IllegalArgumentException("Symmetry requires a trusted shared-state property; custom callbacks are unsupported");
         }
         if (program.threadCount() > 8) {
-            throw new IllegalArgumentException("Symmetry requires matching source owner counts from 1 through 8");
+            throw new IllegalArgumentException("Symmetry requires matching owner counts from 1 through 8");
         }
         // Check all callbacks and owner bindings before initial enabledness can invoke any step.
         List<List<Object>> shapes = new ArrayList<>();
+        StateDecl declaration = null;
+        int nodes = 0;
         for (int owner = 0; owner < program.threadCount(); owner++) {
             ModelThread thread = program.threads().get(owner);
-            if (thread.id() != owner) throw new IllegalArgumentException("Symmetry requires dense source owner IDs");
+            if (thread.id() != owner) throw new IllegalArgumentException("Symmetry requires dense owner IDs");
+            if (!source && (thread.steps().isEmpty() || thread.steps().size() > 64)) {
+                throw new IllegalArgumentException("Declarative symmetry requires 1 through 64 steps per owner");
+            }
             List<Object> instructions = new ArrayList<>();
             boolean eligible = true;
             for (int pc = 0; pc < thread.steps().size(); pc++) {
-                if (!(thread.steps().get(pc) instanceof SourceInstruction instruction)) {
-                    throw new IllegalArgumentException("Symmetry requires compiler-built source instructions in every owner");
+                Step action = thread.steps().get(pc);
+                Object shape;
+                if (source && action instanceof SourceInstruction instruction) {
+                    shape = instruction.symmetryShape(owner, pc, thread.steps().size());
+                } else if (!source && action instanceof DynamicStep instruction) {
+                    if (declaration == null) declaration = instruction.declaration();
+                    shape = instruction.symmetryShape(owner, declaration);
+                    nodes += instruction.symmetryNodes();
+                    if (nodes > 5000) throw new IllegalArgumentException("Declarative symmetry exceeds 5000 AST nodes");
+                } else {
+                    throw new IllegalArgumentException("Symmetry requires a single trusted instruction family in every owner");
                 }
-                Object shape = instruction.symmetryShape(owner, pc, thread.steps().size());
                 eligible &= shape != null;
                 instructions.add(shape);
             }
             shapes.add(eligible ? List.copyOf(instructions) : null);
         }
-        if (!(program.initialConfiguration().state() instanceof DynamicState state)
-                || state.threadCount() != program.threadCount()) {
-            throw new IllegalArgumentException("Symmetry requires matching dynamic source-state owner counts");
+        if (!source && invariant instanceof DslInvariant property && nodes + property.symmetryNodes(declaration) > 5000) {
+            throw new IllegalArgumentException("Declarative symmetry exceeds 5000 AST nodes including its property");
+        }
+        DynamicState state = (DynamicState) program.initialConfiguration().state();
+        if (state.threadCount() != program.threadCount() || (!source && state.decl() != declaration)) {
+            throw new IllegalArgumentException("Symmetry requires matching dynamic-state owner/declaration bindings");
         }
         Map<ThreadShape, List<Integer>> candidates = new LinkedHashMap<>();
         for (int owner = 0; owner < program.threadCount(); owner++) {
@@ -58,7 +78,7 @@ public final class SourceSymmetry {
             }
         }
         List<List<Integer>> groups = candidates.values().stream().filter(group -> group.size() > 1).map(List::copyOf).toList();
-        if (groups.isEmpty()) throw new IllegalArgumentException("Symmetry found no interchangeable source-thread group");
+        if (groups.isEmpty()) throw new IllegalArgumentException("Symmetry found no interchangeable thread group");
         return groups;
     }
 

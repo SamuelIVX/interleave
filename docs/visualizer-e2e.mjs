@@ -303,6 +303,31 @@ async function runTests() {
       assert((await page.locator('#verdictBadge').textContent()).includes('PASS'), 'Symmetry report retains the actual PASS verdict');
     }
 
+    if(process.env.DECLARATIVE_SYMMETRY_DIR){
+      const directory=join(projectRoot,process.env.DECLARATIVE_SYMMETRY_DIR);
+      const report=JSON.parse(readFileSync(join(directory,'declarative-symmetry-exact-report.json'),'utf8'));
+      const payloads=report.benchmarks.map(row=>[JSON.stringify({...report,benchmarks:[row]}),'PASS']);
+      for(const [name,verdict] of [['completed','PASS'],['resource-1','INCOMPLETE'],['resource-2','INCOMPLETE']]){
+        payloads.push([readFileSync(join(directory,'declarative-symmetry-'+name+'.json'),'utf8'),verdict]);
+      }
+      for(const name of ['failure-report','failure-library','failure-cli']){
+        const payload=readFileSync(join(directory,'declarative-symmetry-'+name+'.json'),'utf8');
+        const raw=JSON.parse(payload);
+        const trace=raw.benchmarks ? raw.benchmarks[0].failingTrace : raw.failingTraces[0];
+        assert(trace.states.at(-1).fields.x===1 && trace.states.every(state=>state.fields.x!==7),'Failed declarative attempt retains committed snapshots');
+        payloads.push([payload,'VIOLATION']);
+      }
+      for(const [payload,verdict] of payloads){
+        await page.locator('#clearBtn').click();await page.locator('#paste').fill(payload);
+        await page.locator('#loadPaste').click();
+        await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('Thread symmetry'));
+        const meta=await page.locator('#meta').textContent();
+        assert(meta.includes('EXACT') && meta.includes('representative visits'),'Declarative producer retains exact representative identity');
+        assert((await page.locator('#verdictBadge').textContent()).trim()===verdict,'Declarative producer retains '+verdict);
+        assert(!(await page.locator('#error').getAttribute('class')).includes('show'),'Declarative producer loads without error');
+      }
+    }
+
     if(process.env.SOURCE_APPROXIMATE_SYMMETRY_JSON){
       const payload = readFileSync(join(projectRoot, process.env.SOURCE_APPROXIMATE_SYMMETRY_JSON), 'utf8');
       const row = JSON.parse(payload).benchmarks[0];

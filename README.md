@@ -72,7 +72,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | `--all` | Run entire corpus |
 | `--file <path>` | Load program from JSON file |
 | `--source <path>` | Load a bounded concurrent `.ilv` source model |
-| `--symmetry` | Opt-in source-thread symmetry; requires `--source --store exact` |
+| `--symmetry` | Opt-in checked symmetry: source with exact/bitstate; certified declarative JSON with exact |
 
 ### Examples
 
@@ -172,7 +172,8 @@ coverage percentage was produced. The local audit, Javadoc checks, and two local
 [Spec 75](docs/specs/active/75-thread-symmetry-canonicalization.md) provides thread-orbit keys and
 reversible owner mappings. [Spec 76](docs/specs/active/76-source-symmetry-exact-search.md) integrates
 conservative source eligibility and opt-in exact DFS. [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) composes exact
-static POR, DPOR and CBS with checked source symmetry. Bitstate composition remains unsupported.
+static POR, DPOR and CBS with checked source symmetry. Specs 89–91 add source bitstate composition;
+[Spec 92](docs/specs/active/92-certified-declarative-symmetry.md) adds certified declarative exact symmetry.
 
 ## Tech stack
 
@@ -468,6 +469,24 @@ presentation. Load captured/replayed JSON into the existing viewer: raw prefixes
 snapshot; explicit replay adds intermediate states and separately labeled observations. A reported
 replay never changes the original INCOMPLETE verdict or independently authenticates uploaded JSON.
 Earlier recorded failures/deadlocks keep selection priority. No shortening or new CLI mode is selected.
+
+B10 L1 enables the existing declarative JSON loader for exact symmetry across DFS, static POR,
+DPOR and CBS, including HASHED/ORDERED library backends. For example:
+
+```bash
+./gradlew --max-workers=1 -PpitestThreads=1 run --args="--file examples/programs/semaphore-declarative.json --symmetry --store exact --json"
+```
+
+Only loader-certified steps and absent/certified shared properties qualify; public constructor
+objects, custom callbacks, mixed families and foreign declarations reject. Corresponding ordered
+instructions and initial locals must match; owners observing `tid` remain fixed. Existing caps also
+apply when trusted objects are reassembled. The semaphore has 8 concrete DFS positions and 5 orbits;
+these fixture counts do not promise general speedups. FINAL declarative properties retain conservative
+exhaustive reduction fallbacks. JSON keeps its existing error outcomes and original choices. Checked declarative failure snapshots
+repeat the last committed values rather than exporting tentative writes; ordinary replay/capture
+behavior stays unchanged. JSON does not acquire
+source identity, cutoff simplification or authenticated resource prefixes. Approximate declarative
+symmetry remains gated for [L2 / Spec 93](docs/specs/active/93-approximate-declarative-symmetry.md).
 
 B9 approximate symmetry is delivered in the [three-phase spec set](docs/plans/approximate-symmetry-contract.md).
 K1 (DFS/static POR), K2 (CBS) and K3 (DPOR and final all-strategy consumers) are merged

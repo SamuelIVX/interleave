@@ -1,4 +1,4 @@
-/* Exact source-orbit membership bound to one validated program, property and strategy. */
+/* Exact model orbit membership bound to one validated program, property and strategy. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.Strategy;
@@ -10,7 +10,7 @@ import java.util.*;
  * Checked per-run orbit store for built-in exact strategies. Execution retains original owners.
  * Create with {@link #forRun(Program, Invariant, Strategy)}; explorers verify the bound run before
  * executing callbacks. CBS keys include the mapped last owner; DPOR retains mapped sleep context.
- * Membership methods require configurations from the bound source model, whose state must be
+ * Membership methods require configurations from the bound trusted model, whose state must be
  * {@link DynamicState}; passing foreign configurations violates the run contract.
  * This mutable store must not be shared between concurrent explorations.
  */
@@ -38,13 +38,13 @@ public final class SymmetryStateStore implements CheckedSymmetryStore {
     }
 
     /**
-     * Validates source/property eligibility and creates fresh exact orbit membership.
+     * Validates trusted model/property eligibility and creates fresh exact orbit membership.
      * For example, pass forRun(program, property, Strategy.DPOR) to a DporExplorer.
-     * @param program immutable compiled source program
-     * @param invariant null or a compiler-built shared-state property
+     * @param program immutable trusted source or certified declarative program
+     * @param invariant null or its matching compiler-built source or loader-certified shared property
      * @param strategy built-in strategy to bind
      * @return fresh store bound to these exact objects and strategy
-     * @throws IllegalArgumentException for unsupported source semantics or mismatched DPOR alias partitions
+     * @throws IllegalArgumentException for unsupported model/property bindings or mismatched DPOR alias partitions
      * @throws NullPointerException for a null program or strategy
      */
     public static SymmetryStateStore forRun(Program program, Invariant invariant, Strategy strategy) {
@@ -54,12 +54,12 @@ public final class SymmetryStateStore implements CheckedSymmetryStore {
     /** Validates one run and allocates fresh membership using a certified exact backend.
      * For example, forRun(program, property, Strategy.DPOR, SymmetryBackend.ORDERED) uses tree storage.
      * No user store, comparator or factory is admitted; keys/context and eligibility remain checked.
-     * @param program immutable compiled source program
-     * @param invariant null or its compiler-built shared-state property
+     * @param program immutable trusted source or certified declarative program
+     * @param invariant null or its matching trusted shared-state property
      * @param strategy built-in strategy to bind
      * @param backend exact hash-based or naturally ordered membership
      * @return empty store bound to the exact objects, strategy and backend
-     * @throws IllegalArgumentException for unsupported source/property semantics or DPOR alias layout
+     * @throws IllegalArgumentException for unsupported model/property semantics or DPOR alias layout
      * @throws NullPointerException for a null program, strategy or backend
      */
     public static SymmetryStateStore forRun(Program program, Invariant invariant, Strategy strategy, SymmetryBackend backend) {

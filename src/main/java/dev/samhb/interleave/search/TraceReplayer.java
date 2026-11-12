@@ -3,6 +3,7 @@ package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.TraceRecord;
 import dev.samhb.interleave.core.*;
+import dev.samhb.interleave.format.dsl.SourceSymmetry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -101,6 +102,45 @@ public final class TraceReplayer {
             snapshots.add(StateSnapshotExtractor.extract(config.state()));
         }
 
+        return Collections.unmodifiableList(snapshots);
+    }
+
+    /** Captures committed configurations for certified declarative symmetry diagnostics.
+     * Enabled original choices and outcomes are checked; a final failed attempt repeats the last
+     * committed snapshot, preserving action/state alignment without publishing its tentative writes.
+     * This captures values, not a property/terminal-verdict proof or authenticated source identity.
+     * Existing generic replay and snapshot behavior remain available through their original methods.
+     * @param program non-source model eligible for checked declarative symmetry
+     * @param trace immutable aligned choices and outcomes to capture
+     * @return immutable initial/action-boundary snapshots, one more than the attempted choices
+     * @throws NullPointerException for a null program or trace
+     * @throws IllegalArgumentException for unsupported model certification or source input
+     * @throws IllegalScheduleException for a disabled, invalid or terminated owner
+     * @throws CorruptedTraceException for mismatched outcomes or execution after a failed attempt
+     */
+    public List<StateSnapshot> captureDeclarativeSnapshots(Program program, Trace trace) {
+        var outcomes = trace.outcomes().iterator();
+        if (program.isSource()) throw new IllegalArgumentException("Declarative snapshots require non-source input");
+        SourceSymmetry.groups(program, null);
+        Configuration config = program.initialConfiguration();
+        List<StateSnapshot> snapshots = new ArrayList<>();
+        snapshots.add(StateSnapshotExtractor.extract(config.state()));
+        for (int owner : trace.threadIds()) {
+            if (!config.enabledThreadIds().contains(owner)) {
+                throw new IllegalScheduleException("Declarative snapshot choice is not enabled: " + owner);
+            }
+            var transition = TransitionExecutor.execute(program, config, owner);
+            if (transition.outcome() != outcomes.next()) {
+                throw new CorruptedTraceException("Declarative snapshot outcome mismatch");
+            }
+            if (transition.outcome() == StepOutcome.ASSERTION_FAILED) {
+                if (outcomes.hasNext()) throw new CorruptedTraceException("Execution continues after a failed attempt");
+                snapshots.add(snapshots.getLast());
+            } else {
+                config = transition.successor();
+                snapshots.add(StateSnapshotExtractor.extract(config.state()));
+            }
+        }
         return Collections.unmodifiableList(snapshots);
     }
 

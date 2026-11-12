@@ -1,0 +1,10 @@
+{
+  "format": "declarative",
+  "name": "committed-failure",
+  "state": {"fields": [{"name": "x", "type": "int", "init": 0}], "locals": []},
+  "threads": [
+    {"id": 0, "steps": [{"effects": ["x = 1"]}, {"effects": ["x = 7", "x = x % 0"]}]},
+    {"id": 1, "steps": [{"effects": ["x = 1"]}, {"effects": ["x = 7", "x = x % 0"]}]}
+  ],
+  "invariant": {"when": "always", "expr": "true"}
+}

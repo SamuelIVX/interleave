@@ -79,7 +79,7 @@ final class SourceInstruction implements SourceStep {
      * @param expression typed source expression, or null for an absent guard/effect
      * @return true if any expression node observes tid
      */
-    private static boolean usesTid(Expr expression) {
+    static boolean usesTid(Expr expression) {
         if (expression == null) return false;
         return switch (expression) {
             case Expr.TidRef ignored -> true;

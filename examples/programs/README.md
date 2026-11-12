@@ -8,6 +8,16 @@ Curated JSON programs for teaching and verification. Load via `ProgramLoader` or
 | `bounded-buffer-declarative.json` | declarative `buf[3], head, tail, count, capacity` | `count >= 0 && count <= capacity && count <= 3 && head >= 0 && head < 3 && tail >= 0 && tail < 3` | Producer/consumer over a capacity-3 ring buffer with guarded `count < capacity`/`count > 0` steps — teaches bounded-buffer safety and circular index correctness. |
 | `semaphore-declarative.json` | declarative `permits` | `permits >= 0` | Binary semaphore with `acquire` (`permits > 0` guard, `permits--`) and `release` (`permits++`) — teaches mutual exclusion via permits. |
 
+## Certified declarative symmetry
+
+The semaphore supports `--file examples/programs/semaphore-declarative.json --symmetry --store exact`.
+Omitting --strategy runs DFS/static POR/DPOR/CBS. Exact DFS visits 5 orbit representatives rather
+than 8 concrete positions. Certification requires matching ordered instructions and initial locals;
+loader provenance and existing work limits also apply to reassembled models. Typed JSON/custom
+callbacks and declarative bitstate symmetry remain unsupported in this phase. JSON retains its
+ordinary guards, sequential effects and error outcomes; source-only witness APIs remain separate.
+See [Spec 92](../../docs/specs/active/92-certified-declarative-symmetry.md).
+
 ## Readable source models
 
 Load `.ilv` files with `--source`; `--file` continues to mean JSON. All strategy and store options
