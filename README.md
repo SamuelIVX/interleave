@@ -375,11 +375,11 @@ supported when interchangeable owners have matching alias patterns; incompatible
 CBS retains mapped last owner and minimum cost.
 Counts can include revisits with different strategy context.
 
-Approximate symmetry supports **DFS, static POR and context-bounded search (CBS)**. Select an explicit strategy with
-`--symmetry --store bitstate --strategy DFS` (or `STATIC_POR` / `CONTEXT_BOUNDED`), or use
+Approximate symmetry supports **all four built-in strategies: DFS, static POR, DPOR and CBS**.
+Use CLI `--symmetry --store bitstate`, optionally selecting one `--strategy`, or use
 `.symmetryReduction(true).symmetryBitstate(1_000_003, 4)` on the library builder.
 An explicit exact backend or custom store/factory cannot be combined with this selection.
-DPOR and CLI strategy omission remain unsupported for approximate symmetry.
+Omitting CLI `--strategy` runs all four; a library builder selects one strategy and defaults to DFS.
 For CBS, `.maxPreemptions(k)` selects library capacity; the CLI retains its bitstate limit of two.
 All checked CBS costs share one logical filter, with mapped last owner and cost encoded together.
 With `--iterative-deepening`, approximate runs continue to the requested ceiling unless actual
@@ -387,8 +387,10 @@ failure/deadlock or a resource limit stops them. This also corrects ordinary app
 missing cutoff evidence cannot prove exhaustion. Exact searches keep their exhaustion shortcut.
 `preemptionsUsed` is the producing bound, not a proven approximate minimum. CBS's capped
 union-model false-positive estimate uses the largest validated queried cost in that pass.
-The complete value orbit is encoded before Bloom hashing; false positives may omit reachable
-behavior. Absence is `APPROXIMATE_PASS`, while actual violations and incomplete evidence keep
+The complete value orbit is encoded before Bloom hashing. DPOR additionally encodes the full
+mapped sleep context, with first-occurrence action identities and stable whole-frame owner mapping;
+VALUE hits cannot deliberately replace product coverage. All marks share one filter per owned store.
+False positives may omit reachable behavior. Absence is `APPROXIMATE_PASS`, while actual violations and incomplete evidence keep
 precedence. Bit density and the false-positive heuristic are diagnostics, not coverage guarantees.
 The bit budget covers membership only: source metadata, traversal, diagnostic state maps,
 temporary keys and retained traces also consume memory.
@@ -468,8 +470,9 @@ replay never changes the original INCOMPLETE verdict or independently authentica
 Earlier recorded failures/deadlocks keep selection priority. No shortening or new CLI mode is selected.
 
 B9 approximate symmetry is delivered in the [three-phase spec set](docs/plans/approximate-symmetry-contract.md).
-K1 (DFS/static POR) is merged and K2 adds CBS through the same library/CLI/reporting interfaces.
-K3 (DPOR) remains planned; no bounded total-process memory or speedup is claimed.
+K1 (DFS/static POR) and K2 (CBS) are merged. K3 adds full DPOR product membership and the final
+all-strategy consumers; B9 closure awaits this phase's merge. No total-process memory bound or
+speedup is claimed.
 
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to

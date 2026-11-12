@@ -45,9 +45,9 @@ class BitstateSymmetryStoreTest {
         assertEquals(store.bitCount(), copy.bitCount()); assertEquals(store.bitDensity(), copy.bitDensity());
     }
 
-    /** Invalid/future configurations cannot be silently mapped to an exact or ordinary mode. */
+    /** Invalid settings and foreign bindings reject rather than silently selecting another mode. */
     @Test
-    void rejectsInvalidSettingsUnavailableStrategiesAndForeignBindings() {
+    void rejectsInvalidSettingsAndForeignBindings() {
         var model = new SourceProgramLoader().load("program pair { shared int x = 0; thread 0 { atomic {} } thread 1 { atomic {} } }");
         for (int[] settings : new int[][]{{0,4,0},{1,0,0},{-1,4,0},{1,-1,0},{1,4,-1},{1,4,1}}) {
             assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(model.program(),null,Strategy.DFS,settings[0],settings[1],settings[2]));
@@ -55,9 +55,7 @@ class BitstateSymmetryStoreTest {
         // Owned settings reject before source certification, rather than relying on filter allocation.
         assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(null,null,Strategy.DFS,0,4,0));
         assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(null,null,Strategy.DFS,1,0,0));
-        for (Strategy strategy : new Strategy[]{Strategy.DPOR}) {
-            assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(model.program(),null,strategy,17,4,0));
-        }
+        assertDoesNotThrow(() -> BitstateSymmetryStateStore.forRun(model.program(),null,Strategy.DPOR,17,4,0));
         assertThrows(NullPointerException.class, () -> BitstateSymmetryStateStore.forRun(model.program(),null,null,17,4,0));
         assertThrows(NullPointerException.class, () -> BitstateSymmetryStateStore.forRun(null,null,Strategy.DFS,17,4,0));
         assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(model.program(),(s,c)->true,Strategy.DFS,17,4,0));

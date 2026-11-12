@@ -606,7 +606,7 @@ public final class InterleaveRunner implements Serializable {
         /** Selects owned approximate membership without implicitly enabling source symmetry.
          * Positive lookups may skip unseen states. The budget covers membership, not total heap.
          * For example, {@code builder().symmetryReduction(true).symmetryBitstate(1_000_003, 4)}.
-         * Requires DFS, static POR or CBS and rejects explicit exact backends or custom stores at build.
+         * Supports all built-in strategies and rejects explicit exact backends or custom stores at build.
          * Repeated calls replace the previous approximate settings.
          * @param bits positive logical bit capacity
          * @param hashFunctions positive number of probes
@@ -730,15 +730,14 @@ public final class InterleaveRunner implements Serializable {
          *         or an explicitly supplied store/factory, or a backend is selected without symmetry
          */
         public InterleaveRunner build() {
-            if (symmetryBits > 0 && (!symmetryReduction || symmetryBackendExplicit || stateStoreExplicit
-                    || (strategy != Strategy.DFS && strategy != Strategy.STATIC_POR && strategy != Strategy.CONTEXT_BOUNDED))) {
-                throw new IllegalArgumentException("symmetryBitstate requires symmetry, DFS/static POR/CBS, and no explicit backend/store/factory");
+            if (symmetryBits > 0 && (!symmetryReduction || symmetryBackendExplicit || stateStoreExplicit)) {
+                throw new IllegalArgumentException("symmetryBitstate requires symmetry and no explicit backend/store/factory");
             }
             if (symmetryBackendExplicit && !symmetryReduction) {
                 throw new IllegalArgumentException("symmetryBackend requires symmetryReduction(true)");
             }
             if (symmetryReduction && (strategy == null || stateStoreExplicit)) {
-                throw new IllegalArgumentException("Symmetry requires a built-in strategy and a certified exact backend; explicit stores/factories are unsupported");
+                throw new IllegalArgumentException("Symmetry requires a built-in strategy and owned checked storage; explicit stores/factories are unsupported");
             }
             // Only reject an *explicit* set. A caller who never touched these options and chose
             // DFS must keep working; a caller who named a context-bounded option while on another

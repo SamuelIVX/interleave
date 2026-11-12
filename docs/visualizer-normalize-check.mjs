@@ -52,6 +52,22 @@ if(process.env.SOURCE_APPROXIMATE_CBS_DIR){
   }
 }
 
+if(process.env.SOURCE_APPROXIMATE_DPOR_DIR){
+  const directory = process.env.SOURCE_APPROXIMATE_DPOR_DIR;
+  const all = JSON.parse(read(directory+'/source-approximate-all-strategies.json'));
+  assert.equal(all.benchmarks.length,4);
+  for(const row of all.benchmarks){
+    const normalized = normalize({...all,benchmarks:[row]});
+    assert.equal(normalized.meta.symmetryReduction,true);assert.equal(normalized.meta.storeType,'BITSTATE');
+    assert.equal(normalized.meta.strategy,row.strategy);assert.equal(normalized.meta.verdict,'APPROXIMATE_PASS');
+  }
+  for(const [suffix,verdict] of [['assertion','VIOLATION'],['runtime','VIOLATION'],['deadlock','DEADLOCK'],['cutoff','INCOMPLETE'],['resource','INCOMPLETE']]){
+    const normalized = normalize(JSON.parse(read(directory+'/source-approximate-dpor-'+suffix+'.json')));
+    assert.equal(normalized.meta.symmetryReduction,true);assert.equal(normalized.meta.storeType,'BITSTATE');
+    assert.equal(normalized.meta.verdict,verdict);
+  }
+}
+
 // Proof metadata is producer information, scoped strictly to original subsequences.
 const cutoff = {reason:'LOOP_LIMIT',threadId:0,instructionIndex:0,limit:0,iterations:0};
 const cutoffSearch = {domain:'ORIGINAL_SUBSEQUENCES',shortestProven:false,candidatesChecked:1,candidateLimit:4};
