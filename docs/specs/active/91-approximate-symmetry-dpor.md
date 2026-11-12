@@ -7,7 +7,7 @@ Complete B9 by approximating the whole checked DPOR state-plus-sleep-context ide
 all four selected strategies through the library and existing CLI/reports/viewer. Preserve concrete
 execution and real witnesses while keeping membership storage independent of visited-context count.
 
-**Type: delta. Status: implemented and locally verified; merge pending.**
+**Type: delta. Status: merged in PR #134 at `3d5c09e`; B9 complete.**
 [Spec 89](89-approximate-symmetry-dfs-por.md) merged in PR #132; then
 [Spec 90](90-approximate-symmetry-cbs.md) merged in PR #133 at `b8e2fa1`. The
 [B9 set contract](../../plans/approximate-symmetry-contract.md) owns shared interfaces and oracles.
@@ -169,7 +169,7 @@ when establishing a fixture's no-false-positive property. No production test cal
 - [verified] Independent 480-product and visible-counter shadows, alias/fixed-owner/byte-layout
   cases, all-strategy library/CLI/browser fixtures and original resource capture/replay are implemented.
 - Measurement and review evidence: [K3 ledger](../../measurements/91-approximate-symmetry-dpor.md).
-  B9 remains in progress until K3 merges; B10 and parked roadmap work remain excluded.
+  K3 merged in PR #134 at `3d5c09e`, completing B9; B10 and parked roadmap work remain excluded.
 
 ## Tests
 

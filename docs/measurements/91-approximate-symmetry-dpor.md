@@ -6,7 +6,7 @@
 K3 implements full mapped sleep-product membership in the existing single-filter checked store.
 All four built-in strategies are available through the library and explicit BITSTATE source CLI,
 including CLI strategy omission. Existing DPOR algorithms, exact membership, source eligibility,
-CBS policy and witness/resource semantics are retained. B9 remains in progress until K3 merges;
+CBS policy and witness/resource semantics are retained. K3 merged in PR #134 at `3d5c09e`, completing B9;
 B10 and parked roadmap items are not activated.
 
 Fresh baseline: merged K2 PR #133 at `b8e2fa1`. See
@@ -119,4 +119,4 @@ ordinary DPOR retains its existing antichain. The checked approximate branch use
 its unused empty compatibility map is not retained per-visit membership.
 
 No calibrated false-positive probability, coverage percentage, total-process memory bound, speedup,
-stronger sleep equivalence or expanded source eligibility is claimed. B9 completion awaits merge.
+stronger sleep equivalence or expanded source eligibility is claimed. B9 is complete following PR #134's merge at `3d5c09e`.

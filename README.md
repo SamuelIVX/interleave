@@ -470,8 +470,8 @@ replay never changes the original INCOMPLETE verdict or independently authentica
 Earlier recorded failures/deadlocks keep selection priority. No shortening or new CLI mode is selected.
 
 B9 approximate symmetry is delivered in the [three-phase spec set](docs/plans/approximate-symmetry-contract.md).
-K1 (DFS/static POR) and K2 (CBS) are merged. K3 adds full DPOR product membership and the final
-all-strategy consumers; B9 closure awaits this phase's merge. No total-process memory bound or
+K1 (DFS/static POR), K2 (CBS) and K3 (DPOR and final all-strategy consumers) are merged
+in PRs #132–134. B9 is complete. No total-process memory bound or
 speedup is claimed.
 
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
