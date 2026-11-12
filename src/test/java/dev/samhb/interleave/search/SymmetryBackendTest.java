@@ -11,6 +11,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /** Checks the actual certified containers and preserves selection when a store is copied. */
 class SymmetryBackendTest {
+    /** The exact factory preserves its original strategy-before-backend rejection order. */
+    @org.junit.jupiter.api.Test void nullArgumentsRetainValidationOrder() {
+        assertEquals("strategy",assertThrows(NullPointerException.class, () ->
+            SymmetryStateStore.forRun(null,null,null,null)).getMessage());
+    }
     /** Each allocation is independent and full string equality distinguishes known hash collisions.
      * @param backend certified collection implementation
      */

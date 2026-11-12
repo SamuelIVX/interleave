@@ -4,7 +4,6 @@ package dev.samhb.interleave.state;
 import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.search.StateStore;
 import java.util.Arrays;
-import java.util.BitSet;
 
 /**
  * Approximate state store using a Bloom filter (bit-vector with k hash functions).
@@ -23,7 +22,7 @@ public final class BitstateStore implements StateStore {
     /** Encoder. */
     private final CanonicalEncoder encoder;
     /** Bitset. */
-    private final BitSet bitset;
+    private final BitstateFilter bitset;
     /** Size. */
     private final int size;
     /** Num hash functions. */
@@ -31,7 +30,7 @@ public final class BitstateStore implements StateStore {
     /** States marked. */
     private int statesMarked;
     /** Preemption bitsets. */
-    private final BitSet[] preemptionBitsets;
+    private final BitstateFilter[] preemptionBitsets;
     /** Max preemptions. */
     private final int maxPreemptions;
     /** Preemption states marked. */
@@ -87,12 +86,12 @@ public final class BitstateStore implements StateStore {
         this.size = size;
         this.numHashFunctions = numHashFunctions;
         this.maxPreemptions = maxPreemptions;
-        this.bitset = new BitSet(size);
+        this.bitset = new BitstateFilter(size, numHashFunctions);
         this.statesMarked = 0;
         // Allocated lazily. A store used only for DFS/POR/DPOR never touches these, and eagerly
         // allocating maxPreemptions+1 full bit-vectors would add a few hundred KB per store for
         // every existing caller that never runs a context-bounded search.
-        this.preemptionBitsets = new BitSet[maxPreemptions + 1];
+        this.preemptionBitsets = new BitstateFilter[maxPreemptions + 1];
         this.preemptionStatesMarked = 0;
     }
 
@@ -103,22 +102,13 @@ public final class BitstateStore implements StateStore {
      */
     @Override
     public boolean isVisited(Configuration config) {
-        int[] indices = hashIndices(config);
-        for (int idx : indices) {
-            if (!bitset.get(idx)) {
-                return false;
-            }
-        }
-        return true;
+        return bitset.contains(hashCode(config));
     }
 
     /** {@inheritDoc} */
     @Override
     public void markVisited(Configuration config) {
-        int[] indices = hashIndices(config);
-        for (int idx : indices) {
-            bitset.set(idx);
-        }
+        bitset.mark(hashCode(config));
         statesMarked++;
     }
 
@@ -142,7 +132,8 @@ public final class BitstateStore implements StateStore {
     @Override
     public boolean isVisited(Configuration config, int lastThreadId, int preemptions) {
         requirePreemptionInRange(preemptions);
-        int[] indices = preemptionHashIndices(config, lastThreadId);
+        int hash = 31 * hashCode(config) + lastThreadId;
+        int[] indices = bitset.indices(hash);
         // Visited at budget p iff some recorded level q satisfies q <= p -- the same rule
         // HashingStateStore implements with a stored minimum. A state first reached using fewer
         // preemptions was explored with more budget remaining, so it subsumes this search and
@@ -152,18 +143,11 @@ public final class BitstateStore implements StateStore {
         // answer this one method differently, so a search's behaviour would depend on which store
         // the caller happened to pass.
         for (int level = 0; level <= preemptions; level++) {
-            BitSet target = preemptionBitsets[level];
+            BitstateFilter target = preemptionBitsets[level];
             if (target == null) {
                 continue;   // never marked at this level
             }
-            boolean allSet = true;
-            for (int idx : indices) {
-                if (!target.get(idx)) {
-                    allSet = false;
-                    break;
-                }
-            }
-            if (allSet) {
+            if (target.containsIndices(indices)) {
                 return true;
             }
         }
@@ -173,11 +157,8 @@ public final class BitstateStore implements StateStore {
     /** {@inheritDoc} */
     @Override
     public void markVisited(Configuration config, int lastThreadId, int preemptions) {
-        BitSet target = preemptionBitset(preemptions);
-        int[] indices = preemptionHashIndices(config, lastThreadId);
-        for (int idx : indices) {
-            target.set(idx);
-        }
+        BitstateFilter target = preemptionBitset(preemptions);
+        target.mark(31 * hashCode(config) + lastThreadId);
         preemptionStatesMarked++;
     }
 
@@ -198,11 +179,11 @@ public final class BitstateStore implements StateStore {
      * @param preemptions preemption cost at this position
      * @return allocated Bloom vector for this cost; allocating it mutates store bookkeeping
      */
-    private BitSet preemptionBitset(int preemptions) {
+    private BitstateFilter preemptionBitset(int preemptions) {
         requirePreemptionInRange(preemptions);
-        BitSet existing = preemptionBitsets[preemptions];
+        BitstateFilter existing = preemptionBitsets[preemptions];
         if (existing == null) {
-            existing = new BitSet(size);
+            existing = new BitstateFilter(size, numHashFunctions);
             preemptionBitsets[preemptions] = existing;
         }
         return existing;
@@ -264,10 +245,10 @@ public final class BitstateStore implements StateStore {
      * @return total bit cardinality
      */
     public int bitCount() {
-        int total = bitset.cardinality();
-        for (BitSet preemptionBitset : preemptionBitsets) {
+        int total = bitset.bitCount();
+        for (BitstateFilter preemptionBitset : preemptionBitsets) {
             if (preemptionBitset != null) {
-                total += preemptionBitset.cardinality();
+                total += preemptionBitset.bitCount();
             }
         }
         return total;
@@ -308,7 +289,7 @@ public final class BitstateStore implements StateStore {
      */
     private int allocatedPreemptionVectors() {
         int count = 0;
-        for (BitSet preemptionBitset : preemptionBitsets) {
+        for (BitstateFilter preemptionBitset : preemptionBitsets) {
             if (preemptionBitset != null) {
                 count++;
             }
@@ -346,50 +327,6 @@ public final class BitstateStore implements StateStore {
         // default would under-report states explored for K > 2 and then trip the explorer's
         // capacity assertion.
         return new BitstateStore(size, numHashFunctions, maxPreemptions);
-    }
-
-    /**
-     * Computes the k bit indices for a configuration using double hashing.
-     * The primary hash is {@code h1 = hash(config)}; the secondary hash is
-     * {@code h2 = rotateLeft(h1, 17)} (ensuring h2 != 0). The i-th index is
-     * {@code floorMod(h1 + i * h2, size)}. This is the standard double-hashing
-     * technique for Bloom filters, giving k pseudo-independent indices from two
-     * hash computations.
-     *
-     * @param config the configuration to hash
-     * @return array of k bit indices in [0, size)
-     */
-    private int[] hashIndices(Configuration config) {
-        return doubleHash(hashCode(config));
-    }
-
-    /**
-     * Computes the k bit indices for a preemption-aware lookup. The primary hash folds in
-     * {@code lastThreadId} so that the same configuration reached by different threads does not
-     * collide, and a separate bit-vector per preemption count keeps the budgets independent.
-     * @param config current search configuration
-     * @param lastThreadId previously scheduled thread, or the initial sentinel
-     * @return Bloom probe indices for canonical position and previous-thread identity
-     */
-    private int[] preemptionHashIndices(Configuration config, int lastThreadId) {
-        return doubleHash(31 * hashCode(config) + lastThreadId);
-    }
-
-    /**
-     * Mixes the canonical hash into the second Bloom-filter hash.
-     * @param h1 first hash from which a second hash is mixed
-     * @return mixed second hash for Bloom probing
-     */
-    private int[] doubleHash(int h1) {
-        int h2 = Integer.rotateLeft(h1, 17);
-        if (h2 == 0) {
-            h2 = 1;
-        }
-        int[] indices = new int[numHashFunctions];
-        for (int i = 0; i < numHashFunctions; i++) {
-            indices[i] = Math.floorMod(h1 + i * h2, size);
-        }
-        return indices;
     }
 
     /**
