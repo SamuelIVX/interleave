@@ -32,6 +32,10 @@ public final class InterleaveRunner implements Serializable {
     private final boolean symmetryReduction;
     /** Certified exact symmetry storage, immutable and independent of membership. */
     private final SymmetryBackend symmetryBackend;
+    /** Zero for exact storage, otherwise the selected approximate membership budget. */
+    private final int symmetryBits;
+    /** Approximate probe count, used only when symmetryBits is positive. */
+    private final int symmetryHashFunctions;
     /** Invariant. */
     private final Invariant invariant;
     /** State store factory. */
@@ -53,6 +57,8 @@ public final class InterleaveRunner implements Serializable {
         this.strategy = builder.strategy;
         this.symmetryReduction = builder.symmetryReduction;
         this.symmetryBackend = builder.symmetryBackend;
+        this.symmetryBits = builder.symmetryBits;
+        this.symmetryHashFunctions = builder.symmetryHashFunctions;
         this.invariant = builder.invariant;
         this.stateStoreFactory = builder.stateStoreFactory;
         this.maxStates = builder.maxStates;
@@ -70,9 +76,13 @@ public final class InterleaveRunner implements Serializable {
      * @throws NullPointerException for a null program in checked mode
      */
     private StateStore newRunStore(Program program) {
-        if (symmetryReduction) return SymmetryStateStore.forRun(program, invariant, strategy, symmetryBackend);
+        if (symmetryReduction) {
+            return symmetryBits > 0
+                ? BitstateSymmetryStateStore.forRun(program, invariant, strategy, symmetryBits, symmetryHashFunctions, 0)
+                : SymmetryStateStore.forRun(program, invariant, strategy, symmetryBackend);
+        }
         StateStore store = stateStoreFactory.get();
-        if (store instanceof SymmetryStateStore) {
+        if (store instanceof CheckedSymmetryStore) {
             throw new IllegalArgumentException("Use symmetryReduction(true) instead of supplying a symmetry store");
         }
         return store;
@@ -125,7 +135,7 @@ public final class InterleaveRunner implements Serializable {
         Supplier<StateStore> runStore = () -> {
             if (storeSlot[0] == null) {
                 storeSlot[0] = newRunStore(program);
-                limitState.approximate |= storeSlot[0] instanceof dev.samhb.interleave.state.BitstateStore;
+                limitState.approximate |= storeSlot[0] instanceof ApproximateStateStore;
             }
             return storeSlot[0];
         };
@@ -404,7 +414,7 @@ public final class InterleaveRunner implements Serializable {
             limitState.partialResult = limitState.partialResult.withTracesCleared();
 
             StateStore freshStore = newRunStore(program);
-            limitState.approximate |= freshStore instanceof dev.samhb.interleave.state.BitstateStore;
+            limitState.approximate |= freshStore instanceof ApproximateStateStore;
             if (!seenStores.add(freshStore)) {
                 throw new IllegalStateException(
                     "Iterative deepening requires a fresh StateStore per bound, but the configured "
@@ -534,6 +544,10 @@ public final class InterleaveRunner implements Serializable {
         private SymmetryBackend symmetryBackend = SymmetryBackend.HASHED;
         /** Whether storage selection was explicit and must not be silently ignored. */
         private boolean symmetryBackendExplicit;
+        /** Zero means the default exact backend; positive means owned approximate membership. */
+        private int symmetryBits;
+        /** Probe count for explicitly selected approximate symmetry. */
+        private int symmetryHashFunctions;
         /** Whether a caller supplied a store contract that symmetry must not silently ignore. */
         private boolean stateStoreExplicit;
         /** Invariant. */
@@ -567,8 +581,8 @@ public final class InterleaveRunner implements Serializable {
         }
 
         /**
-         * Selects checked exact source-orbit search, retaining original execution and trace identities.
-         * Requires a built-in strategy and a certified exact backend, plus source/property eligibility checked at run time.
+         * Selects checked source-orbit search, retaining original execution and trace identities.
+         * Requires a built-in strategy and owned storage, plus source/property eligibility checked at run time.
          * For example, builder().symmetryReduction(true).build().run(sourceProgram) explores orbits.
          * @param enabled whether to enable the conservative source symmetry mode
          * @return this builder
@@ -589,6 +603,23 @@ public final class InterleaveRunner implements Serializable {
         public Builder symmetryBackend(SymmetryBackend backend) {
             this.symmetryBackend = java.util.Objects.requireNonNull(backend, "backend");
             this.symmetryBackendExplicit = true;
+            return this;
+        }
+
+        /** Selects owned approximate membership without implicitly enabling source symmetry.
+         * Positive lookups may skip unseen states. The budget covers membership, not total heap.
+         * For example, {@code builder().symmetryReduction(true).symmetryBitstate(1_000_003, 4)}.
+         * Requires DFS or static POR and rejects explicit exact backends or custom stores at build.
+         * Repeated calls replace the previous approximate settings.
+         * @param bits positive logical bit capacity
+         * @param hashFunctions positive number of probes
+         * @return this builder
+         * @throws IllegalArgumentException if bits or hashFunctions is not positive
+         */
+        public Builder symmetryBitstate(int bits, int hashFunctions) {
+            if (bits <= 0 || hashFunctions <= 0) throw new IllegalArgumentException("Positive bits and probes required");
+            this.symmetryBits = bits;
+            this.symmetryHashFunctions = hashFunctions;
             return this;
         }
 
@@ -702,6 +733,10 @@ public final class InterleaveRunner implements Serializable {
          *         or an explicitly supplied store/factory, or a backend is selected without symmetry
          */
         public InterleaveRunner build() {
+            if (symmetryBits > 0 && (!symmetryReduction || symmetryBackendExplicit || stateStoreExplicit
+                    || (strategy != Strategy.DFS && strategy != Strategy.STATIC_POR))) {
+                throw new IllegalArgumentException("symmetryBitstate requires symmetry, DFS/static POR, and no explicit backend/store/factory");
+            }
             if (symmetryBackendExplicit && !symmetryReduction) {
                 throw new IllegalArgumentException("symmetryBackend requires symmetryReduction(true)");
             }

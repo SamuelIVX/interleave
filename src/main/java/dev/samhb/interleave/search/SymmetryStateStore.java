@@ -4,8 +4,6 @@ package dev.samhb.interleave.search;
 import dev.samhb.interleave.Strategy;
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.format.dsl.DynamicState;
-import dev.samhb.interleave.format.dsl.SourceSymmetry;
-import dev.samhb.interleave.state.ThreadSymmetryCanonicalizer;
 import java.util.*;
 
 /**
@@ -16,15 +14,9 @@ import java.util.*;
  * {@link DynamicState}; passing foreign configurations violates the run contract.
  * This mutable store must not be shared between concurrent explorations.
  */
-public final class SymmetryStateStore implements StateStore {
-    /** Exact immutable model certified at construction. */
-    private final Program program;
-    /** Exact pure compiler property, or null. */
-    private final Invariant invariant;
-    /** Algorithm whose context this membership represents. */
-    private final Strategy strategy;
-    /** Whole-frame permutation and exact value encoder for the certified groups. */
-    private final ThreadSymmetryCanonicalizer canonicalizer;
+public final class SymmetryStateStore implements CheckedSymmetryStore {
+    /** Immutable checked run identity and owner/action mapping. */
+    private final SymmetryRunContext context;
     /** Certified exact storage configuration retained by copies. */
     private final SymmetryBackend backend;
     /** Recorded value orbits for unbounded traversal. */
@@ -32,48 +24,17 @@ public final class SymmetryStateStore implements StateStore {
     /** Lowest known cost per CBS orbit and mapped last owner. */
     private final Map<String, Integer> minimumCosts;
     /** Exact copied sleep contexts per value orbit. */
-    private final Map<String, Set<Set<SleepingAction>>> sleepCoverage;
-    /** First owner-local occurrence of each instruction identity for DPOR action transport. */
-    private final List<IdentityHashMap<Step, Integer>> occurrences = new ArrayList<>();
-
-    /** Constructs an empty capability after source eligibility is checked.
-     * @param program bound immutable source program
-     * @param invariant bound compiler property, or null
-     * @param strategy built-in search using this store
-     * @param groups certified interchangeable owners
-     * @param backend validated exact storage choice, allocating independent containers
-     * @throws IllegalArgumentException if a DPOR group has inconsistent instruction-alias partitions
+    private final Map<String, Set<Set<SymmetryRunContext.SleepingAction>>> sleepCoverage;
+    /** Allocates independent exact membership for an immutable checked run context.
+     * @param context validated immutable run and mapping
+     * @param backend certified exact container selection
      */
-    private SymmetryStateStore(Program program, Invariant invariant, Strategy strategy, List<List<Integer>> groups, SymmetryBackend backend) {
-        this.program = program;
-        this.invariant = invariant;
-        this.strategy = strategy;
+    private SymmetryStateStore(SymmetryRunContext context, SymmetryBackend backend) {
+        this.context = context;
         this.backend = backend;
         this.visited = backend.newSet();
         this.minimumCosts = backend.newMap();
         this.sleepCoverage = backend.newMap();
-        this.canonicalizer = new ThreadSymmetryCanonicalizer(program.threadCount(), groups);
-        if (strategy == Strategy.DPOR) {
-            var partitions = new ArrayList<List<Integer>>();
-            for (var thread : program.threads()) {
-                var indices = new IdentityHashMap<Step, Integer>();
-                var partition = new ArrayList<Integer>();
-                for (int pc = 0; pc < thread.steps().size(); pc++) {
-                    Step action = thread.steps().get(pc);
-                    indices.putIfAbsent(action, pc);
-                    partition.add(indices.get(action));
-                }
-                occurrences.add(indices);
-                partitions.add(List.copyOf(partition));
-            }
-            for (var group : groups) {
-                for (int owner : group) {
-                    if (!partitions.get(group.getFirst()).equals(partitions.get(owner))) {
-                        throw new IllegalArgumentException("Symmetry DPOR requires matching instruction-alias partitions within each group");
-                    }
-                }
-            }
-        }
     }
 
     /**
@@ -104,7 +65,7 @@ public final class SymmetryStateStore implements StateStore {
     public static SymmetryStateStore forRun(Program program, Invariant invariant, Strategy strategy, SymmetryBackend backend) {
         Objects.requireNonNull(strategy, "strategy");
         Objects.requireNonNull(backend, "backend");
-        return new SymmetryStateStore(program, invariant, strategy, SourceSymmetry.groups(program, invariant), backend);
+        return new SymmetryStateStore(new SymmetryRunContext(program, invariant, strategy), backend);
     }
 
     /** Reports the immutable storage choice without exposing live membership containers.
@@ -118,10 +79,8 @@ public final class SymmetryStateStore implements StateStore {
      * @param strategy requested built-in algorithm
      * @throws IllegalArgumentException if any bound identity differs
      */
-    public void requireRun(Program program, Invariant invariant, Strategy strategy) {
-        if (this.program != program || this.invariant != invariant || this.strategy != strategy) {
-            throw new IllegalArgumentException("Symmetry store belongs to a different program, property or strategy");
-        }
+    @Override public void requireRun(Program program, Invariant invariant, Strategy strategy) {
+        context.requireRun(program, invariant, strategy);
     }
 
     /** Tests unbounded value-orbit membership, independently of CBS cost membership.
@@ -130,14 +89,14 @@ public final class SymmetryStateStore implements StateStore {
      * @return whether its value orbit was recorded
      * @throws ClassCastException if the configuration does not contain DynamicState
      */
-    @Override public boolean isVisited(Configuration config) { return visited.contains(position(config).key()); }
+    @Override public boolean isVisited(Configuration config) { return visited.contains(context.position(config).key()); }
 
     /** Records a copied unbounded value-orbit key without relabeling execution.
      * Available for every bound strategy; this does not mark any CBS cost/last-owner context.
      * @param config original configuration whose immutable orbit key is retained
      * @throws ClassCastException if the configuration does not contain DynamicState
      */
-    @Override public void markVisited(Configuration config) { visited.add(position(config).key()); }
+    @Override public void markVisited(Configuration config) { visited.add(context.position(config).key()); }
 
     /** Checks whether an equal CBS orbit/last owner was visited with no greater cost.
      * @param config original configuration
@@ -148,7 +107,7 @@ public final class SymmetryStateStore implements StateStore {
      */
     @Override public boolean isVisited(Configuration config, int lastThreadId, int preemptions) {
         requireCost(preemptions);
-        Integer previous = minimumCosts.get(canonicalizer.canonicalize((DynamicState) config.state(), config.programCounters(), lastThreadId).key());
+        Integer previous = minimumCosts.get(context.costKey(config, lastThreadId));
         return previous != null && previous <= preemptions;
     }
 
@@ -160,7 +119,7 @@ public final class SymmetryStateStore implements StateStore {
      */
     @Override public void markVisited(Configuration config, int lastThreadId, int preemptions) {
         requireCost(preemptions);
-        String key = canonicalizer.canonicalize((DynamicState) config.state(), config.programCounters(), lastThreadId).key();
+        String key = context.costKey(config, lastThreadId);
         minimumCosts.merge(key, preemptions, Math::min);
     }
 
@@ -174,25 +133,10 @@ public final class SymmetryStateStore implements StateStore {
      * @return true if this orbit and mapped sleep context were already recorded
      * @throws IllegalArgumentException if called outside DPOR or with foreign actions
      */
-    public boolean sleepCovered(Configuration config, Set<Map.Entry<Integer, Step>> sleeping) {
-        if (strategy != Strategy.DPOR) throw new IllegalArgumentException("Sleep contexts require symmetry DPOR");
-        var position = position(config);
-        var tokens = new HashSet<SleepingAction>();
-        for (var entry : sleeping) {
-            int owner = entry.getKey();
-            if (owner < 0 || owner >= occurrences.size()) throw new IllegalArgumentException("Invalid sleeping owner");
-            Integer pc = occurrences.get(owner).get(entry.getValue());
-            if (pc == null) throw new IllegalArgumentException("Foreign sleeping action");
-            tokens.add(new SleepingAction(position.canonicalThreadId(owner), pc));
-        }
-        return !sleepCoverage.computeIfAbsent(position.key(), ignored -> new HashSet<>()).add(Set.copyOf(tokens));
+    @Override public boolean sleepCovered(Configuration config, Set<Map.Entry<Integer, Step>> sleeping) {
+        var incoming = context.sleepContext(config, sleeping);
+        return !sleepCoverage.computeIfAbsent(incoming.key(), ignored -> new HashSet<>()).add(incoming.tokens());
     }
-
-    /** Canonical owner and representative action position, with no metadata or object identity in equality.
-     * @param owner owner after the same frame permutation used by the value key
-     * @param pc first lexical occurrence of the instruction object
-     */
-    private record SleepingAction(int owner, int pc) {}
 
     /** Clears all value, budget and sleep coverage while retaining the validated run binding. */
     @Override public void clear() { visited.clear(); minimumCosts.clear(); sleepCoverage.clear(); }
@@ -200,15 +144,7 @@ public final class SymmetryStateStore implements StateStore {
     /** Creates empty membership for the same run contract and selected backend.
      * @return independent empty membership with the same validated binding
      */
-    @Override public StateStore freshCopy() { return forRun(program, invariant, strategy, backend); }
-
-    /** Encodes a whole-frame value orbit with a reversible owner map.
-     * @param config actual source configuration
-     * @return exact value key and reversible owner map
-     */
-    private ThreadSymmetryCanonicalizer.CanonicalPosition position(Configuration config) {
-        return canonicalizer.canonicalize((DynamicState) config.state(), config.programCounters());
-    }
+    @Override public StateStore freshCopy() { return new SymmetryStateStore(context, backend); }
 
     /** Rejects negative public costs before membership lookup or mutation.
      * @param cost preemption count

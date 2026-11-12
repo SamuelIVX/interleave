@@ -529,6 +529,55 @@ class MainTest {
         java.nio.file.Files.writeString(artifact, reduced.output());
     }
 
+    /** Produces real approximate-symmetry JSON for normalization and browser verification.
+     * @throws Exception if child JVM execution or artifact writing fails
+     */
+    @Test void approximateSymmetryCliReportIdentity() throws Exception {
+        for (String strategy : List.of("DFS", "STATIC_POR")) {
+            var result = invokeCli("--source", "examples/programs/symmetry-counter.ilv", "--store", "bitstate",
+                "--strategy", strategy, "--symmetry", "--json");
+            assertEquals(0,result.exitCode(),result.output());
+            var report = com.google.gson.JsonParser.parseString(result.output()).getAsJsonObject();
+            var row = report.getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+            assertTrue(row.get("symmetryReduction").getAsBoolean());
+            assertEquals(strategy,row.get("strategy").getAsString());
+            assertEquals("BITSTATE",row.get("storeType").getAsString());
+            assertEquals("APPROXIMATE_PASS",row.get("verdict").getAsString());
+            assertEquals(5,row.get("statesExplored").getAsInt());
+            assertTrue(report.get("soundness").getAsBoolean());
+            if (strategy.equals("DFS")) {
+                var artifact = java.nio.file.Path.of("build/source-approximate-symmetry-visualizer.json");
+                java.nio.file.Files.createDirectories(artifact.getParent());
+                java.nio.file.Files.writeString(artifact,result.output());
+            }
+        }
+    }
+
+    /** Actual approximate failure/cutoff reports retain replay authentication and precedence.
+     * @param dir isolated fixture directory
+     * @throws Exception if fixture writing or CLI execution fails
+     */
+    @Test void approximateSymmetryCliWitnesses(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        var source = dir.resolve("pair.ilv");
+        for (String strategy : List.of("DFS","STATIC_POR")) {
+            java.nio.file.Files.writeString(source,"program split { shared int x = 0; local int r = 0; helper inc { atomic { local.r = x; } atomic { x = local.r + 1; } } thread 0 { call inc; } thread 1 { call inc; } invariant final (x == 2); }");
+            var failure = invokeCli("--source",source.toString(),"--store","bitstate","--strategy",strategy,"--symmetry","--json");
+            assertEquals(0,failure.exitCode(),failure.output());
+            var report = com.google.gson.JsonParser.parseString(failure.output()).getAsJsonObject();
+            assertEquals("VIOLATION",report.getAsJsonArray("benchmarks").get(0).getAsJsonObject().get("verdict").getAsString());
+            assertTrue(report.get("soundness").getAsBoolean()); // Attestation replays every violation.
+            java.nio.file.Files.writeString(source,"program loops { shared int x = 0; thread 0 { while (true) limit 0 {} } thread 1 { while (true) limit 0 {} } }");
+            var cutoff = invokeCli("--source",source.toString(),"--store","bitstate","--strategy",strategy,"--symmetry","--json");
+            assertEquals(0,cutoff.exitCode(),cutoff.output());
+            var row = com.google.gson.JsonParser.parseString(cutoff.output()).getAsJsonObject().getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+            assertEquals("INCOMPLETE",row.get("verdict").getAsString());
+            var incomplete = row.getAsJsonObject("incompleteTrace");
+            assertNotNull(incomplete);
+            assertEquals("LOOP_LIMIT",incomplete.getAsJsonObject("cutoff").get("reason").getAsString());
+            assertEquals("BITSTATE",row.get("storeType").getAsString()); assertTrue(row.get("symmetryReduction").getAsBoolean());
+        }
+    }
+
     /** CLI default selection composes all four exact strategies, including iterative CBS.
      * @throws Exception if child JVM execution fails
      */
@@ -584,7 +633,8 @@ class MainTest {
      */
     @Test void sourceSymmetryCliRejectsUnsupportedSelections() throws Exception {
         for (var selection : List.of(List.<String>of(),
-                List.of("--store", "bitstate", "--strategy", "DFS"),
+                List.of("--store", "bitstate"),
+                List.of("--store", "bitstate", "--strategy", "DPOR"),
                 List.of("--store", "bitstate", "--strategy", "CONTEXT_BOUNDED"),
                 List.of("--store", "exact", "--strategy", "STATIC_POR", "--max-preemptions", "0"),
                 List.of("--store", "exact", "--strategy", "DPOR", "--iterative-deepening"),

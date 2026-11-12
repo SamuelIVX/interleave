@@ -373,7 +373,18 @@ Omit CLI `--strategy` to run all four; select `CONTEXT_BOUNDED`
 for CBS bounds or iterative deepening. DPOR retains exact mapped sleep context. Repeated instruction objects in recomposed programs are
 supported when interchangeable owners have matching alias patterns; incompatible patterns reject.
 CBS retains mapped last owner and minimum cost.
-Counts can include revisits with different strategy context. Bitstate symmetry is unsupported.
+Counts can include revisits with different strategy context.
+
+Approximate symmetry supports **DFS and static POR**. Select an explicit strategy with
+`--symmetry --store bitstate --strategy DFS` (or `STATIC_POR`), or use
+`.symmetryReduction(true).symmetryBitstate(1_000_003, 4)` on the library builder.
+An explicit exact backend or custom store/factory cannot be combined with this selection.
+CBS, DPOR and CLI strategy omission remain unsupported for approximate symmetry.
+The complete value orbit is encoded before Bloom hashing; false positives may omit reachable
+behavior. Absence is `APPROXIMATE_PASS`, while actual violations and incomplete evidence keep
+precedence. Bit density and the false-positive heuristic are diagnostics, not coverage guarantees.
+The bit budget covers membership only: source metadata, traversal, diagnostic state maps,
+temporary keys and retained traces also consume memory.
 See [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) for strategy composition,
 [Spec 81](docs/specs/active/81-aliased-source-symmetry.md) for alias eligibility and transport,
 and [Spec 84](docs/specs/active/84-certified-symmetry-backends.md) for certified library backends.
@@ -449,9 +460,9 @@ snapshot; explicit replay adds intermediate states and separately labeled observ
 replay never changes the original INCOMPLETE verdict or independently authenticates uploaded JSON.
 Earlier recorded failures/deadlocks keep selection priority. No shortening or new CLI mode is selected.
 
-Planned B9 approximate symmetry is specified in the [three-phase spec set](docs/plans/approximate-symmetry-contract.md).
-It is not implemented: current symmetry still requires exact storage. The planned expansion covers
-all four strategies and existing consumers without claiming bounded total process memory.
+B9 approximate symmetry is delivered in the [three-phase spec set](docs/plans/approximate-symmetry-contract.md).
+K1 supports DFS/static POR through the library and existing CLI/reports/viewer.
+K2 (CBS) and K3 (DPOR) remain planned; no bounded total-process memory or speedup is claimed.
 
 Library callers use `new SourceProgramLoader().load(text)` or `.loadFromFile(path)` from
 `dev.samhb.interleave.format`. The result supplies the compiled program and optional invariant to

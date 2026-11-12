@@ -435,10 +435,10 @@ pitest {
 // Default 435/451: ceil(94*451/100)=424, eleven kills of headroom (previously ten).
 // No scope/operator/filter change. See docs/measurements/77-source-symmetry-composition.md.
 // Spec 87 adds four assertion-killed CBS interruption-capture mutations; 324 state sites are unchanged.
-// Default population 455, with the same operators/targets and 94% floor: ceil(94*455/100)=428.
-// Expected 440 kills retain the previous twelve-kill margin (436 - ceil(94*451/100)=12).
-// See docs/measurements/87-resource-prefix-evidence.md for measured identities and raw residuals.
-val EXPECTED_TOTAL_MUTANTS = 455
+// Spec 89's shared filter/probe reuse census has 468 mutants, with the same operators and targets.
+// The unchanged 94% floor requires ceil(94*468/100)=440 assertion-backed kills.
+// See docs/measurements/89-approximate-symmetry-dfs-por.md for fresh baseline and moved-site lineage.
+val EXPECTED_TOTAL_MUTANTS = 468
 
 /**
  * Per-class kills/total, checked against the measurement on every run and reported as a WARNING only.
@@ -457,7 +457,8 @@ val EXPECTED_TOTAL_MUTANTS = 455
 val EXPECTED_PER_CLASS = mapOf(
     "dev.samhb.interleave.state.CanonicalEncoder" to "18/19",
     "dev.samhb.interleave.state.HashingStateStore" to "45/52",
-    "dev.samhb.interleave.state.BitstateStore" to "95/97",
+    "dev.samhb.interleave.state.BitstateStore" to "84/84",
+    "dev.samhb.interleave.state.BitstateFilter" to "26/26",
     "dev.samhb.interleave.cb.ContextBoundedExplorer" to "131/131",
     // Spec 79: one assertion-earned comparator kill; unchanged 145-mutant population.
     "dev.samhb.interleave.state.ThreadSymmetryCanonicalizer" to "140/145",

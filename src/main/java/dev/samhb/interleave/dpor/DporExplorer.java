@@ -85,7 +85,7 @@ public final class DporExplorer {
      */
     public DfsResult explore(Program program, Invariant invariant, StateStore stateStore, StateVisitor stateVisitor) {
         StateStore effectiveStateStore = stateStore != null ? stateStore : new HashingStateStore();
-        if (effectiveStateStore instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+        if (effectiveStateStore instanceof dev.samhb.interleave.search.CheckedSymmetryStore symmetry) {
             symmetry.requireRun(program, invariant, dev.samhb.interleave.Strategy.DPOR);
         }
         effectiveStateStore.clear(); // Clear before traversal to avoid pre-populated store issues
@@ -151,7 +151,7 @@ public final class DporExplorer {
                          Set<MemoryLocation> observations,
                          Map<String, List<SleepSet>> sleepCoverage) {
         // Checked symmetry stores are source-only; mapped sleep coverage below decides revisits.
-        boolean seen = !(stateStore instanceof SymmetryStateStore) && stateStore.isVisited(config);
+        boolean seen = !(stateStore instanceof CheckedSymmetryStore) && stateStore.isVisited(config);
         if (program.isSource()) {
             List<Integer> enabledHere = config.enabledThreadIds();
             boolean allSleeping = !enabledHere.isEmpty();
@@ -161,7 +161,7 @@ public final class DporExplorer {
             }
             // Normalize the exhaustive all-asleep fallback before comparing coverage contexts.
             if (allSleeping) sleepSet = new SleepSet();
-            if (stateStore instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+            if (stateStore instanceof dev.samhb.interleave.search.CheckedSymmetryStore symmetry) {
                 if (symmetry.sleepCovered(config, sleepSet.entries())) return;
             } else {
                 String key = encoder.configurationKey(config);

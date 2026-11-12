@@ -40,6 +40,14 @@ import org.junit.jupiter.api.Test;
  * that makes the multiplier observable.
  */
 class BitstateStoreDiagnosticsTest {
+    /** Shared filter validation must preserve the ordinary constructor's first invalid argument. */
+    @Test
+    void invalidSettingsPreserveValidationPrecedence() {
+        assertEquals("size must be positive", assertThrows(IllegalArgumentException.class,
+            () -> new BitstateStore(0,4,-1)).getMessage());
+        assertEquals("numHashFunctions must be positive", assertThrows(IllegalArgumentException.class,
+            () -> new BitstateStore(1,0,-1)).getMessage());
+    }
 
     /** At low load, additional probes must populate additional bits, not just change the estimate. */
     @Test

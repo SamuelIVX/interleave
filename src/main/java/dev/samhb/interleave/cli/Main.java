@@ -262,10 +262,11 @@ public final class Main {
         }
 
         if (symmetryReduction && (all || program == null || !program.program().isSource()
-                || !EXACT.equals(storeFilter)
+                || (!EXACT.equals(storeFilter) && !("BITSTATE".equals(storeFilter)
+                    && ("DFS".equals(strategyFilter) || "STATIC_POR".equals(strategyFilter))))
                 || (strategyFilter != null && !"CONTEXT_BOUNDED".equals(strategyFilter)
                     && (iterativeDeepening || maxPreemptionsExplicit)))) {
-            System.err.println("Error: --symmetry requires --source --store exact; CBS options require a CBS selection");
+            System.err.println("Error: --symmetry requires --source and --store exact, or --store bitstate with explicit DFS/static POR; CBS options require a CBS selection");
             System.exit(1);
         }
 
@@ -446,7 +447,7 @@ public final class Main {
         System.out.println("Flags:");
         System.out.println("  --shortest-cutoff N       Best cutoff subsequence within N candidate checks; JSON includes proof/work metadata");
         System.out.println("  --json                    Output as JSON (default: Markdown)");
-        System.out.println("  --symmetry                Checked source-thread symmetry; requires --source --store exact");
+        System.out.println("  --symmetry                Checked source-thread symmetry; exact, or bitstate with explicit DFS/static POR");
         System.out.println("  --simplify-cutoff         Emit one shorter INCOMPLETE source trace; requires --json --store exact --strategy");
         System.out.println("  --store exact|bitstate    Filter by store type (default: both)");
         System.out.println("  --strategy DFS|STATIC_POR|DPOR|CONTEXT_BOUNDED  Filter by strategy (default: all)");

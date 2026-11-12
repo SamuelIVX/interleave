@@ -3,7 +3,6 @@ package dev.samhb.interleave.cb;
 
 import dev.samhb.interleave.core.*;
 import dev.samhb.interleave.search.*;
-import dev.samhb.interleave.state.BitstateStore;
 import dev.samhb.interleave.state.HashingStateStore;
 import dev.samhb.interleave.state.CanonicalEncoder;
 
@@ -105,14 +104,14 @@ public final class ContextBoundedExplorer {
         // A bitstate store sized for a lower bound cannot represent this search. Clamping would
         // return a verdict that looks exhaustive at K but is exhaustive only at the store's
         // capacity, which is exactly the silent unsoundness this class exists to avoid.
-        if (store instanceof BitstateStore bitstate && bitstate.maxPreemptions() < maxPreemptions) {
+        if (store instanceof ApproximateStateStore bitstate && bitstate.maxPreemptions() < maxPreemptions) {
             throw new IllegalArgumentException(
                 "State store capacity " + bitstate.maxPreemptions()
                 + " is below requested maxPreemptions " + maxPreemptions
                 + "; construct the store as new BitstateStore(size, k, maxPreemptions)");
         }
 
-        if (store instanceof dev.samhb.interleave.search.SymmetryStateStore symmetry) {
+        if (store instanceof dev.samhb.interleave.search.CheckedSymmetryStore symmetry) {
             symmetry.requireRun(program, invariant, dev.samhb.interleave.Strategy.CONTEXT_BOUNDED);
         }
         store.clear();
