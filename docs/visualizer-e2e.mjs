@@ -351,6 +351,40 @@ async function runTests() {
       }
     }
 
+    if(process.env.SOURCE_APPROXIMATE_DPOR_DIR){
+      const directory = process.env.SOURCE_APPROXIMATE_DPOR_DIR;
+      const all = JSON.parse(readFileSync(join(projectRoot,directory,'source-approximate-all-strategies.json'),'utf8'));
+      assert(new Set(all.benchmarks.map(row=>row.strategy)).size===4, 'Fresh CLI default contains all four strategies');
+      for(const row of all.benchmarks){
+        await page.locator('#clearBtn').click();
+        await page.locator('#paste').fill(JSON.stringify({...all,benchmarks:[row]}));
+        await page.locator('#loadPaste').click();
+        await page.waitForFunction(strategy=>document.querySelector('#meta')?.textContent.includes(strategy),row.strategy);
+        const meta = await page.locator('#meta').textContent();
+        assert(meta.includes('BITSTATE') && meta.includes('Thread symmetry'), 'All-strategy consumer retains approximate identity: '+row.strategy);
+        assert((await page.locator('#verdictBadge').textContent()).includes('APPROXIMATE_PASS'), 'No all-strategy absence becomes exact PASS');
+      }
+      for(const [suffix,verdict] of [['assertion','VIOLATION'],['runtime','VIOLATION'],['deadlock','DEADLOCK'],['cutoff','INCOMPLETE'],['resource','INCOMPLETE']]){
+        const payload = readFileSync(join(projectRoot,directory,'source-approximate-dpor-'+suffix+'.json'),'utf8');
+        await page.locator('#clearBtn').click();await page.locator('#paste').fill(payload);await page.locator('#loadPaste').click();
+        await page.waitForFunction(()=>document.querySelector('#meta')?.textContent.includes('DPOR'));
+        const meta = await page.locator('#meta').textContent();
+        assert(meta.includes('BITSTATE') && meta.includes('Thread symmetry'), 'Actual DPOR witness retains approximate identity: '+suffix);
+        assert((await page.locator('#verdictBadge').textContent()).includes(verdict), 'Actual DPOR verdict precedence: '+suffix);
+        if(suffix==='resource'){
+          assert(meta.includes('MAX_STATES') && meta.includes('owner counters') && meta.includes('1, 0'), 'DPOR resource cause and original counters survive');
+          assert(meta.includes('Captured resource prefix; original run incomplete'), 'DPOR resource prefix stays separate from modeled evidence');
+          assert(await page.locator('#timeline tbody tr').count()===2, 'DPOR captured prefix contains one action plus its final row');
+          const headers = await page.locator('#timeline thead th').allTextContents();
+          const owner0 = headers.indexOf('Thread 0')+1, owner1 = headers.indexOf('Thread 1')+1;
+          assert(owner0>0 && await page.locator('#timeline tbody tr:first-child td:nth-child('+owner0+') .cell-active').count()===1, 'DPOR action is in the original Thread 0 column');
+          assert(await page.locator('#timeline .cell-active').count()===1 && (owner1===0 || await page.locator('#timeline tbody td:nth-child('+owner1+') .cell-active').count()===0), 'No DPOR action is attributed to Thread 1');
+          const x = page.locator('#stateStrip tbody tr').filter({has:page.locator('td:nth-child(2) code').filter({hasText:/^x$/})});
+          assert((await x.locator('td').nth(2).textContent()).trim()==='1', 'DPOR actual captured x=1 is visible');
+        }
+      }
+    }
+
     if(process.env.SOURCE_SHORTEST_CUTOFF_PROVEN_JSON && process.env.SOURCE_SHORTEST_CUTOFF_PARTIAL_JSON){
       for(const [path, proven, length, work] of [
         [process.env.SOURCE_SHORTEST_CUTOFF_PROVEN_JSON, true, 0, '4 / 4'],

@@ -1,4 +1,4 @@
-<!-- Planned B9/K3: complete mapped DPOR product membership and final all-strategy release. -->
+<!-- Implemented B9/K3: complete mapped DPOR product membership and final all-strategy release. -->
 # Spec 91: Approximate symmetry for DPOR
 
 ## Objective
@@ -7,9 +7,9 @@ Complete B9 by approximating the whole checked DPOR state-plus-sleep-context ide
 all four selected strategies through the library and existing CLI/reports/viewer. Preserve concrete
 execution and real witnesses while keeping membership storage independent of visited-context count.
 
-**Type: delta. Status: planned, not implemented.**
-[Spec 90](90-approximate-symmetry-cbs.md) must merge after
-[Spec 89](89-approximate-symmetry-dfs-por.md). The
+**Type: delta. Status: implemented and locally verified; merge pending.**
+[Spec 89](89-approximate-symmetry-dfs-por.md) merged in PR #132; then
+[Spec 90](90-approximate-symmetry-cbs.md) merged in PR #133 at `b8e2fa1`. The
 [B9 set contract](../../plans/approximate-symmetry-contract.md) owns shared interfaces and oracles.
 
 ## Scope
@@ -21,7 +21,8 @@ execution and real witnesses while keeping membership storage independent of vis
   `src/main/java/dev/samhb/interleave/cli/Main.java`, and
   `src/main/java/dev/samhb/interleave/report/{BenchmarkHarness,BenchmarkResult,ReportWriter,SoundnessAttestation}.java`
   only where needed to admit DPOR, preserve classification and explain its complete-context metrics.
-- Adds `src/test/java/dev/samhb/interleave/search/BitstateSymmetryDporTest.java`; extends
+- Adds `src/test/java/dev/samhb/interleave/search/{BitstateSymmetryDporTest,BitstateSymmetryDporOracleTest}.java`
+  and `src/test/java/dev/samhb/interleave/ApproximateDporRunTest.java`; extends
   `src/test/java/dev/samhb/interleave/ApproximateSymmetryRunTest.java`,
   `src/test/java/dev/samhb/interleave/search/SymmetryCompositionTest.java`,
   `src/test/java/dev/samhb/interleave/dpor/{DporSleepContractTest,DporEvidenceContractTest,DporPropertyContractTest}.java`,
@@ -157,14 +158,18 @@ when establishing a fixture's no-false-positive property. No production test cal
 
 ## Current State
 
-- [verified] The inspected baseline recognizes concrete SymmetryStateStore in DPOR, normalizes
+- [verified] The merged K2 baseline recognizes CheckedSymmetryStore in DPOR, normalizes
   all-asleep before exact mapped-context coverage and bypasses value-only pruning for that path.
 - [verified] Exact symmetry uses copied immutable token sets; ordinary source DPOR uses a separate
   raw-key sleep antichain and special approximate value-pruning behavior. Those policies differ.
 - [verified] Exact alias support uses first occurrence plus matching partitions under Spec 81;
   metadata labels/ordinary instruction counters are not equivalent token identities.
-- [unverified] K1/K2 implementation and the new approximate DPOR path have not been built or measured.
-  Reinspect actual merged predecessors; do not carry historical population figures into K3.
+- [verified] K3 adds deterministic DPOR byte encoding and missing-product insertion to the checked
+  approximate store. Existing checked explorer dispatch and normalization need no algorithm changes.
+- [verified] Independent 480-product and visible-counter shadows, alias/fixed-owner/byte-layout
+  cases, all-strategy library/CLI/browser fixtures and original resource capture/replay are implemented.
+- Measurement and review evidence: [K3 ledger](../../measurements/91-approximate-symmetry-dpor.md).
+  B9 remains in progress until K3 merges; B10 and parked roadmap work remain excluded.
 
 ## Tests
 

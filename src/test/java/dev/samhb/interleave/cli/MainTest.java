@@ -613,6 +613,57 @@ class MainTest {
         java.nio.file.Files.writeString(java.nio.file.Path.of("build/source-approximate-cbs-cutoff.json"),cutoff.output());
     }
 
+    /** Final approximate default selection emits all strategies and authenticated DPOR observations.
+     * @param dir isolated source fixtures
+     * @throws Exception if fixture writing or CLI execution fails
+     */
+    @Test void approximateDporAndAllStrategyArtifacts(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) throws Exception {
+        var all = invokeCli("--source","examples/programs/symmetry-counter.ilv","--symmetry","--store","bitstate","--json");
+        assertEquals(0,all.exitCode(),all.output());
+        var report = com.google.gson.JsonParser.parseString(all.output()).getAsJsonObject();
+        var strategies = new java.util.HashSet<String>();
+        for (var item : report.getAsJsonArray("benchmarks")) {
+            var row = item.getAsJsonObject();strategies.add(row.get("strategy").getAsString());
+            assertTrue(row.get("symmetryReduction").getAsBoolean());assertEquals("BITSTATE",row.get("storeType").getAsString());
+            assertEquals("APPROXIMATE_PASS",row.get("verdict").getAsString());
+            if (row.get("strategy").getAsString().equals("DPOR")) {
+                assertEquals(5,row.get("statesExplored").getAsInt()); // Independently shadowed five population ranks.
+                // Five products plus five VALUE marks: independent F=2.559764492176605e-18, rounded by the existing JSON format.
+                assertEquals(2.56e-18,row.getAsJsonObject("bitstateMetrics").get("falsePositiveRate").getAsDouble());
+            }
+        }
+        assertEquals(java.util.Set.of("DFS","STATIC_POR","DPOR","CONTEXT_BOUNDED"),strategies);
+        java.nio.file.Files.createDirectories(java.nio.file.Path.of("build"));
+        java.nio.file.Files.writeString(java.nio.file.Path.of("build/source-approximate-all-strategies.json"),all.output());
+        var source = dir.resolve("observed.ilv");
+        for (var fixture : List.of(List.of("assert(false);","ASSERTION","assertion"),
+                List.of("atomic { x = 1 % x; }","RUNTIME_ERROR","runtime"))) {
+            String body = fixture.get(0);
+            java.nio.file.Files.writeString(source,"program observed { shared int x = 0; thread 0 { "+body+" } thread 1 { "+body+" } }");
+            var failure = invokeCli("--source",source.toString(),"--symmetry","--store","bitstate","--strategy","DPOR","--bitstate-size","1","--json");
+            assertEquals(0,failure.exitCode(),failure.output());
+            var failed = com.google.gson.JsonParser.parseString(failure.output()).getAsJsonObject();
+            var row = failed.getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+            assertEquals("VIOLATION",row.get("verdict").getAsString());assertTrue(failed.get("soundness").getAsBoolean());
+            var trace = row.getAsJsonObject("failingTrace");
+            assertEquals(0,trace.getAsJsonArray("threads").get(0).getAsInt());
+            assertEquals(fixture.get(1),trace.getAsJsonObject("failure").get("kind").getAsString());
+            if (fixture.get(2).equals("runtime")) assertEquals("MODULO_BY_ZERO",trace.getAsJsonObject("failure").get("category").getAsString());
+            else assertFalse(trace.getAsJsonObject("failure").has("category"));
+            java.nio.file.Files.writeString(java.nio.file.Path.of("build/source-approximate-dpor-"+fixture.get(2)+".json"),failure.output());
+        }
+        for (var entry : List.of(List.of("atomic when (false) { x = 1; }","DEADLOCK","deadlock"),
+                List.of("while (true) limit 0 {}","INCOMPLETE","cutoff"))) {
+            java.nio.file.Files.writeString(source,"program observed { shared int x = 0; thread 0 { "+entry.get(0)+" } thread 1 { "+entry.get(0)+" } }");
+            var actual = invokeCli("--source",source.toString(),"--symmetry","--store","bitstate","--strategy","DPOR","--json");
+            assertEquals(0,actual.exitCode(),actual.output());
+            var row = com.google.gson.JsonParser.parseString(actual.output()).getAsJsonObject().getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+            assertEquals(entry.get(1),row.get("verdict").getAsString());
+            if (entry.get(2).equals("cutoff")) assertEquals("LOOP_LIMIT",row.getAsJsonObject("incompleteTrace").getAsJsonObject("cutoff").get("reason").getAsString());
+            java.nio.file.Files.writeString(java.nio.file.Path.of("build/source-approximate-dpor-"+entry.get(2)+".json"),actual.output());
+        }
+    }
+
     /** CLI default selection composes all four exact strategies, including iterative CBS.
      * @throws Exception if child JVM execution fails
      */
@@ -668,8 +719,6 @@ class MainTest {
      */
     @Test void sourceSymmetryCliRejectsUnsupportedSelections() throws Exception {
         for (var selection : List.of(List.<String>of(),
-                List.of("--store", "bitstate"),
-                List.of("--store", "bitstate", "--strategy", "DPOR"),
                 List.of("--store", "exact", "--strategy", "STATIC_POR", "--max-preemptions", "0"),
                 List.of("--store", "exact", "--strategy", "DPOR", "--iterative-deepening"),
                 List.of("--store", "exact", "--strategy", "DFS", "--max-preemptions", "0"),

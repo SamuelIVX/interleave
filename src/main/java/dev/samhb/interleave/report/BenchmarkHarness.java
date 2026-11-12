@@ -115,15 +115,14 @@ public final class BenchmarkHarness {
         this.storeFilter = storeFilter == null ? null : Set.copyOf(storeFilter);
         this.strategyFilter = strategyFilter == null ? null : Set.copyOf(strategyFilter);
         boolean approximateSymmetry = symmetryReduction && Set.of(StoreType.BITSTATE).equals(this.storeFilter);
-        if (approximateSymmetry && (bitstateSize <= 0 || bitstateK <= 0 || this.strategyFilter == null
-                || this.strategyFilter.isEmpty() || !Set.of("DFS", "STATIC_POR", CONTEXT_BOUNDED).containsAll(this.strategyFilter))) {
-            throw new IllegalArgumentException("Approximate symmetry requires positive bits/probes and explicit DFS/static POR/CBS");
+        if (approximateSymmetry && (bitstateSize <= 0 || bitstateK <= 0)) {
+            throw new IllegalArgumentException("Approximate symmetry requires positive bits and probes");
         }
         if (symmetryReduction && ((!Set.of(StoreType.EXACT).equals(this.storeFilter) && !approximateSymmetry)
                 || (this.strategyFilter != null && (this.strategyFilter.isEmpty()
                     || !Set.of("DFS", "STATIC_POR", "DPOR", CONTEXT_BOUNDED).containsAll(this.strategyFilter)))
                 || (iterativeDeepening && this.strategyFilter != null && !this.strategyFilter.contains(CONTEXT_BOUNDED)))) {
-            throw new IllegalArgumentException("Symmetry requires an exact store and built-in strategies; iterative deepening requires CBS");
+            throw new IllegalArgumentException("Symmetry requires a singleton EXACT or BITSTATE store and built-in strategies; iterative deepening requires CBS");
         }
         this.symmetryReduction = symmetryReduction;
         if (maxPreemptions < 0) {

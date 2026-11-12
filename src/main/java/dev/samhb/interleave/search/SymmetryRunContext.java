@@ -134,6 +134,23 @@ final class SymmetryRunContext {
         return new SleepContext(position.key(), Set.copyOf(tokens));
     }
 
+    /** Validates and encodes the full mapped product, with tokens in deterministic owner/PC order.
+     * @param config original source configuration
+     * @param sleeping original owner/action entries, including stale actions
+     * @return fresh version-1 DPOR-domain bytes with full orbit, token count and integer pairs
+     * @throws IllegalArgumentException for a non-DPOR binding or any foreign owner/action
+     */
+    byte[] sleepBytes(Configuration config, Set<Map.Entry<Integer, Step>> sleeping) {
+        var product = sleepContext(config,sleeping);
+        byte[] orbit = product.key().getBytes(StandardCharsets.UTF_8);
+        var tokens = new ArrayList<>(product.tokens());
+        tokens.sort(Comparator.comparingInt(SleepingAction::owner).thenComparingInt(SleepingAction::pc));
+        var encoded = ByteBuffer.allocate(10 + orbit.length + 8 * tokens.size())
+            .put((byte)1).put((byte)3).putInt(orbit.length).put(orbit).putInt(tokens.size());
+        for (var token : tokens) encoded.putInt(token.owner()).putInt(token.pc());
+        return encoded.array();
+    }
+
     /** Mapped action identity without diagnostic metadata.
      * @param owner canonical owner
      * @param pc first original occurrence of its instruction object

@@ -19,7 +19,7 @@ class ApproximateSymmetryRunTest {
      */
     @Test void runnersRetainPrecisionLimitsAndIsolation() throws Exception {
         var model = new SourceProgramLoader().load(SOURCE);
-        for (var strategy : List.of(Strategy.DFS, Strategy.STATIC_POR)) {
+        for (var strategy : List.of(Strategy.DFS, Strategy.STATIC_POR, Strategy.DPOR, Strategy.CONTEXT_BOUNDED)) {
             var runner = InterleaveRunner.builder().strategy(strategy).symmetryReduction(true)
                 .symmetryBitstate(1_000_003, 4).invariant(model.invariant().orElseThrow()).build();
             for (int i = 0; i < 2; i++) {
@@ -75,8 +75,8 @@ class ApproximateSymmetryRunTest {
         }
     }
 
-    /** Explicit conflicts fail in either setter order and unsupported phases cannot be selected. */
-    @Test void builderRejectsConflictsAndFutureStrategies() {
+    /** Explicit conflicts fail in either setter order and a built-in strategy is required. */
+    @Test void builderRejectsConflictingStorageContracts() {
         assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryBitstate(0,4));
         assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryBitstate(10,0));
         assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryBitstate(10,4).build());
@@ -97,10 +97,8 @@ class ApproximateSymmetryRunTest {
             if (!first) d.symmetryBitstate(10,4);
             assertThrows(IllegalArgumentException.class,d::build);
         }
-        for (var strategy : List.of(Strategy.DPOR)) {
-            assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true)
-                .symmetryBitstate(10,4).strategy(strategy).build());
-        }
+        assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().symmetryReduction(true)
+            .symmetryBitstate(10,4).strategy(null).build());
         assertDoesNotThrow(() -> InterleaveRunner.builder().symmetryBitstate(1,1).symmetryReduction(false)
             .symmetryReduction(true).symmetryBitstate(100,2).build());
         var model = new SourceProgramLoader().load(SOURCE);
@@ -109,7 +107,7 @@ class ApproximateSymmetryRunTest {
     }
 
     /** Harness singleton bitstate selections are explicit and approximate rows never prove absence. */
-    @Test void harnessSupportsOnlyExplicitCurrentStrategies() {
+    @Test void harnessSupportsAllBuiltInStrategies() {
         var model = new SourceProgramLoader().load(SOURCE);
         var rows = new BenchmarkHarness(1_000_003,4,Set.of(StoreType.BITSTATE),Set.of("DFS","STATIC_POR"),2,false,true).runProgram(model);
         assertEquals(2, rows.size());
@@ -118,10 +116,10 @@ class ApproximateSymmetryRunTest {
             assertEquals(3,row.statesExplored()); assertTrue(row.symmetryReduction());
             assertTrue(row.bitstateBitCount()>0); assertTrue(row.bitstateBitDensity()>0); assertTrue(row.estimatedFalsePositiveRate()>0);
         }
-        for (var selection : List.of(Set.<String>of(),Set.of("DPOR"))) {
+        for (var selection : List.of(Set.<String>of(),Set.of("UNKNOWN"))) {
             assertThrows(IllegalArgumentException.class, () -> new BenchmarkHarness(100,4,Set.of(StoreType.BITSTATE),selection,2,false,true));
         }
-        assertThrows(IllegalArgumentException.class, () -> new BenchmarkHarness(100,4,Set.of(StoreType.BITSTATE),null,2,false,true));
+        assertDoesNotThrow(() -> new BenchmarkHarness(100,4,Set.of(StoreType.BITSTATE),null,2,false,true));
         for (int[] settings : new int[][]{{0,4},{-1,4},{100,0},{100,-1}}) {
             assertThrows(IllegalArgumentException.class, () -> new BenchmarkHarness(settings[0],settings[1],Set.of(StoreType.BITSTATE),Set.of("DFS"),2,false,true));
         }
