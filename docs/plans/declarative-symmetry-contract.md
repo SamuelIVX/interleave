@@ -3,7 +3,7 @@
 
 ## Objective and status
 
-**L1 implemented in this change; locally verified; merge pending. L2 planned. B10 remains in progress.** Planning baseline:
+**L1 merged in PR #136 at `013c963`; L2 implemented in this change, local verification/review complete; merge pending. B10 remains in progress.** Planning baseline:
 main `b1c7586fc34542e919b3f82d1dece87ade7dec86`, after B9 / PR #134 merged at `3d5c09e`.
 Sam selected declarative JSON and the full DFS/static POR/DPOR/CBS exact/approximate matrix.
 This approval supersedes B9's stop-before-B10 boundary for this selected scope only.
@@ -87,8 +87,9 @@ Use existing library symmetryReduction, symmetryBackend and symmetryBitstate set
 --symmetry to eligible --file input with an explicit singleton exact/bitstate store; omission of
 strategy uses all four. Typed/registered JSON, named built-ins, --all, omitted stores and invalid CBS
 options do not gain unchecked admission. Keep current defaults and CBS bitstate bound policy.
-In L1, BitstateSymmetryStateStore.forRun explicitly rejects non-source inputs before allocation;
-L2 removes that one temporary restriction after its tests pass. Source approximate support remains.
+L1 released with a temporary non-source admission restriction in BitstateSymmetryStateStore.forRun.
+L2 removes only that restriction, reusing complete shared certification and the existing products.
+Source approximate support remains unchanged.
 
 ## Positive evidence and consumers
 

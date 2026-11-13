@@ -1,4 +1,4 @@
-/** Run-owned approximate membership over source-certified VALUE, CBS and DPOR products. */
+/** Run-owned approximate membership over trusted-model VALUE, CBS and DPOR products. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.Strategy;
@@ -8,11 +8,11 @@ import java.util.*;
 import java.nio.ByteBuffer;
 
 /**
- * Bloom membership for source symmetry with every built-in strategy. Positive lookups may skip unseen
+ * Bloom membership for certified source/declarative symmetry with every built-in strategy. Positive lookups may skip unseen
  * states, so absence of a violation is approximate. The bit budget covers membership only, not
  * traversal, source metadata, temporary encodings or diagnostic maps. Not thread-safe.
  * For example, pass {@code forRun(program, property, Strategy.DFS, 1_000_003, 4, 0)}
- * to a DFS explorer for that exact source program/property pair.
+ * to a DFS explorer for that same certified program/property pair.
  */
 public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, ApproximateStateStore {
     /** Immutable certification shared only with copies of this run. */
@@ -48,16 +48,16 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
         filter = new BitstateFilter(bits, hashFunctions);
     }
 
-    /** Certifies source eligibility and allocates one shared VALUE/CBS/DPOR filter.
-     * @param program immutable compiled source program
-     * @param invariant compiler-built shared property, or null
+    /** Certifies trusted model eligibility and allocates one shared VALUE/CBS/DPOR filter.
+     * @param program immutable compiled source or loader-certified declarative program
+     * @param invariant matching trusted shared property, or null
      * @param strategy built-in algorithm, including DPOR
      * @param bits positive logical bit budget
      * @param hashFunctions positive probe count
      * @param maxPreemptions nonnegative CBS ceiling; zero for non-CBS bindings
      * @return empty checked approximate membership
      * @throws NullPointerException if program or strategy is null
-     * @throws IllegalArgumentException for invalid settings, source/property eligibility or DPOR alias layout
+     * @throws IllegalArgumentException for invalid settings, model/property eligibility or DPOR alias layout
      */
     public static BitstateSymmetryStateStore forRun(Program program, Invariant invariant,
             Strategy strategy, int bits, int hashFunctions, int maxPreemptions) {
@@ -66,9 +66,6 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
                 || (strategy != Strategy.CONTEXT_BOUNDED && maxPreemptions != 0)) {
             throw new IllegalArgumentException("Positive bits/probes and a nonnegative CBS capacity (zero otherwise) required");
         }
-        if (!Objects.requireNonNull(program, "program").isSource()) {
-            throw new IllegalArgumentException("Approximate symmetry requires source input until declarative B10 L2 is enabled");
-        }
         return new BitstateSymmetryStateStore(new SymmetryRunContext(program, invariant, strategy), bits, hashFunctions, maxPreemptions, strategy);
     }
 
@@ -76,7 +73,7 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
     @Override public void requireRun(Program program, Invariant invariant, Strategy strategy) {
         context.requireRun(program, invariant, strategy);
     }
-    /** Checks approximate membership for a complete value orbit from the bound source run.
+    /** Checks approximate membership for a complete value orbit from the bound certified run.
      * @param config configuration containing DynamicState from this store's certified program
      * @return false if definitely absent; true may be a false positive for an unmarked orbit
      * @throws ClassCastException if the state is not DynamicState
@@ -84,7 +81,7 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
     @Override public boolean isVisited(Configuration config) {
         return filter.contains(Arrays.hashCode(context.valueBytes(config)));
     }
-    /** Records a complete value orbit from the bound source run and increments insertion count.
+    /** Records a complete value orbit from the bound certified run and increments insertion count.
      * @param config configuration containing DynamicState from this store's certified program
      * @throws ClassCastException if the state is not DynamicState
      */
@@ -94,7 +91,7 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
     }
     /** Probes each complete cost-q product separately for q no greater than the query cost.
      * Canonicalizes once and reuses one encoded buffer; probe fragments from different q never mix.
-     * @param config DynamicState configuration from the certified source run
+     * @param config DynamicState configuration from the certified run
      * @param lastThreadId original last owner, or initial -1
      * @param preemptions queried cost within the configured ceiling
      * @return false if definitely uncovered; true may be a Bloom false positive
@@ -114,7 +111,7 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
     }
 
     /** Marks only the complete supplied-cost product in the one shared filter.
-     * @param config DynamicState configuration from the certified source run
+     * @param config DynamicState configuration from the certified run
      * @param lastThreadId original last owner, or initial -1
      * @param preemptions inserted cost within the configured ceiling
      * @throws ClassCastException if the state is not DynamicState
@@ -160,7 +157,7 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
     /** Tests one complete mapped DPOR product, inserting it only when definitely absent.
      * The entire context is validated before probing. A positive may be a Bloom false positive;
      * VALUE membership alone never deliberately decides this lookup. No exact context map is kept.
-     * @param config DynamicState configuration from the certified source run
+     * @param config DynamicState configuration from the certified run
      * @param sleeping original owner/action entries, including stale actions
      * @return true if every product probe is set; false after recording a missing product
      * @throws UnsupportedOperationException if this store is not bound to DPOR

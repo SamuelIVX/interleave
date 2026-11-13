@@ -8,14 +8,18 @@ import dev.samhb.interleave.format.ProgramLoader;
 import dev.samhb.interleave.search.*;
 import java.util.*;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import static org.junit.jupiter.api.Assertions.*;
 
 /** Tests actual reported observations, including forged or disabled execution claims. */
 class DeclarativeSymmetryAttestationTest {
-    /** Real step errors validate without requiring an unrelated invariant to fail. */
-    @Test void actualFinalStepFailureWithTrueInvariantIsValid() {
+    /** Real step errors validate without requiring an unrelated invariant to fail.
+     * @param storeType exact or approximate report precision
+     */
+    @ParameterizedTest @EnumSource(StoreType.class) void actualFinalStepFailureWithTrueInvariantIsValid(StoreType storeType) {
         var model = model(null, List.of("x = 1", "x = x % 0"), "true");
-        var rows = new BenchmarkHarness(1024,4,Set.of(StoreType.EXACT),null,2,false,true).runProgram(model);
+        var rows = new BenchmarkHarness(1024,4,Set.of(storeType),null,2,false,true).runProgram(model);
         assertEquals(4, rows.size());
         var attestation = new SoundnessAttestation(rows,List.of(model));
         assertTrue(attestation.isSound(),attestation.failureReason());
@@ -27,6 +31,17 @@ class DeclarativeSymmetryAttestationTest {
         assertEquals(1,scratch.getInt("x"),"ordered effects precede the error in private scratch");
         assertNull(TransitionExecutor.execute(model.program(),root,0).successor());
         assertEquals(0,((dev.samhb.interleave.format.dsl.DynamicState)root.state()).getInt("x"));
+    }
+
+    /** Marked approximate absence is normalized, while ordinary legacy rows retain their contract. */
+    @Test void approximateDeclarativeAbsenceNeverClaimsExactPass() {
+        var model=model(null,List.of("x = 1"),null);
+        var ordinary=new BenchmarkResult("DFS",model.name(),1,0,0,"PASS",null,StoreType.BITSTATE);
+        var result=new DfsResult(Map.of(),List.of(),1);
+        assertEquals("PASS",ordinary.withExploration(model.program(),result).verdict());
+        var checked=ordinary.withExploration(model.program(),result,true);
+        assertEquals("APPROXIMATE_PASS",checked.verdict());assertFalse(checked.sourceModel());
+        assertEquals("APPROXIMATE_PASS",checked.withExploration(model.program(),result,true).verdict());
     }
 
     /** Failed attempts retain the committed prefix in full, partial and harness diagnostics.
@@ -68,50 +83,59 @@ class DeclarativeSymmetryAttestationTest {
         assertTrue(states.stream().noneMatch(state->Integer.valueOf(7).equals(state.fields().get("x"))));
     }
 
-    /** Legacy replay would execute disabled choices and cannot authenticate a no-property violation. */
-    @Test void fabricatedAndTrailingViolationsFailWithoutThrowing() {
+    /** Legacy replay would execute disabled choices and cannot authenticate a no-property violation.
+     * @param storeType exact or approximate report precision
+     */
+    @ParameterizedTest @EnumSource(StoreType.class) void fabricatedAndTrailingViolationsFailWithoutThrowing(StoreType storeType) {
+        java.util.function.BiPredicate<BenchmarkProgram,Trace> check=(m,t)->attest(m,t,storeType);
         var blocked = model("false",List.of("x = x % 0"),null);
-        assertFalse(attest(blocked,new Trace(List.of(0),List.of(StepOutcome.ASSERTION_FAILED),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(blocked,new Trace(List.of(0),List.of(StepOutcome.ASSERTION_FAILED),TraceOutcome.VIOLATION)));
         var safe=model(null,List.of("x = 1"),null);
-        assertFalse(attest(safe,new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
-        assertFalse(attest(safe,new Trace(List.of(),List.of(),TraceOutcome.VIOLATION)));
-        assertFalse(attest(safe,new Trace(List.of(9),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
-        assertFalse(attest(safe,new Trace(List.of(-1),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
-        assertFalse(attest(safe,new Trace(List.of(0,0),List.of(StepOutcome.ADVANCED,StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(safe,new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(safe,new Trace(List.of(),List.of(),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(safe,new Trace(List.of(9),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(safe,new Trace(List.of(-1),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(safe,new Trace(List.of(0,0),List.of(StepOutcome.ADVANCED,StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
         var failure=model(null,List.of("x = x % 0"),"true");
-        assertFalse(attest(failure,new Trace(List.of(0,1),List.of(StepOutcome.ASSERTION_FAILED,StepOutcome.ASSERTION_FAILED),TraceOutcome.VIOLATION)));
-        assertFalse(attest(failure,new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(failure,new Trace(List.of(0,1),List.of(StepOutcome.ASSERTION_FAILED,StepOutcome.ASSERTION_FAILED),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(failure,new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
         var always=model(null,List.of("x = 1"),"x == 0");
-        assertTrue(attest(always,new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
-        assertFalse(attest(always,new Trace(List.of(0,1),List.of(StepOutcome.ADVANCED,StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
+        assertTrue(check.test(always,new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(always,new Trace(List.of(0,1),List.of(StepOutcome.ADVANCED,StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
         var root=model(null,List.of("x = 1"),"false");
-        assertTrue(attest(root,new Trace(List.of(),List.of(),TraceOutcome.VIOLATION)));
-        assertFalse(attest(root,new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
+        assertTrue(check.test(root,new Trace(List.of(),List.of(),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(root,new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION)));
     }
 
-    /** A real step error cannot authenticate fabricated source or cutoff diagnostics. */
-    @Test void declarativeViolationRejectsForeignEvidence() {
+    /** A real step error cannot authenticate fabricated source or cutoff diagnostics.
+     * @param storeType exact or approximate report precision
+     */
+    @ParameterizedTest @EnumSource(StoreType.class) void declarativeViolationRejectsForeignEvidence(StoreType storeType) {
+        java.util.function.BiPredicate<BenchmarkProgram,Trace> check=(m,t)->attest(m,t,storeType);
         var model=model(null,List.of("x = x % 0"),"true");
         var foreign=new TraceEvidence(null,List.of(),null,
             new CutoffEvidence(CutoffEvidence.Reason.PREEMPTION_BOUND,0,0,0,null,null,List.of()));
-        assertFalse(attest(model,new Trace(List.of(0),List.of(StepOutcome.ASSERTION_FAILED),TraceOutcome.VIOLATION,foreign)));
+        assertFalse(check.test(model,new Trace(List.of(0),List.of(StepOutcome.ASSERTION_FAILED),TraceOutcome.VIOLATION,foreign)));
     }
 
-    /** Invalid positive metadata fails closed with an actionable subject/strategy/store diagnostic. */
-    @Test void positiveCertificationFailuresKeepConcreteDiagnostics() {
+    /** Invalid positive metadata fails closed with an actionable subject/strategy/store diagnostic.
+     * @param storeType exact or approximate report precision
+     */
+    @ParameterizedTest @EnumSource(StoreType.class) void positiveCertificationFailuresKeepConcreteDiagnostics(StoreType storeType) {
+        java.util.function.BiPredicate<BenchmarkProgram,Trace> check=(m,t)->attest(m,t,storeType);
         var model=model(null,List.of("x = 1"),null);
         var trace=new Trace(List.of(0),List.of(StepOutcome.ADVANCED),TraceOutcome.VIOLATION);
-        var row=new BenchmarkResult("DPOR",model.name(),1,0,0,"VIOLATION",trace,StoreType.EXACT)
+        var row=new BenchmarkResult("DPOR",model.name(),1,0,0,"VIOLATION",trace,storeType)
             .withExploration(model.program(),new DfsResult(Map.of(),List.of(trace),1),true);
         var invalid=new SoundnessAttestation(List.of(row),List.of(model));
         assertFalse(invalid.isSound());
-        assertEquals("Invalid declarative symmetry violation for subject under DPOR (EXACT)",invalid.failureReason());
+        assertEquals("Invalid declarative symmetry violation for subject under DPOR ("+storeType+")",invalid.failureReason());
         var state=(dev.samhb.interleave.format.dsl.DynamicState)model.program().initialConfiguration().state();
         var property=new dev.samhb.interleave.format.dsl.DslInvariant(new dev.samhb.interleave.format.dsl.Expr.BoolLit(false),state.decl());
         var untrusted=new BenchmarkProgram(model.name(),model.program(),null,property);
-        assertFalse(attest(untrusted,new Trace(List.of(),List.of(),TraceOutcome.VIOLATION)));
+        assertFalse(check.test(untrusted,new Trace(List.of(),List.of(),TraceOutcome.VIOLATION)));
         var callback=new BenchmarkProgram(model.name(),model.program(),null,(value,config)->{throw new AssertionError("uncertified property invoked");});
-        assertFalse(attest(callback,trace));
+        assertFalse(check.test(callback,trace));
     }
 
     /** Source symmetry retains its existing qualified attestation prose. */
@@ -149,7 +173,17 @@ class DeclarativeSymmetryAttestationTest {
      * @return whether concrete positive validation succeeds
      */
     private static boolean attest(BenchmarkProgram model,Trace trace) {
-        var row=new BenchmarkResult("STATIC_POR",model.name(),1,0,0,"VIOLATION",trace,StoreType.EXACT)
+        return attest(model,trace,StoreType.EXACT);
+    }
+
+    /** Attests the same positive contract independently of storage precision.
+     * @param model registered trusted program/property
+     * @param trace claimed positive observation
+     * @param storeType actual report precision
+     * @return whether the concrete positive validation succeeds
+     */
+    private static boolean attest(BenchmarkProgram model,Trace trace,StoreType storeType) {
+        var row=new BenchmarkResult("STATIC_POR",model.name(),1,0,0,"VIOLATION",trace,storeType)
             .withExploration(model.program(),new DfsResult(Map.of(),List.of(trace),1),true);
         return new SoundnessAttestation(List.of(row),List.of(model)).isSound();
     }

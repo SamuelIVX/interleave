@@ -7,7 +7,7 @@ Let validated declarative JSON models use checked symmetry through all four exac
 the existing library and --file CLI/report/viewer paths. Preserve declarative execution and original
 owner evidence while reusing the existing checked context/key contracts.
 
-**Type: delta. Status: implemented; locally verified; merge pending.** Fresh baseline is
+**Type: delta. Status: merged in PR #136 at `013c9630e13b9835f435e4344837bf3b10e673db`.** Fresh baseline is
 merged spec PR #135 at `c8ee55373701d0a7f131c752397460a61217aaf4`. The
 [B10 set contract](../../plans/declarative-symmetry-contract.md) owns shared terminology, interfaces,
 oracles and release boundaries. This spec owns L1 only; B10 completes after L2 merges.
@@ -250,7 +250,7 @@ as an exact agreement seed. Preserve existing source exceptions.
 - [verified] Default PIT retains all 468 baseline fingerprints/statuses (455 K + 13 S). The broad
   affected census and final focused mutation checks are recorded separately in the ledger. Three
   actual CodeRabbit reviews completed; independently checked dispositions and patched findings are
-  recorded there. No L1 merge or B10 completion is claimed; L2 approximate admission stays gated.
+  recorded there. L1 merged in PR #136; B10 completion awaits L2 merge.
 
 ## Tests
 

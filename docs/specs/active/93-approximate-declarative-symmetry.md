@@ -7,7 +7,8 @@ Complete B10 by enabling certified declarative JSON symmetry with approximate bi
 across DFS, static POR, DPOR and CBS. Reuse B9's complete context encodings and L1's certification,
 concrete execution and witness checks; expose approximation honestly through every selected consumer.
 
-**Type: delta. Status: planned; depends on unmerged L1. No new verification run.**
+**Type: delta. Status: implemented; locally verified; merge pending.**
+Fresh implementation baseline: merged L1 PR #136 at `013c9630e13b9835f435e4344837bf3b10e673db`.
 The [B10 set contract](../../plans/declarative-symmetry-contract.md) owns common semantics/oracles;
 [Spec 92](92-certified-declarative-symmetry.md) owns certification and exact integration. Planning
 reference is `b1c7586fc34542e919b3f82d1dece87ade7dec86`; the implementation baseline must be the actual
@@ -172,19 +173,23 @@ counts or guaranteed discovery of every exact failure.
 
 ## Current State
 
-- [verified] B9 supports all four source strategies with one checked approximate filter, shared
-  context encoding, owned CBS passes and explicit approximate consumers.
-- [verified] At the planning base, BenchmarkResult normalizes BITSTATE PASS only for sourceModel;
-  TestResult emits storeType only inside its source branch. Merely admitting JSON would mislabel
-  precision unless the selected consumer predicates are broadened without changing source identity.
-- [verified] Existing generic non-source replay checks recorded execution outcomes but not full
-  enabledness/terminal claims. L1 therefore owns the stricter private symmetry attestation path.
-- [verified] L1 is implemented in the Spec 92 change, with an explicit approximate guard and shared
-  certification/attestation; its merge is pending.
-- [unverified] The actual merged L1 SHA and freshly remeasured exact evidence remain prerequisites
-  for L2; an unmerged L1 worktree is not its implementation baseline.
-- [unverified] Declarative approximate context coverage, artifact consumers and mutation populations
-  require new implementation measurements; no source fixture score proves them in advance.
+- [verified] L1 merged in PR #136 at `013c9630e13b9835f435e4344837bf3b10e673db`, including
+  direct-loader discriminator and original-input/stored-state type guards. Its exact matrix remains.
+- [verified] A separate untouched merged worktree passes build/Javadoc with 1,948 tests. Fresh default
+  PIT: 455/468 K + 13 S. Fresh affected scope: 233/235 K + 2 S; no other mutation statuses.
+- [verified] New admission and report-precision tests failed before the two small behavior changes:
+  remove the temporary factory rejection; normalize PASS/BITSTATE for source OR checked symmetry.
+- [verified] Independent declarative VALUE/CBS/DPOR shadows include complete typed frames, explicit
+  owner permutations, costs, stale/equal-frame sleepers and VALUE interference before equality checks.
+  Actual DPOR executes both absent and ALWAYS properties. Source/ordinary controls remain intact.
+- [verified] The integrated build/Javadoc passes 1,963 tests, zero failures/errors/skips. Tiny filters
+  demonstrate honest lossy absence; producing-pass metrics, concurrency, root/later resources and
+  real positive snapshots/attestation are exercised across the complete strategy matrix.
+- [verified] Final default PIT retains all 468 baseline fingerprints/statuses (455 K + 13 S);
+  affected PIT is 231/233 K + 2 inherited report survivors. All 248 browser checks and the external
+  jar consumer pass. CodeRabbit completed all 21 files with zero findings. The
+  [L2 ledger](../../measurements/93-approximate-declarative-symmetry.md) records scopes, lineage and limits.
+- [unverified] L2 merge remains pending; no B10 completion is claimed.
 
 ## Tests
 
@@ -204,7 +209,8 @@ counts or guaranteed discovery of every exact failure.
 - `approximatePositiveAttestationCannotBeSkipped` (R6) — actual errors with true invariants, root/
   always/final property violations, tampered/disabled/trailing traces and mixed exact/approximate rows.
 
-These are required future test contracts, not completed runs. Preserve L1's distinct regression cases.
+These name acceptance contracts; actual implementing tests and completed evidence are mapped in the
+[L2 ledger](../../measurements/93-approximate-declarative-symmetry.md). L1's distinct regressions remain.
 No production mutant is claimed killed without measurement and matching identity/lineage evidence.
 
 ## Constraints

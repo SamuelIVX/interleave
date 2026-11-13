@@ -72,7 +72,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | `--all` | Run entire corpus |
 | `--file <path>` | Load program from JSON file |
 | `--source <path>` | Load a bounded concurrent `.ilv` source model |
-| `--symmetry` | Opt-in checked symmetry: source with exact/bitstate; certified declarative JSON with exact |
+| `--symmetry` | Opt-in checked symmetry for source or certified declarative JSON; requires explicit `--store exact` or `--store bitstate` (default `both` is rejected) |
 
 ### Examples
 
@@ -173,7 +173,7 @@ coverage percentage was produced. The local audit, Javadoc checks, and two local
 reversible owner mappings. [Spec 76](docs/specs/active/76-source-symmetry-exact-search.md) integrates
 conservative source eligibility and opt-in exact DFS. [Spec 77](docs/specs/active/77-source-symmetry-strategy-composition.md) composes exact
 static POR, DPOR and CBS with checked source symmetry. Specs 89–91 add source bitstate composition;
-[Spec 92](docs/specs/active/92-certified-declarative-symmetry.md) adds certified declarative exact symmetry.
+[Specs 92–93](docs/plans/declarative-symmetry-contract.md) add certified declarative exact and approximate symmetry.
 
 ## Tech stack
 
@@ -470,8 +470,8 @@ snapshot; explicit replay adds intermediate states and separately labeled observ
 replay never changes the original INCOMPLETE verdict or independently authenticates uploaded JSON.
 Earlier recorded failures/deadlocks keep selection priority. No shortening or new CLI mode is selected.
 
-B10 L1 enables the existing declarative JSON loader for exact symmetry across DFS, static POR,
-DPOR and CBS, including HASHED/ORDERED library backends. For example:
+B10 enables the existing declarative JSON loader for exact or approximate symmetry across DFS,
+static POR, DPOR and CBS, including HASHED/ORDERED exact library backends. For example:
 
 ```bash
 ./gradlew --max-workers=1 -PpitestThreads=1 run --args="--file examples/programs/semaphore-declarative.json --symmetry --store exact --json"
@@ -485,8 +485,14 @@ these fixture counts do not promise general speedups. FINAL declarative properti
 exhaustive reduction fallbacks. JSON keeps its existing error outcomes and original choices. Checked declarative failure snapshots
 repeat the last committed values rather than exporting tentative writes; ordinary replay/capture
 behavior stays unchanged. JSON does not acquire
-source identity, cutoff simplification or authenticated resource prefixes. Approximate declarative
-symmetry remains gated for [L2 / Spec 93](docs/specs/active/93-approximate-declarative-symmetry.md).
+source identity, cutoff simplification or authenticated resource prefixes.
+
+Select `--store bitstate` for approximation, or use `symmetryBitstate(bits, probes)` in the library.
+One filter holds the complete VALUE/CBS/DPOR membership products, including mapped owners/costs and
+sleepers. Collisions may omit real behavior; absence is `APPROXIMATE_PASS`, not an exhaustive PASS.
+Actual failures/deadlocks and interruptions retain their precedence. CBS reports its observed
+producing bound without proving a minimum, and its diagnostic heuristic is not calibrated coverage.
+See [L2 / Spec 93](docs/specs/active/93-approximate-declarative-symmetry.md).
 
 B9 approximate symmetry is delivered in the [three-phase spec set](docs/plans/approximate-symmetry-contract.md).
 K1 (DFS/static POR), K2 (CBS) and K3 (DPOR and final all-strategy consumers) are merged

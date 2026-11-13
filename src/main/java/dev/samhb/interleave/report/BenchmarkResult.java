@@ -210,7 +210,7 @@ public final class BenchmarkResult {
         this.sourceModel = false;
     }
 
-    /** Copies a row, adjusts source bitstate PASS to APPROXIMATE_PASS, and retains incomplete prefixes.
+    /** Copies a row, adjusts source/checked symmetry bitstate PASS to APPROXIMATE_PASS, and retains incomplete prefixes.
      * Snapshot capture for the first incomplete source prefix is best-effort, matching the failing
      * snapshot policy in BenchmarkHarness; replay failures leave snapshots empty and retain evidence.
      * @param row immutable benchmark row whose counts and existing failure snapshots are preserved
@@ -223,7 +223,7 @@ public final class BenchmarkResult {
         this.strategy = row.strategy; this.bugName = row.bugName; this.statesExplored = row.statesExplored;
         this.wallTimeMs = row.wallTimeMs; this.heapDeltaBytes = row.heapDeltaBytes;
         this.sourceModel = program != null && program.isSource();
-        this.verdict = sourceModel && row.verdict.equals("PASS") && row.storeType == StoreType.BITSTATE
+        this.verdict = (sourceModel || symmetryReduction) && row.verdict.equals("PASS") && row.storeType == StoreType.BITSTATE
             ? "APPROXIMATE_PASS" : row.verdict;
         this.failingTrace = row.failingTrace; this.storeType = row.storeType;
         this.estimatedFalsePositiveRate = row.estimatedFalsePositiveRate; this.bitstateBitCount = row.bitstateBitCount;
