@@ -43,10 +43,11 @@ items and unmet conditional recommendations remain parked and do not become impl
 commitments merely because their IDs are next. Do not ask for repeated selection of active items.
 9-F2–F4 and 9-F9 are merged; the selected active follow-up backlog is complete. **#10 is complete**:
 symmetry reduction shipped in Specs 75–77 / PRs #117–119, with final exact-strategy composition
-merged in PR #119 at `d8ad49e`. Sam's selected stopping point is reached; **stop before #11/#12**.
+merged in PR #119 at `d8ad49e`. The earlier stop-before-#11/#12 boundary was subsequently superseded for explicitly selected
+[#12 bounded bytecode checking](bytecode-contract.md). #11 remains unselected.
 Parked work includes 9-V5 representation changes, 9-V6 research, conditional 9-F1, 9-F5–F8,
-conditional 9-F10 and deferred 9-F11. Items #11–12 remain separate future workstreams
-under the prerequisite above. Count overlapping mutation cases once and shared groundwork once. **Separate workstream** means staged, coherent
+conditional 9-F10 and deferred 9-F11. Items #11–12 remain separate workstreams; only #12 is now selected.
+The prerequisite active backlog is complete. Count overlapping mutation cases once and shared groundwork once. **Separate workstream** means staged, coherent
 PRs for a larger subsystem, rather than one PR per small helper or test family.
 
 If a complete feature is too large, separate compatible groundwork from the usable feature.
@@ -159,13 +160,15 @@ Start these only after the active preceding follow-up backlog and bug fixes are 
 Deferred and unmet conditional follow-ups remain parked under Sam's current active-items-only
 scope. The order below does not make these workstreams a substitute for completing active fixes.
 Keep symmetry reduction, relaxed memory models and actual Java input as separate workstreams.
-Sam selected #10 as the stopping point: finish it, explicitly report completion, then stop before #11/#12.
+The historical #10 stopping point was reached. Sam subsequently selected #12's
+[bounded interpreter contract](bytecode-contract.md), with one spec PR and ten sequential implementation
+milestones (94A–94C, 95–101). #11 and deferred/conditional work remain unselected.
 
 | # | Item | LOE | Spec Needed? | Why | PR grouping / boundary |
 |---|---|---|---|---|---|
-| 10 | Symmetry reduction — complete | High | Spec-set | [Spec 75](../specs/active/75-thread-symmetry-canonicalization.md), [Spec 76](../specs/active/76-source-symmetry-exact-search.md) and [Spec 77](../specs/active/77-source-symmetry-strategy-composition.md) shipped in PRs #117–119. Final composition merged at `d8ad49e`: checked source symmetry for exact DFS, static POR, DPOR and CBS, including iterative CBS and original-identity evidence. | Completed in three coherent stages: canonicalization/mappings; checked exact DFS and evidence; exact POR/DPOR/CBS composition with proof, callers and regressions. K1 / [Spec 89](../specs/active/89-approximate-symmetry-dfs-por.md) adds approximate bitstate composition for explicit DFS/static POR; [Spec 90](../specs/active/90-approximate-symmetry-cbs.md) adds CBS in K2; [Spec 91](../specs/active/91-approximate-symmetry-dpor.md) adds DPOR and all-strategy consumers in K3, completing B9 with PR #134 merged at `3d5c09e`. Arbitrary custom-store composition remains unsupported. [Spec 84](../specs/active/84-certified-symmetry-backends.md) adds a separately selected HASHED/ORDERED library storage choice under post-task-#10 B6. B10 [declarative JSON spec set](declarative-symmetry-contract.md) is selected: Specs 92/93 merged in PR #135; L1 exact support merged in PR #136 at `013c963`; L2 approximate support merged in PR #137 at `aebb919`, completing B10. All selected post-task-#10 follow-ups are complete; stop before #11/#12 and deferred/conditional work. |
+| 10 | Symmetry reduction — complete | High | Spec-set | [Spec 75](../specs/active/75-thread-symmetry-canonicalization.md), [Spec 76](../specs/active/76-source-symmetry-exact-search.md) and [Spec 77](../specs/active/77-source-symmetry-strategy-composition.md) shipped in PRs #117–119. Final composition merged at `d8ad49e`: checked source symmetry for exact DFS, static POR, DPOR and CBS, including iterative CBS and original-identity evidence. | Completed in three coherent stages: canonicalization/mappings; checked exact DFS and evidence; exact POR/DPOR/CBS composition with proof, callers and regressions. K1 / [Spec 89](../specs/active/89-approximate-symmetry-dfs-por.md) adds approximate bitstate composition for explicit DFS/static POR; [Spec 90](../specs/active/90-approximate-symmetry-cbs.md) adds CBS in K2; [Spec 91](../specs/active/91-approximate-symmetry-dpor.md) adds DPOR and all-strategy consumers in K3, completing B9 with PR #134 merged at `3d5c09e`. Arbitrary custom-store composition remains unsupported. [Spec 84](../specs/active/84-certified-symmetry-backends.md) adds a separately selected HASHED/ORDERED library storage choice under post-task-#10 B6. B10 [declarative JSON spec set](declarative-symmetry-contract.md) is selected: Specs 92/93 merged in PR #135; L1 exact support merged in PR #136 at `013c963`; L2 approximate support merged in PR #137 at `aebb919`, completing B10. All selected post-task-#10 follow-ups are complete. #12 is subsequently selected separately; #11 and deferred/conditional work remain parked. |
 | 11 | Relaxed memory models | Very High | Spec-set | Fundamental semantics change — needs formal spec | Stage one selected memory model: state/transition foundations; complete execution and witness support; supported search/reduction integration. Keep each additional memory model separate. Exact PR count follows the semantics/proof scope. |
-| 12 | Real Java bytecode instrumentation | Very High | Spec-set | Entirely new subsystem with external deps (ASM/Javassist) | Stage supported-bytecode ingestion and rejection rules; execution/lowering with source identities and replay; CLI/library integration and differential corpus verification. Group broader bytecode coverage by supported capability, not individual opcodes. Exact PR count follows the selected Java subset. |
+| 12 | Bounded Java bytecode checking — selected, specification only | Very High | Spec-set | Controlled JDK 26 Class-File API interpretation of fixed actors under bounded SC; no target host execution. | [Shared contract and Specs 94A–101](bytecode-contract.md): internal foundation (94A), concurrent feasibility gate (94B), complete public release (94C), then heap, exceptions, core library, CBS, restricted DPOR, narrow atomics and bitstate. Target ten sequential implementation PRs; measurements remain pending. |
 
 ## Deferred
 
@@ -198,8 +201,11 @@ planned. **PR grouping:** none while deferred; do not bundle with active visuali
 
 9. **Concurrent-program parser** — Shipped in [PR #57](https://github.com/SamuelIVX/interleave/pull/57), with all implementation PR checks passing. [Spec 16](../specs/active/16-concurrent-program-parser/README.md) records measured acceptance and review evidence. Readable source models compile into finite forward control flow with atomic interiors, explicit loop cutoffs and shared execution/reduction machinery. Actual Java project ingestion remains item #12; follow-up candidates are grouped above.
 
-10. **Symmetry reduction — complete** — Specs 75–77 merged in PRs #117–119; final exact DFS/POR/DPOR/CBS composition merged at `d8ad49e`. Checked source eligibility, original-identity evidence and separate preservation arguments are included. Sam's selected stopping point is reached: stop before #11/#12.
+10. **Symmetry reduction — complete** — Specs 75–77 merged in PRs #117–119; final exact DFS/POR/DPOR/CBS composition merged at `d8ad49e`. Checked source eligibility, original-identity evidence and separate preservation arguments are included. The historical stopping point was reached; #12 is subsequently selected under its separate contract, while #11 stays unselected.
 
 11. **Relaxed memory models** — support weak consistency models (e.g., ARM/POWER) instead of assuming sequential consistency. Fundamental change to `Configuration` snapshot semantics and step execution.
 
-12. **Real Java bytecode instrumentation** — instead of hand-written `Step` objects, instrument real Java bytecode so the checker can analyze actual concurrent programs. Requires bytecode analysis (ASM/Javassist), thread detection, and mapping bytecode to atomic steps.
+12. **Bounded Java bytecode checking — selected, specification only** — [contract/specification index](bytecode-contract.md).
+Interpret compiled Java17–26 inputs with metadata-only JDK26 Class-File API and fixed annotation-declared
+actors under bounded SC. Initial public release follows internal 94A/B gates; no bytecode runtime,
+batching/sharedness measurements, optimized reduction or JPF acceptance is established by these specs.
