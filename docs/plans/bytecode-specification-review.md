@@ -126,6 +126,14 @@ analyses; no additional CLI completion is claimed for them.
 
 ## Validation and deliberate skips
 
+PR #138 follow-up: independently validated and patched all three Minor inline comments: public
+consumer fixtures apply from 94C, the 94C Scope ledger uses docs/measurements, and String.equals
+has explicit operand-length/null/type/fault costs with literal exact/insufficient-fuel acceptance
+cases. Also corrected the review's stale #12 stop-status nit while retaining #11/deferred exclusions.
+Documentation/link/table and whitespace checks were rerun. No additional CodeRabbit CLI or runtime
+tests were run for these minor specification clarifications; the prior eleven analyses remain
+historical authoring evidence, not a new review of this patch.
+
 Documentation validation checks the ten canonical milestone sections and sequential dependencies,
 requirement/acceptance mappings, local Markdown files/anchors, table shape, spec-only changed paths and
 whitespace. Context structural validation has zero errors and one preexisting external-link warning.

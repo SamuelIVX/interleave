@@ -15,7 +15,7 @@ the contract. Modify InterleaveRunner.java, TestResult.java, TraceRecord.java, c
 search/TraceReplayer.java, cli/Main.java and report/{BenchmarkHarness,BenchmarkResult,SoundnessAttestation}.java
 through explicit bytecode routes. Update docs/visualizer.js, normalization/browser checks, README.md,
 examples/bytecode/ and API docs. Add built-jar/CLI/replay/report tests and
-measurements/94C-bytecode-release.md. Static POR/CBS/DPOR/bitstate/symmetry remain unavailable until their
+docs/measurements/94C-bytecode-release.md. Static POR/CBS/DPOR/bitstate/symmetry remain unavailable until their
 owning phases; no source/JSON behavior rewrite.
 
 ## Non-Goals

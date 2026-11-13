@@ -339,8 +339,10 @@ when those types arrive. Viewer uses text-safe labels and caps; no numeric coerc
 Number for 64-bit values. Extend TraceRecord/TestResult/reporting compatibly with optional bytecode
 payloads or version native serialization when shape requires; do not pin old UIDs or relabel legacy
 JSON/source. Minimization/source cutoff helpers remain source-only unless separately specified.
-All supported phase additions ship with strict replay, library, CLI, report, normalization and browser
-fixtures in the same PR. Requested/effective strategy and fallback reason are visible in all consumers.
+From 94C onward, all supported phase additions ship with strict replay, library, CLI, report,
+normalization and browser fixtures in the same PR. Internal phases 94A and 94B expose no public
+consumers and are exempt from this public-consumer requirement; their own internal verification gates
+still apply. Requested/effective strategy and fallback reason are visible in all public consumers.
 
 ## Library profile and exclusions
 

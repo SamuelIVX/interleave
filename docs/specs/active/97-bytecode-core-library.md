@@ -73,6 +73,9 @@ outside the interpreter; canonical keys distinguish future-relevant signed zero/
 cache edges and uncached allocation identity. Shared/possibly escaping StringBuilder models,
 including two concurrent appends with final length2 check, reject before search; local builders and
 publication of their immutable toString results succeed. Deterministic cache/constant materialization precedes actors.
+- R2: `stringEqualsFuelBoundaries` uses the literal costs in the equality table below, checking exact
+allowance success and one-unit-short cutoff for every row. Verify true/false/NPE outcomes, unchanged
+state/fuel on an omitted invocation, and the invoke BCI/required work/remaining allowance in evidence.
 - R4: Java17/21/26 string switches, primitive concat and unsupported Object-concat/callback cases;
 unsupported variants reject with descriptor/bootstrap diagnostic. No enum/assertion clinit exemption.
 - R5: long extrema, signed zero, infinities and NaN payloads survive Java→JSON→viewer→replay fixtures.
@@ -126,7 +129,7 @@ General racy cloning requires separately scheduled copy-read semantics and is no
 | Owner | Exact names/descriptors | Additional fuel and modeled effects |
 |---|---|---|
 | java/lang/Object | `<init>()V`, `equals(Ljava/lang/Object;)Z`, `hashCode()I` | 1; constructor no payload, equals identity, hash deterministic from identity with specified stable encoding |
-| java/lang/String | `<init>()V`, `<init>(Ljava/lang/String;)V`, `length()I`, `isEmpty()Z`, `charAt(I)C`, `equals(Ljava/lang/Object;)Z`, `hashCode()I`, `toString()Ljava/lang/String;` | Scalars 1, copy/equality/hash max(1,u); UTF-16 payload, Java polynomial hash, toString returns this |
+| java/lang/String | `<init>()V`, `<init>(Ljava/lang/String;)V`, `length()I`, `isEmpty()Z`, `charAt(I)C`, `equals(Ljava/lang/Object;)Z`, `hashCode()I`, `toString()Ljava/lang/String;` | Scalars 1, copy/hash max(1,u); equality cost defined below; UTF-16 payload, Java polynomial hash, toString returns this |
 | java/lang/String | `concat(Ljava/lang/String;)Ljava/lang/String;`, `valueOf(I)Ljava/lang/String;`, `valueOf(J)Ljava/lang/String;`, `valueOf(Z)Ljava/lang/String;`, `valueOf(C)Ljava/lang/String;` | max(1,result units); deterministic text; Z overload returns interned true/false literals with no call-time allocation; concat(empty) returns receiver; I/J/C results allocate |
 | java/lang/Integer | `valueOf(I)Ljava/lang/Integer;`, `intValue()I`, `equals(Ljava/lang/Object;)Z`, `hashCode()I` | 1; exact -128..127 cache; header+one field otherwise |
 | java/lang/Boolean | `valueOf(Z)Ljava/lang/Boolean;`, `booleanValue()Z`, `equals(Ljava/lang/Object;)Z`, `hashCode()I` | 1; exactly two cached identities |
@@ -137,6 +140,29 @@ General racy cloning requires separately scheduled copy-read semantics and is no
 | java/lang/StringBuilder | `<init>()V`, `<init>(I)V`, `<init>(Ljava/lang/String;)V`, `append(I)Ljava/lang/StringBuilder;`, `append(J)Ljava/lang/StringBuilder;`, `append(Z)Ljava/lang/StringBuilder;`, `append(C)Ljava/lang/StringBuilder;`, `append(Ljava/lang/String;)Ljava/lang/StringBuilder;`, `length()I`, `toString()Ljava/lang/String;` | Scalars 1, construction/append/copy max(1,result units); mutable UTF-16 logical capacity and length, bounds as String; append null String writes "null"; empty toString returns interned empty literal without allocation |
 | array receiver | `clone()Ljava/lang/Object;` with array owner descriptor | max(1,length); source proven free of concurrent mutation; shallow array of identical component/rank, fresh identity and header+elements charge |
 | Throwable family | Only descriptors established in 96 | Scalars 1; suppression copy max(1,count); allocated exception/header fields and returned arrays charged |
+
+For `String.equals(Ljava/lang/Object;)Z` with a non-null receiver and a String argument,
+`u = max(receiver UTF-16 length, argument UTF-16 length)` and additional intrinsic fuel is `max(1,u)`.
+Use this fixed cost even for identical references, unequal lengths or an early content mismatch;
+the result is true exactly when UTF-16 contents match. A null or non-String argument returns false
+with one intrinsic unit. A null receiver raises NPE with one intrinsic unit under the existing fault
+rule. Every case additionally costs the invoke opcode's one unit and uses full-cost preflight.
+These are profile fuel charges, not measured host-JVM work.
+
+| Receiver | Argument | Outcome with sufficient fuel | Total fuel | One-unit-short allowance |
+|---|---|---|---:|---:|
+| `"abc"` | `"abc"` | true | 4 | 3 |
+| `"ab"` | `"ac"` | false | 3 | 2 |
+| `"ab"` | `"abcd"` | false | 5 | 4 |
+| `"abcd"` | `"ab"` | false | 5 | 4 |
+| `""` | `""` | true | 2 | 1 |
+| `"abc"` | null | false | 2 | 1 |
+| `"abc"` | plain Object | false | 2 | 1 |
+| null | `"abc"` | NPE | 2 | 1 |
+
+The totals are independently specified literals: the invoke contributes one unit, the longest
+two/three/four-unit String contributes two/three/four, and empty/null/type/fault cases contribute one.
+Each one-unit-short case omits the whole invocation without charges, including the null-receiver case.
 
 For wrapper shorthand above, exact primitive/getter pairs are Byte B/byteValue()B, Short S/shortValue()S,
 Long J/longValue()J, Character C/charValue()C, Float F/floatValue()F and Double D/doubleValue()D;
