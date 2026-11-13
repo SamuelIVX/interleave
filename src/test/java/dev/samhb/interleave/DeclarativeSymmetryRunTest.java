@@ -120,17 +120,18 @@ class DeclarativeSymmetryRunTest {
         }
     }
 
-    /** L1 must not accidentally enable approximate JSON through a direct or owned factory. */
-    @Test void approximateDeclarativeSelectionStaysGated() {
-        var model = semaphore();
-        for (var strategy : Strategy.values()) {
-            assertThrows(IllegalArgumentException.class, () -> BitstateSymmetryStateStore.forRun(
-                model.program(), null, strategy, 1024, 4, strategy == Strategy.CONTEXT_BOUNDED ? 2 : 0));
-            assertThrows(IllegalArgumentException.class, () -> InterleaveRunner.builder().strategy(strategy)
-                .symmetryReduction(true).symmetryBitstate(1024,4).build().run(model.program()));
-            var rejected=assertThrows(IllegalArgumentException.class,()->new BenchmarkHarness(1024,4,
-                Set.of(StoreType.BITSTATE),Set.of(strategy.name()),2,false,true).runProgram(model));
-            assertTrue(rejected.getMessage().contains("until declarative B10 L2"));
+    /** Approximation shares exact certification; custom properties cannot gain trust in any strategy. */
+    @Test void approximateDeclarativeSelectionRetainsCertificationGuards() {
+        var model=semaphore();
+        dev.samhb.interleave.search.Invariant untrusted=(s,c)->true;
+        for(var strategy:Strategy.values()) {
+            assertThrows(IllegalArgumentException.class,()->BitstateSymmetryStateStore.forRun(
+                model.program(),untrusted,strategy,1024,4,strategy==Strategy.CONTEXT_BOUNDED?2:0));
+            assertThrows(IllegalArgumentException.class,()->InterleaveRunner.builder().strategy(strategy)
+                .symmetryReduction(true).symmetryBitstate(1024,4).invariant(untrusted).build().run(model.program()));
+            var invalid=new dev.samhb.interleave.bugs.BenchmarkProgram(model.name(),model.program(),null,untrusted);
+            assertThrows(IllegalArgumentException.class,()->new BenchmarkHarness(1024,4,
+                Set.of(StoreType.BITSTATE),Set.of(strategy.name()),2,false,true).runProgram(invalid));
         }
     }
 

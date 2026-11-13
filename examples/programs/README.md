@@ -10,13 +10,15 @@ Curated JSON programs for teaching and verification. Load via `ProgramLoader` or
 
 ## Certified declarative symmetry
 
-The semaphore supports `--file examples/programs/semaphore-declarative.json --symmetry --store exact`.
+The semaphore supports `--file examples/programs/semaphore-declarative.json --symmetry --store exact`
+or `--store bitstate` across all four strategies.
 Omitting --strategy runs DFS/static POR/DPOR/CBS. Exact DFS visits 5 orbit representatives rather
 than 8 concrete positions. Certification requires matching ordered instructions and initial locals;
 loader provenance and existing work limits also apply to reassembled models. Typed JSON/custom
-callbacks and declarative bitstate symmetry remain unsupported in this phase. JSON retains its
+callbacks remain unsupported. Bitstate absence is APPROXIMATE_PASS because collisions can hide
+real behavior; a discovered CBS bound is not a proven minimum. JSON retains its
 ordinary guards, sequential effects and error outcomes; source-only witness APIs remain separate.
-See [Spec 92](../../docs/specs/active/92-certified-declarative-symmetry.md).
+See [Specs 92–93](../../docs/plans/declarative-symmetry-contract.md).
 
 ## Readable source models
 

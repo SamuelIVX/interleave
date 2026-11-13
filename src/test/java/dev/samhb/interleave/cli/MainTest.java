@@ -811,26 +811,70 @@ class MainTest {
         }
     }
 
-    /** Declarative support does not admit approximation early or source-only witness operations.
+    /** Explicit BITSTATE runs one selected strategy or the full declarative matrix with honest precision.
+     * @throws Exception if child JVM execution or fresh artifact writes fail
+     */
+    @Test void declarativeSymmetryCliSupportsApproximateMatrix() throws Exception {
+        var result=invokeCli("--file","examples/programs/semaphore-declarative.json","--symmetry","--store","bitstate","--json");
+        assertEquals(0,result.exitCode(),result.output());
+        var report=dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output());
+        assertTrue(report.get("soundness").getAsBoolean());var rows=report.getAsJsonArray("benchmarks");assertEquals(4,rows.size());
+        var strategies=new java.util.HashSet<String>();
+        for(var element:rows) {
+            var row=element.getAsJsonObject();assertTrue(row.get("symmetryReduction").getAsBoolean());
+            assertEquals("BITSTATE",row.get("storeType").getAsString());assertEquals("APPROXIMATE_PASS",row.get("verdict").getAsString());
+            assertFalse(row.has("programKind"));assertFalse(row.has("sourceDigest"));
+            assertTrue(row.getAsJsonObject("bitstateMetrics").get("bitCount").getAsInt()>0);
+            assertTrue(strategies.add(row.get("strategy").getAsString()));
+        }
+        assertEquals(java.util.Set.of("DFS","STATIC_POR","DPOR","CONTEXT_BOUNDED"),strategies);
+        java.nio.file.Files.createDirectories(java.nio.file.Path.of("build"));
+        java.nio.file.Files.writeString(java.nio.file.Path.of("build/declarative-symmetry-approximate-report.json"),result.output());
+        for(var strategy:strategies) {
+            var selected=invokeCli("--file","examples/programs/semaphore-declarative.json","--symmetry","--store","bitstate","--strategy",strategy,"--json");
+            assertEquals(0,selected.exitCode(),selected.output());
+            var single=dev.samhb.interleave.testsupport.JsonAssertions.parseObject(selected.output()).getAsJsonArray("benchmarks");
+            assertEquals(1,single.size());assertEquals(strategy,single.get(0).getAsJsonObject().get("strategy").getAsString());
+            assertEquals("APPROXIMATE_PASS",single.get(0).getAsJsonObject().get("verdict").getAsString());
+        }
+        var failed=invokeCli("--file","src/test/resources/dsl/symmetry-committed-failure.json","--symmetry","--store","bitstate","--json");
+        assertEquals(0,failed.exitCode(),failed.output());
+        var failure=dev.samhb.interleave.testsupport.JsonAssertions.parseObject(failed.output());assertTrue(failure.get("soundness").getAsBoolean());
+        for(var item:failure.getAsJsonArray("benchmarks")) {
+            var row=item.getAsJsonObject();assertEquals("VIOLATION",row.get("verdict").getAsString());
+            var states=row.getAsJsonObject("failingTrace").getAsJsonArray("states");assertFalse(states.isEmpty());
+            assertEquals(1,states.get(states.size()-1).getAsJsonObject().getAsJsonObject("fields").get("x").getAsInt());
+        }
+        java.nio.file.Files.writeString(java.nio.file.Path.of("build/declarative-symmetry-approximate-failure-cli.json"),failed.output());
+        var markdown=invokeCli("--file","examples/programs/semaphore-declarative.json","--symmetry","--store","bitstate","--strategy","DPOR");
+        assertEquals(0,markdown.exitCode());assertTrue(markdown.output().contains("APPROXIMATE_PASS"));
+        var iterative=invokeCli("--file","src/test/resources/dsl/symmetry-committed-failure.json","--symmetry","--store","bitstate",
+            "--strategy","CONTEXT_BOUNDED","--bitstate-size","1","--max-preemptions","2","--iterative-deepening","--json");
+        assertEquals(0,iterative.exitCode(),iterative.output());
+        var producing=dev.samhb.interleave.testsupport.JsonAssertions.parseObject(iterative.output()).getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals(2,producing.get("preemptionsUsed").getAsInt());assertEquals("APPROXIMATE_PASS",producing.get("verdict").getAsString());
+    }
+
+    /** Declarative support retains explicit storage and source-only witness restrictions.
      * @throws Exception if a child JVM fails to launch
      */
     @Test void declarativeSymmetryCliRetainsPhaseAndEvidenceGuards() throws Exception {
         for(var args:java.util.List.of(
-                java.util.List.of("--store","bitstate"),java.util.List.<String>of(),
+                java.util.List.<String>of(),
                 java.util.List.of("--store","exact","--strategy","DFS","--simplify-cutoff"),
                 java.util.List.of("--store","exact","--strategy","DFS","--shortest-cutoff","4"))) {
             var command=new java.util.ArrayList<>(java.util.List.of("--file","examples/programs/semaphore-declarative.json","--symmetry","--json"));
             command.addAll(args);
             var result=invokeCli(command.toArray(String[]::new));
             assertEquals(1,result.exitCode(),result.output());
-            String reason=args.contains("bitstate") ? "Approximate symmetry requires source input"
-                : args.contains("--simplify-cutoff") ? "--simplify-cutoff requires --source"
+            String reason=args.contains("--simplify-cutoff") ? "--simplify-cutoff requires --source"
                 : args.contains("--shortest-cutoff") ? "--shortest-cutoff requires --source" : "explicit --store exact|bitstate";
             assertTrue(result.output().contains(reason),result.output());
         }
-        var typed=invokeCli("--file","examples/programs/lost-update.json","--symmetry","--store","exact");
-        assertEquals(1,typed.exitCode(),typed.output());
-        assertTrue(typed.output().contains("--symmetry requires"));
+        for(String store:java.util.List.of("exact","bitstate")) {
+            var typed=invokeCli("--file","examples/programs/lost-update.json","--symmetry","--store",store);
+            assertEquals(1,typed.exitCode(),typed.output());assertTrue(typed.output().contains("--symmetry requires"));
+        }
     }
 
     /** Runs the actual entry point in a child JVM because validation calls System.exit.

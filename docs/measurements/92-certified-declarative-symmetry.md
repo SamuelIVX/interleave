@@ -3,8 +3,8 @@
 
 ## Status and baseline
 
-L1 is implemented and locally verified; merge is pending. B10 remains in progress. Declarative
-approximate admission is explicitly gated until L2. See [Spec 92](../specs/active/92-certified-declarative-symmetry.md)
+L1 merged in PR #136 at `013c9630e13b9835f435e4344837bf3b10e673db`. B10 remains in progress.
+Its measured release explicitly gates approximate declarative admission; L2 separately lifts that gate. See [Spec 92](../specs/active/92-certified-declarative-symmetry.md)
 and the [set contract](../plans/declarative-symmetry-contract.md).
 
 The fresh baseline is merged spec PR #135 at `c8ee55373701d0a7f131c752397460a61217aaf4`, measured
@@ -177,5 +177,5 @@ snapshot API checks state/action execution; strict positive report attestation s
 property/terminal observations and provenance. Failed attempts publish no successor. FINAL properties
 may conservatively fall back to exhaustive search. Representative visit counts are not general
 speedups or counts of all concrete schedules, and no whole-process memory or whole-checker mutation
-closure is claimed. Source resource-prefix authentication remains source-only. L2 approximate
-support, CI results and merge are pending; none is claimed here.
+closure is claimed. Source resource-prefix authentication remains source-only. This ledger records L1 only. L2 approximate support is measured separately; L1 merge does not
+complete B10.

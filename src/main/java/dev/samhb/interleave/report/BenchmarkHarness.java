@@ -157,8 +157,7 @@ public final class BenchmarkHarness {
      * filtered by the configured store and strategy filters.
      *
      * @param program the benchmark program
-     * @throws IllegalArgumentException for uncertified symmetry models or declarative BITSTATE
-     *         symmetry before B10 L2; source BITSTATE and declarative exact remain supported
+     * @throws IllegalArgumentException for uncertified symmetry models or invalid bound/capacity settings
      * @return list of {@link BenchmarkResult}s
      */
     public List<BenchmarkResult> runProgram(BenchmarkProgram program) {
