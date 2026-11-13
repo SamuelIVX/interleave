@@ -15,8 +15,9 @@ oracles and release boundaries. This spec owns L1 only; B10 completes after L2 m
 ## Scope
 
 - Module: declarative validation/certification, checked search routing and exact consumers.
-- Adds a read-only Program.initialStateType() query in core/Program.java so certification checks
-  the stored snapshot type before invoking model copy/initialization code. This is metadata only,
+- Adds read-only Program.initialStateType()/initialStateInputType() queries in core/Program.java
+  so certification checks both snapshot and original constructor input types before invoking
+  further model copy/initialization code. This is metadata only,
   not a certificate or execution interface; generic Program behavior remains unchanged.
 - Modifies `src/main/java/dev/samhb/interleave/format/dsl/{DslLoader,DynamicStep,DslInvariant,SourceSymmetry,SourceInstruction}.java`;
   SourceInstruction changes are limited to sharing exhaustive expression identity inspection.
@@ -183,9 +184,11 @@ budget during certification of a reassembled Program. Count each occurrence and 
 the cap and reuse bounded validated expression metadata/counting; never expand an unbounded alias
 list or trust loader-time aggregate counts for a newly assembled Program. Shared exhaustive Expr identity inspection may be
 package-private on SourceInstruction for both callers; no separate expression evaluator is created.
-Program.initialStateType() returns the actual stored snapshot class without calling deepCopy.
-Reject non-DynamicState snapshots before initialConfiguration; a custom copy that returns a trusted
-state cannot establish provenance of the stored model. DynamicStep already has straight-line next-PC semantics; do not add SourceStep/control metadata.
+Program.initialStateType() returns the actual stored snapshot class; initialStateInputType()
+records the original constructor input class before its first deepCopy, without retaining that
+input object. Require both types to be DynamicState before initialConfiguration; first-copy or
+later-copy adapters cannot establish trust. DslLoader.load also requires the explicit declarative
+discriminator for direct callers before it issues certified instructions. DynamicStep already has straight-line next-PC semantics; do not add SourceStep/control metadata.
 
 Use existing CheckedSymmetryStore dispatch for exact DPOR contexts, keeping value-only pruning
 bypassed. Extend only the source-or-checked predicate around its mapped sleep normalization/lookup.
@@ -237,13 +240,13 @@ as an exact agreement seed. Preserve existing source exceptions.
 - [verified] Private attestation checks enabled actual transitions/terminal observations, rejects
   foreign diagnostics and preserves failed-attempt/no-successor behavior. Ordinary report wording
   remains unchanged; JSON has no fabricated source identity/resource prefix.
-- [verified] Full build, strict Javadoc and 1,943 tests pass with no failures/errors/skips. All 218
+- [verified] Full build, strict Javadoc and 1,948 tests pass with no failures/errors/skips. All 218
   browser checks and an external Java 26 built-jar consumer pass. See the
   [L1 ledger](../../measurements/92-certified-declarative-symmetry.md) for scope and provenance.
-- [verified] The reproduced custom-copy adapter is rejected by a stored-type metadata guard before
-  another copy callback. Program.initialStateType exposes only the actual stored snapshot class;
-  generic initialization and source identity remain unchanged. Its regression failed before the fix
-  and passes afterward.
+- [verified] First-copy and later-copy adapters reject before another copy callback. Read-only
+  Program type metadata covers both the original constructor input and stored snapshot; generic
+  initialization and source identity remain unchanged. Direct DslLoader calls also reject missing,
+  empty or non-declarative formats before issuing trust. Both gaps have observed red/green regressions.
 - [verified] Default PIT retains all 468 baseline fingerprints/statuses (455 K + 13 S). The broad
   affected census and final focused mutation checks are recorded separately in the ledger. Three
   actual CodeRabbit reviews completed; independently checked dispositions and patched findings are

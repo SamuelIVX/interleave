@@ -34,7 +34,7 @@ interpreter or a universal proof for arbitrary callbacks.
 
 - Admission, routing, CLI, viewer, attestation and failed-scratch regressions failed before their
   fixes and passed afterward. No test was deleted or weakened to pass a production defect.
-- Final full build and strict Javadoc: **1,943 tests**, zero failures/errors/skips.
+- Final full build and strict Javadoc: **1,948 tests**, zero failures/errors/skips.
 - **218 browser assertions** pass with zero console errors, using fresh existing source artifacts
   and declarative exact reports, completed/root/later traces and failed-effect library/CLI payloads.
 - Private-member doclint passes for eight certification/attestation/state/capture files using
@@ -49,8 +49,9 @@ The final source compatibility regression initially used an invalid mixed-case s
 correcting the test fixture preserves the lowercase grammar. Earlier integrated logs retain report
 wording/test-wrapper failures and the snapshot red/green evidence. Failed commands are not passes.
 
-## Mutation measurements
+## Initial L1 mutation measurements
 
+The following measurements precede the PR feedback refinement recorded below.
 All runs use one Gradle worker and one PIT minion, the existing operators/test selection, and the
 unchanged default mutation threshold. K = KILLED, S = SURVIVED, NC = NO_COVERAGE. Each row below is
 an actual run; the scopes and revisions differ deliberately and their denominators are not comparable
@@ -58,7 +59,7 @@ as whole-checker percentages. No row has resource, timeout, run-error or other m
 
 | Scope / point measured | Baseline | Feature | Meaning |
 |---|---|---|---|
-| Default gate | 455/468 K + 13 S | 455/468 K + 13 S | Final production code; all 468 fingerprints and statuses identical. The subsequent source-only regression adds test coverage without changing production. |
+| Default gate | 455/468 K + 13 S | 455/468 K + 13 S | Pre-feedback production code; all 468 fingerprints and statuses identical. The subsequent source-only regression adds test coverage without changing production. |
 | Broad affected census | 2,247/2,853 K + 177 S + 429 NC | 2,421/3,040 K + 184 S + 435 NC | Feature census precedes the later stored-state and committed-snapshot refinements. This is explicitly a point-in-time wide run. |
 | Program / SourceSymmetry / SoundnessAttestation (including record) | 225/227 K + 2 S | 343/344 K + 1 S | Final stored-state guard and strict positive-witness checks. Program 29/29 K; SourceSymmetry 106/107 K; attestation plus record 208/208 K. |
 | Source partial visitor, final test refinement | 30/43 K + 13 S | 38/47 K + 9 S | Added source partial-failure regression kills the source/JSON selector and source snapshot-call removals; zero NC. |
@@ -136,6 +137,37 @@ committed build products:
   `snapshots-red.log`, `snapshots-green.log` and `snapshots-contract.log` retain regression history.
 - `coderabbit.ndjson`, `coderabbit-final.ndjson`, `coderabbit-snapshots.ndjson` retain completed
   review output and finding severities. This ledger records independent dispositions.
+
+## PR #136 feedback refinement
+
+All three posted findings were independently validated and patched:
+
+| Severity / finding | Fix and regression |
+|---|---|
+| Minor: direct DslLoader calls bypassed the format discriminator | Require exactly `declarative` before validation/certification. Direct calls with `typed`, empty or missing format all failed the new regression before the fix; explicit declarative definitions still certify. |
+| Major: a custom first-copy adapter could retain a trusted-looking snapshot | Record only the constructor input class in Program before deepCopy and expose `initialStateInputType()`. Require both input and stored classes to be DynamicState. A retained-snapshot adapter demonstrates post-construction root mutation and now rejects without another adapter callback; ordinary Program copying remains unchanged. The regression failed before the fix. |
+| Trivial: missing no-property POR oracle | Checked static POR and DPOR, both exact backends, retain terminal x values `{1, 2}` from the independent split graph. Every completion witness checks actual enabled choices/outcomes and termination. This test passed before the admission fixes; it strengthens coverage rather than claiming another production defect. |
+
+Post-feedback `build javadoc` passes **1,948 tests**, zero failures/errors/skips. All **218 browser
+assertions** pass on regenerated artifacts, and the external built-jar consumer passes including the
+new original-input type query. A focused CodeRabbit review of all seven feedback files completed
+with **zero findings**. It was required for the Major correctness-sensitive provenance fix, not a
+repeat check of minor/trivial feedback. Raw artifacts use `/private/tmp/interleave-pr136-feedback-`:
+`red.log`, `build.log`, `browser.log`, `coderabbit.ndjson`, and the focused `pitest.log`/`pitest.xml`.
+The post-feedback focused census passes **602/712 K + 89 S + 21 NC**, with zero resource/run-error
+or other statuses: Program **31/31 K**, SourceSymmetry **108/109 K + 1 S**, DslLoader **463/572 K
++ 88 S + 21 NC**. All mutations on the new discriminator guard and original-input type check are
+killed. The sole SourceSymmetry survivor remains the explicit null-check removal whose next
+dereference still throws. Loader residuals remain in the raw XML; this patch makes no general
+equivalence or whole-loader closure claim. The comparison uses the previously recorded disjoint
+per-class populations (594/705 K + 90 S + 21 NC), not a newly measured full PR-head baseline. Of 273
+matching instruction fingerprints, 272 retain status and one changes; 432 old and 439 new identities
+mostly reflect shifted instruction indexes. Do not infer semantic mutant lineage from reused indexes.
+Comparison artifacts: `baseline.xml`, `comparison.txt` under the same feedback prefix.
+
+The previous broad/default measurements above retain their original scope and revision. The
+default gate was not repeated for this narrow feedback patch; the three changed production classes
+receive a focused census in addition to the full integrated build and consumer checks.
 
 ## Assurance limits
 

@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.Map;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -134,6 +135,50 @@ class DeclarativeSymmetryEligibilityTest {
         int before=copies.get();
         assertThrows(IllegalArgumentException.class,()->SourceSymmetry.groups(forged,null));
         assertEquals(before,copies.get(),"certification must not invoke another untrusted copy");
+    }
+
+    /** Input provenance cannot be laundered through an adapter's first defensive copy. */
+    @Test void firstCopyAdapterCannotIssueTrustedStateProvenance() {
+        var model=pair(null,List.of("x = 1"),null);
+        var retained=(DynamicState)model.program().initialConfiguration().state();
+        var copies=new java.util.concurrent.atomic.AtomicInteger();
+        SharedState adapter=new SharedState() {
+            /** {@inheritDoc} */
+            public SharedState deepCopy() {copies.incrementAndGet();return retained;}
+            /** {@inheritDoc} */
+            public void encodeTo(java.io.DataOutput out) {throw new AssertionError("untrusted encoder invoked");}
+        };
+        var forged=new Program(adapter,model.program().threads());
+        assertEquals(DynamicState.class,forged.initialStateType());
+        assertEquals(adapter.getClass(),forged.initialStateInputType());
+        // The adapter retains the snapshot; post-construction writes can change this program's root.
+        retained.setInt("x",7);
+        assertEquals(7,((DynamicState)forged.initialConfiguration().state()).getInt("x"));
+        int before=copies.get();
+        assertThrows(IllegalArgumentException.class,()->SourceSymmetry.groups(forged,null));
+        assertEquals(before,copies.get(),"certification must reject without another adapter callback");
+        // Ordinary construction/copy semantics stay usable; checked admission owns the restriction.
+        var trusted=new Program(retained,model.program().threads());
+        assertEquals(DynamicState.class,trusted.initialStateInputType());
+        assertEquals(List.of(List.of(0,1)),SourceSymmetry.groups(trusted,null));
+    }
+
+    /** Direct callers must supply the declarative discriminator before the loader can issue trust.
+     * @param format unsupported or missing format
+     * @throws java.io.IOException if the checked-in fixture cannot be read
+     */
+    @ParameterizedTest @NullAndEmptySource @ValueSource(strings="typed")
+    void directLoaderRejectsOtherFormatsBeforeCertification(String format) throws java.io.IOException {
+        var json=com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(
+            Path.of("examples/programs/semaphore-declarative.json"))).getAsJsonObject();
+        if(format==null)json.remove("format");else json.addProperty("format",format);
+        var definition=new Gson().fromJson(json,dev.samhb.interleave.format.model.ProgramDefinition.class);
+        var rejected=assertThrows(dev.samhb.interleave.format.registry.RegistryException.class,
+            ()->DslLoader.load(definition));
+        assertTrue(rejected.getMessage().contains("format"));
+        json.addProperty("format","declarative");
+        var valid=DslLoader.load(new Gson().fromJson(json,dev.samhb.interleave.format.model.ProgramDefinition.class));
+        assertEquals(List.of(List.of(0,1)),SourceSymmetry.groups(valid.program(),valid.invariant().orElseThrow()));
     }
 
     /** Fixed owners remain trusted and cannot smuggle executable callbacks into certification. */

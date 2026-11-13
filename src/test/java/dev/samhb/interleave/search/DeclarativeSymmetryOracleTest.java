@@ -54,6 +54,30 @@ class DeclarativeSymmetryOracleTest {
         }
     }
 
+    /** Checked reductions without a property preserve both independently reachable split outcomes. */
+    @Test void noPropertyPorPreservesIndependentTerminalValues() {
+        var model=load(2,0,List.of(action(null,List.of("local.r = x")),
+            action(null,List.of("x = local.r + 1"))),null);
+        var expected=new HashSet<Integer>();
+        for(var state:reference("split",2))if(state.pcs().equals(List.of(2,2)))expected.add(state.x());
+        assertEquals(Set.of(1,2),expected);
+        for(var strategy:List.of(Strategy.STATIC_POR,Strategy.DPOR))for(var backend:SymmetryBackend.values()) {
+            var store=SymmetryStateStore.forRun(model.program(),null,strategy,backend);
+            var result=strategy==Strategy.STATIC_POR
+                ? new dev.samhb.interleave.por.StaticPorExplorer().explore(model.program(),null,store,null)
+                : new dev.samhb.interleave.dpor.DporExplorer().explore(model.program(),null,store,null);
+            var observed=new HashSet<Integer>();
+            assertFalse(result.traces().isEmpty());
+            for(var trace:result.traces()) {
+                assertEquals(TraceOutcome.COMPLETED,trace.outcome());
+                checkConcreteWitness(model,trace);
+                var terminal=new TraceReplayer().replay(model.program(),trace);
+                observed.add(((DynamicState)terminal.state()).getInt("x"));
+            }
+            assertEquals(expected,observed,strategy+" "+backend);
+        }
+    }
+
     /** Every exact strategy/backend preserves a finite violating final property and concrete witness. */
     @Test void failingFinalPropertyMatchesExhaustiveReferenceAcrossStrategies() {
         var steps=List.of(action(null,List.of("local.r = x")),action(null,List.of("x = local.r + 1")));

@@ -54,6 +54,8 @@ public final class DslLoader {
      * @throws RegistryException on validation error
      */
     public static BenchmarkProgram load(ProgramDefinition def) {
+        // Certification must include the discriminator even when callers bypass ProgramLoader.
+        if (!"declarative".equals(def.format())) throw new RegistryException("format must be declarative");
         // Defensive top-level validation (also done in ProgramLoader, but DslLoader is public)
         if (def.name() == null || def.name().isBlank()) throw new RegistryException("Program name is required");
         if (def.threads() == null || def.threads().isEmpty()) throw new RegistryException("At least one thread is required");

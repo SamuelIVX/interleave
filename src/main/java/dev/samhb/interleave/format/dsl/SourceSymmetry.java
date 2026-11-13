@@ -23,8 +23,8 @@ public final class SourceSymmetry {
      */
     public static List<List<Integer>> groups(Program program, Invariant invariant) {
         Objects.requireNonNull(program, "program");
-        if (program.initialStateType() != DynamicState.class) {
-            throw new IllegalArgumentException("Symmetry requires a trusted DynamicState initial snapshot");
+        if (program.initialStateInputType() != DynamicState.class || program.initialStateType() != DynamicState.class) {
+            throw new IllegalArgumentException("Symmetry requires a trusted DynamicState input and initial snapshot");
         }
         boolean source = program.isSource();
         if (invariant != null && (source ? !(invariant instanceof SourceProperty) : !(invariant instanceof DslInvariant))) {

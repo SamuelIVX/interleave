@@ -19,16 +19,18 @@ not enable a feature. Implementation PRs update their spec, tests, measurements 
 ## Selected model family and trust
 
 - **Certified declarative instruction/property:** immutable typed objects issued by DslLoader only
-  after its existing parsing, typing, AST/work bounds and shared-only property checks succeed.
+  after its explicit format discriminator, parsing, typing, AST/work bounds and shared-only property checks succeed.
   Certification is private immutable state, not a public flag, filename, JSON assertion or class test.
 - Existing public DynamicStep/DslInvariant constructors retain ordinary behavior but issue no
   certification. Package-private validated factories require a non-null DslLoader.ValidationPermit:
   a package-visible final nested type with a private constructor and a single private loader-held
   instance, never exposed by an accessor or returned model. Null permits reject before certification.
   No public certificate injection API or caller-declared observation proof is introduced.
-- Program.initialStateType() is a read-only metadata query of the actual stored snapshot class,
-  invoking no model code. Certification requires DynamicState before another copy/initialization;
-  a custom state adapter returning DynamicState from deepCopy cannot establish trust.
+- Program.initialStateType() and Program.initialStateInputType() are read-only metadata queries
+  of the retained snapshot and original constructor input classes, invoking no model code and
+  retaining no input object. Certification requires both types to be DynamicState before another
+  copy/initialization; adapters returning DynamicState on their first or later deepCopy cannot
+  establish trust. Ordinary Program construction/copy semantics remain unchanged.
 - A checked declarative model contains only certified DynamicStep objects, dense actual owner
   bindings, DynamicState with matching owner count, and an absent or certified DslInvariant. Every
   step/property must retain the same StateDecl object as the initial DynamicState. Trusted objects
