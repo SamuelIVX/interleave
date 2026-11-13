@@ -3,7 +3,7 @@
 
 ## Objective and status
 
-**L1 merged in PR #136 at `013c963`; L2 implemented in this change, local verification/review complete; merge pending. B10 remains in progress.** Planning baseline:
+**B10 complete. L1 merged in PR #136 at `013c963`; L2 merged in PR #137 at `aebb919`.** Planning baseline:
 main `b1c7586fc34542e919b3f82d1dece87ade7dec86`, after B9 / PR #134 merged at `3d5c09e`.
 Sam selected declarative JSON and the full DFS/static POR/DPOR/CBS exact/approximate matrix.
 This approval supersedes B9's stop-before-B10 boundary for this selected scope only.

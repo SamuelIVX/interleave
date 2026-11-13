@@ -3,8 +3,8 @@
 
 ## Status and baseline
 
-L2 is implemented and locally verified; merge is pending. B10 remains in progress until
-L2 merges. See [Spec 93](../specs/active/93-approximate-declarative-symmetry.md) and the
+L2 merged in PR #137 at **aebb9194d2cbd93a2086b38009cfe886dcd663d5**. **B10 is complete.**
+See [Spec 93](../specs/active/93-approximate-declarative-symmetry.md) and the
 [B10 contract](../plans/declarative-symmetry-contract.md). Roadmap #11/#12 and parked work stay excluded.
 
 Fresh baseline: merged L1 PR #136 at **013c9630e13b9835f435e4344837bf3b10e673db**, measured in an
@@ -104,5 +104,8 @@ Approximation can miss behavior. Bloom membership diagnostics are an idealized s
 cost-union heuristic, not calibrated behavior coverage; the configured budget bounds membership,
 not total JVM memory. A discovered CBS bound is observed, not proven minimal. Source-native evidence,
 cutoff shortening, schemas and generic replay remain separate. L1 exact HASHED/ORDERED remains available.
-Publish one complete L2 PR and stop. Only after Sam reports its merge should B10 be marked complete
-in both trackers/context, explicitly reported complete, and work stop before #11/#12 or parked tasks.
+Sam confirmed PR #137 merged. Both work tables, the set/spec status and personal context are closed
+with B10 complete. Work stops before #11/#12 and deferred/conditional tasks. The merged tree matches
+the reviewed feature tree; the README store-selection clarification was patched before merge.
+A fresh integrated build/Javadoc on the merged revision passes all **1,963 tests**, with no
+failures/errors/skips (`/private/tmp/interleave-b10-merged-build.log`).

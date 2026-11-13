@@ -250,7 +250,7 @@ as an exact agreement seed. Preserve existing source exceptions.
 - [verified] Default PIT retains all 468 baseline fingerprints/statuses (455 K + 13 S). The broad
   affected census and final focused mutation checks are recorded separately in the ledger. Three
   actual CodeRabbit reviews completed; independently checked dispositions and patched findings are
-  recorded there. L1 merged in PR #136; B10 completion awaits L2 merge.
+  recorded there. L1 merged in PR #136; L2 merged in PR #137 at `aebb919`, completing B10.
 
 ## Tests
 

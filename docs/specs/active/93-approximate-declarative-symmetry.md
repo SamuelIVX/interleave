@@ -7,7 +7,7 @@ Complete B10 by enabling certified declarative JSON symmetry with approximate bi
 across DFS, static POR, DPOR and CBS. Reuse B9's complete context encodings and L1's certification,
 concrete execution and witness checks; expose approximation honestly through every selected consumer.
 
-**Type: delta. Status: implemented; locally verified; merge pending.**
+**Type: delta. Status: merged in PR #137 at `aebb9194d2cbd93a2086b38009cfe886dcd663d5`. B10 complete.**
 Fresh implementation baseline: merged L1 PR #136 at `013c9630e13b9835f435e4344837bf3b10e673db`.
 The [B10 set contract](../../plans/declarative-symmetry-contract.md) owns common semantics/oracles;
 [Spec 92](92-certified-declarative-symmetry.md) owns certification and exact integration. Planning
@@ -189,7 +189,8 @@ counts or guaranteed discovery of every exact failure.
   affected PIT is 231/233 K + 2 inherited report survivors. All 248 browser checks and the external
   jar consumer pass. CodeRabbit completed all 21 files with zero findings. The
   [L2 ledger](../../measurements/93-approximate-declarative-symmetry.md) records scopes, lineage and limits.
-- [unverified] L2 merge remains pending; no B10 completion is claimed.
+- [verified] L2 merged in PR #137 at `aebb9194d2cbd93a2086b38009cfe886dcd663d5`. B10 is complete;
+  stop before roadmap #11/#12 and deferred/conditional work.
 
 ## Tests
 
