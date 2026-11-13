@@ -72,7 +72,7 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | `--all` | Run entire corpus |
 | `--file <path>` | Load program from JSON file |
 | `--source <path>` | Load a bounded concurrent `.ilv` source model |
-| `--symmetry` | Opt-in checked symmetry: source or certified declarative JSON with exact/bitstate |
+| `--symmetry` | Opt-in checked symmetry for source or certified declarative JSON; requires explicit `--store exact` or `--store bitstate` (default `both` is rejected) |
 
 ### Examples
 
