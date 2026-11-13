@@ -44,7 +44,7 @@ public final class BenchmarkHarness {
     private final boolean iterativeDeepening;
     /** Store filter. */
     private final Set<StoreType> storeFilter;
-    /** Opt-in checked source symmetry, using owned exact or approximate stores. */
+    /** Opt-in checked model symmetry, using owned exact or approximate stores. */
     private final boolean symmetryReduction;
     /** Strategy filter. */
     private final Set<String> strategyFilter;
@@ -96,7 +96,7 @@ public final class BenchmarkHarness {
     }
 
     /**
-     * Creates a filtered harness with optional checked source symmetry.
+     * Creates a filtered harness with optional checked trusted-model symmetry.
      * Filters are copied at construction. For symmetry, explicitly select EXACT or BITSTATE;
      * source eligibility is validated per program.
      * @param bitstateSize approximate-store bit capacity for approximate runs
@@ -105,7 +105,7 @@ public final class BenchmarkHarness {
      * @param strategyFilter selected strategies; null selects all four built-in strategies
      * @param maxPreemptions ordinary CBS bound
      * @param iterativeDeepening CBS increasing-bound mode
-     * @param symmetryReduction whether to enable checked source-orbit search
+     * @param symmetryReduction whether to enable checked trusted-model orbit search
      * @throws IllegalArgumentException for a negative bound or unsupported symmetry selection
      * @throws NullPointerException if a supplied filter contains null
      */
@@ -157,6 +157,8 @@ public final class BenchmarkHarness {
      * filtered by the configured store and strategy filters.
      *
      * @param program the benchmark program
+     * @throws IllegalArgumentException for uncertified symmetry models or declarative BITSTATE
+     *         symmetry before B10 L2; source BITSTATE and declarative exact remain supported
      * @return list of {@link BenchmarkResult}s
      */
     public List<BenchmarkResult> runProgram(BenchmarkProgram program) {
@@ -210,7 +212,7 @@ public final class BenchmarkHarness {
             String dfsVerdict = actualVerdict(dfsResult.result());
             String expectedVerdict = program.expectedVerdict();
             if (expectedVerdict != null && storeType == StoreType.EXACT && !expectedVerdict.equals(dfsVerdict)
-                    && !(program.program().isSource() && dfsVerdict.equals("INCOMPLETE"))) {
+                    && !((program.program().isSource() || symmetryReduction) && dfsVerdict.equals("INCOMPLETE"))) {
                 throw new IllegalStateException("Expected verdict " + expectedVerdict +
                     " for " + program.name() + " but got " + dfsVerdict);
             }
@@ -258,7 +260,7 @@ public final class BenchmarkHarness {
     }
 
     /** Creates the selected run's store without invoking an unused ordinary factory.
-     * @param program immutable source model when symmetry is enabled
+     * @param program immutable trusted model when symmetry is enabled
      * @param invariant property for this run, or null
      * @param storeType selected exact or approximate storage
      * @param ordinaryFactory caller's ordinary storage policy
@@ -373,7 +375,9 @@ public final class BenchmarkHarness {
         List<dev.samhb.interleave.core.StateSnapshot> states = List.of();
         if (failingTrace != null && program != null) {
             try {
-                states = new TraceReplayer().captureSnapshots(program, failingTrace);
+                var replayer = new TraceReplayer();
+                states = symmetryReduction && !program.isSource()
+                    ? replayer.captureDeclarativeSnapshots(program, failingTrace) : replayer.captureSnapshots(program, failingTrace);
             } catch (Exception e) {
                 states = List.of();
             }

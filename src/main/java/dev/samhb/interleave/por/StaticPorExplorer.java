@@ -99,7 +99,7 @@ public final class StaticPorExplorer {
         if (program.isSource() && invariant != null && observations.isEmpty()) {
             observations = invariant.finalObservedLocations();
         }
-        PropertyPersistentSetComputer propertySets = invariant == null ? (program.isSource()
+        PropertyPersistentSetComputer propertySets = invariant == null ? (program.isSource() || effectiveStateStore instanceof dev.samhb.interleave.search.CheckedSymmetryStore
             ? new PropertyPersistentSetComputer(program.threads(), Set.of(), relation) : null)
             : observations
                 .map(locations -> new PropertyPersistentSetComputer(program.threads(), locations, relation))

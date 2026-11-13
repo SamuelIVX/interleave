@@ -15,7 +15,7 @@ import dev.samhb.interleave.core.ResourceLimitReason;
  * A changed UID deliberately prevents older readers from silently dropping symmetry metadata.
  */
 public final class TestResult implements Serializable {
-    /** True only for checked source-orbit search results. */
+    /** True only for checked model orbit search results. */
     private final boolean symmetryReduction;
     /** Strategy. */
     private final Strategy strategy;
@@ -35,7 +35,7 @@ public final class TestResult implements Serializable {
     private final List<TraceRecord> incompleteTraces;
     /** Limit exceeded. */
     private final boolean limitExceeded;
-    /** Whether an approximate store participated in this source run. */
+    /** Whether an approximate store participated in this known run. */
     private final Boolean approximate;
     /** Source reporting classification. */
     private final boolean sourceModel;
@@ -81,7 +81,7 @@ public final class TestResult implements Serializable {
      * @param sourceModel whether source reporting rules apply
      * @param reason resource cause, or null
      * @param approximate true/false for a known store guarantee, null when unavailable
-     * @param symmetryReduction whether this result counts checked source representative visits
+     * @param symmetryReduction whether this result counts checked model representative visits
      * @param resourcePrefix captured resource path, or null
      * @throws IllegalArgumentException if the supplied run metadata contradicts a captured prefix
      */
@@ -146,8 +146,8 @@ public final class TestResult implements Serializable {
         return java.util.Optional.ofNullable(resourcePrefix);
     }
 
-    /** Returns whether counts refer to checked source-orbit representatives.
-     * @return true for explicitly selected checked source symmetry
+    /** Returns whether counts refer to checked model orbit representatives.
+     * @return true for explicitly selected checked model symmetry
      */
     public boolean symmetryReduction() { return symmetryReduction; }
 
@@ -298,8 +298,8 @@ public final class TestResult implements Serializable {
         sb.append("  \"heapDeltaBytes\": ").append(heapDeltaBytes).append(",\n");
         sb.append("  \"hasViolation\": ").append(hasViolation()).append(",\n");
         sb.append("  \"limitExceeded\": ").append(limitExceeded).append(",\n");
-        if (sourceModel) {
-            sb.append("  \"programKind\": \"SOURCE\",\n");
+        if (sourceModel) sb.append("  \"programKind\": \"SOURCE\",\n");
+        if (sourceModel || symmetryReduction) {
             if (approximate != null) sb.append("  \"storeType\": \"").append(approximate ? "BITSTATE" : "EXACT").append("\",\n");
         }
         if (resourceLimitReason != null) sb.append("  \"resourceLimitReason\": \"").append(resourceLimitReason).append("\",\n");

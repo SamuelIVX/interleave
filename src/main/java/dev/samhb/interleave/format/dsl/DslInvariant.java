@@ -6,6 +6,7 @@ import dev.samhb.interleave.core.SharedState;
 import dev.samhb.interleave.search.Invariant;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.HashSet;
@@ -36,6 +37,8 @@ public final class DslInvariant implements Invariant {
         ALWAYS
     }
 
+    /** Loader provenance; public constructors never issue this trust. */
+    private final boolean certified;
     /** Predicates. */
     private final List<Expr> predicates;
     /** Decl. */
@@ -74,6 +77,17 @@ public final class DslInvariant implements Invariant {
      * @param when timing
      */
     public DslInvariant(List<Expr> predicates, StateDecl decl, When when) {
+        this(predicates, decl, when, false);
+    }
+
+    /** Freezes predicate semantics and provenance without changing ordinary construction.
+     * @param predicates validated or caller-supplied predicates
+     * @param decl immutable declaration
+     * @param when observation timing, defaulting to final
+     * @param certified whether the loader authorized construction
+     */
+    private DslInvariant(List<Expr> predicates, StateDecl decl, When when, boolean certified) {
+        this.certified = certified;
         if (predicates == null || predicates.isEmpty() || predicates.size() > 16) {
             throw new IllegalArgumentException("predicates must have 1..16 entries");
         }
@@ -88,6 +102,31 @@ public final class DslInvariant implements Invariant {
             // Final-only checks observe termination metadata, not just the predicate's fields.
             this.observations = Optional.empty();
         }
+    }
+
+    /** Issues a shared-only property after successful loader validation.
+     * @param permit non-null inaccessible loader capability
+     * @param predicates validated shared-only boolean predicates in evaluation order
+     * @param decl validated declaration
+     * @param when observation timing
+     * @return immutable certified property
+     * @throws NullPointerException if the caller lacks the loader permit
+     */
+    static DslInvariant validated(DslLoader.ValidationPermit permit, List<Expr> predicates, StateDecl decl, When when) {
+        Objects.requireNonNull(permit, "loader permit");
+        return new DslInvariant(predicates, decl, when, true);
+    }
+
+    /** Checks property provenance/binding and counts its bounded expressions.
+     * @param expectedDecl declaration shared by all instructions and initial state
+     * @return AST nodes to include in aggregate model admission
+     * @throws IllegalArgumentException for untrusted or foreign properties
+     */
+    int symmetryNodes(StateDecl expectedDecl) {
+        if (!certified || decl != expectedDecl) {
+            throw new IllegalArgumentException("Symmetry requires a loader-certified shared declarative property for this declaration");
+        }
+        return predicates.stream().mapToInt(Expr::nodeCount).sum();
     }
 
     /**

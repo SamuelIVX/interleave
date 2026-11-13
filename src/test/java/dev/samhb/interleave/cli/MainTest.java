@@ -770,6 +770,69 @@ class MainTest {
         assertFalse(ineligible.output().contains("Exception in thread"));
     }
 
+    /** Declarative symmetry uses existing file syntax and emits four exact non-source rows.
+     * @throws Exception if the child JVM or artifact write fails
+     */
+    @Test void declarativeSymmetryCliSupportsExactMatrix() throws Exception {
+        var result=invokeCli("--file","examples/programs/semaphore-declarative.json","--symmetry","--store","exact","--json");
+        assertEquals(0,result.exitCode(),result.output());
+        var report=dev.samhb.interleave.testsupport.JsonAssertions.parseObject(result.output());
+        assertTrue(report.get("soundness").getAsBoolean());
+        var rows=report.getAsJsonArray("benchmarks");
+        assertEquals(4,rows.size());
+        var strategies=new java.util.HashSet<String>();
+        for(var element:rows) {
+            var row=element.getAsJsonObject();
+            assertTrue(row.get("symmetryReduction").getAsBoolean());
+            assertEquals("EXACT",row.get("storeType").getAsString());
+            assertEquals("PASS",row.get("verdict").getAsString());
+            assertFalse(row.has("programKind"));
+            assertTrue(strategies.add(row.get("strategy").getAsString()));
+        }
+        assertEquals(java.util.Set.of("DFS","STATIC_POR","DPOR","CONTEXT_BOUNDED"),strategies);
+        java.nio.file.Files.createDirectories(java.nio.file.Path.of("build"));
+        java.nio.file.Files.writeString(java.nio.file.Path.of("build/declarative-symmetry-exact-report.json"),result.output());
+        var failed=invokeCli("--file","src/test/resources/dsl/symmetry-committed-failure.json","--symmetry","--store","exact","--strategy","DFS","--json");
+        assertEquals(0,failed.exitCode(),failed.output());
+        var failedReport=dev.samhb.interleave.testsupport.JsonAssertions.parseObject(failed.output());
+        assertTrue(failedReport.get("soundness").getAsBoolean());
+        var failedRow=failedReport.getAsJsonArray("benchmarks").get(0).getAsJsonObject();
+        assertEquals("VIOLATION",failedRow.get("verdict").getAsString());
+        var snapshots=failedRow.getAsJsonObject("failingTrace").getAsJsonArray("states");
+        assertFalse(snapshots.isEmpty());
+        assertEquals(1,snapshots.get(snapshots.size()-1).getAsJsonObject().getAsJsonObject("fields").get("x").getAsInt());
+        java.nio.file.Files.writeString(java.nio.file.Path.of("build/declarative-symmetry-failure-cli.json"),failed.output());
+        for(var strategy:strategies) {
+            var explicit=invokeCli("--file","examples/programs/semaphore-declarative.json","--symmetry","--store","exact","--strategy",strategy,"--json");
+            assertEquals(0,explicit.exitCode(),explicit.output());
+            var selected=dev.samhb.interleave.testsupport.JsonAssertions.parseObject(explicit.output()).getAsJsonArray("benchmarks");
+            assertEquals(1,selected.size());
+            assertEquals(strategy,selected.get(0).getAsJsonObject().get("strategy").getAsString());
+        }
+    }
+
+    /** Declarative support does not admit approximation early or source-only witness operations.
+     * @throws Exception if a child JVM fails to launch
+     */
+    @Test void declarativeSymmetryCliRetainsPhaseAndEvidenceGuards() throws Exception {
+        for(var args:java.util.List.of(
+                java.util.List.of("--store","bitstate"),java.util.List.<String>of(),
+                java.util.List.of("--store","exact","--strategy","DFS","--simplify-cutoff"),
+                java.util.List.of("--store","exact","--strategy","DFS","--shortest-cutoff","4"))) {
+            var command=new java.util.ArrayList<>(java.util.List.of("--file","examples/programs/semaphore-declarative.json","--symmetry","--json"));
+            command.addAll(args);
+            var result=invokeCli(command.toArray(String[]::new));
+            assertEquals(1,result.exitCode(),result.output());
+            String reason=args.contains("bitstate") ? "Approximate symmetry requires source input"
+                : args.contains("--simplify-cutoff") ? "--simplify-cutoff requires --source"
+                : args.contains("--shortest-cutoff") ? "--shortest-cutoff requires --source" : "explicit --store exact|bitstate";
+            assertTrue(result.output().contains(reason),result.output());
+        }
+        var typed=invokeCli("--file","examples/programs/lost-update.json","--symmetry","--store","exact");
+        assertEquals(1,typed.exitCode(),typed.output());
+        assertTrue(typed.output().contains("--symmetry requires"));
+    }
+
     /** Runs the actual entry point in a child JVM because validation calls System.exit.
      * @param arguments CLI arguments
      * @return exit status and merged output

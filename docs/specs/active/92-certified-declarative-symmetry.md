@@ -7,22 +7,29 @@ Let validated declarative JSON models use checked symmetry through all four exac
 the existing library and --file CLI/report/viewer paths. Preserve declarative execution and original
 owner evidence while reusing the existing checked context/key contracts.
 
-**Type: delta. Status: planned; no implementation or new verification run.** Baseline is main
-`b1c7586fc34542e919b3f82d1dece87ade7dec86`. The
+**Type: delta. Status: implemented; locally verified; merge pending.** Fresh baseline is
+merged spec PR #135 at `c8ee55373701d0a7f131c752397460a61217aaf4`. The
 [B10 set contract](../../plans/declarative-symmetry-contract.md) owns shared terminology, interfaces,
 oracles and release boundaries. This spec owns L1 only; B10 completes after L2 merges.
 
 ## Scope
 
 - Module: declarative validation/certification, checked search routing and exact consumers.
+- Adds read-only Program.initialStateType()/initialStateInputType() queries in core/Program.java
+  so certification checks both snapshot and original constructor input types before invoking
+  further model copy/initialization code. This is metadata only,
+  not a certificate or execution interface; generic Program behavior remains unchanged.
 - Modifies `src/main/java/dev/samhb/interleave/format/dsl/{DslLoader,DynamicStep,DslInvariant,SourceSymmetry,SourceInstruction}.java`;
   SourceInstruction changes are limited to sharing exhaustive expression identity inspection.
-- Modifies `src/main/java/dev/samhb/interleave/search/{SymmetryRunContext,SymmetryStateStore,BitstateSymmetryStateStore}.java`,
+- Modifies `src/main/java/dev/samhb/interleave/search/{SymmetryRunContext,SymmetryStateStore,BitstateSymmetryStateStore,TraceReplayer}.java`,
   `src/main/java/dev/samhb/interleave/{InterleaveRunner,TestResult}.java`,
   `src/main/java/dev/samhb/interleave/{dpor/DporExplorer,por/StaticPorExplorer,cli/Main}.java` and
   `src/main/java/dev/samhb/interleave/report/{BenchmarkHarness,SoundnessAttestation}.java` for owned
   routing, API documentation, exact selection, narrow attestation and the L1 approximate guard.
-  No new public certificate or execution interface is selected.
+  `search/SymmetryDfsExplorer.java` and `report/BenchmarkResult.java` receive documentation-only
+  applicability updates; L2 still owns approximate report normalization.
+  The additive APIs are a read-only stored-type query and dedicated certified declarative snapshot
+  diagnostics; existing generic replay/execution interfaces retain their behavior.
 - Adds `src/test/java/dev/samhb/interleave/format/dsl/DeclarativeSymmetryEligibilityTest.java`,
   `src/test/java/dev/samhb/interleave/search/DeclarativeSymmetryOracleTest.java` and
   `src/test/java/dev/samhb/interleave/DeclarativeSymmetryRunTest.java`. Extends relevant existing
@@ -60,7 +67,8 @@ larger limits, authenticated uploaded JSON, new dependencies or broad explorer r
    private-loader-held capability described in the set contract; same-package callers SHALL not mint
    certification with an absent/forged permit. No public opt-out SHALL exist.
 2. **R2 — Certification.** WHEN checked symmetry binds a model, THE SYSTEM SHALL select one trusted
-   instruction family, validate actual dense owner/declaration/state/property bindings and infer groups
+   instruction family, verify the actual stored initial snapshot is DynamicState before further
+   copying/initialization, validate dense owner/declaration/state/property bindings and infer groups
    from complete ordered structural semantics and typed initial locals. Tid-observing owners SHALL
    stay fixed; empty eligible groups, foreign/custom/uncertified/mixed objects SHALL reject. Reassembled
    objects SHALL still satisfy 1–64 steps per owner and total step bounds and the 5,000-node model AST budget, with
@@ -82,10 +90,13 @@ larger limits, authenticated uploaded JSON, new dependencies or broad explorer r
    SYSTEM SHALL attest actual enabled original-owner transitions and recorded outcomes, accepting a
    final real ASSERTION_FAILED or a false supplied invariant at the observed configuration. It SHALL
    reject malformed/invented witnesses and execution after an earlier failure/property violation.
-   Certification/execution errors SHALL produce failed attestation, never a passing fallback.
+   Source/cutoff evidence attached to a declarative violation SHALL reject rather than authenticate
+   invented diagnostics. Certification/execution errors SHALL produce failed attestation, never a passing fallback.
 7. **R7 — Consumers and precision.** WHEN exact results are exported, THE SYSTEM SHALL retain the
    symmetry marker, EXACT identity, representative-count meaning, concrete witness categories and
-   bounded/resource incompleteness while leaving JSON models non-source. Certified declarative
+   bounded/resource incompleteness while leaving JSON models non-source. Failed-attempt diagnostic
+   snapshots SHALL repeat the last committed state, with one initial snapshot plus one per attempt;
+   tentative failed writes SHALL not be exported as a successor. Certified declarative
    symmetry INCOMPLETE DFS rows SHALL remain inconclusive under harness/attestation expectation
    checks, with shared certification rather than the VIOLATION-only helper authorizing that exception.
    All exact consumer paths
@@ -173,7 +184,11 @@ budget during certification of a reassembled Program. Count each occurrence and 
 the cap and reuse bounded validated expression metadata/counting; never expand an unbounded alias
 list or trust loader-time aggregate counts for a newly assembled Program. Shared exhaustive Expr identity inspection may be
 package-private on SourceInstruction for both callers; no separate expression evaluator is created.
-DynamicStep already has straight-line next-PC semantics; do not add SourceStep/control metadata.
+Program.initialStateType() returns the actual stored snapshot class; initialStateInputType()
+records the original constructor input class before its first deepCopy, without retaining that
+input object. Require both types to be DynamicState before initialConfiguration; first-copy or
+later-copy adapters cannot establish trust. DslLoader.load also requires the explicit declarative
+discriminator for direct callers before it issues certified instructions. DynamicStep already has straight-line next-PC semantics; do not add SourceStep/control metadata.
 
 Use existing CheckedSymmetryStore dispatch for exact DPOR contexts, keeping value-only pruning
 bypassed. Extend only the source-or-checked predicate around its mapped sleep normalization/lookup.
@@ -195,6 +210,14 @@ choices. With no failed action, accept only an actually false property at the la
 Handle malformed input/execution exceptions as failed checks. Leave generic TraceReplayer and source
 attestation unchanged, and qualify Markdown claims to match this new narrow check.
 
+TraceReplayer.captureDeclarativeSnapshots is a dedicated diagnostic API for certified non-source
+models. It checks model eligibility, enabled original choices and actual outcomes via TransitionExecutor,
+then captures only committed configurations. A final failed attempt repeats the preceding immutable
+snapshot to retain choice/state alignment; trailing execution after failure rejects. Runner full and
+partial conversion and harness snapshot creation select this method only for declarative symmetry.
+Ordinary captureSnapshots/replay and source capture stay unchanged. Snapshot capture does not prove
+terminal properties or authenticate uploaded JSON; private attestation retains those separate checks.
+
 Update docs/visualizer.js normalization predicates for exact symmetry TestResult payloads to use
 source-or-symmetry without treating JSON as SOURCE. Handle no selected trace and selected completed
 trace cases, plus actual INCOMPLETE/resource classification. Keep ordinary unmarked JSON display and
@@ -207,18 +230,27 @@ as an exact agreement seed. Preserve existing source exceptions.
 
 ## Current State
 
-- [verified] DslLoader bounds/types its ASTs, builds DynamicState/DynamicStep and optional DslInvariant,
-  and rejects local/tid property observations. DynamicStep effects are ordered and erroring guards
-  remain enabled to expose ASSERTION_FAILED.
-- [verified] DynamicStep/DslInvariant are final with public constructors; class identity alone is
-  insufficient evidence of loader validation. StateDecl and expression/effect value structures are
-  immutable; initial arrays are defensively copied.
-- [verified] SourceSymmetry rejects JSON. DPOR checked sleep lookup is nested under isSource();
-  final-only declarative properties lack final observations and conservatively fall back.
-- [verified] Generic non-source replay does not validate enabled choices or terminal violation;
-  existing attestation can reject a real declarative step failure when the supplied invariant holds.
-- [unverified] New certification, all-strategy exact preservation, fixture counts through the Java
-  implementation and affected mutation populations require L1 implementation/measurement.
+- [verified] At merged baseline c8ee553, source-only admission, source-gated DPOR coverage and
+  source-gated precision prevented the new mode. Red admission/routing/CLI/viewer/attestation
+  regressions were observed before the corresponding fixes.
+- [verified] DslLoader issues the inaccessible ValidationPermit; public constructors remain
+  uncertified. Groups check every owner/declaration/property and reassembled step/AST bounds.
+- [verified] All four exact strategies/backends work through existing interfaces. Checked DPOR
+  uses normalized mapped products for declarative models; FINAL retains conservative fallback.
+- [verified] Private attestation checks enabled actual transitions/terminal observations, rejects
+  foreign diagnostics and preserves failed-attempt/no-successor behavior. Ordinary report wording
+  remains unchanged; JSON has no fabricated source identity/resource prefix.
+- [verified] Full build, strict Javadoc and 1,948 tests pass with no failures/errors/skips. All 218
+  browser checks and an external Java 26 built-jar consumer pass. See the
+  [L1 ledger](../../measurements/92-certified-declarative-symmetry.md) for scope and provenance.
+- [verified] First-copy and later-copy adapters reject before another copy callback. Read-only
+  Program type metadata covers both the original constructor input and stored snapshot; generic
+  initialization and source identity remain unchanged. Direct DslLoader calls also reject missing,
+  empty or non-declarative formats before issuing trust. Both gaps have observed red/green regressions.
+- [verified] Default PIT retains all 468 baseline fingerprints/statuses (455 K + 13 S). The broad
+  affected census and final focused mutation checks are recorded separately in the ledger. Three
+  actual CodeRabbit reviews completed; independently checked dispositions and patched findings are
+  recorded there. No L1 merge or B10 completion is claimed; L2 approximate admission stays gated.
 
 ## Tests
 
@@ -269,3 +301,9 @@ regressions. Kill meaningful validation/routing/outcome mutants; record remainin
 The spec-only PR runs documentation/link/structure checks and per-spec CodeRabbit, not Java/PIT/browser
 feature tests. Implementation runs the complete relevant checks and publishes its measured ledger.
 Stop after publishing L1 and await Sam's merge update before L2; do not mark B10 complete here.
+
+## Implementation evidence
+
+The [L1 ledger](../../measurements/92-certified-declarative-symmetry.md) records fresh baselines,
+red/green regressions, independent finite graphs/permutations, consumers and review outcomes.
+Spec-authoring reviews are historical evidence; implementation has its own required review gate.

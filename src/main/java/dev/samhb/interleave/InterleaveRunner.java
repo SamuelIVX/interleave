@@ -28,7 +28,7 @@ import java.util.function.LongSupplier;
 public final class InterleaveRunner implements Serializable {
     /** Strategy. */
     private final Strategy strategy;
-    /** Whether checked source-orbit search is selected. */
+    /** Whether checked model orbit search is selected. */
     private final boolean symmetryReduction;
     /** Certified exact symmetry storage, immutable and independent of membership. */
     private final SymmetryBackend symmetryBackend;
@@ -101,7 +101,7 @@ public final class InterleaveRunner implements Serializable {
      * @return the test result including states explored, verdict, and traces
      * @throws IllegalStateException if iterative deepening receives a previously used store instance
      * @throws IllegalArgumentException if a bitstate store cannot represent the current preemption bound
-     *         or requested symmetry fails source/property eligibility, or a custom factory supplies a symmetry store
+     *         or requested symmetry fails trusted model/property eligibility, or a custom factory supplies a symmetry store
      * @throws ArithmeticException if the time limit overflows when converted to milliseconds
      */
     public TestResult run(Program program) {
@@ -257,7 +257,9 @@ public final class InterleaveRunner implements Serializable {
                 if (program != null && (program.isSource() || record.outcome() == TraceOutcome.VIOLATION
                         || record.outcome() == TraceOutcome.DEADLOCK)) {
                     try {
-                        List<StateSnapshot> states = new TraceReplayer().captureSnapshots(program, trace);
+                        var replayer = new TraceReplayer();
+                        List<StateSnapshot> states = symmetryReduction && !program.isSource()
+                            ? replayer.captureDeclarativeSnapshots(program, trace) : replayer.captureSnapshots(program, trace);
                         record = record.withStates(states);
                     } catch (Exception ignored) {
                         // Diagnostic snapshot enrichment is best-effort
@@ -474,7 +476,8 @@ public final class InterleaveRunner implements Serializable {
                 case VIOLATION -> {
                     if (program != null && !program.isSource()) {
                         try {
-                            List<StateSnapshot> states = replayer.captureSnapshots(program, trace);
+                            List<StateSnapshot> states = symmetryReduction
+                                ? replayer.captureDeclarativeSnapshots(program, trace) : replayer.captureSnapshots(program, trace);
                             record = record.withStates(states);
                         } catch (Exception ignored) {
                             // Diagnostic snapshot capture is best-effort
@@ -485,7 +488,8 @@ public final class InterleaveRunner implements Serializable {
                 case DEADLOCK -> {
                     if (program != null && !program.isSource()) {
                         try {
-                            List<StateSnapshot> states = replayer.captureSnapshots(program, trace);
+                            List<StateSnapshot> states = symmetryReduction
+                                ? replayer.captureDeclarativeSnapshots(program, trace) : replayer.captureSnapshots(program, trace);
                             record = record.withStates(states);
                         } catch (Exception ignored) {
                             // Diagnostic snapshot capture is best-effort
@@ -535,7 +539,7 @@ public final class InterleaveRunner implements Serializable {
 
         /** Strategy. */
         private Strategy strategy = Strategy.DFS;
-        /** Opt-in checked source symmetry; ordinary verification remains unchanged. */
+        /** Opt-in checked source/declarative symmetry; ordinary verification remains unchanged. */
         private boolean symmetryReduction;
         /** Selected certified exact backend; membership is allocated only for each run/bound. */
         private SymmetryBackend symmetryBackend = SymmetryBackend.HASHED;
@@ -578,10 +582,10 @@ public final class InterleaveRunner implements Serializable {
         }
 
         /**
-         * Selects checked source-orbit search, retaining original execution and trace identities.
-         * Requires a built-in strategy and owned storage, plus source/property eligibility checked at run time.
+         * Selects checked trusted-model orbit search, retaining original execution and trace identities.
+         * Requires a built-in strategy and owned storage, plus trusted model/property eligibility checked at run time.
          * For example, builder().symmetryReduction(true).build().run(sourceProgram) explores orbits.
-         * @param enabled whether to enable the conservative source symmetry mode
+         * @param enabled whether to enable conservative source/declarative symmetry
          * @return this builder
          */
         public Builder symmetryReduction(boolean enabled) {

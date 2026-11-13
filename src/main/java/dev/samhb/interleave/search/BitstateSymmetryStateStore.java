@@ -66,6 +66,9 @@ public final class BitstateSymmetryStateStore implements CheckedSymmetryStore, A
                 || (strategy != Strategy.CONTEXT_BOUNDED && maxPreemptions != 0)) {
             throw new IllegalArgumentException("Positive bits/probes and a nonnegative CBS capacity (zero otherwise) required");
         }
+        if (!Objects.requireNonNull(program, "program").isSource()) {
+            throw new IllegalArgumentException("Approximate symmetry requires source input until declarative B10 L2 is enabled");
+        }
         return new BitstateSymmetryStateStore(new SymmetryRunContext(program, invariant, strategy), bits, hashFunctions, maxPreemptions, strategy);
     }
 

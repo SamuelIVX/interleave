@@ -248,6 +248,7 @@ function normalize(raw){
     return { trace: { threads: [], outcome: entry.verdict || 'PASS', programHash: entry.bug }, meta: { ...runDiagnostics(entry), verdict: entry.verdict, strategy: entry.strategy, storeType: entry.storeType, statesExplored: entry.statesExplored, wallTimeMs: entry.wallTimeMs, heapDeltaBytes: entry.heapDeltaBytes, bug: entry.bug } };
   }
   if(Array.isArray(raw.failingTraces) || Array.isArray(raw.deadlockedTraces) || Array.isArray(raw.completedTraces) || Array.isArray(raw.incompleteTraces)){
+    const checkedResult = raw.programKind==='SOURCE' || raw.symmetryReduction===true;
     const pick = (arr) => arr && arr.length ? arr[0] : null;
     // Earlier conclusive failures retain priority; otherwise show the actual interrupted position
     // before modeled cutoffs or completed paths. A completed path cannot establish exhaustive PASS.
@@ -262,7 +263,7 @@ function normalize(raw){
     tr ||= pick(raw.incompleteTraces) || pick(raw.completedTraces);
     if(!tr) {
       const incomplete = raw.limitExceeded === true && !raw.hasViolation;
-      const verdict = raw.hasViolation ? 'VIOLATION' : incomplete ? (raw.programKind==='SOURCE' ? 'INCOMPLETE' : 'LIMIT EXCEEDED') : (raw.programKind==='SOURCE' ? (raw.storeType==='BITSTATE' ? 'APPROXIMATE_PASS' : raw.storeType==='EXACT' ? 'PASS' : 'UNKNOWN') : 'PASS');
+      const verdict = raw.hasViolation ? 'VIOLATION' : incomplete ? (checkedResult ? 'INCOMPLETE' : 'LIMIT EXCEEDED') : (checkedResult ? (raw.storeType==='BITSTATE' ? 'APPROXIMATE_PASS' : raw.storeType==='EXACT' ? 'PASS' : 'UNKNOWN') : 'PASS');
       return { trace: { threads: [], outcome: verdict }, meta: { ...runDiagnostics(raw), verdict, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, limitExceeded: raw.limitExceeded === true } };
     }
     const threads = tr.threads || tr.threadIds;
@@ -272,8 +273,8 @@ function normalize(raw){
     // did) are different states and are never merged: the latter arrives here as tr.outcome.
     // Rendering a bounded run that proved nothing as PASS is the most misleading thing this
     // viewer can do, so it must not be reachable.
-    let outcome = incomplete ? (raw.programKind==='SOURCE' ? 'INCOMPLETE' : 'LIMIT EXCEEDED') : (tr.outcome || (raw.hasViolation ? 'VIOLATION' : 'PASS'));
-    if(raw.programKind==='SOURCE' && ['PASS','COMPLETED'].includes(outcome) && ['EXACT','BITSTATE'].includes(raw.storeType)) outcome = raw.storeType==='BITSTATE' ? 'APPROXIMATE_PASS' : 'PASS';
+    let outcome = incomplete ? (checkedResult ? 'INCOMPLETE' : 'LIMIT EXCEEDED') : (tr.outcome || (raw.hasViolation ? 'VIOLATION' : 'PASS'));
+    if(checkedResult && ['PASS','COMPLETED'].includes(outcome) && ['EXACT','BITSTATE'].includes(raw.storeType)) outcome = raw.storeType==='BITSTATE' ? 'APPROXIMATE_PASS' : 'PASS';
     return { trace: { ...diagnostics(tr, threads, outcome), threads, outcomes: tr.outcomes, outcome, programHash: tr.programHash, states: tr.states }, meta: { ...runDiagnostics(raw), verdict: outcome, strategy: raw.strategy, statesExplored: raw.statesExplored, wallTimeMs: raw.wallTimeMs, heapDeltaBytes: raw.heapDeltaBytes, hasViolation: raw.hasViolation, limitExceeded: raw.limitExceeded === true } };
   }
   throw new Error('Unrecognized shape — expected TraceRecord {threads}, TestResult {failingTraces|incompleteTraces}, or ReportWriter {benchmarks}.');

@@ -3,7 +3,7 @@
 
 ## Objective and status
 
-**Approved direction; specifications only. B10 is not implemented or complete.** Planning baseline:
+**L1 implemented in this change; locally verified; merge pending. L2 planned. B10 remains in progress.** Planning baseline:
 main `b1c7586fc34542e919b3f82d1dece87ade7dec86`, after B9 / PR #134 merged at `3d5c09e`.
 Sam selected declarative JSON and the full DFS/static POR/DPOR/CBS exact/approximate matrix.
 This approval supersedes B9's stop-before-B10 boundary for this selected scope only.
@@ -19,13 +19,18 @@ not enable a feature. Implementation PRs update their spec, tests, measurements 
 ## Selected model family and trust
 
 - **Certified declarative instruction/property:** immutable typed objects issued by DslLoader only
-  after its existing parsing, typing, AST/work bounds and shared-only property checks succeed.
+  after its explicit format discriminator, parsing, typing, AST/work bounds and shared-only property checks succeed.
   Certification is private immutable state, not a public flag, filename, JSON assertion or class test.
 - Existing public DynamicStep/DslInvariant constructors retain ordinary behavior but issue no
   certification. Package-private validated factories require a non-null DslLoader.ValidationPermit:
   a package-visible final nested type with a private constructor and a single private loader-held
   instance, never exposed by an accessor or returned model. Null permits reject before certification.
   No public certificate injection API or caller-declared observation proof is introduced.
+- Program.initialStateType() and Program.initialStateInputType() are read-only metadata queries
+  of the retained snapshot and original constructor input classes, invoking no model code and
+  retaining no input object. Certification requires both types to be DynamicState before another
+  copy/initialization; adapters returning DynamicState on their first or later deepCopy cannot
+  establish trust. Ordinary Program construction/copy semantics remain unchanged.
 - A checked declarative model contains only certified DynamicStep objects, dense actual owner
   bindings, DynamicState with matching owner count, and an absent or certified DslInvariant. Every
   step/property must retain the same StateDecl object as the initial DynamicState. Trusted objects
@@ -105,6 +110,12 @@ Viewer production normalization in docs/visualizer.js must use source-or-symmetr
 TestResult precision/incomplete handling, including no-trace and completed-trace payloads. L1 owns
 exact/INCOMPLETE handling; L2 owns final BITSTATE absence checks. The resourcePrefix authentication
 branch remains strictly source-only. Ordinary unmarked JSON display behavior remains unchanged.
+
+Checked declarative producers use the dedicated TraceReplayer.captureDeclarativeSnapshots diagnostic
+method: replay enabled original choices through TransitionExecutor, capture committed configurations,
+and repeat the previous state for a failed last attempt. Full/partial runner and harness paths share
+this policy; legacy replay/capture methods stay unchanged. This closes tentative-write leakage without
+inventing a committed successor or adding source identity. Captured values are not terminal proof.
 
 Existing source/ordinary report behavior stays intact. L2 broadens BenchmarkResult approximate-PASS
 normalization to sourceModel OR symmetryReduction, retaining the BITSTATE condition. TestResult

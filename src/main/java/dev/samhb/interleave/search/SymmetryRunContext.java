@@ -1,4 +1,4 @@
-/** Immutable source certification and owner/action mapping shared by checked symmetry stores. */
+/** Immutable trusted model certification and owner/action mapping shared by checked symmetry stores. */
 package dev.samhb.interleave.search;
 
 import dev.samhb.interleave.Strategy;
@@ -23,12 +23,12 @@ final class SymmetryRunContext {
     /** Read-only-after-construction first-occurrence indices for DPOR actions. */
     private final List<IdentityHashMap<Step, Integer>> occurrences = new ArrayList<>();
 
-    /** Certifies source groups and retains only immutable run/mapping metadata.
-     * @param program immutable trusted source program
-     * @param invariant compiler property, or null
+    /** Certifies trusted owner groups and retains only immutable run/mapping metadata.
+     * @param program immutable trusted source or certified declarative program
+     * @param invariant matching trusted shared property, or null
      * @param strategy built-in bound algorithm
      * @throws NullPointerException if program or strategy is null
-     * @throws IllegalArgumentException if source/property or DPOR alias layout is unsupported
+     * @throws IllegalArgumentException if trusted model/property or DPOR alias layout is unsupported
      */
     SymmetryRunContext(Program program, Invariant invariant, Strategy strategy) {
         Objects.requireNonNull(strategy, "strategy");

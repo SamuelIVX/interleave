@@ -8,12 +8,15 @@ import dev.samhb.interleave.core.StepOutcome;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
  * Declarative step with derived reads/writes and sandboxed execution.
  */
 public final class DynamicStep implements Step {
+    /** Whether loader validation, rather than public construction, issued this instruction. */
+    private final boolean certified;
     /** Owner. */
     private final int owner;
     /** Guard. */
@@ -39,6 +42,19 @@ public final class DynamicStep implements Step {
      * @param name diagnostic name or null
      */
     public DynamicStep(int owner, Expr guard, List<Effect> effects, StateDecl decl, String name) {
+        this(owner, guard, effects, decl, name, false);
+    }
+
+    /** Constructs immutable semantics and footprints, retaining loader provenance privately.
+     * @param owner original action owner
+     * @param guard optional guard
+     * @param effects ordered effects
+     * @param decl declaration shared with the initial state
+     * @param name optional diagnostic label
+     * @param certified whether the loader capability authorized construction
+     */
+    private DynamicStep(int owner, Expr guard, List<Effect> effects, StateDecl decl, String name, boolean certified) {
+        this.certified = certified;
         this.owner = owner;
         this.guard = guard;
         this.effects = List.copyOf(effects);
@@ -61,6 +77,65 @@ public final class DynamicStep implements Step {
         this.reads = Set.copyOf(r);
         this.writes = Set.copyOf(w);
     }
+
+    /** Issues trusted semantics only to the loader holding its inaccessible permit.
+     * @param permit non-null loader-owned capability
+     * @param owner original owner
+     * @param guard validated optional boolean guard
+     * @param effects validated ordered effects
+     * @param decl validated declaration
+     * @param name optional diagnostic label
+     * @return immutable loader-certified instruction
+     * @throws NullPointerException if the caller lacks the loader permit
+     */
+    static DynamicStep validated(DslLoader.ValidationPermit permit, int owner, Expr guard,
+                                 List<Effect> effects, StateDecl decl, String name) {
+        Objects.requireNonNull(permit, "loader permit");
+        return new DynamicStep(owner, guard, effects, decl, name, true);
+    }
+
+    /** Returns the declaration for package-owned complete-model certification.
+     * @return immutable declaration identity, not an authorization capability
+     */
+    StateDecl declaration() { return decl; }
+
+    /** Validates trust and binding before returning complete owner-independent semantics.
+     * @param expectedOwner actual containing owner
+     * @param expectedDecl declaration shared by the complete model
+     * @return ordered shape, or null when any syntax observes tid
+     * @throws IllegalArgumentException for an uncertified instruction or foreign binding
+     */
+    Object symmetryShape(int expectedOwner, StateDecl expectedDecl) {
+        if (!certified || owner != expectedOwner || decl != expectedDecl) {
+            throw new IllegalArgumentException("Symmetry requires loader-certified declarative owner/declaration bindings");
+        }
+        if (SourceInstruction.usesTid(guard)) return null;
+        for (Effect effect : effects) {
+            if (SourceInstruction.usesTid(effect.rhs())
+                    || effect.lhs() instanceof Lhs.ArrayLhs a && SourceInstruction.usesTid(a.index())
+                    || effect.lhs() instanceof Lhs.LocalArrayLhs a && SourceInstruction.usesTid(a.index())) return null;
+        }
+        return new Shape(guard, effects);
+    }
+
+    /** Counts this already-validated instruction occurrence for reassembled model admission.
+     * @return bounded AST node count including guard and assignment indices
+     */
+    int symmetryNodes() {
+        int count = guard == null ? 0 : Expr.nodeCount(guard);
+        for (Effect effect : effects) {
+            count += Expr.nodeCount(effect.rhs());
+            if (effect.lhs() instanceof Lhs.ArrayLhs a) count += Expr.nodeCount(a.index());
+            if (effect.lhs() instanceof Lhs.LocalArrayLhs a) count += Expr.nodeCount(a.index());
+        }
+        return count;
+    }
+
+    /** Complete straight-line action semantics without diagnostic identity.
+     * @param guard optional validated guard
+     * @param effects immutable ordered effects
+     */
+    private record Shape(Expr guard, List<Effect> effects) {}
 
     /**
      * Records the memory location an assignment target writes.

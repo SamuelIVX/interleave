@@ -14,6 +14,8 @@ public final class Program {
 
     /** Initial state. */
     private final SharedState initialState;
+    /** Runtime type supplied before any caller-defined defensive copy executes. */
+    private final Class<? extends SharedState> initialStateInputType;
     /** Threads. */
     private final List<ModelThread> threads;
     /** Exact source fingerprint, absent for legacy models. */
@@ -52,6 +54,7 @@ public final class Program {
     public Program(SharedState initialState, List<ModelThread> threads, String sourceDigest) {
         if (initialState == null) throw new IllegalArgumentException("initialState must not be null");
         if (threads == null || threads.isEmpty()) throw new IllegalArgumentException("threads must not be empty");
+        this.initialStateInputType = initialState.getClass();
         this.initialState = initialState.deepCopy();
         this.threads = List.copyOf(threads);
         if (sourceDigest != null && !sourceDigest.matches("[0-9a-f]{64}")) {
@@ -63,6 +66,21 @@ public final class Program {
         }
         this.sourceDigest = sourceDigest;
     }
+
+    /** Returns the stored initial snapshot's type without copying or invoking model callbacks.
+     * Checked integrations can reject unsupported state implementations before initial enabledness.
+     * The type belongs to the defensive snapshot retained at construction, not the caller's input.
+     * @return runtime class of the privately stored initial state
+     * @throws NullPointerException if a broken caller-supplied deepCopy returned null
+     */
+    public Class<? extends SharedState> initialStateType() { return initialState.getClass(); }
+
+    /** Returns the constructor input's type without retaining or invoking that input object.
+     * Checked integrations can reject custom adapters even when their first copy returns a trusted type.
+     * This complements {@link #initialStateType()}, which describes the retained snapshot.
+     * @return runtime class of the original non-null constructor argument
+     */
+    public Class<? extends SharedState> initialStateInputType() { return initialStateInputType; }
 
     /** Returns source fingerprint, or null for a legacy Java/JSON model.
      * @return source fingerprint, or null for a legacy Java/JSON model

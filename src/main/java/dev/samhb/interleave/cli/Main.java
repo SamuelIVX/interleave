@@ -261,12 +261,22 @@ public final class Main {
             System.exit(1);
         }
 
-        if (symmetryReduction && (all || program == null || !program.program().isSource()
+        if (symmetryReduction && (all || program == null
                 || (!EXACT.equals(storeFilter) && !"BITSTATE".equals(storeFilter))
                 || (strategyFilter != null && !"CONTEXT_BOUNDED".equals(strategyFilter)
                     && (iterativeDeepening || maxPreemptionsExplicit)))) {
-            System.err.println("Error: --symmetry requires --source and an explicit --store exact|bitstate; CBS options require a CBS selection");
+            System.err.println("Error: --symmetry requires eligible --source or declarative --file and an explicit --store exact|bitstate; CBS options require a CBS selection");
             System.exit(1);
+        }
+
+        if (symmetryReduction) {
+            try {
+                dev.samhb.interleave.format.dsl.SourceSymmetry.groups(program.program(), program.invariant().orElse(null));
+            } catch (IllegalArgumentException e) {
+                System.err.println("Error: --symmetry requires eligible source or certified declarative input: " + e.getMessage());
+                System.exit(1);
+                return;
+            }
         }
 
         if (simplifyCutoff && shortestCutoffCandidates != null) {
@@ -446,7 +456,7 @@ public final class Main {
         System.out.println("Flags:");
         System.out.println("  --shortest-cutoff N       Best cutoff subsequence within N candidate checks; JSON includes proof/work metadata");
         System.out.println("  --json                    Output as JSON (default: Markdown)");
-        System.out.println("  --symmetry                Checked source-thread symmetry; requires --source and explicit --store exact|bitstate");
+        System.out.println("  --symmetry                Checked source/declarative symmetry; requires explicit store (declarative: exact only)");
         System.out.println("  --simplify-cutoff         Emit one shorter INCOMPLETE source trace; requires --json --store exact --strategy");
         System.out.println("  --store exact|bitstate    Filter by store type (default: both)");
         System.out.println("  --strategy DFS|STATIC_POR|DPOR|CONTEXT_BOUNDED  Filter by strategy (default: all)");

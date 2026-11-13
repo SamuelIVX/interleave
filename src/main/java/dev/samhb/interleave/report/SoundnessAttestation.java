@@ -4,6 +4,10 @@ package dev.samhb.interleave.report;
 import dev.samhb.interleave.bugs.BenchmarkProgram;
 import dev.samhb.interleave.core.Configuration;
 import dev.samhb.interleave.core.Program;
+import dev.samhb.interleave.core.StepOutcome;
+import dev.samhb.interleave.core.TransitionExecutor;
+import dev.samhb.interleave.format.dsl.SourceSymmetry;
+import dev.samhb.interleave.search.TraceOutcome;
 import dev.samhb.interleave.search.Invariant;
 import dev.samhb.interleave.search.Trace;
 import dev.samhb.interleave.search.TraceReplayer;
@@ -21,7 +25,7 @@ import java.util.*;
  *       approximate storage may miss violations. Exact {@code INCOMPLETE} and
  *       {@code APPROXIMATE_PASS} rows never seed or conflict with cross-strategy agreement.
  *       For DFS expectation matching, those labels are accepted as inconclusive only for source
- *       models; legacy DFS expectation matching retains its strict behavior.
+ *       or certified declarative symmetry models; ordinary legacy DFS expectation matching retains its strict behavior.
  *   <li><strong>Trace replay validation</strong> (all results):
  *       For every reported VIOLATION (including bitstate and context-bounded),
  *       requires a failing trace and registered program, then replays the recorded execution.
@@ -29,6 +33,9 @@ import java.util.*;
  *       authenticates a source runtime error or false statement assertion (whose atomic rollback may leave the invariant true).
  *       Without an invariant, replay checks execution and supplied source step evidence only;
  *       success does not establish a property violation. Replay exceptions propagate to the caller.
+ *       Marked declarative symmetry reports instead validate enabled original transitions and
+ *       the first actual failed action/property observation; malformed/foreign evidence fails the check.
+ *       This private path does not change generic legacy replay or grant source identity to JSON.
  *       This positive replay obligation applies to bounded and approximate reports as well.
  * </ol>
  */
@@ -65,7 +72,6 @@ public final class SoundnessAttestation {
      * @return attestation result describing any verdict or replay disagreement
      */
     private SoundnessCheck checkSoundness() {
-        Map<String, String> dfsVerdicts = new LinkedHashMap<>();
         Map<String, String> correctVerdicts = new LinkedHashMap<>();
 
         // Filter to EXACT results for verdict validation (bitstate is incomplete by design)
@@ -82,11 +88,11 @@ if (program != null) {
                 String expectedVerdict = program.expectedVerdict();
                 if ("DFS".equals(result.strategy())) {
                     if (expectedVerdict != null && !expectedVerdict.equals(actualVerdict)
-                            && !(program.program().isSource() && isInconclusive(actualVerdict))) {
+                            && !((program.program().isSource() || result.symmetryReduction()
+                                && certifiedDeclarative(program)) && isInconclusive(actualVerdict))) {
                         return SoundnessCheck.failed("DFS verdict mismatch for " + key +
                             ": expected " + expectedVerdict + " but got " + actualVerdict);
                     }
-                    dfsVerdicts.put(key, actualVerdict);
                 }
 
                 if (expectedVerdict != null && !"VIOLATION".equals(expectedVerdict)
@@ -121,6 +127,13 @@ if (program != null) {
                 }
 
                 Program programDef = program.program();
+                if (result.symmetryReduction() && !programDef.isSource()) {
+                    if (!authenticatesDeclarativeViolation(program, failingTrace)) {
+                        return SoundnessCheck.failed("Invalid declarative symmetry violation for " + result.bugName()
+                            + " under " + result.strategy() + " (" + result.storeType() + ")");
+                    }
+                    continue;
+                }
                 TraceReplayer replayer = new TraceReplayer();
                 Invariant invariant = program.invariant().orElse(null);
                 Configuration replayed = replayer.replay(programDef, failingTrace, invariant);
@@ -155,6 +168,50 @@ if (program != null) {
         return "INCOMPLETE".equals(verdict) || "APPROXIMATE_PASS".equals(verdict);
     }
 
+    /** Re-certifies marked declarative metadata before granting an inconclusive exception.
+     * @param model registered non-source program/property pair, already discriminated by the caller
+     * @return true only for a complete eligible declarative model
+     */
+    private static boolean certifiedDeclarative(BenchmarkProgram model) {
+        try {
+            SourceSymmetry.groups(model.program(), model.invariant().orElse(null));
+            return true;
+        } catch (RuntimeException invalid) {
+            return false;
+        }
+    }
+
+    /** Validates a positive JSON observation using enabled original choices and actual transitions.
+     * Failed attempts have no successor; generic legacy replay is deliberately unchanged.
+     * @param model registered program and shared property
+     * @param trace claimed violation witness
+     * @return true for a final real step error or the first false property observation
+     */
+    private static boolean authenticatesDeclarativeViolation(BenchmarkProgram model, Trace trace) {
+        if (trace.outcome() != TraceOutcome.VIOLATION || trace.evidence() != null) return false;
+        try {
+            SourceSymmetry.groups(model.program(), model.invariant().orElse(null));
+            Configuration config = model.program().initialConfiguration();
+            Invariant invariant = model.invariant().orElse(null);
+            if (invariant != null && !invariant.holds(config.state(), config)) return trace.threadIds().isEmpty();
+            // Trace freezes and aligns both lists; consume their corresponding outcomes together.
+            var outcomes = trace.outcomes().iterator();
+            for (int owner : trace.threadIds()) {
+                if (!config.enabledThreadIds().contains(owner)) return false;
+                var transition = TransitionExecutor.execute(model.program(), config, owner);
+                if (transition.outcome() != outcomes.next()) return false;
+                boolean last = !outcomes.hasNext();
+                if (transition.outcome() == StepOutcome.ASSERTION_FAILED) return last;
+                config = transition.successor();
+                if (invariant != null && !invariant.holds(config.state(), config)) return last;
+            }
+            return false;
+        } catch (RuntimeException invalid) {
+            // A malformed/foreign report is a failed check, never an unchecked positive claim.
+            return false;
+        }
+    }
+
     /**
      * Returns whether the attestation passed (no soundness failures detected).
      *
@@ -186,11 +243,15 @@ if (program != null) {
         sb.append("## Soundness Attestation\n\n");
 
         if (sound) {
+            boolean declarativeSymmetry = results.stream().anyMatch(row -> row.symmetryReduction()
+                && programs.containsKey(row.bugName()) && !programs.get(row.bugName()).program().isSource());
             sb.append("All checked EXACT DFS verdicts matched their supplied expectations. ");
-            sb.append("Source DFS results that were INCOMPLETE or APPROXIMATE_PASS were accepted as ");
+            sb.append(declarativeSymmetry ? "Source or certified declarative symmetry DFS results that were INCOMPLETE or APPROXIMATE_PASS were accepted as "
+                : "Source DFS results that were INCOMPLETE or APPROXIMATE_PASS were accepted as ");
             sb.append("inconclusive, not matched verdicts; programs without expectations were not expectation-checked. ");
             sb.append("Reported VIOLATION traces (including bitstate and context-bounded) passed execution replay. ");
-            sb.append("Supplied invariants failed at the replayed configuration, or source runtime or assertion failures were authenticated. ");
+            sb.append(declarativeSymmetry ? "Supplied invariants failed at the observed configuration, or source runtime/assertion failures or actual certified declarative step failures were checked with enabled original choices. "
+                : "Supplied invariants failed at the replayed configuration, or source runtime or assertion failures were authenticated. ");
             sb.append("Without an invariant, successful replay does not establish a property violation. ");
             sb.append("Inconclusive results (INCOMPLETE or APPROXIMATE_PASS) are excluded ");
             sb.append("from the cross-strategy verdict agreement above, since they assert nothing about ");
