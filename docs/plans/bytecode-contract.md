@@ -3,15 +3,16 @@
 
 ## Objective and status
 
-**Selected; specification only.** Approved scope: controlled interpretation of compiled Java for fixed
+**Selected; 94A internal foundation implemented, public release pending.** Approved scope: controlled interpretation of compiled Java for fixed
 actors under bounded sequential consistency (SC). The first public release must find a real lost update
 and a two-lock deadlock through loading, search, evidence, strict replay, library/CLI, reports and viewer.
 No target-code host-JVM fallback is permitted. This is not unrestricted Java or full Java Memory Model coverage.
 
 Planning baseline: remote main `2a242c4`, freshly fetched during authoring. B10 is complete through
 PRs #136/#137 and its closure commit. Sam explicitly selected #12 after that stopping point; #11
-and parked conditional/deferred tasks remain unselected. No bytecode implementation or runtime
-measurement is established by this PR. [Vocabulary](../../CONTEXT.md) owns domain terms; this document
+and parked conditional/deferred tasks remain unselected. The specification PR established no runtime
+evidence. The [94A implementation ledger](../measurements/94A-bytecode-foundation.md) records subsequent
+loader/single-actor evidence; concurrency, batching, sharedness-cost, DPOR and JPF gates remain pending. [Vocabulary](../../CONTEXT.md) owns domain terms; this document
 owns common behavior, interface seams, verification and phase boundaries.
 
 ## Sequential delivery and ownership
@@ -48,9 +49,18 @@ The [Class-File API](https://docs.oracle.com/en/java/javase/26/docs/api/java.bas
 provides class models; parsing alone is not this profile's bytecode verifier.
 
 Accept non-preview Java 17–26 class files (major 61–70, minor 0) from **one directory classpath**.
+The root and all classpath entries must remain immutable during loading. Class inputs must be regular
+files, checked through pinned directory handles without following symlinks before opening them.
+Concurrent replacement during loading is outside the supported contract; these handles prevent path
+escape but do not provide a filesystem snapshot. Once loading succeeds, the frozen artifact is independent
+of subsequent input changes.
 No JAR discovery, automatic compilation or ambient host application classpath. Resolve binary names
 under the canonical root, reject escapes/symlink escapes, duplicate/conflicting identities and missing
-metadata. Bound reads before allocation: 64 application classes, 1 MiB/class, 8 MiB total. Include
+metadata. Bound reads before allocation: 64 application classes, 1 MiB/class, 8 MiB total.
+Annotation/array element-value nesting is capped at32 before the JDK recursive annotation reader runs.
+Initial admission rejects Record metadata before component annotations can reach recursive verification.
+Reachable bridge methods reject in the initial profile: JDK26 class verification skips those methods;
+no equivalent custom operand verifier is claimed. Later admission must close that verification gap. Include
 all application classes used by the closed reachable hierarchy, not merely initially called methods.
 Use explicit trusted metadata for supported platform classes; missing/unknown metadata rejects.
 Validate access, descriptors, stack/local types, branch/handler targets, constructor initialization,
@@ -132,7 +142,7 @@ use documented BytecodeLimits defaults. Library callers can select immutable cus
 
 94A/B/C support int/boolean values and field/static access, constants, local loads/stores, integer
 arithmetic/bitwise/shifts/conversions i2b/i2c/i2s, comparisons, conditional/unconditional branches,
-tableswitch/lookupswitch, loops, known static application helpers, constructor invokespecial, return,
+tableswitch/lookupswitch, loops, known static application helpers, known Object constructor invokespecial, return,
 reference locals/fields/null/identity comparisons needed for fixture lock wiring, and synchronized
 blocks/methods. Stack operations must obey verifier categories, including wide local-index forms.
 Only setup allocates: one fixture plus distinct plain Object monitors via Object.`<init>()V`; no

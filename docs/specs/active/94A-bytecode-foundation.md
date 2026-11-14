@@ -1,10 +1,10 @@
-<!-- Roadmap #12 / 94A: implementation milestone specification; no production implementation in this PR. -->
+<!-- Roadmap #12 / 94A: internal interpreter foundation and its implementation acceptance contract. -->
 # Spec 94A: Interpreter foundation
 
 ## Objective
 
 Deliver interpreter foundation as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: specified, not implemented or measured.** The
+**Type: delta. Status: internal implementation; public release remains94C.** The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 94A only.
 
@@ -36,7 +36,8 @@ complete implementation and consumers merge.
 
 1. **R1 — Closed loading.** WHEN bytes are loaded, THE SYSTEM SHALL enforce the shared contract's
 version/input bounds, annotations, hierarchy/access/stack verification, reachable support and executable
-initializer rejection using JDK 26 Class-File API and metadata only. Missing classes, untrusted platform
+initializer rejection using JDK 26 Class-File API and metadata only. Bound annotation nesting at32
+before recursive decoding; reject reachable bridge methods skipped by the JDK verifier. Missing classes, untrusted platform
 calls, malformed branches/handlers, wrong method roles and target-path escape SHALL reject before execution.
 2. **R2 — Setup and ownership.** WHEN a fixture loads, THE SYSTEM SHALL interpret its public no-arg
 constructor and known helper calls, allocate fixture/Object monitors in setup identity space and freeze
@@ -72,7 +73,9 @@ in keys and replay validation, including pending terminal events and permanent a
 - R1: Java 17/21/26 class majors accepted for supported code; preview/newer/older/malformed inputs,
 missing superclass, wrong static/instance invocation, invalid stacks, duplicate/gapped actor IDs,
 9 actors, zero actors, static/argument/nonvoid actors and impure annotations rejected. Boundary input
-sizes use bounded byte reads; no reflection/classloader invocation even for setup.
+sizes use bounded byte reads and reject non-regular files before opening. The classpath root and entries
+remain immutable during loading; concurrent replacement is unsupported. No reflection/classloader
+invocation even for setup.
 - R2/R3: constructor-wired distinct Object locks, int overflow/shifts, local branches/loops, static
 helpers and exact-limit normal return match independent JVM values. Concurrent calls to internal
 fresh-state construction cannot leak heap/frame mutations.
@@ -108,8 +111,12 @@ choose existing equivalent modules at implementation after connected-source insp
 - [verified] Planning main is `2a242c4`; the existing engine has immutable Program, forward SourceStep
 continuations and source-specific evidence. The shared contract records inspected integration constraints.
 - [approved decision] This milestone and the shared contract define the selected behavior/release boundary.
-- [unverified] This milestone's bytecode implementation, measurements, compiler/runtime acceptance and
-mutation results. No authoring review establishes those results.
+- [implementation evidence] Package-private loader/state/executor, setup and VM faults are implemented.
+  [94A ledger](../../measurements/94A-bytecode-foundation.md) records fresh baseline/final checks,
+  compiler/oracle conditions, mutation residuals and review coverage. The planning observations above
+  remain historical; they are not substituted for that evidence.
+- [unverified] Concurrent search/check execution, batching/sharedness costs, bytecode DPOR reduction and
+  JPF compatibility remain later-phase obligations. Single-actor monitor tests do not close94B.
 
 ## Tests
 
@@ -118,7 +125,10 @@ mutation results. No authoring review establishes those results.
 `isolatedCopiesRetainAllocatorIdentity` (R2/R4), `monitorCleanupShapeIsVerified` (R5).
 Kill inverted limit boundaries, missing fuel charge, omitted state fields, shared copy aliases and
 validation bypasses. Monitor concurrency tests belong to 94B.
-These are intended behavioral contracts/test names, not tests already implemented or executed.
+These names describe the original acceptance contracts. Actual tests are BytecodeLoaderTest,
+BytecodeAdmissionTest, BytecodeAnnotationInputTest, BytecodeInputBoundaryTest, BytecodeExecutionTest, BytecodeEventTest,
+BytecodeResourceTest, BytecodeEncodingTest, BytecodeOpcodeTest and BytecodeGeneratedTest, with limits
+covered by BytecodeLimitsTest. The ledger distinguishes actual results from later-phase gates.
 Use independent expected values/oracles, preserve distinct regression cases and save generated seeds.
 
 ## Constraints
