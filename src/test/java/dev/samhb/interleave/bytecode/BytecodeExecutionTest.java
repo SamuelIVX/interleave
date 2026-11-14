@@ -144,6 +144,7 @@ class BytecodeExecutionTest {
               public Fixture() {} @Actor(id=0) public void actor() {
                 int x=input; value=(x/minus)+(x%minus)+(minus>>>shift)+(byte)narrow+(char)minus+(short)narrow;
                 value+=dense(value&3)+sparse(value&3);
+                value+=dense(1)+dense(2)+dense(3)+sparse(-100)+sparse(700)+sparse(99999);
               }
               static int dense(int x) { switch(x) { case 0:return 10;case 1:return 20;case 2:return 30;default:return 40; } }
               static int sparse(int x) { switch(x) { case -100:return 10;case 700:return 20;case 99999:return 30;default:return 40; } }
@@ -153,6 +154,9 @@ class BytecodeExecutionTest {
         var opcodes=program.methods.get(program.actors.getFirst()).ops.values().stream().map(o->o.instruction().opcode()).collect(java.util.stream.Collectors.toSet());
         assertTrue(opcodes.containsAll(Set.of(java.lang.classfile.Opcode.IUSHR,java.lang.classfile.Opcode.I2B,
             java.lang.classfile.Opcode.I2C,java.lang.classfile.Opcode.I2S)));
+        var switchOpcodes=program.methods.values().stream().flatMap(m->m.ops.values().stream())
+            .map(o->o.instruction().opcode()).collect(java.util.stream.Collectors.toSet());
+        assertTrue(switchOpcodes.containsAll(Set.of(java.lang.classfile.Opcode.TABLESWITCH,java.lang.classfile.Opcode.LOOKUPSWITCH)));
         var state=BytecodeFixtures.run(program,program.initialState(),0);
         assertEquals(BytecodeFixtures.oracle(directory,classes,"Fixture f=new Fixture(); f.actor(); System.out.println(f.value);"),
             Integer.toString(((Int)state.fixtureField("value")).value()));

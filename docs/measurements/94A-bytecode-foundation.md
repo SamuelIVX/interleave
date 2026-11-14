@@ -67,7 +67,7 @@ cleanup and fuel exhaustion inside cleanup. Multi-actor enabledness/deadlock bel
 - Fixed-seed generator `0x94A2026L`:36 programs with7 generated operations each, cycling compilation
   targets17/21/26. Greedy deletion shrinking saves a failing program under build/bytecode-regressions;
   arithmetic and cleanup regressions are committed as source fixtures and checked against the JVM.
-- Compiler: installed JDK26.0.2.1 javac with `--release17`, `--release21`, `--release26`; oracle runtime
+- Compiler: installed JDK26.0.2.1 javac with `--release 17`, `--release 21`, `--release 26`; oracle runtime
   is the same installed JDK26 in a separate process. This is input-target compatibility evidence,
   not evidence from three installed compiler implementations/runtime toolchains.
 - Local executable hashes (SHA-256): java
@@ -77,7 +77,7 @@ cleanup and fuel exhaustion inside cleanup. Multi-actor enabledness/deadlock bel
   missing metadata, annotation placement/roles/purity and classpath escapes. This is bounded fixture
   evidence, not a general proof that all arbitrary class files are safe or supported.
 
-## Validation and mutation evidence
+## Initial implementation validation and mutation evidence (67b70ec)
 
 Final integrated build/strict Javadoc passes **2,017 tests**, zero failures/errors/skips. Independent
 private-member doclint passes all11 production files with all groups and warnings as errors.
@@ -162,6 +162,38 @@ class-resource roots and do not claim to execute in-memory PIT mutations.
 Connected-source review also found the monitor-wiring branch bypass and original setup fault-location
 loss after cleanup. Both failed before their fixes. Ordinary review was performed sequentially;
 no independent-agent review is claimed. No review recommendation expanded support into95/97.
+
+## PR139 review feedback
+
+All five initial review comments were independently confirmed and patched:
+
+- Corrected the reproducible javac options to `--release 17`, `--release 21`, `--release 26`.
+- Reject conflicting public/private/protected bits on every field and method declaration before
+  setup, including constructors and unused helpers. The regression covers all four conflicting
+  combinations across four member kinds. A separate constructor-failure control proves MALFORMED
+  takes priority over executing setup. Both tests failed before the guard was added.
+- Exercise every tableswitch and lookupswitch key/default in the existing JVM-oracle fixture;
+  assert that both switch encodings are actually present.
+- Keep directory rejection unconditional; skip only the separate FIFO case when no executable
+  mkfifo is found on PATH. With an intentionally empty test-worker PATH, directory rejection
+  passes and only the FIFO case skips. With normal PATH, both execute successfully.
+- Capture canonical bytes before the blocked probe and compare both the parent and returned states
+  with that snapshot, so in-place mutation cannot satisfy the assertion accidentally.
+
+Patch integrated build/strict Javadoc: **2,020 tests**, zero failures/errors/skips. Private doclint
+passes all11 production files. Focused BytecodeLoader mutation census: **472 K /613 +75 SURVIVED
++66 NO_COVERAGE**, zero resource/run-error statuses; scoped R6 passes. All five mutants in the new
+visibility helper are killed. All451 fingerprints in unchanged loader methods retain their prior
+statuses; the changed read method and new helper account for the population change from598 to613.
+The initial complete-package/default censuses above remain historical67b70ec results, not new scores
+for this patch. Browser and default state/cb mutation runs were not repeated: no corresponding
+production or consumer code changed. Documentation and whitespace validation pass.
+Actual CodeRabbit CLI was not rerun for this minor feedback patch, following Sam's standing review
+policy; ordinary review and skip evidence are recorded through agent-setup.
+
+Raw patch prefix `/private/tmp/interleave-pr139-`: flags-red.log, flags-green.log,
+feedback-tests.log, no-mkfifo.log, feedback-build.log, private-javadoc.log, loader-pit.log/.xml
+and loader-comparison.txt.
 
 ## Raw local evidence
 

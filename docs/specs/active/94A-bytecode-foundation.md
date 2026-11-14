@@ -71,7 +71,7 @@ in keys and replay validation, including pending terminal events and permanent a
 ## Acceptance Criteria
 
 - R1: Java 17/21/26 class majors accepted for supported code; preview/newer/older/malformed inputs,
-missing superclass, wrong static/instance invocation, invalid stacks, duplicate/gapped actor IDs,
+missing superclass, conflicting field/method visibility, wrong static/instance invocation, invalid stacks, duplicate/gapped actor IDs,
 9 actors, zero actors, static/argument/nonvoid actors and impure annotations rejected. Boundary input
 sizes use bounded byte reads and reject non-regular files before opening. The classpath root and entries
 remain immutable during loading; concurrent replacement is unsupported. No reflection/classloader

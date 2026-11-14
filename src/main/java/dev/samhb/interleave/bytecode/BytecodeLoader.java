@@ -285,6 +285,7 @@ final class BytecodeLoader {
         }
         if (!type.interfaces().isEmpty()) throw problem("UNSUPPORTED","Application interfaces start in95",null);
         for (FieldModel field : type.fields()) {
+            visibility(field.flags().flagsMask(),name+"."+field.fieldName().stringValue());
             annotationPlacement(field,Set.of());
             String descriptor=field.fieldType().stringValue(); fieldType(field.fieldTypeSymbol());
             var id=new BytecodeProgram.FieldId(name,field.fieldName().stringValue(),descriptor);
@@ -299,6 +300,7 @@ final class BytecodeLoader {
                 throw problem("MALFORMED","Duplicate field",null);
         }
         for (MethodModel method : type.methods()) {
+            visibility(method.flags().flagsMask(),id(name,method).toString());
             if(declarations.putIfAbsent(id(name,method),method)!=null)
                 throw problem("MALFORMED","Duplicate method identity",null);
             annotationPlacement(method,name.equals(model) ? Set.of("Actor","Check") : Set.of());
@@ -310,6 +312,17 @@ final class BytecodeLoader {
             }
         }
         return type;
+    }
+
+    /**
+     * Rejects conflicting member visibility bits not checked by the JDK verifier.
+     * @param flags raw field or method flags
+     * @param declaration diagnostic member identity
+     * @throws BytecodeLoadException with MALFORMED when more than one visibility bit is set
+     */
+    private static void visibility(int flags,String declaration) {
+        if(Integer.bitCount(flags & (ACC_PUBLIC|ACC_PRIVATE|ACC_PROTECTED))>1)
+            throw problem("MALFORMED","Conflicting member visibility: "+declaration,null);
     }
 
     /**

@@ -276,6 +276,64 @@ class BytecodeAdmissionTest {
         }
     }
 
+    /** Mutually exclusive member visibility bits reject, including declarations outside the actor call graph.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void rejectsConflictingMemberVisibility(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"""
+            @Model public class Fixture {public int value=7;public Fixture(){}
+              @Actor(id=0)public void actor(){value++;} private static void helper(){}
+            }
+            """);
+        Path file=classes.resolve("Fixture.class");byte[] original=Files.readAllBytes(file);
+        assertDoesNotThrow(()->BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults()));
+        int[] conflicts={ClassFile.ACC_PUBLIC|ClassFile.ACC_PRIVATE,ClassFile.ACC_PUBLIC|ClassFile.ACC_PROTECTED,
+            ClassFile.ACC_PRIVATE|ClassFile.ACC_PROTECTED,ClassFile.ACC_PUBLIC|ClassFile.ACC_PRIVATE|ClassFile.ACC_PROTECTED};
+        for(String member:List.of("actor","<init>","helper","value"))for(int visibility:conflicts) {
+            Files.write(file,withMemberVisibility(original,member,visibility));
+            assertEquals("MALFORMED",assertThrows(BytecodeLoadException.class,
+                ()->BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults())).category,member+":"+visibility);
+        }
+    }
+
+    /** Declaration rejection has priority over executing a constructor which would fail dynamically.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void conflictingVisibilityRejectsBeforeSetup(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"""
+            @Model public class Fixture {int value;public Fixture(){value=1/zero();}
+              static int zero(){return 0;} @Actor(id=0)public void actor(){}
+            }
+            """);
+        Path file=classes.resolve("Fixture.class");byte[] original=Files.readAllBytes(file);
+        assertEquals("SETUP",assertThrows(BytecodeLoadException.class,
+            ()->BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults())).category);
+        Files.write(file,withMemberVisibility(original,"actor",ClassFile.ACC_PUBLIC|ClassFile.ACC_PRIVATE));
+        assertEquals("MALFORMED",assertThrows(BytecodeLoadException.class,
+            ()->BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults())).category);
+    }
+
+    /** Changes only the chosen declaration's visibility bits, retaining code and other flags.
+     * @param original compiled class bytes
+     * @param member exact field/method name
+     * @param visibility replacement visibility bits
+     * @return transformed class bytes */
+    private static byte[] withMemberVisibility(byte[] original,String member,int visibility) {
+        int mask=ClassFile.ACC_PUBLIC|ClassFile.ACC_PRIVATE|ClassFile.ACC_PROTECTED;
+        var parser=ClassFile.of();
+        return parser.transformClass(parser.parse(original),(builder,element)-> {
+            if(element instanceof MethodModel method && method.methodName().equalsString(member))
+                builder.transformMethod(method,(out,item)-> {
+                    if(item instanceof AccessFlags flags)out.withFlags((flags.flagsMask() & ~mask)|visibility);else out.with(item);
+                });
+            else if(element instanceof FieldModel field && field.fieldName().equalsString(member))
+                builder.transformField(field,(out,item)-> {
+                    if(item instanceof AccessFlags flags)out.withFlags((flags.flagsMask() & ~mask)|visibility);else out.with(item);
+                });
+            else builder.with(element);
+        });
+    }
+
     /** Locate a compiler-produced bytecode region without constructing expected instruction semantics.
      *
      * @param bytes original class bytes

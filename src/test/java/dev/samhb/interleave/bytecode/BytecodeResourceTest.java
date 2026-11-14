@@ -94,8 +94,10 @@ class BytecodeResourceTest {
         while(state.frame(0).method.ops.get(state.frame(0).bci).instruction().opcode()!=java.lang.classfile.Opcode.MONITORENTER)
             state=OpcodeExecutor.step(program,state,0).state();
         var lock=state.heap.get((Ref)state.fixtureField("lock")); lock.monitorOwner=1; lock.monitorDepth=1;
+        byte[] beforeProbe=state.canonicalBytes();
         var blocked=OpcodeExecutor.step(program,state,0);
-        assertEquals(OpcodeExecutor.Kind.BLOCKED,blocked.kind()); assertArrayEquals(state.canonicalBytes(),blocked.state().canonicalBytes());
+        assertEquals(OpcodeExecutor.Kind.BLOCKED,blocked.kind());
+        assertArrayEquals(beforeProbe,state.canonicalBytes()); assertArrayEquals(beforeProbe,blocked.state().canonicalBytes());
         state.executions.get(0).instructions=256;
         var cutoff=OpcodeExecutor.step(program,state,0);
         assertEquals(Phase.CUTOFF_PENDING,cutoff.state().executions.get(0).phase);
