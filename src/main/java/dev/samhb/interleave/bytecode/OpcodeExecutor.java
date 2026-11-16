@@ -40,6 +40,75 @@ final class OpcodeExecutor {
      * @param kind transition/event classification
      */
     record Result(BytecodeState state,Kind kind) {}
+    /** Pure availability classification for one actor's next opcode or implicit event. */
+    enum Availability {
+        /** A scheduler selection can commit an opcode or pending event. */ READY,
+        /** A sufficiently fueled monitor acquisition is disabled. */ BLOCKED,
+        /** The actor or its entire prefix has ended. */ DONE
+    }
+
+    /** Describes a choice without consuming fuel or modifying target state.
+     * @param availability enabled, disabled or ended
+     * @param location actual next opcode or causing event position
+     * @param opcode next executed opcode, null for an implicit event or fuel cutoff
+     * @param monitor acquisition identity, otherwise null
+     * @param observable whether batching must preserve this scheduling point
+     * @param exhausted whether selection will omit the next opcode for insufficient fuel
+     */
+    record Probe(Availability availability,BytecodeLocation location,Opcode opcode,Ref monitor,
+                 boolean observable,boolean exhausted) {}
+
+    /** Classifies the next operation, preserving fuel-before-blocking priority.
+     * @param program validated artifact
+     * @param state committed state, never modified
+     * @param owner selected execution owner
+     * @return pure next-operation classification
+     */
+    static Probe probe(BytecodeProgram program,BytecodeState state,int owner) {
+        var execution=state.executions.get(owner);
+        if(state.executions.values().stream().anyMatch(e->e.phase==Phase.FAILED || e.phase==Phase.CUTOFF)
+            || execution.phase==Phase.TERMINATED)
+            return new Probe(Availability.DONE,execution.eventLocation,null,null,true,false);
+        if(execution.phase!=Phase.RUNNING) {
+            var location=execution.frames.isEmpty() ? execution.eventLocation
+                : execution.frames.getLast().method.location(execution.frames.getLast().bci);
+            return new Probe(Availability.READY,location,null,null,true,false);
+        }
+        var frame=execution.frames.getLast();var op=frame.method.ops.get(frame.bci);var location=frame.method.location(frame.bci);
+        if(work(op)>limit(program,owner)-execution.instructions)
+            return new Probe(Availability.READY,location,null,null,true,true);
+        if(!frame.entered) {
+            Ref monitor=(frame.method.flags & ACC_STATIC)!=0 ? classMonitor(frame.method.id.owner(),program) : (Ref)frame.locals.get(0);
+            return new Probe(busy(state,monitor,owner) ? Availability.BLOCKED : Availability.READY,location,null,monitor,true,false);
+        }
+        var code=op.instruction().opcode();Ref monitor=null;
+        if(code==Opcode.MONITORENTER) {
+            monitor=(Ref)frame.stack.getLast();
+            if(!monitor.equals(NULL) && busy(state,monitor,owner))
+                return new Probe(Availability.BLOCKED,location,code,monitor,true,false);
+        }
+        boolean observable=op.instruction() instanceof FieldInstruction || op.instruction() instanceof ReturnInstruction
+            || code==Opcode.MONITORENTER || code==Opcode.MONITOREXIT || code==Opcode.ATHROW;
+        return new Probe(Availability.READY,location,code,monitor,observable,false);
+    }
+
+    /** Computes one admitted opcode's complete intrinsic work before execution.
+     * @param op decoded instruction
+     * @return opcode plus fixed intrinsic fuel
+     */
+    private static int work(BytecodeMethod.Op op) {
+        return op.instruction() instanceof InvokeInstruction call && call.owner().asInternalName().equals("java/lang/Object") ? 2 : 1;
+    }
+
+    /** Selects the independent setup or actor fuel allowance.
+     * @param program immutable limits
+     * @param owner execution namespace
+     * @return maximum instruction/intrinsic work
+     */
+    private static int limit(BytecodeProgram program,int owner) {
+        return owner==SETUP ? program.limits.setupInstructions() : program.limits.actorInstructions();
+    }
+
     /**
      * Internal control transfer for a modeled VM fault, not a host throwable from target execution.
      */
@@ -68,7 +137,9 @@ final class OpcodeExecutor {
         if (selected!=Phase.FAILED && selected!=Phase.CUTOFF && parent.executions.values().stream()
             .anyMatch(e->e.phase==Phase.FAILED || e.phase==Phase.CUTOFF))
             throw new IllegalStateException("Execution prefix already ended");
+        var choice=probe(program,parent,owner);
         BytecodeState state=parent.copy(); Execution execution=state.executions.get(owner);
+        if(choice.availability()==Availability.BLOCKED)return new Result(state,Kind.BLOCKED);
         switch(execution.phase) {
             case TERMINATED, FAILED, CUTOFF -> { return new Result(state,Kind.TERMINAL); }
             case TERMINATION_PENDING -> { execution.phase=Phase.TERMINATED; return new Result(state,Kind.TERMINAL); }
@@ -79,20 +150,14 @@ final class OpcodeExecutor {
             case RUNNING -> { /* Execute only after pure budget/enabledness decisions below. */ }
         }
         BytecodeFrame frame=execution.frames.getLast(); BytecodeMethod.Op op=frame.method.ops.get(frame.bci);
-        int required=op.instruction() instanceof InvokeInstruction call && call.owner().asInternalName().equals("java/lang/Object") ? 2 : 1;
-        int limit=owner==SETUP ? program.limits.setupInstructions() : program.limits.actorInstructions();
-        if(required>limit-execution.instructions) {
+        int required=work(op), limit=limit(program,owner);
+        if(choice.exhausted()) {
             cutoff(execution,frame,"INSTRUCTION_FUEL",limit,required,limit-execution.instructions);
             return new Result(state,Kind.PENDING);
         }
         if(!frame.entered) {
-            Ref monitor=(frame.method.flags & ACC_STATIC)!=0 ? classMonitor(frame.method.id.owner(),program) : (Ref)frame.locals.get(0);
-            if(!acquire(state,monitor,owner)) return new Result(state,Kind.BLOCKED);
-            frame.methodMonitor=monitor; frame.entered=true; return new Result(state,Kind.ADVANCED);
-        }
-        if(op.instruction().opcode()==Opcode.MONITORENTER) {
-            var monitor=(Ref)frame.stack.getLast();
-            if(!monitor.equals(NULL) && busy(state,monitor,owner)) return new Result(state,Kind.BLOCKED);
+            if(!acquire(state,choice.monitor(),owner))return new Result(state,Kind.BLOCKED);
+            frame.methodMonitor=choice.monitor();frame.entered=true;return new Result(state,Kind.ADVANCED);
         }
         execution.instructions+=required;
         try {

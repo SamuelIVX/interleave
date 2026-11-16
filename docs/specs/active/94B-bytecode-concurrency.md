@@ -1,10 +1,10 @@
-<!-- Roadmap #12 / 94B: implementation milestone specification; no production implementation in this PR. -->
+<!-- Roadmap #12 / 94B: internal concurrent execution and its feasibility acceptance contract. -->
 # Spec 94B: Concurrent execution and feasibility
 
 ## Objective
 
 Deliver concurrent execution and feasibility as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: specified, not implemented or measured.** The
+**Type: delta. Status: implementation in progress; measurement/review gates pending.** The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 94B only.
 
