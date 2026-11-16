@@ -29,6 +29,25 @@ class BytecodeBatchingOracleTest {
         assertTrue(batched.metrics().states()<reference.metrics().states());
     }
 
+    /** Static increments retain both real shared-read/write outcomes in both scheduling modes.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void staticIncrementKeepsReadWriteBoundaries(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"""
+            @Model public class Fixture {public static int x;public Fixture(){}
+              @Actor(id=0)public void first(){x++;} @Actor(id=1)public void second(){x++;}
+              @Check public boolean valid(){return x==2;}}
+            """);
+        var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());compare(program);
+        var cell=new BytecodeExplorer.Cell(BytecodeState.NULL,new BytecodeProgram.FieldId("Fixture","x","I"));
+        for(var mode:BytecodeScheduler.Mode.values()) {
+            var result=new BytecodeExplorer(program,mode).explore(100000);assertEquals(2,result.witnesses().size());
+            var observations=new TreeMap<Integer,BytecodeExplorer.Kind>();
+            for(var witness:result.witnesses())observations.put(((BytecodeState.Int)witness.outcome().shared().get(cell)).value(),witness.outcome().kind());
+            assertEquals(Map.of(1,BytecodeExplorer.Kind.CHECK_FALSE,2,BytecodeExplorer.Kind.COMPLETED),observations);
+        }
+    }
+
     /** Independent opcode enumeration covers terminal competition and bounded loops in both modes.
      * @param directory compiler workspace
      * @throws Exception for fixture failures */

@@ -22,6 +22,23 @@ class BytecodeWorkBudgetTest {
         assertEquals("OUTCOMES [CHECK_FALSE, COMPLETED]",run(null,null,true));
     }
 
+    /** Interrupts deterministically after an actual primitive commit, including a shared write and method entry.
+     * @throws Exception for class/child failures */
+    @Test void cancellationAfterPrimitiveCommitKeepsParentOwned() throws Exception {
+        var file=classFile();int[] checkpoints={0};
+        var changed=file.transformClass(file.parse(bytes("BytecodeScheduler")),ClassTransform.transformingMethodBodies(
+            method->method.methodName().equalsString("advance"),(code,element)->{
+                code.with(element);
+                if(element instanceof InvokeInstruction call && call.owner().asInternalName().equals("dev/samhb/interleave/bytecode/OpcodeExecutor") && call.name().equalsString("step")) {
+                    checkpoints[0]++;var thread=java.lang.constant.ClassDesc.of("java.lang.Thread");
+                    code.invokestatic(thread,"currentThread",java.lang.constant.MethodTypeDesc.of(thread))
+                        .invokevirtual(thread,"interrupt",java.lang.constant.MethodTypeDesc.of(java.lang.constant.ConstantDescs.CD_void));
+                }
+            }));
+        assertEquals(2,checkpoints[0]);assertEquals(List.of(),file.verify(changed));
+        assertEquals("CANCELLATION_OWNED",run("BytecodeScheduler",changed,false,"cancel"));
+    }
+
     /** Removing the actual deque pop must fail a finite graph-work assertion, never a wall-clock oracle.
      * @throws Exception for class/child failures */
     @Test void catchesRemovedDfsPop() throws Exception {
@@ -85,21 +102,28 @@ class BytecodeWorkBudgetTest {
      * @param name optional replacement checker class
      * @param replacement optional actual mutant
      * @param agent whether the existing test-only agent is active
+     * @param modes optional deterministic cancellation probe mode
      * @return stripped successful child output
      * @throws Exception for fixture/process failures */
-    private String run(String name,byte[] replacement,boolean agent) throws Exception {
+    private String run(String name,byte[] replacement,boolean agent,String... modes) throws Exception {
         Path classes=Files.createTempDirectory(directory,"classes");String classpath=System.getProperty("interleave.testRuntimeClasspath");
-        Path source=classes.resolve("Fixture.java");Files.writeString(source,"""
+        Path source=classes.resolve("Fixture.java");String body=modes.length==0 ? """
             import dev.samhb.interleave.bytecode.*;
             @Model public class Fixture {public int x;public Fixture(){}
               @Actor(id=0)public void first(){x++;} @Actor(id=1)public void second(){x++;}
               @Check public boolean valid(){return x==2;}}
-            """);
+            """ : """
+            import dev.samhb.interleave.bytecode.*;
+            @Model public class Fixture {public int x;public Fixture(){}
+              @Actor(id=0)public void first(){x=1;} @Actor(id=1)public synchronized void second(){}}
+            """;
+        Files.writeString(source,body);
         assertEquals(0,ToolProvider.getSystemJavaCompiler().run(null,null,null,"--release","26","-classpath",classpath,"-d",classes.toString(),source.toString()));
         if(replacement!=null) {Path target=classes.resolve("dev/samhb/interleave/bytecode/"+name+".class");Files.createDirectories(target.getParent());Files.write(target,replacement);}
         var command=new ArrayList<String>();command.add(Path.of(System.getProperty("java.home"),"bin","java").toString());
         if(agent)command.add("-javaagent:"+System.getProperty("interleave.mutationHarnessJar"));
         command.addAll(List.of("-cp",classes+java.io.File.pathSeparator+classpath,"dev.samhb.interleave.bytecode.BytecodeWorkProbe",classes.toString()));
+        command.addAll(List.of(modes));
         Path output=Files.createTempFile(directory,"child",".log");var child=new ProcessBuilder(command).redirectErrorStream(true).redirectOutput(output.toFile()).start();
         try {assertTrue(child.waitFor(15,TimeUnit.SECONDS),"Bytecode harness child did not terminate");String text=Files.readString(output);assertEquals(0,child.exitValue(),text);return text.strip();}
         finally {if(child.isAlive()){child.destroyForcibly();assertTrue(child.waitFor(5,TimeUnit.SECONDS),"Bytecode child could not be reaped");}}

@@ -3,7 +3,7 @@
 
 ## Objective and status
 
-**Selected; 94A internal foundation implemented, public release pending.** Approved scope: controlled interpretation of compiled Java for fixed
+**Selected; internal94A/94B implemented, public release pending.** Approved scope: controlled interpretation of compiled Java for fixed
 actors under bounded sequential consistency (SC). The first public release must find a real lost update
 and a two-lock deadlock through loading, search, evidence, strict replay, library/CLI, reports and viewer.
 No target-code host-JVM fallback is permitted. This is not unrestricted Java or full Java Memory Model coverage.
@@ -12,7 +12,9 @@ Planning baseline: remote main `2a242c4`, freshly fetched during authoring. B10 
 PRs #136/#137 and its closure commit. Sam explicitly selected #12 after that stopping point; #11
 and parked conditional/deferred tasks remain unselected. The specification PR established no runtime
 evidence. The [94A implementation ledger](../measurements/94A-bytecode-foundation.md) records subsequent
-loader/single-actor evidence; concurrency, batching, sharedness-cost, DPOR and JPF gates remain pending. [Vocabulary](../../CONTEXT.md) owns domain terms; this document
+loader/single-actor evidence; [the94B ledger](../measurements/94B-bytecode-concurrency.md) records
+internal concurrent execution, batching preservation and measured setup-only sharedness costs. Public
+consumer support, broader heap costs, restricted DPOR and JPF gates remain pending. [Vocabulary](../../CONTEXT.md) owns domain terms; this document
 owns common behavior, interface seams, verification and phase boundaries.
 
 ## Sequential delivery and ownership

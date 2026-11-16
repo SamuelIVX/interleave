@@ -127,7 +127,7 @@ class BytecodeConcurrencyTest {
         var historic=state.canonicalBytes();state.heap.get(lock).shared=false;assertFalse(Arrays.equals(historic,state.canonicalBytes()));
         assertEquals(new BytecodeSharing.Work(1,3,0,1),BytecodeSharing.refresh(state));assertArrayEquals(historic,state.canonicalBytes());
         // Unknown/unreachable setup objects are also shared; the profile never infers exclusivity.
-        state.frame(0).locals.values().removeIf(lock::equals);state.heap.get(lock).shared=false;
+        state.frame(0).locals.values().removeIf(lock::equals);state.frame(0).stack.clear();state.heap.get(lock).shared=false;
         assertEquals(1,BytecodeSharing.refresh(state).promotions());assertTrue(state.heap.get(lock).shared);
         assertEquals(0,BytecodeSharing.refresh(state).promotions());
     }
@@ -145,32 +145,22 @@ class BytecodeConcurrencyTest {
         var write=scheduler.advance(read.state(),0);assertEquals(Phase.EXCEPTION,write.state().executions.get(0).phase);
         assertEquals("java/lang/NullPointerException",write.state().executions.get(0).fault.type());assertEquals(BytecodeSharing.Work.NONE,write.sharing());
     }
-    /** An interrupt observed during an active local batch aborts externally without committing its scratch state.
+    /** A cancelled selection aborts externally without committing any target state or clearing the flag.
+     * Controlled child instrumentation separately tests cancellation after a primitive commit.
      * @param directory compiler workspace
-     * @throws Exception for fixture or worker failures */
-    @Test void activeBatchHonorsHostCancellation(@TempDir Path directory) throws Exception {
-        var source=new StringBuilder("@Model public class Fixture {");
-        for(int object=0;object<127;object++)source.append("public final Object lock").append(object).append("=new Object();");
-        source.append("public Fixture(){} @Actor(id=0)public void actor(){while(true){}}}");
-        var program=BytecodeLoader.load(BytecodeFixtures.compile(directory,26,source.toString()),"Fixture",
-            new BytecodeLimits(4096,128,8192,32,64,256,4096,128,8192,1024));
-        var scheduler=new BytecodeScheduler(program,BytecodeScheduler.Mode.BATCHED);var initial=program.initialState();var before=initial.canonicalBytes();
-        var failure=new java.util.concurrent.atomic.AtomicReference<Throwable>();var done=new java.util.concurrent.CountDownLatch(1);
-        var worker=new Thread(()->{
-            try {scheduler.advance(initial,0);failure.set(new AssertionError("Active batch ignored host cancellation"));}
-            catch(Throwable caught){failure.set(caught);}
-            finally {done.countDown();}
-        },"bytecode-cancellation-test");worker.setDaemon(true);worker.start();
-        try {
-            long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(5);boolean active=false;
-            while(done.getCount()!=0 && System.nanoTime()<deadline) {
-                active=Arrays.stream(worker.getStackTrace()).anyMatch(frame->frame.getClassName().equals(BytecodeScheduler.class.getName()) && frame.getMethodName().equals("advance"));
-                if(active)break;Thread.onSpinWait();
-            }
-            assertTrue(active,"Worker never entered an active batch");worker.interrupt();
-            assertTrue(done.await(5,java.util.concurrent.TimeUnit.SECONDS),"Cancelled batch did not return promptly");
-            assertInstanceOf(java.util.concurrent.CancellationException.class,failure.get());assertArrayEquals(before,initial.canonicalBytes());
-        } finally {worker.interrupt();worker.join(5000);assertFalse(worker.isAlive(),"Cancellation worker leaked");}
+     * @throws Exception for fixture failures */
+    @Test void cancelledSelectionHonorsHostFlag(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"""
+            @Model public class Fixture {public Fixture(){} @Actor(id=0)public void actor(){while(true){}}}
+            """);
+        var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());var initial=program.initialState();var before=initial.canonicalBytes();
+        for(var mode:BytecodeScheduler.Mode.values()) {
+            try {
+                Thread.currentThread().interrupt();var scheduler=new BytecodeScheduler(program,mode);
+                assertThrows(java.util.concurrent.CancellationException.class,()->scheduler.advance(initial,0));
+                assertTrue(Thread.currentThread().isInterrupted());assertArrayEquals(before,initial.canonicalBytes());
+            } finally {Thread.interrupted();}
+        }
     }
     /** A disabled selected monitor returns an owned unchanged result and no charged or recorded work.
      * @param directory compiler workspace
@@ -207,6 +197,23 @@ class BytecodeConcurrencyTest {
         assertEquals(List.of(new BytecodeScheduler.Executed(new BytecodeLocation("Fixture","actor","()V",7),java.lang.classfile.Opcode.PUTFIELD)),write.executed());
         var returned=scheduler.advance(write.state(),0);assertEquals(1,returned.instructions());assertEquals(Phase.RETURNING,returned.state().executions.get(0).phase);
         assertEquals(List.of(new BytecodeScheduler.Executed(new BytecodeLocation("Fixture","actor","()V",10),java.lang.classfile.Opcode.RETURN)),returned.executed());
+    }
+    /** Reference static publication refreshes roots and charges historical promotion on the owned successor.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void staticReferencePublicationRefreshesSharedness(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"""
+            @Model public class Fixture {public static Object published;public Object lock=new Object();public Fixture(){}
+              @Actor(id=0)public void actor(){published=lock;}}
+            """);
+        var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());var scheduler=new BytecodeScheduler(program,BytecodeScheduler.Mode.BATCHED);
+        var read=scheduler.advance(program.initialState(),0).state();var field=new BytecodeProgram.FieldId("Fixture","published","Ljava/lang/Object;");
+        assertEquals(NULL,read.statics.get(field));var published=scheduler.advance(read,0);
+        assertEquals(new Ref(SETUP,1),published.state().statics.get(field));assertEquals(new BytecodeSharing.Work(1,3,1,0),published.sharing());
+        // A trusted history mutation checks promotion accounting without claiming95's reachable local heap.
+        var history=read.copy();history.heap.get(new Ref(SETUP,1)).shared=false;var before=history.canonicalBytes();
+        var promoted=scheduler.advance(history,0);assertEquals(new BytecodeSharing.Work(1,3,1,1),promoted.sharing());
+        assertTrue(promoted.state().heap.get(new Ref(SETUP,1)).shared);assertFalse(history.heap.get(new Ref(SETUP,1)).shared);assertArrayEquals(before,history.canonicalBytes());
     }
 
 }

@@ -6,7 +6,8 @@
 Internal implementation under [Spec94B](../specs/active/94B-bytecode-concurrency.md) and the
 [shared contract](../plans/bytecode-contract.md). Exact DFS, pure checks, instruction-reference and
 conservatively batched execution are implemented. Both modes find genuine lost updates and monitor
-wait cycles. Final integrated validation, mutation accounting and publication review are pending below.
+wait cycles. Local acceptance, measurement and review gates are complete; PR/CI/manual review remains
+the publication boundary. Verification and remaining scope limits are recorded below.
 Public library/CLI selection, serialized BYTECODE evidence, strict public replay, reports and viewer
 remain **94C**. CBS, DPOR, atomics, bitstate and JPF comparison remain later milestones; no measurement
 here establishes their correctness or performance.
@@ -240,10 +241,11 @@ Configured default state/cb PIT:455 KILLED +13 SURVIVED /468. Affected bytecode 
 1344 KILLED +171 SURVIVED +105 NO_COVERAGE /1620. These are regenerated reports on the actual merged
 starting SHA, not carried-forward94A authoring counts. The default scope is not the whole checker.
 
-Integrated post-review build/strict Javadoc:2063 tests, zero failures/errors/skips. Private bytecode
+Integrated final build/strict Javadoc:2066 tests, zero failures/errors/skips. Private bytecode and mutation-harness
 member doclint passes with all groups and warnings as errors. The legacy browser suite passes the
-normalization assertions plus24 browser checks, with zero console errors; no new bytecode viewer path
-is claimed. Final mutation fingerprints/residuals and follow-up review remain pending.
+normalization assertions plus248 browser checks against all freshly generated CI fixture families, with zero console errors; no new bytecode viewer path
+is claimed. The actual library jar excludes test annotations, profiler/probe classes, the mutation
+agent and the public bytecode facade. Legacy public/source/declarative consumers remain unchanged.
 
 The first affected run reported1677 KILLED +223 SURVIVED +111 NO_COVERAGE +3 TIMED_OUT /2014 and
 **failed** the R6 mutation gate. The timeouts were DFS `ArrayDeque.pop` removal and observer root-return
@@ -253,7 +255,13 @@ selections +1 pop per frame), saturating at Long.MAX_VALUE. Each pure observer g
 visits for N opcode work, helper-return events and final/cutoff views; the allowance resets per check.
 These counters do not change production code, target fuel or flags and never ship in the library.
 Real-definition child-JVM tests preserve original outcomes, reject binding/checkpoint drift and turn
-actual stalled mutations into AssertionErrors. A fresh affected census is running with these assertions.
+actual stalled mutations into AssertionErrors. The refreshed whole-bytecode-package census passed with1718 KILLED +194 SURVIVED +102 NO_COVERAGE
+/2014, zero timeouts/run errors. Later focused assertions cover static publication/promotion and an
+actually unreachable setup object (both local and operand roots removed). Their final focused census
+is107 KILLED +13 SURVIVED /120, zero uncovered/resource/run-error statuses. Scheduler including its
+transition record is71/71; sharing including Work is36/49, with13 survivors. No production bytecode
+changed after the whole-package census; focused test patches were followed by integrated verification.
+These are scoped bytecode results, not a whole-checker mutation score.
 No timeout thresholds, operators, floors, mutation target tests or CI parallelism were weakened.
 
 Actual CodeRabbit0.8.1 reviewed all21 then-changed files and completed with6 findings (2 major,
@@ -264,14 +272,84 @@ coverage; the independent oracle derives fuel/monitor enabledness without probe 
 concurrent test futures are cancelled in finally; known completion/deadlock/lost-update observations
 are asserted before measurement equality. The return-cleanup test correctly requires the faulting
 actor's depths to be released; a competing actor may acquire before failure delivery. Follow-up
-CodeRabbit review includes the added PIT-only progress harness.
+CodeRabbit reviewed all24 files, including the added PIT-only progress harness, and completed with
+3 findings (2 major,1 minor). The major findings requested verification, rather than demonstrating
+counterexamples: `step` already copies the complete owned state, and `probe` already treats GETSTATIC/
+PUTSTATIC as FieldInstructions. Added checks preserve static x=1/x=2 outcomes and both modes agree with
+independent instruction enumeration. Deterministic test-only class-file injection interrupts immediately
+after a real local opcode, shared write or implicit synchronized entry, proving the parent unchanged;
+it also verifies Explorer's external CANCELLED prefix. This replaces a timing-dependent stack-sampling
+worker test. No callback/pause hook was added to production. Those focused test patches were reviewed
+locally; no third CLI loop was run after the two completed substantive reviews.
 
 A context-free doc-coauthoring reader answered all five scope/preservation/oracle/measurement/history
 questions and found no blocking premise gap in the restricted argument. Its one ambiguity—whether
 abnormal terminals carry shared observations—was clarified above. This was a document review, not a
-source or runtime certification. Ordinary and security source review, final census disposition and
-publication record are completed below when their gates finish. NO_COVERAGE, timeout and run errors
-are never counted as kills. No JPF experiment was performed here.
+source or runtime certification. Connected-source ordinary/ponytail and OWASP review checked owned
+state, exact membership, modeled/external terminal distinctions, transitive check purity, metadata-only
+target boundaries and host test instrumentation. No unresolved correctness/security finding remains
+within94B. Actual ordinary and CodeRabbit evidence is recorded through agent-setup for this session;
+focused review-test/status patches used local verification rather than an unbounded third CLI loop.
+NO_COVERAGE, timeout and run errors are never counted as kills. No JPF experiment was performed here.
 
-Local raw logs/reports live under `Documents/repos/worktrees/interleave-94b-evidence` in Sam's home;
-committed raw interpreter repetitions are included above so reproduction does not depend on that path.
+### Mutation reconciliation and residuals
+
+Configured default state/cb:455 KILLED +13 SURVIVED /468; **all468 baseline fingerprints and statuses
+match**, including every455 inherited kill. Fingerprints use class/method/descriptor/operator plus
+instruction indexes/blocks; line-number shifts are not identities. This default is not the whole checker.
+For affected bytecode, all1274 baseline kills in unchanged methods remain killed. The changed primitive
+`step` is not compared by coincidentally overlapping instruction indexes; its semantics are covered by
+JVM differential, exact-limit/fault/monitor and independent scheduling cases. Among unchanged methods,
+9 formerly uncovered and4 formerly surviving mutants are now killed.
+
+The table below composes the whole-package report with the later Scheduler/Sharing report **by class**.
+Its1724 KILLED +190 SURVIVED +100 NO_COVERAGE /2014 is a latest-per-class sum, not a single full-scope
+PIT invocation. The separate actual invocation totals are stated above. Nested types are included.
+
+|Affected class/group|KILLED|SURVIVED|NO_COVERAGE|
+|---|---:|---:|---:|
+|BytecodeChecks|41|1|0|
+|BytecodeExplorer|170|7|4|
+|BytecodeFrame|15|0|0|
+|BytecodeInput|108|10|16|
+|BytecodeLimits|7|0|0|
+|BytecodeLoadException|0|2|0|
+|BytecodeLoader|484|72|57|
+|BytecodeMethod|34|3|0|
+|BytecodeProgram|23|2|0|
+|BytecodeScheduler|71|0|0|
+|BytecodeSharing|36|13|0|
+|BytecodeState|185|13|0|
+|BytecodeVerifier|239|59|21|
+|OpcodeExecutor|311|8|2|
+
+All residuals remain in raw XML; none are excluded or declared generally equivalent. Most inherited
+residuals concern overlapping input/JDK validation, diagnostics and defensive checks. New residuals
+include redundant exact-hash/terminal guards, timing-sensitive cancellation paths and the observer's
+partial-cancellation accounting. The13 sharing survivors affect redundant/empty/null roots or traversal
+in the conservative setup-only heap;95 must revisit them when actual object graphs/local ownership
+arrive. Zero history-only metrics do not prove these mutations equivalent for that wider profile.
+The mutation ratchet/operators/floors and target-test policy remain unchanged.
+
+### Reproduction and retained evidence
+
+```sh
+./gradlew --max-workers=1 -PpitestThreads=1 build javadoc
+./gradlew --max-workers=1 -PpitestThreads=1 pitest
+./gradlew --max-workers=1 -PpitestThreads=1 pitest '-PpitestTargetOverride=dev.samhb.interleave.bytecode.*'
+./gradlew --max-workers=1 -PpitestThreads=1 pitest '-PpitestTargetOverride=dev.samhb.interleave.bytecode.BytecodeScheduler*,dev.samhb.interleave.bytecode.BytecodeSharing*'
+```
+
+Independent private doclint runs use `javadoc -private -Xdoclint:all -Werror` over bytecode and the
+separate mutation-harness source tree. Browser verification uses all environment paths listed in the
+existing Visualizer compatibility CI job after normal tests generate fresh artifacts, before PIT can
+replace them. Context-store structural validation has0 errors and1 inherited machine-local link warning.
+Documentation validation passes5 changed Markdown documents and all local targets/anchors; R1–R6
+mappings, code fences and whitespace checks pass.
+
+Local raw evidence lives in `Documents/repos/worktrees/interleave-94b-evidence` under Sam's home:
+`baseline-{build,default,affected}` logs/XML; `publication-build.log`; `verified-{build-and-fork1,fork2}`
+logs/directories; `complete-browser.log`; `final-default.log/.xml`; `verified-affected.log/.xml`;
+`final-focused.log/.xml`; `compare-mutations.py`; strict/private doclint logs;
+`coderabbit.ndjson` and `coderabbit-followup.ndjson`; failing/passing targeted regression logs.
+Committed raw interpreter repetitions above make the measurement result independent of that local path.
