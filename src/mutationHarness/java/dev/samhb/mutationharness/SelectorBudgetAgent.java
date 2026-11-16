@@ -30,6 +30,7 @@ public final class SelectorBudgetAgent {
         instrumentation.addTransformer(new Transformer(), true);
         CompilerWorkBudget.install(instrumentation);
         ParserWorkBudget.install(instrumentation);
+        BytecodeWorkBudget.install(instrumentation);
     }
 
     /** Instruments one expected selector definition with an invocation-local expansion counter.
@@ -96,6 +97,8 @@ public final class SelectorBudgetAgent {
 
     /** Keeps unrelated classes untouched and rejects selector shape drift instead of omitting the check. */
     private static final class Transformer implements ClassFileTransformer {
+        /** Restricts construction to the owning agent. */
+        private Transformer() {}
         /** Rewrites the selector on initial definition and PIT redefinition.
          * @param module defining module
          * @param loader defining class loader

@@ -46,8 +46,9 @@ final class BytecodeInstructionOracle {
             var waits=new ArrayList<String>();int choices=0;
             for(int actor=0;actor<program.actors.size();actor++) {
                 if(state.executions.get(actor).phase==Phase.TERMINATED)continue;
-                var next=OpcodeExecutor.step(program,state,actor);
-                if(next.kind()==OpcodeExecutor.Kind.BLOCKED) {
+                boolean disabled=disabled(program,state,actor);var next=OpcodeExecutor.step(program,state,actor);
+                if(disabled!=(next.kind()==OpcodeExecutor.Kind.BLOCKED))throw new AssertionError("Primitive enabledness disagrees with independent monitor/fuel rule");
+                if(disabled) {
                     // Infer the waited-on object from the failed acquisition's operands/implicit frame.
                     var frame=state.frame(actor);Ref monitor;
                     if(!frame.entered)monitor=(frame.method.flags & java.lang.classfile.ClassFile.ACC_STATIC)!=0
@@ -59,6 +60,26 @@ final class BytecodeInstructionOracle {
             if(choices==0)outcomes.add(observation(state,"DEADLOCK",-1,null,null,null,List.copyOf(waits)));
         }
         return Set.copyOf(outcomes);
+    }
+
+    /** Derives blocked enabledness from fuel, decoded operation and monitor state, never probe.
+     * @param program fixture limits
+     * @param state committed snapshot
+     * @param actor original actor
+     * @return whether the next sufficiently fueled acquisition is blocked */
+    private static boolean disabled(BytecodeProgram program,BytecodeState state,int actor) {
+        var execution=state.executions.get(actor);if(execution.phase!=Phase.RUNNING)return false;
+        var frame=execution.frames.getLast();var instruction=frame.method.ops.get(frame.bci).instruction();
+        int work=instruction instanceof java.lang.classfile.instruction.InvokeInstruction call
+            && call.owner().asInternalName().equals("java/lang/Object") ? 2 : 1;
+        if(execution.instructions+work>program.limits.actorInstructions())return false;
+        Ref monitor;
+        if(!frame.entered)monitor=(frame.method.flags & java.lang.classfile.ClassFile.ACC_STATIC)!=0
+            ? BytecodeState.classMonitor(frame.method.id.owner(),program) : (Ref)frame.locals.get(0);
+        else if(instruction.opcode()==java.lang.classfile.Opcode.MONITORENTER)monitor=(Ref)frame.stack.getLast();
+        else return false;
+        if(monitor.equals(NULL))return false;
+        var object=state.heap.get(monitor);return object.monitorOwner!=-2 && object.monitorOwner!=actor;
     }
 
     /** Evaluates checks through private primitive execution, with no production observer adapter.

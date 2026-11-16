@@ -59,6 +59,7 @@ final class BytecodeScheduler {
      * @param parent committed state, never modified
      * @param actor original actor identity
      * @return isolated opcode/event result
+     * @throws java.util.concurrent.CancellationException for host interruption; partial scratch work is discarded
      */
     Transition advance(BytecodeState parent,int actor) {
         if(actor<0 || actor>=program.actors.size())throw new IllegalArgumentException("Unknown actor");
@@ -70,6 +71,7 @@ final class BytecodeScheduler {
         var state=parent;var executed=new ArrayList<Executed>();boolean observable=false;
         int instructions=0;var sharing=BytecodeSharing.Work.NONE;var kind=OpcodeExecutor.Kind.ADVANCED;
         while(true) {
+            if(Thread.currentThread().isInterrupted())throw new java.util.concurrent.CancellationException("Bytecode batch cancelled");
             var probe=OpcodeExecutor.probe(program,state,actor);
             if(probe.availability()!=OpcodeExecutor.Availability.READY || (observable && probe.observable()))break;
             var before=state.executions.get(actor);boolean publication=false;
@@ -81,7 +83,7 @@ final class BytecodeScheduler {
             int charged=next.executions.get(actor).instructions-before.instructions;
             executed.add(new Executed(probe.location(),charged==0 ? null : probe.opcode()));
             instructions+=charged;kind=result.kind();state=next;observable|=probe.observable();
-            if(publication)sharing=sharing.plus(BytecodeSharing.refresh(state));
+            if(publication && kind==OpcodeExecutor.Kind.ADVANCED)sharing=sharing.plus(BytecodeSharing.refresh(state));
             // Every discovered return/fault/cutoff yields before terminal delivery, including local failures.
             if(mode==Mode.REFERENCE || kind!=OpcodeExecutor.Kind.ADVANCED
                 || state.executions.get(actor).phase!=BytecodeState.Phase.RUNNING)break;

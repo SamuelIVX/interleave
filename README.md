@@ -9,8 +9,8 @@ The headline artifact is a states-explored reduction table: naive DFS → +hashi
 Concurrency bugs — race conditions, deadlocks, missed signals — are notoriously hard to find because they depend on exact thread ordering. Rather than running a program once and hoping for the right schedule, this checker systematically explores every distinct interleaving and reports the exact `(thread, step)` schedule that reaches a bad state.
 
 The selected [#12 bounded Java bytecode workstream](docs/plans/bytecode-contract.md)
-has an **internal 94A loader and single-actor interpreter** ([evidence](docs/measurements/94A-bytecode-foundation.md)).
-Concurrent search and public evidence/CLI/library selection follow in 94B/94C; no public bytecode
+has an **internal loader, interpreter and concurrent exact DFS** (94A/94B; [foundation](docs/measurements/94A-bytecode-foundation.md), [concurrency evidence](docs/measurements/94B-bytecode-concurrency.md)).
+94B includes pure checks and measured instruction-reference/batched execution. Public evidence/CLI/library selection follows in 94C; no public bytecode
 selection is available yet. Weak-memory work remains unselected.
 
 The project is built as a clean, spec-driven proof-of-concept. It is not a production Java bytecode checker; programs are modeled as explicit atomic steps or bounded `.ilv` source over cloneable shared state so the core algorithms can be taught, verified, and measured.

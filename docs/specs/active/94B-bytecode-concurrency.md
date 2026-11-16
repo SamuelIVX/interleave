@@ -117,18 +117,28 @@ choose existing equivalent modules at implementation after connected-source insp
 - [verified] Planning main is `2a242c4`; the existing engine has immutable Program, forward SourceStep
 continuations and source-specific evidence. The shared contract records inspected integration constraints.
 - [approved decision] This milestone and the shared contract define the selected behavior/release boundary.
-- [unverified] This milestone's bytecode implementation, measurements, compiler/runtime acceptance and
-mutation results. No authoring review establishes those results.
+- [implementation] Internal `BytecodeScheduler`, `BytecodeExplorer`, `BytecodeChecks` and
+`BytecodeSharing` now implement this milestone. REFERENCE and BATCHED share `OpcodeExecutor`.
+No public bytecode selection/serialization is introduced. Current implementation baseline is merged
+main `3c2c799`, distinct from the historical planning revision above.
+- [measured] Independent instruction enumeration and real two-fork interpreter measurements are in
+[the94B ledger](../../measurements/94B-bytecode-concurrency.md), including the restricted preservation
+argument and raw repetitions. Final validation/review disposition is recorded there; authoring review
+alone does not establish implementation evidence. JPF remains later-phase acceptance.
 
 ## Tests
 
-`lostUpdateAndDeadlockMatchInstructionEnumeration` (R1/R2/R4),
-`reentrantCleanupAndBlockedAttemptsKeepExactAccounting` (R2), `checksUseSeparatePureObservers` (R3),
-`batchYieldsBeforeCompetingTerminalEvents` (R4/R5), `historyAndBudgetsAffectKeys` (R1/R4),
-`referenceBatchOutcomeGate` (R5/R6). Kill read/write merging, missing shared-history bits,
-premature terminal delivery, cleanup depth errors and cutoff-as-deadlock mutations.
-These are intended behavioral contracts/test names, not tests already implemented or executed.
-Use independent expected values/oracles, preserve distinct regression cases and save generated seeds.
+`BytecodeConcurrencyTest` covers split read/write choices, concrete deadlock relationships,
+synchronized methods, frame roots, rewiring/publication and pending fault competition.
+`BytecodeEventTest` / `BytecodeResourceTest` cover disabled/exhausted monitor attempts, exact limits,
+null/nonowner releases and cleanup. `BytecodeCheckTest` covers both modes' observer timing, false,
+fault/fuel/depth classifications and abnormal-prefix FINAL exclusions.
+`BytecodeBatchingOracleTest` / `BytecodeInstructionOracle` independently enumerate targeted and
+fixed-seed/shrunk tiny-program outcomes. `BytecodeSearchContractTest` covers complete payload hash
+collisions, external stops, internal schedules and isolated concurrent/repeated runs.
+`BytecodeMeasurementTest.referenceBatchOutcomeGate` verifies both real fixtures before the opt-in
+`profileBytecode` runner measures them. [The ledger](../../measurements/94B-bytecode-concurrency.md)
+records actual results and any remaining gate, without equating tests to a preservation proof.
 
 ## Constraints
 

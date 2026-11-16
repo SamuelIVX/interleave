@@ -9,4 +9,6 @@
     @Actor(id=0) public void first() { synchronized(left) { synchronized(right) { x++; } } }
     /** Acquires right before left. */
     @Actor(id=1) public void second() { synchronized(right) { synchronized(left) { x++; } } }
+    /** Declares the final shared counter property; deadlocked prefixes do not run FINAL checks. */
+    @Check public boolean valid() { return x==2; }
 }

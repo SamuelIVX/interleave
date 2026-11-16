@@ -7,4 +7,6 @@
     @Actor(id=0) public void first() { x++; }
     /** Competes with the first actor's increment. */
     @Actor(id=1) public void second() { x++; }
+    /** Declares the final shared counter property; deadlocked prefixes do not run FINAL checks. */
+    @Check public boolean valid() { return x==2; }
 }

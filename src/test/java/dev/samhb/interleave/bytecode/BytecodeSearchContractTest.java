@@ -72,6 +72,43 @@ class BytecodeSearchContractTest {
         }
     }
 
+    /** A full state budget still permits edges to already-stored states.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void exactStateBudgetAllowsRemainingDuplicateEdges(@TempDir Path directory) throws Exception {
+        var program=load(directory);
+        var explorer=new BytecodeExplorer(program,BytecodeScheduler.Mode.REFERENCE);long start=System.nanoTime();var result=explorer.explore(140);long elapsed=System.nanoTime()-start;
+        assertTrue(result.exhaustive());assertEquals(140,result.metrics().states());assertEquals(246,result.metrics().transitions());
+        assertEquals(2,result.witnesses().size());assertEquals(178,result.metrics().instructions());assertEquals(178,result.metrics().opcodes());
+        assertEquals(247,result.metrics().encodingCalls());assertEquals(118191,result.metrics().encodingBytes());assertEquals(66946,result.metrics().retainedKeyBytes());
+        assertTrue(result.metrics().encodingNanos()>0);assertTrue(result.metrics().encodingNanos()<=elapsed);
+        assertEquals(0,result.metrics().checkInvocations());assertEquals(0,result.metrics().checkInstructions());
+        assertEquals(new BytecodeSharing.Work(1,2,0,0),result.metrics().sharing());
+        assertTrue(explorer.explore(new BytecodeExplorer.Budget(140,66946)).exhaustive());
+        var shortKeys=explorer.explore(new BytecodeExplorer.Budget(140,66945));assertFalse(shortKeys.exhaustive());
+        assertEquals("KEY_BYTES",shortKeys.witnesses().getLast().outcome().interruption());
+        var shortStates=explorer.explore(139);assertFalse(shortStates.exhaustive());assertEquals(139,shortStates.metrics().states());
+        assertTrue(explorer.explore(140).exhaustive(),"A prior interruption must not leak into a reused explorer");
+        assertThrows(NullPointerException.class,()->explorer.explore((BytecodeExplorer.Budget)null));
+    }
+
+    /** Independent concurrent runs share metadata without target state or search-store interference.
+     * @param directory compiler workspace
+     * @throws Exception for fixture or worker failures */
+    @Test void immutableProgramSupportsIndependentConcurrentRuns(@TempDir Path directory) throws Exception {
+        var program=load(directory);var initial=program.initialState().canonicalBytes();
+        try(var workers=java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var reference=workers.submit(()->new BytecodeExplorer(program,BytecodeScheduler.Mode.REFERENCE).explore(100000));
+            var batched=workers.submit(()->new BytecodeExplorer(program,BytecodeScheduler.Mode.BATCHED).explore(100000));
+            try {
+                var first=reference.get(10,java.util.concurrent.TimeUnit.SECONDS);var second=batched.get(10,java.util.concurrent.TimeUnit.SECONDS);
+                assertTrue(first.exhaustive());assertTrue(second.exhaustive());
+                assertEquals(BytecodeBatchingOracleTest.independentProjection(first),BytecodeBatchingOracleTest.independentProjection(second));
+                assertArrayEquals(initial,program.initialState().canonicalBytes());
+            } finally {reference.cancel(true);batched.cancel(true);}
+        }
+    }
+
     /** Loads a tiny shared-state model without observer callbacks.
      * @param directory compiler workspace
      * @return validated model

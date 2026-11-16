@@ -2,6 +2,7 @@
 package dev.samhb.interleave.bytecode;
 
 import java.nio.file.Path;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.api.io.TempDir;
@@ -9,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class BytecodeCheckTest {
     /** An initially false ALWAYS check ends the root prefix without selecting an actor.
+     * @param mode scheduling granularity
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
     @ParameterizedTest @EnumSource(BytecodeScheduler.Mode.class) void initialAlwaysFailurePrecedesActorChoices(BytecodeScheduler.Mode mode,@TempDir Path directory) throws Exception {
@@ -28,6 +30,7 @@ class BytecodeCheckTest {
         assertEquals(0,witness.state().executions.get(0).instructions);assertTrue(witness.schedule().isEmpty());
     }
     /** ALWAYS observes transient shared writes even when a later write would restore the property.
+     * @param mode scheduling granularity
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
     @ParameterizedTest @EnumSource(BytecodeScheduler.Mode.class) void transientFailureCannotBeHiddenByALaterWrite(BytecodeScheduler.Mode mode,@TempDir Path directory) throws Exception {
@@ -42,6 +45,7 @@ class BytecodeCheckTest {
     }
 
     /** FINAL checks distinguish the lost update from normal x=2 completion.
+     * @param mode scheduling granularity
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
     @ParameterizedTest @EnumSource(BytecodeScheduler.Mode.class) void finalCheckDetectsTheRealLostUpdate(BytecodeScheduler.Mode mode,@TempDir Path directory) throws Exception {
@@ -60,6 +64,7 @@ class BytecodeCheckTest {
     }
 
     /** An observer exception aborts only its private invocation and is honestly incomplete.
+     * @param mode scheduling granularity
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
     @ParameterizedTest @EnumSource(BytecodeScheduler.Mode.class) void observerArithmeticFaultIsNotAnActorViolation(BytecodeScheduler.Mode mode,@TempDir Path directory) throws Exception {
@@ -71,6 +76,7 @@ class BytecodeCheckTest {
         assertTrue(result.traversalComplete());assertFalse(result.exhaustive());
         var witness=result.witnesses().getFirst();assertEquals(BytecodeExplorer.Kind.OBSERVER_ERROR,witness.outcome().kind());
         assertEquals("java/lang/ArithmeticException",witness.outcome().observer().fault().type());
+        assertEquals(new BytecodeMethod.Id("Fixture","valid","()Z"),witness.outcome().observer().check());
         assertEquals(new BytecodeLocation("Fixture","valid","()Z",5),witness.outcome().observer().location());
         assertEquals(4,result.metrics().checkInstructions());assertEquals(1,result.metrics().checkInvocations());
         assertEquals(0,witness.state().executions.get(0).instructions);
@@ -78,6 +84,7 @@ class BytecodeCheckTest {
     }
 
     /** Actor and observer instruction allowances are independent and observer fuel resets per invocation.
+     * @param mode scheduling granularity
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
     @ParameterizedTest @EnumSource(BytecodeScheduler.Mode.class) void observersHaveTheirOwnFuel(BytecodeScheduler.Mode mode,@TempDir Path directory) throws Exception {
@@ -89,18 +96,27 @@ class BytecodeCheckTest {
         assertTrue(result.exhaustive());assertEquals(BytecodeExplorer.Kind.COMPLETED,result.witnesses().getFirst().outcome().kind());
         assertEquals(1,result.metrics().checkInvocations());assertTrue(result.metrics().checkInstructions()>1);
         assertEquals(1,result.witnesses().getFirst().state().executions.get(0).instructions);
+        program=load(directory.resolve("repeated"),"""
+            @Actor(id=0)public void actor(){x++;}
+            @Check(when=Check.When.ALWAYS)public boolean valid(){return x>=0;}
+            """,limits(16,16,32));
+        result=new BytecodeExplorer(program,mode).explore(10000);
+        assertTrue(result.exhaustive());assertEquals(BytecodeExplorer.Kind.COMPLETED,result.witnesses().getFirst().outcome().kind());
+        assertTrue(result.metrics().checkInstructions()>16);assertTrue(result.metrics().checkInvocations()>1);
         program=load(directory.resolve("loop"),"""
             @Actor(id=0)public void actor(){}
             @Check(when=Check.When.ALWAYS)public boolean valid(){while(true){}}
             """,limits(1,5,32));
         result=new BytecodeExplorer(program,mode).explore(10000);
         var witness=result.witnesses().getFirst();assertEquals(BytecodeExplorer.Kind.OBSERVER_LIMIT,witness.outcome().kind());
+        assertEquals(new BytecodeMethod.Id("Fixture","valid","()Z"),witness.outcome().observer().check());
         assertEquals(5,witness.outcome().observer().cutoff().limit());assertEquals(5,result.metrics().checkInstructions());
         assertEquals(0,witness.state().executions.get(0).instructions);assertEquals(4,witness.state().executions.get(-1).instructions);
         assertFalse(result.exhaustive());
     }
 
     /** Observer recursion stops at the selected frame allowance, separately from actor completion.
+     * @param mode scheduling granularity
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
     @ParameterizedTest @EnumSource(BytecodeScheduler.Mode.class) void observerDepthExhaustionIsIncomplete(BytecodeScheduler.Mode mode,@TempDir Path directory) throws Exception {
@@ -116,6 +132,7 @@ class BytecodeCheckTest {
     }
 
     /** FINAL cannot replace actor failure or cutoff with a false-check result.
+     * @param mode scheduling granularity
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
     @ParameterizedTest @EnumSource(BytecodeScheduler.Mode.class) void finalNeverRunsOnAnAbnormalPrefix(BytecodeScheduler.Mode mode,@TempDir Path directory) throws Exception {
@@ -131,6 +148,7 @@ class BytecodeCheckTest {
     }
 
     /** Deterministic check order preserves the first false check before a later observer error.
+     * @param mode scheduling granularity
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
     @ParameterizedTest @EnumSource(BytecodeScheduler.Mode.class) void orderedChecksStopAtTheFirstFailure(BytecodeScheduler.Mode mode,@TempDir Path directory) throws Exception {
@@ -142,6 +160,39 @@ class BytecodeCheckTest {
         var result=new BytecodeExplorer(program,mode).explore(10000);
         assertEquals(BytecodeExplorer.Kind.CHECK_FALSE,result.witnesses().getFirst().outcome().kind());
         assertEquals("aFalse",result.witnesses().getFirst().outcome().observer().check().name());assertEquals(1,result.metrics().checkInvocations());
+    }
+
+    /** Read-only observers receive actual static state, which also reaches normalized terminal evidence.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void observersReadAndReportCommittedStatics(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"""
+            @Model public class Fixture {public static int shared;public int x;public Fixture(){shared=2;}
+              @Actor(id=0)public void actor(){x++;}
+              @Check(when=Check.When.ALWAYS)public boolean valid(){return shared==2 && x>=0;}}
+            """);
+        var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());
+        for(var mode:BytecodeScheduler.Mode.values()) {
+            var result=new BytecodeExplorer(program,mode).explore(100000);assertTrue(result.exhaustive());
+            assertEquals(BytecodeExplorer.Kind.COMPLETED,result.witnesses().getFirst().outcome().kind());
+            var cell=new BytecodeExplorer.Cell(BytecodeState.NULL,new BytecodeProgram.FieldId("Fixture","shared","I"));
+            assertEquals(new BytecodeState.Int(2),result.witnesses().getFirst().outcome().shared().get(cell));
+        }
+    }
+
+    /** Cancellation of the private observer leaves committed state and the interrupt flag intact.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void observerCancellationLeavesCommittedStateUntouched(@TempDir Path directory) throws Exception {
+        var program=load(directory,"@Actor(id=0)public void actor(){} @Check(when=Check.When.ALWAYS)public boolean valid(){return true;}",BytecodeLimits.defaults());
+        var state=program.initialState();var before=state.canonicalBytes();
+        try {
+            Thread.currentThread().interrupt();var result=BytecodeChecks.evaluate(program,state,true);
+            assertEquals(BytecodeChecks.Kind.INTERRUPTED,result.failure().kind());assertEquals(1,result.invocations());assertEquals(0,result.instructions());
+            assertEquals(new BytecodeMethod.Id("Fixture","valid","()Z"),result.failure().check());
+            assertNull(result.failure().location());assertNull(result.failure().fault());assertNull(result.failure().cutoff());
+            assertTrue(Thread.currentThread().isInterrupted());assertArrayEquals(before,state.canonicalBytes());
+        } finally {Thread.interrupted();}
     }
 
     /** Compiles a first-profile fixture with caller-selected actor/check declarations.

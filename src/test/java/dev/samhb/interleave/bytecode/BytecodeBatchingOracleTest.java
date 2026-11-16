@@ -47,8 +47,15 @@ class BytecodeBatchingOracleTest {
             var classes=BytecodeFixtures.compile(directory.resolve("case"+i),26,
                 "@Model public class Fixture {public int x;public int zero;public Fixture(){}"+cases.get(i)+"}");
             var defaults=BytecodeLimits.defaults();
-            var limits=new BytecodeLimits(i==7 ? 1 : 12,128,8192,32,64,256,4096,128,8192,defaults.checkInstructions());
-            compare(BytecodeLoader.load(classes,"Fixture",limits));
+            var limits=new BytecodeLimits(i==7 ? 1 : i==2 ? 5 : i==6 ? 64 : 12,128,8192,32,64,256,4096,128,8192,defaults.checkInstructions());
+            var program=BytecodeLoader.load(classes,"Fixture",limits);compare(program);
+            var result=new BytecodeExplorer(program,BytecodeScheduler.Mode.BATCHED).explore(100000);
+            var kinds=result.witnesses().stream().map(w->w.outcome().kind()).collect(java.util.stream.Collectors.toSet());
+            if(i==0 || i==2)assertEquals(Set.of(BytecodeExplorer.Kind.CUTOFF,BytecodeExplorer.Kind.CHECK_FALSE),kinds);
+            if(i==1 || i==6)assertEquals(Set.of(BytecodeExplorer.Kind.UNCAUGHT_EXCEPTION),kinds);
+            // The faulting actor releases its depths; a competitor may acquire before failure delivery.
+            if(i==6)for(var witness:result.witnesses())assertTrue(witness.state().heap.values().stream().noneMatch(object->object.monitorOwner==0));
+            if(i==7)assertEquals(Set.of(BytecodeExplorer.Kind.COMPLETED),kinds);
         }
     }
 

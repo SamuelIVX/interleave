@@ -87,6 +87,34 @@ class BytecodeEventTest {
         assertEquals("java/lang/NullPointerException",result.state().executions.get(0).fault.type());
     }
 
+    /** Release validates null/ownership, charges the faulting opcode and retains the other owner's depth. */
+    @Test void invalidMonitorReleaseIsAModeledFault() {
+        var program=program(0,8,code->code.aload(0).monitorexit().return_());
+        var ready=OpcodeExecutor.step(program,start(program),0).state();
+        for(boolean absent:List.of(false,true)) {
+            var state=ready.copy();state.heap.get(FIXTURE).monitorOwner=1;state.heap.get(FIXTURE).monitorDepth=2;
+            if(absent){state.frame(0).stack.clear();state.frame(0).stack.add(NULL);}
+            var before=state.canonicalBytes();var next=OpcodeExecutor.step(program,state,0);
+            assertEquals(OpcodeExecutor.Kind.PENDING,next.kind());assertEquals(2,next.state().executions.get(0).instructions);
+            assertEquals(absent ? "java/lang/NullPointerException" : "java/lang/IllegalMonitorStateException",next.state().executions.get(0).fault.type());
+            assertEquals(1,next.state().heap.get(FIXTURE).monitorOwner);assertEquals(2,next.state().heap.get(FIXTURE).monitorDepth);
+            assertArrayEquals(before,state.canonicalBytes());
+        }
+    }
+
+    /** Implicit synchronized probes are pure; exhausted work precedes a competing monitor owner. */
+    @Test void implicitProbePreservesFuelBeforeBlocking() {
+        var program=program(ACC_SYNCHRONIZED,1,CodeBuilder::return_);var state=start(program);
+        state.heap.get(FIXTURE).monitorOwner=1;state.heap.get(FIXTURE).monitorDepth=1;var before=state.canonicalBytes();
+        var blocked=OpcodeExecutor.probe(program,state,0);assertEquals(OpcodeExecutor.Availability.BLOCKED,blocked.availability());
+        assertEquals(FIXTURE,blocked.monitor());assertTrue(blocked.observable());assertFalse(blocked.exhausted());assertArrayEquals(before,state.canonicalBytes());
+        state.executions.get(0).instructions=1;before=state.canonicalBytes();
+        var exhausted=OpcodeExecutor.probe(program,state,0);assertEquals(OpcodeExecutor.Availability.READY,exhausted.availability());
+        assertTrue(exhausted.exhausted());assertNull(exhausted.opcode());assertArrayEquals(before,state.canonicalBytes());
+        var next=OpcodeExecutor.step(program,state,0);assertEquals(Phase.CUTOFF_PENDING,next.state().executions.get(0).phase);
+        assertEquals(1,next.state().heap.get(FIXTURE).monitorOwner);assertEquals(1,next.state().executions.get(0).instructions);
+    }
+
     /** Builds trusted test metadata directly so a broken setup event cannot stall a regression before its assertion.
      *
      * @param flags extra actor flags

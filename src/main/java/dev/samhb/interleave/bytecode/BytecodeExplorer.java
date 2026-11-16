@@ -178,8 +178,9 @@ final class BytecodeExplorer {
             var frame=stack.peek();
             if(frame.next==frame.choices.size()){stack.pop();continue;}
             if(Thread.currentThread().isInterrupted()){interrupt(frame.state,frame.path,"CANCELLED");break;}
-            if(states>=budget.maxStates()){interrupt(frame.state,frame.path,"MAX_STATES");break;}
-            int actor=frame.choices.get(frame.next++);var transition=scheduler.advance(frame.state,actor);
+            int actor=frame.choices.get(frame.next++);BytecodeScheduler.Transition transition;
+            try {transition=scheduler.advance(frame.state,actor);}
+            catch(java.util.concurrent.CancellationException cancelled){interrupt(frame.state,frame.path,"CANCELLED");break;}
             if(transition.kind()==OpcodeExecutor.Kind.BLOCKED)throw new IllegalStateException("Pure choice became disabled");
             transitions++;instructions+=transition.instructions();sharing=sharing.plus(transition.sharing());
             opcodes+=transition.executed().stream().filter(e->e.opcode()!=null).count();
