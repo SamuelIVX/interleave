@@ -96,6 +96,24 @@ tasks.register<JavaExec>("profileSearch") {
     args(layout.buildDirectory.dir("reports/search-profile/fork-${fork.get()}").get().asFile.absolutePath, fork.get())
 }
 
+// Internal 94B measurement runner; target programs remain interpreted, with no production selector.
+tasks.register<JavaExec>("profileBytecode") {
+    group = "verification"
+    description = "Measure instruction/reference bytecode execution (Spec 94B)"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.samhb.interleave.bytecode.BytecodeMeasurementTest")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    minHeapSize = "512m"
+    maxHeapSize = "512m"
+    // Eliminate SerialGC dead-space retention, which otherwise contaminates live-heap deltas.
+    jvmArgs("-XX:+UseSerialGC", "-XX:MarkSweepDeadRatio=0")
+    val fork = providers.gradleProperty("profileFork").orElse("1")
+    val output = providers.gradleProperty("bytecodeProfileOutput")
+        .orElse(layout.buildDirectory.dir("reports/bytecode-profile/fork-${fork.get()}").get().asFile.absolutePath)
+    args(output.get(), fork.get())
+}
+
 tasks.withType<JavaCompile> {
     options.encoding = Charsets.UTF_8.name()
     options.release.set(26)

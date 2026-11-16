@@ -19,6 +19,8 @@ final class BytecodeState {
      * Setup namespace also identifies its resource owner.
      */
     static final int SETUP = -1;
+    /** Private observer execution owner; it never appears in committed actor state. */
+    static final int OBSERVER = -4;
     /**
      * Null is a distinct tagged reference, never an integer zero.
      */
