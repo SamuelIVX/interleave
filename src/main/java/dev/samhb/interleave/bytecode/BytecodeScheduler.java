@@ -2,13 +2,15 @@
 package dev.samhb.interleave.bytecode;
 
 import java.lang.classfile.Opcode;
+import java.lang.classfile.instruction.FieldInstruction;
 import java.util.*;
 
 /** Pure choices and isolated selected transitions using the single opcode executor. */
 final class BytecodeScheduler {
     /** Supported internal scheduling granularities. */
     enum Mode {
-        /** One opcode or explicit zero-work event per selection. */ REFERENCE
+        /** One opcode or explicit zero-work event per selection. */ REFERENCE,
+        /** At most one observable operation plus justified local work. */ BATCHED
     }
 
     /** One executed opcode or implicit event at a real method/BCI position.
@@ -22,8 +24,9 @@ final class BytecodeScheduler {
      * @param kind executed/pending/blocked/terminal result
      * @param executed committed opcode/event locations
      * @param instructions charged actor work, distinct from scheduling selections
+     * @param sharing actual reference-publication traversal work
      */
-    record Transition(BytecodeState state,OpcodeExecutor.Kind kind,List<Executed> executed,int instructions) {
+    record Transition(BytecodeState state,OpcodeExecutor.Kind kind,List<Executed> executed,int instructions,BytecodeSharing.Work sharing) {
         /** Freezes the transition's location list. */
         Transition {executed=List.copyOf(executed);}
     }
@@ -59,11 +62,30 @@ final class BytecodeScheduler {
      */
     Transition advance(BytecodeState parent,int actor) {
         if(actor<0 || actor>=program.actors.size())throw new IllegalArgumentException("Unknown actor");
-        var probe=OpcodeExecutor.probe(program,parent,actor);
-        var result=OpcodeExecutor.step(program,parent,actor);
-        int instructions=result.state().executions.get(actor).instructions-parent.executions.get(actor).instructions;
-        var executed=result.kind()==OpcodeExecutor.Kind.BLOCKED || probe.availability()==OpcodeExecutor.Availability.DONE
-            ? List.<Executed>of() : List.of(new Executed(probe.location(),instructions==0 ? null : probe.opcode()));
-        return new Transition(result.state(),result.kind(),executed,instructions);
+        var initial=OpcodeExecutor.probe(program,parent,actor);
+        if(initial.availability()!=OpcodeExecutor.Availability.READY) {
+            var result=OpcodeExecutor.step(program,parent,actor);
+            return new Transition(result.state(),result.kind(),List.of(),0,BytecodeSharing.Work.NONE);
+        }
+        var state=parent;var executed=new ArrayList<Executed>();boolean observable=false;
+        int instructions=0;var sharing=BytecodeSharing.Work.NONE;var kind=OpcodeExecutor.Kind.ADVANCED;
+        while(true) {
+            var probe=OpcodeExecutor.probe(program,state,actor);
+            if(probe.availability()!=OpcodeExecutor.Availability.READY || (observable && probe.observable()))break;
+            var before=state.executions.get(actor);boolean publication=false;
+            if(probe.opcode()==Opcode.PUTFIELD || probe.opcode()==Opcode.PUTSTATIC) {
+                var frame=before.frames.getLast();var field=(FieldInstruction)frame.method.ops.get(frame.bci).instruction();
+                publication=field.type().stringValue().startsWith("L");
+            }
+            var result=OpcodeExecutor.step(program,state,actor);var next=result.state();
+            int charged=next.executions.get(actor).instructions-before.instructions;
+            executed.add(new Executed(probe.location(),charged==0 ? null : probe.opcode()));
+            instructions+=charged;kind=result.kind();state=next;observable|=probe.observable();
+            if(publication)sharing=sharing.plus(BytecodeSharing.refresh(state));
+            // Every discovered return/fault/cutoff yields before terminal delivery, including local failures.
+            if(mode==Mode.REFERENCE || kind!=OpcodeExecutor.Kind.ADVANCED
+                || state.executions.get(actor).phase!=BytecodeState.Phase.RUNNING)break;
+        }
+        return new Transition(state,kind,executed,instructions,sharing);
     }
 }

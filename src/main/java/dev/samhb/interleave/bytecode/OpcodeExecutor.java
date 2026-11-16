@@ -100,13 +100,14 @@ final class OpcodeExecutor {
         return op.instruction() instanceof InvokeInstruction call && call.owner().asInternalName().equals("java/lang/Object") ? 2 : 1;
     }
 
-    /** Selects the independent setup or actor fuel allowance.
+    /** Selects the independent setup, observer or actor fuel allowance.
      * @param program immutable limits
      * @param owner execution namespace
      * @return maximum instruction/intrinsic work
      */
     private static int limit(BytecodeProgram program,int owner) {
-        return owner==SETUP ? program.limits.setupInstructions() : program.limits.actorInstructions();
+        return owner==SETUP ? program.limits.setupInstructions()
+            : owner==OBSERVER ? program.limits.checkInstructions() : program.limits.actorInstructions();
     }
 
     /**

@@ -12,6 +12,9 @@ final class BytecodeExplorer {
         /** All remaining actors wait on owned monitors, with no pending event. */ DEADLOCK,
         /** A selected uncaught actor fault ended the prefix. */ UNCAUGHT_EXCEPTION,
         /** A modeled resource cutoff ended the prefix. */ CUTOFF,
+        /** A declared pure check returned false. */ CHECK_FALSE,
+        /** A pure observer fault prevents an absence claim. */ OBSERVER_ERROR,
+        /** A pure observer exhausted its independent allowance. */ OBSERVER_LIMIT,
         /** An external checker budget or cancellation stopped traversal. */ INTERRUPTED
     }
 
@@ -53,8 +56,9 @@ final class BytecodeExplorer {
      * @param interruption external checker reason, otherwise null
      * @param waits concrete deadlock relationships
      * @param shared relevant shared field observations
+     * @param observer failed pure check, otherwise null
      */
-    record Outcome(Kind kind,int actor,Fault fault,Cutoff cutoff,String interruption,List<Wait> waits,Map<Cell,Value> shared) {
+    record Outcome(Kind kind,int actor,Fault fault,Cutoff cutoff,String interruption,List<Wait> waits,Map<Cell,Value> shared,BytecodeChecks.Failure observer) {
         /** Freezes observable payload containers. */
         Outcome {waits=List.copyOf(waits);shared=Collections.unmodifiableMap(new TreeMap<>(shared));}
     }
@@ -87,9 +91,12 @@ final class BytecodeExplorer {
      * @param encodingBytes generated canonical bytes, including duplicates
      * @param encodingNanos measured time in canonical encoding
      * @param retainedKeyBytes live stored canonical payload bytes
+     * @param checkInvocations attempted pure checks
+     * @param checkInstructions separate observer instruction work
+     * @param sharing actual root/publication traversal work
      */
     record Metrics(long states,long transitions,long opcodes,long instructions,long encodingCalls,
-                   long encodingBytes,long encodingNanos,long retainedKeyBytes) {}
+                   long encodingBytes,long encodingNanos,long retainedKeyBytes,long checkInvocations,long checkInstructions,BytecodeSharing.Work sharing) {}
 
     /** Run result with original incompleteness preserved alongside positive witnesses.
      * @param witnesses one concrete schedule per normalized outcome
@@ -102,7 +109,8 @@ final class BytecodeExplorer {
         /** Distinguishes bounded model/observer limits from exhaustive absence within the profile.
          * @return whether traversal finished without any incomplete prefix */
         boolean exhaustive() {
-            return traversalComplete && witnesses.stream().noneMatch(w->w.outcome.kind==Kind.CUTOFF || w.outcome.kind==Kind.INTERRUPTED);
+            return traversalComplete && witnesses.stream().noneMatch(w->w.outcome.kind==Kind.CUTOFF || w.outcome.kind==Kind.INTERRUPTED
+                || w.outcome.kind==Kind.OBSERVER_ERROR || w.outcome.kind==Kind.OBSERVER_LIMIT);
         }
     }
 
@@ -139,6 +147,9 @@ final class BytecodeExplorer {
     /** Time spent in encoding. */ private long encodingNanos;
     /** Retained canonical payload bytes. */ private long keyBytes;
     /** False only for an external checker stop. */ private boolean traversalComplete;
+    /** Pure observer invocations. */ private long checkInvocations;
+    /** Separate observer work. */ private long checkInstructions;
+    /** Actual sharing traversals, never part of modeled fuel. */ private BytecodeSharing.Work sharing;
 
     /** Creates an internal search owner; independent instances may share the immutable program.
      * @param program validated model
@@ -159,8 +170,9 @@ final class BytecodeExplorer {
      * @return normalized outcomes and real witnesses */
     Result explore(Budget budget) {
         Objects.requireNonNull(budget);visited.clear();witnesses.clear();states=transitions=opcodes=instructions=0;
-        encodingCalls=encodingBytes=encodingNanos=keyBytes=0;traversalComplete=true;
-        var stack=new ArrayDeque<Frame>();var root=visit(program.initialState(),null,budget);
+        encodingCalls=encodingBytes=encodingNanos=keyBytes=checkInvocations=checkInstructions=0;traversalComplete=true;
+        var initial=program.initialState();sharing=BytecodeSharing.refresh(initial);
+        var stack=new ArrayDeque<Frame>();var root=visit(initial,null,budget);
         if(root!=null)stack.push(root);
         while(traversalComplete && !stack.isEmpty()) {
             var frame=stack.peek();
@@ -169,13 +181,13 @@ final class BytecodeExplorer {
             if(states>=budget.maxStates()){interrupt(frame.state,frame.path,"MAX_STATES");break;}
             int actor=frame.choices.get(frame.next++);var transition=scheduler.advance(frame.state,actor);
             if(transition.kind()==OpcodeExecutor.Kind.BLOCKED)throw new IllegalStateException("Pure choice became disabled");
-            transitions++;instructions+=transition.instructions();
+            transitions++;instructions+=transition.instructions();sharing=sharing.plus(transition.sharing());
             opcodes+=transition.executed().stream().filter(e->e.opcode()!=null).count();
             var path=new Path(frame.path,new Selection(actor,transition.executed()));
             var next=visit(transition.state(),path,budget);if(next!=null)stack.push(next);
         }
         return new Result(new ArrayList<>(witnesses.values()),traversalComplete,
-            new Metrics(states,transitions,opcodes,instructions,encodingCalls,encodingBytes,encodingNanos,keyBytes));
+            new Metrics(states,transitions,opcodes,instructions,encodingCalls,encodingBytes,encodingNanos,keyBytes,checkInvocations,checkInstructions,sharing));
     }
 
     /** Admits one exact state, then classifies its terminal result or enabled choices.
@@ -196,11 +208,13 @@ final class BytecodeExplorer {
             var execution=state.executions.get(actor);
             if(execution.phase==Phase.FAILED || execution.phase==Phase.CUTOFF) {
                 record(state,path,execution.phase==Phase.FAILED ? Kind.UNCAUGHT_EXCEPTION : Kind.CUTOFF,
-                    actor,execution.fault,execution.cutoff,null,List.of());return null;
+                    actor,execution.fault,execution.cutoff,null,List.of(),null);return null;
             }
         }
-        if(program.actors.stream().allMatch(id->state.executions.get(program.actors.indexOf(id)).phase==Phase.TERMINATED)) {
-            record(state,path,Kind.COMPLETED,-1,null,null,null,List.of());return null;
+        if(!observe(state,path,true))return null;
+        if(java.util.stream.IntStream.range(0,program.actors.size()).allMatch(actor->state.executions.get(actor).phase==Phase.TERMINATED)) {
+            if(observe(state,path,false))record(state,path,Kind.COMPLETED,-1,null,null,null,List.of(),null);
+            return null;
         }
         var choices=scheduler.choices(state);
         if(choices.isEmpty()) {
@@ -211,9 +225,29 @@ final class BytecodeExplorer {
                     var monitor=state.heap.get(probe.monitor());waits.add(new Wait(actor,monitor.monitorOwner,probe.monitor(),monitor.monitorDepth));
                 }
             }
-            record(state,path,Kind.DEADLOCK,-1,null,null,null,waits);return null;
+            record(state,path,Kind.DEADLOCK,-1,null,null,null,waits,null);return null;
         }
         return new Frame(state,path,choices);
+    }
+
+    /** Evaluates one ordered observation group without adding scratch frames to model state.
+     * @param state committed state
+     * @param path actual prefix
+     * @param always ALWAYS or FINAL group
+     * @return whether every selected check passed
+     */
+    private boolean observe(BytecodeState state,Path path,boolean always) {
+        var evaluation=BytecodeChecks.evaluate(program,state,always);
+        checkInvocations+=evaluation.invocations();checkInstructions+=evaluation.instructions();
+        var failure=evaluation.failure();if(failure==null)return true;
+        if(failure.kind()==BytecodeChecks.Kind.INTERRUPTED){interrupt(state,path,"CANCELLED");return false;}
+        var kind=switch(failure.kind()) {
+            case FALSE -> Kind.CHECK_FALSE;
+            case ERROR -> Kind.OBSERVER_ERROR;
+            case LIMIT -> Kind.OBSERVER_LIMIT;
+            case INTERRUPTED -> throw new IllegalStateException("Cancellation already handled");
+        };
+        record(state,path,kind,-1,null,null,null,List.of(),failure);return false;
     }
 
     /** Records a checker stop without inventing a modeled resource cutoff.
@@ -221,7 +255,7 @@ final class BytecodeExplorer {
      * @param path real prefix
      * @param reason external checker cause */
     private void interrupt(BytecodeState state,Path path,String reason) {
-        traversalComplete=false;record(state,path,Kind.INTERRUPTED,-1,null,null,reason,List.of());
+        traversalComplete=false;record(state,path,Kind.INTERRUPTED,-1,null,null,reason,List.of(),null);
     }
 
     /** Retains one concrete witness per normalized observable outcome.
@@ -232,11 +266,12 @@ final class BytecodeExplorer {
      * @param fault original interpreted fault
      * @param cutoff omitted modeled operation
      * @param interruption external reason
-     * @param waits concrete monitor relationships */
-    private void record(BytecodeState state,Path path,Kind kind,int actor,Fault fault,Cutoff cutoff,String interruption,List<Wait> waits) {
+     * @param waits concrete monitor relationships
+     * @param observer pure observer failure, otherwise null */
+    private void record(BytecodeState state,Path path,Kind kind,int actor,Fault fault,Cutoff cutoff,String interruption,List<Wait> waits,BytecodeChecks.Failure observer) {
         var shared=new TreeMap<Cell,Value>();state.statics.forEach((field,value)->shared.put(new Cell(NULL,field),value));
         state.heap.forEach((reference,object)->{if(object.shared)object.fields.forEach((field,value)->shared.put(new Cell(reference,field),value));});
-        var outcome=new Outcome(kind,actor,fault,cutoff,interruption,waits,shared);
+        var outcome=new Outcome(kind,actor,fault,cutoff,interruption,waits,shared,observer);
         if(witnesses.containsKey(outcome))return;
         var schedule=new ArrayList<Selection>();for(var node=path;node!=null;node=node.previous())schedule.add(node.selection());
         Collections.reverse(schedule);witnesses.put(outcome,new Witness(outcome,state,schedule));
