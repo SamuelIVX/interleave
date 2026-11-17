@@ -10,4 +10,12 @@ package dev.samhb.interleave.bytecode;
  * @param descriptor JVM method descriptor
  * @param bci bytecode index
  */
-record BytecodeLocation(String owner, String name, String descriptor, int bci) {}
+public record BytecodeLocation(String owner, String name, String descriptor, int bci) implements java.io.Serializable {
+    /** Validates the real method identity and nonnegative bytecode index.
+     * @throws IllegalArgumentException for empty identities or a negative index
+     * @throws NullPointerException for null method identity components */
+    public BytecodeLocation {
+        java.util.Objects.requireNonNull(owner);java.util.Objects.requireNonNull(name);java.util.Objects.requireNonNull(descriptor);
+        if(owner.isEmpty() || name.isEmpty() || descriptor.isEmpty() || bci<0)throw new IllegalArgumentException("Invalid bytecode location");
+    }
+}

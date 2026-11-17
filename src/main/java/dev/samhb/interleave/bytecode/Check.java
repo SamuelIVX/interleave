@@ -1,7 +1,7 @@
-/** Test-only annotation protocol; not published in the library before94C. */
+/** Public metadata-only annotation protocol for the bounded sequentially consistent profile. */
 package dev.samhb.interleave.bytecode;
 
-/** Declares a pure observer;94A validates metadata and94B implements invocation. */
+/** Declares an interpreted pure observer with a separate per-invocation fuel allowance. */
 @java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.CLASS)
 @java.lang.annotation.Target(java.lang.annotation.ElementType.METHOD)
 public @interface Check {

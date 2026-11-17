@@ -283,6 +283,21 @@ public final class TestResult implements Serializable {
         return !failingTraces.isEmpty();
     }
 
+    /** Returns the common frozen BYTECODE identity, or null for legacy/source results.
+     * This validates all buckets rather than trusting a single selected display trace.
+     * @return consistent exact bytecode identity when present
+     * @throws IllegalArgumentException for mixed artifacts/profiles or incompatible run metadata */
+    public dev.samhb.interleave.core.BytecodeEvidence.Identity bytecodeIdentity() {
+        dev.samhb.interleave.core.BytecodeEvidence.Identity identity=null;boolean legacy=false;
+        for(var bucket:List.of(failingTraces,deadlockedTraces,completedTraces,incompleteTraces))for(var trace:bucket) {
+            var data=trace.bytecodeEvidence();
+            if(data==null){legacy=true;continue;}
+            if(identity==null)identity=data.identity();else if(!identity.equals(data.identity()))throw new IllegalArgumentException("Mixed bytecode identities");
+        }
+        if(identity!=null && (legacy || sourceModel || symmetryReduction || !Boolean.FALSE.equals(approximate)))throw new IllegalArgumentException("Conflicting bytecode run metadata");
+        return identity;
+    }
+
     /**
      * Returns JSON containing the recorded outcomes, execution metrics and optional raw resource prefix.
      * Serialization exports captured values only; it never replays the model or evaluates a property.
@@ -291,6 +306,14 @@ public final class TestResult implements Serializable {
     public String toJson() {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
+        var bytecode=bytecodeIdentity();
+        if(bytecode!=null) {
+            sb.append("  \"programKind\": \"BYTECODE\",\n  \"storeType\": \"EXACT\",\n");
+            sb.append("  \"bytecodeIdentity\": ").append(ResultJson.GSON.toJson(bytecode)).append(",\n");
+            sb.append("  \"requestedStrategy\": \"DFS\",\n  \"effectiveStrategy\": \"DFS\",\n  \"fallbackReason\": null,\n");
+            String verdict=hasViolation() || !deadlockedTraces.isEmpty() ? "VIOLATION" : limitExceeded || hasIncomplete() ? "INCOMPLETE" : "PASS";
+            sb.append("  \"verdict\": ").append(ResultJson.GSON.toJson(verdict)).append(",\n");
+        }
         if (symmetryReduction) sb.append("  \"symmetryReduction\": true,\n");
         sb.append("  \"strategy\": \"").append(strategy).append("\",\n");
         sb.append("  \"statesExplored\": ").append(statesExplored).append(",\n");

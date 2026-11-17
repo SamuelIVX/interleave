@@ -16,8 +16,14 @@ final class BytecodeScheduler {
     /** One executed opcode or implicit event at a real method/BCI position.
      * @param location real interpreted position
      * @param opcode executed opcode, null for an implicit event or omitted fuel operation
+     * @param event real opcode or classified finite implicit event
      */
-    record Executed(BytecodeLocation location,Opcode opcode) {}
+    record Executed(BytecodeLocation location,Opcode opcode,String event) {
+        /** Creates metadata for one actual opcode, retaining the internal two-argument test seam.
+         * @param location real position
+         * @param opcode actual opcode */
+        Executed(BytecodeLocation location,Opcode opcode){this(location,opcode,"OPCODE");}
+    }
 
     /** An owned scheduling result; no source step ordinals are manufactured.
      * @param state isolated successor
@@ -81,7 +87,12 @@ final class BytecodeScheduler {
             }
             var result=OpcodeExecutor.step(program,state,actor);var next=result.state();
             int charged=next.executions.get(actor).instructions-before.instructions;
-            executed.add(new Executed(probe.location(),charged==0 ? null : probe.opcode()));
+            String event=charged>0 ? "OPCODE" : probe.exhausted() ? "FUEL_CUTOFF" : switch(before.phase) {
+                case RUNNING -> "MONITOR_ENTER";case RETURNING -> "RETURN";case EXCEPTION -> "EXCEPTION";
+                case TERMINATION_PENDING -> "TERMINATION";case FAILURE_PENDING -> "FAILURE";case CUTOFF_PENDING -> "CUTOFF";
+                default -> throw new IllegalStateException("No executable implicit event");
+            };
+            executed.add(new Executed(probe.location(),charged==0 ? null : probe.opcode(),event));
             instructions+=charged;kind=result.kind();state=next;observable|=probe.observable();
             if(publication && kind==OpcodeExecutor.Kind.ADVANCED)sharing=sharing.plus(BytecodeSharing.refresh(state));
             // Every discovered return/fault/cutoff yields before terminal delivery, including local failures.

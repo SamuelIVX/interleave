@@ -2,6 +2,7 @@
 package dev.samhb.interleave.bytecode;
 
 import java.util.*;
+import dev.samhb.interleave.core.BytecodeEvidence;
 import static dev.samhb.interleave.bytecode.BytecodeState.*;
 
 /** Exact full-payload enumeration with bounded checker storage and concrete internal witnesses. */
@@ -76,10 +77,11 @@ final class BytecodeExplorer {
      * @param outcome normalized terminal observation
      * @param state isolated final/prefix state
      * @param schedule concrete selected transition sequence
+     * @param snapshots owned public views, empty for internal measurement-only execution
      */
-    record Witness(Outcome outcome,BytecodeState state,List<Selection> schedule) {
+    record Witness(Outcome outcome,BytecodeState state,List<Selection> schedule,List<BytecodeEvidence.Snapshot> snapshots) {
         /** Owns state and freezes the schedule, independently of the search stack. */
-        Witness {state=state.copy();schedule=List.copyOf(schedule);}
+        Witness {state=state.copy();schedule=List.copyOf(schedule);snapshots=List.copyOf(snapshots);}
     }
 
     /** Actual search and canonical-encoding work; retained payload bytes are not JVM retained memory.
@@ -117,8 +119,9 @@ final class BytecodeExplorer {
     /** Persistent path node avoids copying complete schedules at every search state.
      * @param previous selected prefix
      * @param selection last selected transition
+     * @param snapshot immutable committed state view when public capture is enabled
      */
-    private record Path(Path previous,Selection selection) {}
+    private record Path(Path previous,Selection selection,BytecodeEvidence.Snapshot snapshot) {}
 
     /** An iterative DFS stack frame; its target snapshot is never mutated by successors. */
     private static final class Frame {
@@ -134,6 +137,10 @@ final class BytecodeExplorer {
     }
 
     /** Immutable validated artifact. */ private final BytecodeProgram program;
+    /** Public evidence capture is opt-in; internal measurements retain their existing work. */ private final boolean captureEvidence;
+    /** Millisecond boundary deadline, null when absent. */ private final Long maxTimeMillis;
+    /** Per-run wall-clock origin, never visible to model checks. */ private long startedMillis;
+    /** Immutable initial public view for the current run. */ private BytecodeEvidence.Snapshot initialSnapshot;
     /** Mode-aware selected transitions. */ private final BytecodeScheduler scheduler;
     /** Hash prefilter buckets retain complete canonical payloads, matching HashingStateStore's exact policy. */
     private final Map<Integer,List<byte[]>> visited=new HashMap<>();
@@ -156,7 +163,18 @@ final class BytecodeExplorer {
      * @param mode scheduling granularity
      */
     BytecodeExplorer(BytecodeProgram program,BytecodeScheduler.Mode mode) {
+        this(program,mode,null,false);
+    }
+
+    /** Creates the owned public execution route with the same boundary-based deadline semantics as the runner.
+     * @param program validated model
+     * @param mode selected scheduling granularity
+     * @param maxTime optional duration, converted with the runner's millisecond semantics
+     * @param captureEvidence whether to retain immutable boundary diagnostics
+     */
+    BytecodeExplorer(BytecodeProgram program,BytecodeScheduler.Mode mode,java.time.Duration maxTime,boolean captureEvidence) {
         this.program=Objects.requireNonNull(program);scheduler=new BytecodeScheduler(program,mode);
+        this.captureEvidence=captureEvidence;this.maxTimeMillis=maxTime==null ? null : maxTime.toMillis();
     }
 
     /** Runs exact DFS with a64MiB canonical-payload safety budget.
@@ -171,20 +189,21 @@ final class BytecodeExplorer {
     Result explore(Budget budget) {
         Objects.requireNonNull(budget);visited.clear();witnesses.clear();states=transitions=opcodes=instructions=0;
         encodingCalls=encodingBytes=encodingNanos=keyBytes=checkInvocations=checkInstructions=0;traversalComplete=true;
+        startedMillis=System.currentTimeMillis();initialSnapshot=null;
         var initial=program.initialState();sharing=BytecodeSharing.refresh(initial);
         var stack=new ArrayDeque<Frame>();var root=visit(initial,null,budget);
         if(root!=null)stack.push(root);
         while(traversalComplete && !stack.isEmpty()) {
             var frame=stack.peek();
             if(frame.next==frame.choices.size()){stack.pop();continue;}
-            if(Thread.currentThread().isInterrupted()){interrupt(frame.state,frame.path,"CANCELLED");break;}
+            String stop=stopReason();if(stop!=null){interrupt(frame.state,frame.path,stop);break;}
             int actor=frame.choices.get(frame.next++);BytecodeScheduler.Transition transition;
             try {transition=scheduler.advance(frame.state,actor);}
             catch(java.util.concurrent.CancellationException cancelled){interrupt(frame.state,frame.path,"CANCELLED");break;}
             if(transition.kind()==OpcodeExecutor.Kind.BLOCKED)throw new IllegalStateException("Pure choice became disabled");
             transitions++;instructions+=transition.instructions();sharing=sharing.plus(transition.sharing());
             opcodes+=transition.executed().stream().filter(e->e.opcode()!=null).count();
-            var path=new Path(frame.path,new Selection(actor,transition.executed()));
+            var path=new Path(frame.path,new Selection(actor,transition.executed()),null);
             var next=visit(transition.state(),path,budget);if(next!=null)stack.push(next);
         }
         return new Result(new ArrayList<>(witnesses.values()),traversalComplete,
@@ -197,58 +216,42 @@ final class BytecodeExplorer {
      * @param budget checker budgets
      * @return an expandable frame, otherwise null */
     private Frame visit(BytecodeState state,Path path,Budget budget) {
-        if(Thread.currentThread().isInterrupted()){interrupt(state,path,"CANCELLED");return null;}
+        String stop=stopReason();
+        if(stop!=null){path=withSnapshot(state,path,state.canonicalBytes());interrupt(state,path,stop);return null;}
         long start=System.nanoTime();byte[] key=state.canonicalBytes();encodingNanos+=System.nanoTime()-start;
         encodingCalls++;encodingBytes+=key.length;
         int hash=Arrays.hashCode(key);var bucket=visited.get(hash);
         if(bucket!=null && bucket.stream().anyMatch(previous->Arrays.equals(previous,key)))return null;
+        path=withSnapshot(state,path,key);
         if(states>=budget.maxStates()){interrupt(state,path,"MAX_STATES");return null;}
         if(key.length>budget.maxKeyBytes()-keyBytes){interrupt(state,path,"KEY_BYTES");return null;}
         visited.computeIfAbsent(hash,ignored->new ArrayList<>()).add(key);states++;keyBytes+=key.length;
-        for(int actor=0;actor<program.actors.size();actor++) {
-            var execution=state.executions.get(actor);
-            if(execution.phase==Phase.FAILED || execution.phase==Phase.CUTOFF) {
-                record(state,path,execution.phase==Phase.FAILED ? Kind.UNCAUGHT_EXCEPTION : Kind.CUTOFF,
-                    actor,execution.fault,execution.cutoff,null,List.of(),null);return null;
-            }
+        var observed=BytecodeObservations.evaluate(program,state);
+        checkInvocations+=observed.invocations();checkInstructions+=observed.instructions();
+        if(observed.outcome()!=null) {
+            if(observed.outcome().kind()==Kind.INTERRUPTED)traversalComplete=false;
+            recordOutcome(state,path,observed.outcome());return null;
         }
-        if(!observe(state,path,true))return null;
-        if(java.util.stream.IntStream.range(0,program.actors.size()).allMatch(actor->state.executions.get(actor).phase==Phase.TERMINATED)) {
-            if(observe(state,path,false))record(state,path,Kind.COMPLETED,-1,null,null,null,List.of(),null);
-            return null;
-        }
-        var choices=scheduler.choices(state);
-        if(choices.isEmpty()) {
-            var waits=new ArrayList<Wait>();
-            for(int actor=0;actor<program.actors.size();actor++) {
-                var probe=OpcodeExecutor.probe(program,state,actor);
-                if(probe.availability()==OpcodeExecutor.Availability.BLOCKED) {
-                    var monitor=state.heap.get(probe.monitor());waits.add(new Wait(actor,monitor.monitorOwner,probe.monitor(),monitor.monitorDepth));
-                }
-            }
-            record(state,path,Kind.DEADLOCK,-1,null,null,null,waits,null);return null;
-        }
-        return new Frame(state,path,choices);
+        return new Frame(state,path,scheduler.choices(state));
     }
 
-    /** Evaluates one ordered observation group without adding scratch frames to model state.
+    /** Captures owned diagnostics only for public runs and only after a unique boundary is known.
      * @param state committed state
-     * @param path actual prefix
-     * @param always ALWAYS or FINAL group
-     * @return whether every selected check passed
-     */
-    private boolean observe(BytecodeState state,Path path,boolean always) {
-        var evaluation=BytecodeChecks.evaluate(program,state,always);
-        checkInvocations+=evaluation.invocations();checkInstructions+=evaluation.instructions();
-        var failure=evaluation.failure();if(failure==null)return true;
-        if(failure.kind()==BytecodeChecks.Kind.INTERRUPTED){interrupt(state,path,"CANCELLED");return false;}
-        var kind=switch(failure.kind()) {
-            case FALSE -> Kind.CHECK_FALSE;
-            case ERROR -> Kind.OBSERVER_ERROR;
-            case LIMIT -> Kind.OBSERVER_LIMIT;
-            case INTERRUPTED -> throw new IllegalStateException("Cancellation already handled");
-        };
-        record(state,path,kind,-1,null,null,null,List.of(),failure);return false;
+     * @param path selected prefix, null for root
+     * @param canonical complete membership payload
+     * @return path carrying its immutable public snapshot */
+    private Path withSnapshot(BytecodeState state,Path path,byte[] canonical) {
+        if(!captureEvidence)return path;
+        var snapshot=BytecodeSnapshots.capture(state,canonical);
+        if(path==null){initialSnapshot=snapshot;return null;}
+        return new Path(path.previous(),path.selection(),snapshot);
+    }
+
+    /** Checks host interruption/deadline at state visits, independently of modeled resources.
+     * @return honest external cause, otherwise null */
+    private String stopReason() {
+        if(Thread.currentThread().isInterrupted())return "CANCELLED";
+        return maxTimeMillis!=null && System.currentTimeMillis()-startedMillis>=maxTimeMillis ? "MAX_TIME" : null;
     }
 
     /** Records a checker stop without inventing a modeled resource cutoff.
@@ -270,11 +273,18 @@ final class BytecodeExplorer {
      * @param waits concrete monitor relationships
      * @param observer pure observer failure, otherwise null */
     private void record(BytecodeState state,Path path,Kind kind,int actor,Fault fault,Cutoff cutoff,String interruption,List<Wait> waits,BytecodeChecks.Failure observer) {
-        var shared=new TreeMap<Cell,Value>();state.statics.forEach((field,value)->shared.put(new Cell(NULL,field),value));
-        state.heap.forEach((reference,object)->{if(object.shared)object.fields.forEach((field,value)->shared.put(new Cell(reference,field),value));});
-        var outcome=new Outcome(kind,actor,fault,cutoff,interruption,waits,shared,observer);
+        recordOutcome(state,path,BytecodeObservations.outcome(state,kind,actor,fault,cutoff,interruption,waits,observer));
+    }
+
+    /** Retains actual schedules and immutable views without replaying a cancelled target execution.
+     * @param state committed terminal state
+     * @param path actual prefix
+     * @param outcome normalized observation */
+    private void recordOutcome(BytecodeState state,Path path,Outcome outcome) {
         if(witnesses.containsKey(outcome))return;
-        var schedule=new ArrayList<Selection>();for(var node=path;node!=null;node=node.previous())schedule.add(node.selection());
-        Collections.reverse(schedule);witnesses.put(outcome,new Witness(outcome,state,schedule));
+        var schedule=new ArrayList<Selection>();var snapshots=new ArrayList<BytecodeEvidence.Snapshot>();
+        for(var node=path;node!=null;node=node.previous()){schedule.add(node.selection());if(captureEvidence)snapshots.add(node.snapshot());}
+        Collections.reverse(schedule);Collections.reverse(snapshots);if(captureEvidence)snapshots.addFirst(initialSnapshot);
+        witnesses.put(outcome,new Witness(outcome,state,schedule,snapshots));
     }
 }
