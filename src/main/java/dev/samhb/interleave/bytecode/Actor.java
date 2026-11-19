@@ -1,4 +1,4 @@
-/** Test-only annotation protocol; not published in the library before94C. */
+/** Public metadata-only annotation protocol for the bounded sequentially consistent profile. */
 package dev.samhb.interleave.bytecode;
 
 /** Declares one fixed actor entry method. */

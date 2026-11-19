@@ -70,8 +70,9 @@ val mutationHarnessJavadoc = tasks.register<Javadoc>("mutationHarnessJavadoc") {
 tasks.javadoc { dependsOn(mutationHarnessJavadoc) }
 
 tasks.test {
-    dependsOn(mutationHarnessJar)
+    dependsOn(mutationHarnessJar, tasks.jar)
     doFirst {
+        systemProperty("interleave.releaseJar", tasks.jar.get().archiveFile.get().asFile.absolutePath)
         systemProperty("interleave.mutationHarnessJar", mutationHarnessJar.get().archiveFile.get().asFile.absolutePath)
         systemProperty("interleave.testRuntimeClasspath", sourceSets.test.get().runtimeClasspath.asPath)
     }
@@ -287,7 +288,8 @@ pitest {
     // There is no `maxMemoryInMc` on this plugin; per-minion heap is a plain JVM arg,
     // which is the more general lever since this is also where -XX flags would go.
     jvmArgs.set(listOf("-Xmx${pitestMaxMemoryMc}m",
-        "-javaagent:${mutationHarnessJar.get().archiveFile.get().asFile.absolutePath}"))
+        "-javaagent:${mutationHarnessJar.get().archiveFile.get().asFile.absolutePath}",
+        "-Dinterleave.releaseJar=${tasks.jar.get().archiveFile.get().asFile.absolutePath}"))
 
     // Must exceed the slowest covering test's normal runtime by a clear margin.
     //
@@ -814,7 +816,7 @@ tasks.register("mutationRatchet") {
 }
 
 tasks.named("pitest") {
-    dependsOn(mutationHarnessJar)
+    dependsOn(mutationHarnessJar, tasks.jar)
     inputs.file(mutationHarnessJar.flatMap { it.archiveFile })
     finalizedBy(tasks.named("mutationRatchet"))
 }

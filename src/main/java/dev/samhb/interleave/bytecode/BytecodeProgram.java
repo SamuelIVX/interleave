@@ -1,14 +1,14 @@
 /**
- * Immutable internal bytecode artifact and interpreted setup snapshot.
+ * Immutable frozen bytecode artifact and interpreted setup snapshot.
  */
 package dev.samhb.interleave.bytecode;
 
 import java.util.*;
 
 /**
- * Closed validated metadata; has no public construction or execution interface in 94A.
+ * Closed validated metadata, constructed only by the metadata-only loader.
  */
-final class BytecodeProgram {
+public final class BytecodeProgram {
     /**
      * Field identity.
      * @param owner declaring internal class
@@ -101,7 +101,22 @@ final class BytecodeProgram {
      * Returns the exact frozen manifest fingerprint.
      * @return exact frozen class-manifest digest
      */
-    String artifactDigest() { return digest; }
+    public String artifactDigest() { return digest; }
+
+    /** Version of the admitted language, intrinsic costs and sequentially consistent execution profile. */
+    static final String PROFILE_VERSION="BYTECODE-SC-1";
+
+    /** Returns the frozen execution-profile version used to authenticate evidence.
+     * @return bounded sequentially consistent profile identifier */
+    public String profileVersion(){return PROFILE_VERSION;}
+
+    /** Returns the immutable selected execution allowances.
+     * @return validated per-owner limits */
+    public BytecodeLimits limits(){return limits;}
+
+    /** Returns the selected model's binary class name, independent of the class-directory path.
+     * @return selected fixture binary name */
+    public String modelClass(){return model.replace('/','.');}
 
     /**
      * Creates an isolated post-setup state with fresh actor frames.

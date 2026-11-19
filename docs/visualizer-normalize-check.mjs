@@ -5,11 +5,11 @@
 // Run: node docs/visualizer-normalize-check.mjs
 import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
-import { dirname, join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const read = (rel) => readFileSync(join(root, rel), 'utf8');
+const read = (rel) => readFileSync(resolve(root, rel), 'utf8');
 const src = read('docs/visualizer.js');
 // Extract normalize(). A guard is required rather than a bare slice:
 // indexOf returns -1 on a rename or reformat, and slice(-1, ...) would then yield garbage and
@@ -247,5 +247,29 @@ for(const invalid of [
   {...resourceRun,resourceLimitReason:'MAX_TIME'}, {...resourceRun,resourcePrefix:null}
 ]) assert.throws(()=>normalize(invalid), /resource|Resource|source|Misaligned|failure/);
 assert.equal(normalize({...resource,replay:{...replay,states:[replay.states[0],{locals:terminalState.locals,fields:terminalState.fields}]}}).meta.verdict, 'INCOMPLETE');
+// Fresh BYTECODE producers preserve run precision and distinct instruction locations.
+if(process.env.BYTECODE_DIR){
+  assert.equal(read(resolve(root,process.env.BYTECODE_DIR,'bytecode-lost-update.json')),read(process.env.BYTECODE_DIR+'/bytecode-lost-update.json'),'Configured relative and absolute BYTECODE directories identify the same artifact');
+  const expected={'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION'};
+  for(const [name,verdict] of Object.entries(expected)){
+    const raw=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-'+name+'.json'));
+    const value=normalize(raw);assert.equal(value.meta.verdict,verdict,name);
+    assert.equal(value.meta.programKind,'BYTECODE');assert(value.trace.bytecodeEvidence);
+    assert.equal(value.trace.executedSteps,undefined);assert.equal(value.trace.sourceDigest,undefined);
+    if(name==='no-line')assert(value.trace.bytecodeEvidence.transitions.every(t=>t.operations.every(op=>op.line==null)));
+    if(name==='deadlock')assert.equal(value.trace.bytecodeEvidence.terminal.waits.length,2);
+  }
+  const report=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-report.json'));
+  const bytecodeRow=report.benchmarks[0];
+  assert.equal(normalize({benchmarks:[{bug:'legacy',verdict:'PASS'},bytecodeRow]}).meta.programKind,'BYTECODE');
+  assert.equal(normalize({benchmarks:[{bug:'legacy',verdict:'VIOLATION',failingTrace:{threads:[0],outcomes:['ADVANCED']}},bytecodeRow]}).meta.bug,'legacy');
+  const raw=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-lost-update.json'));
+  for(const change of [x=>x.storeType='BITSTATE',x=>x.verdict='PASS',x=>x.failingTraces[0].sourceDigest='0'.repeat(64),
+    x=>x.failingTraces[0].bytecodeEvidence.version=2,x=>x.failingTraces[0].bytecodeEvidence.identity.mode='REFERENCE',
+    x=>x.failingTraces[0].bytecodeEvidence.snapshots[0].fields['bad']={type:'LONG',raw:9007199254740992}]){
+    const altered=structuredClone(raw);change(altered);assert.throws(()=>normalize(altered));
+  }
+}
+
 console.log(fails === 0 ? '\nall checks passed' : `\n${fails} FAILED`);
 process.exit(fails === 0 ? 0 : 1);

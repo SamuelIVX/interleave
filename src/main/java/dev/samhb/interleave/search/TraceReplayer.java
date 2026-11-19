@@ -14,6 +14,22 @@ public final class TraceReplayer {
     /** Creates trace replayer with its default configuration. */
     public TraceReplayer() {}
 
+    /** Strictly replays a BYTECODE record through owned interpreted state and declared pure checks.
+     * Validates artifact/model/declaration/profile/limits/mode identity, enabled original choices,
+     * real operations, snapshots, checks, monitors and modeled cutoffs. External interruptions retain
+     * their original incompleteness alongside the separately observed replay prefix.
+     * See {@link dev.samhb.interleave.format.BytecodeProgramLoader} for a complete matching-program example.
+     * @param program immutable selected bytecode artifact
+     * @param record original immutable BYTECODE record
+     * @return authenticated record with owned actual snapshots and replay observations
+     * @throws CorruptedTraceException for mismatched identity, evidence or terminal meaning
+     * @throws IllegalScheduleException for foreign, disabled or terminated actor choices
+     * @throws java.util.concurrent.CancellationException for caller interruption
+     * @throws NullPointerException for null arguments */
+    public TraceRecord replayBytecode(dev.samhb.interleave.bytecode.BytecodeProgram program,TraceRecord record) {
+        return dev.samhb.interleave.bytecode.BytecodeRuntime.replay(program,record);
+    }
+
     /**
      * Replays thread choices while validating each step outcome against the trace.
      *
@@ -153,6 +169,7 @@ public final class TraceReplayer {
      * @return enriched trace record containing captured state snapshots
      */
     public TraceRecord enrich(Program program, TraceRecord record) {
+        if(record.bytecodeEvidence()!=null)throw new CorruptedTraceException("Use replayBytecode for BYTECODE evidence");
         Trace trace = new Trace(record.threadIds(), record.outcomes(), record.outcome(), record.evidence());
         List<StateSnapshot> snapshots = captureSnapshots(program, trace);
         return record.withStates(snapshots);

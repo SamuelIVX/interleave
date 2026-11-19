@@ -26,6 +26,10 @@ import java.util.function.LongSupplier;
  * The concrete-store builder option may reuse a supplied store when freshCopy is unsupported.
  */
 public final class InterleaveRunner implements Serializable {
+    /** Whether a caller supplied generic membership that bytecode must reject before invocation. */
+    private final boolean stateStoreExplicit;
+    /** Whether a symmetry backend was explicitly selected. */
+    private final boolean symmetryBackendExplicit;
     /** Strategy. */
     private final Strategy strategy;
     /** Whether checked model orbit search is selected. */
@@ -54,6 +58,7 @@ public final class InterleaveRunner implements Serializable {
      * @param builder builder whose settings are captured
      */
     private InterleaveRunner(Builder builder) {
+        this.stateStoreExplicit=builder.stateStoreExplicit;this.symmetryBackendExplicit=builder.symmetryBackendExplicit;
         this.strategy = builder.strategy;
         this.symmetryReduction = builder.symmetryReduction;
         this.symmetryBackend = builder.symmetryBackend;
@@ -65,6 +70,20 @@ public final class InterleaveRunner implements Serializable {
         this.maxTime = builder.maxTime;
         this.maxPreemptions = builder.maxPreemptions;
         this.iterativeDeepening = builder.iterativeDeepening;
+    }
+
+    /** Runs a frozen bytecode model with its declared pure checks and owned exact DFS storage.
+     * Each run owns fresh execution state. Generic properties/stores, symmetry and unavailable strategies
+     * reject before any caller callback can run. Public bytecode execution uses reviewed local batching.
+     * @param program immutable metadata-only loaded artifact
+     * @return precise BYTECODE results, snapshots and replayable findings
+     * @throws IllegalArgumentException for incompatible generic/symmetry/strategy settings
+     * @throws NullPointerException for a null program
+     * @throws ArithmeticException if the selected duration cannot be represented in milliseconds */
+    public TestResult runBytecode(dev.samhb.interleave.bytecode.BytecodeProgram program) {
+        if(strategy!=Strategy.DFS || invariant!=null || stateStoreExplicit || symmetryReduction || symmetryBackendExplicit || symmetryBits>0)
+            throw new IllegalArgumentException("Bytecode94C requires exact DFS, declared checks and owned storage; generic callbacks and symmetry are unsupported");
+        return dev.samhb.interleave.bytecode.BytecodeRuntime.run(java.util.Objects.requireNonNull(program),maxStates,maxTime);
     }
 
     /** Creates membership while preventing an unmarked symmetry result through a custom factory.

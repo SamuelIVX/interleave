@@ -6,7 +6,7 @@
 
 import { createServer } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
-import { join, extname, dirname } from 'node:path';
+import { join, extname, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
@@ -205,6 +205,37 @@ async function runTests() {
 
     const verdictIncomplete = await page.locator('#verdictBadge').textContent();
     assert(verdictIncomplete === 'INCOMPLETE', 'incomplete-only renders INCOMPLETE verdict');
+
+    if(process.env.BYTECODE_DIR){
+      for(const [name,verdict] of Object.entries({'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION'})){
+        const payload=readFileSync(resolve(projectRoot,process.env.BYTECODE_DIR,`bytecode-${name}.json`),'utf8');
+        await page.locator('#clearBtn').click();await page.locator('#paste').fill(payload);await page.locator('#loadPaste').click();
+        assert(!(await page.locator('#error').getAttribute('class')).includes('show'),`${name}: fresh BYTECODE payload accepted`);
+        assert(await page.locator('#verdictBadge').textContent()===verdict,`${name}: BYTECODE retains ${verdict}`);
+        const meta=await page.locator('#meta').textContent();
+        assert(meta.includes('BYTECODE BYTECODE-SC-1') && meta.includes('artifact'),`${name}: artifact profile rendered`);
+        if(name==='deadlock'){
+          assert(meta.includes('monitor wait') && meta.includes('waits for'), 'Concrete deadlock ownership rendered');
+          assert((await page.locator('#stateStrip').textContent()).includes('owner actor 0; depth 1'),'Selected deadlock snapshot shows held monitor depth');
+          await page.locator('#timeline tbody tr[data-idx="0"]').click();
+          assert(!(await page.locator('#stateStrip').textContent()).includes('owner actor '),'Initial configuration shows unowned monitors');
+        }
+        if(name==='fault')assert(meta.includes('ArithmeticException') && meta.includes('BCI'), 'Modeled fault location rendered');
+        if(name==='cutoff')assert(meta.includes('required') && meta.includes('remaining'), 'Exact cutoff allowance rendered');
+        if(name==='interrupted')assert(meta.includes('original run INCOMPLETE'),'External stop remains incomplete');
+        if(!['root','observer','interrupted'].includes(name))assert((await page.locator('#timeline').textContent()).includes('BCI'),'Timeline uses real method/BCI labels');
+      }
+      const unsafe=JSON.parse(readFileSync(resolve(projectRoot,process.env.BYTECODE_DIR,'bytecode-no-line.json'),'utf8'));
+      const t=unsafe.completedTraces[0];
+      t.bytecodeEvidence.transitions[0].operations[0].location.name='<img src=x onerror=alert(1)>';
+      await page.locator('#clearBtn').click();await page.locator('#paste').fill(JSON.stringify(unsafe));await page.locator('#loadPaste').click();
+      assert(!(await page.locator('#error').getAttribute('class')).includes('show'),'Untrusted BYTECODE label payload is accepted');
+      assert((await page.locator('#timeline').textContent()).includes('<img src=x onerror=alert(1)>'),'Exact untrusted BYTECODE method label appears literally');
+      assert(await page.locator('#timeline img').count()===0,'Untrusted BYTECODE labels remain text');
+      unsafe.verdict='VIOLATION';
+      await page.locator('#paste').fill(JSON.stringify(unsafe));await page.locator('#loadPaste').click();
+      assert((await page.locator('#error').getAttribute('class')).includes('show'),'Conflicting BYTECODE run verdict rejected');
+    }
 
     // -------------------------------------------------------------
     // Test 7: Program File Load alongside Trace

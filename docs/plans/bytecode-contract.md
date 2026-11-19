@@ -3,7 +3,7 @@
 
 ## Objective and status
 
-**Selected; internal94A/94B implemented, public release pending.** Approved scope: controlled interpretation of compiled Java for fixed
+**Selected; 94A/94B implemented, 94C initial public profile locally accepted; PR/CI/manual review pending.** Approved scope: controlled interpretation of compiled Java for fixed
 actors under bounded sequential consistency (SC). The first public release must find a real lost update
 and a two-lock deadlock through loading, search, evidence, strict replay, library/CLI, reports and viewer.
 No target-code host-JVM fallback is permitted. This is not unrestricted Java or full Java Memory Model coverage.
@@ -13,8 +13,8 @@ PRs #136/#137 and its closure commit. Sam explicitly selected #12 after that sto
 and parked conditional/deferred tasks remain unselected. The specification PR established no runtime
 evidence. The [94A implementation ledger](../measurements/94A-bytecode-foundation.md) records subsequent
 loader/single-actor evidence; [the94B ledger](../measurements/94B-bytecode-concurrency.md) records
-internal concurrent execution, batching preservation and measured setup-only sharedness costs. Public
-consumer support, broader heap costs, restricted DPOR and JPF gates remain pending. [Vocabulary](../../CONTEXT.md) owns domain terms; this document
+internal concurrent execution, batching preservation and measured setup-only sharedness costs. The [94C ledger](../measurements/94C-bytecode-release.md) records public library/CLI, replay and consumer
+verification. Broader heap costs, restricted DPOR and JPF gates remain pending. [Vocabulary](../../CONTEXT.md) owns domain terms; this document
 owns common behavior, interface seams, verification and phase boundaries.
 
 ## Sequential delivery and ownership
@@ -428,7 +428,9 @@ executor. Batching requires a stuttering/observation argument covering resource 
 99 additionally needs an independence/sleep-coverage preservation argument. Each names assumptions,
 state relation, event matching, counterexample tests and limits. A green suite alone is not a proof.
 
-[unverified] All bytecode performance/sharedness measurements, optimized reduction and JPF compatibility.
+[verified, 94B] Reference/batched tiny-fixture measurements, setup-only sharedness costs and batching
+preservation are recorded in the [94B ledger](../measurements/94B-bytecode-concurrency.md).
+[unverified] Broader-heap sharedness costs, optimized reduction measurements and JPF compatibility.
 [deferred research] Frozen exhausted actors, fuel-free cycle detection, broader cyclic DPOR and
 initializer allowlists. None is a release requirement or implied optimization opportunity.
 

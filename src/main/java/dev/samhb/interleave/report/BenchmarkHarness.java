@@ -134,6 +134,21 @@ public final class BenchmarkHarness {
         this.iterativeDeepening = iterativeDeepening;
     }
 
+    /** Runs the initial BYTECODE profile with owned exact DFS storage and declared checks.
+     * Null filters select that profile's sole supported combination.
+     * See {@link dev.samhb.interleave.format.BytecodeProgramLoader} for a complete compiled-example workflow.
+     * @param program frozen validated bytecode model
+     * @return one complete report row with strictly replayable witnesses
+     * @throws IllegalArgumentException for unavailable strategy, store or symmetry selections */
+    public List<BenchmarkResult> runBytecode(dev.samhb.interleave.bytecode.BytecodeProgram program) {
+        if ((storeFilter != null && !storeFilter.equals(Set.of(StoreType.EXACT)))
+                || (strategyFilter != null && !strategyFilter.equals(Set.of("DFS")))
+                || symmetryReduction || iterativeDeepening || maxPreemptions != DEFAULT_MAX_PREEMPTIONS)
+            throw new IllegalArgumentException("BYTECODE currently requires exact DFS without symmetry or CBS settings");
+        var result = dev.samhb.interleave.InterleaveRunner.builder().build().runBytecode(program);
+        return List.of(new BenchmarkResult(program, result));
+    }
+
     /**
      * Runs the complete benchmark suite for all programs in the corpus.
      * Returns up to 8 results per program: 4 strategies × 2 store types,

@@ -9,14 +9,20 @@ The headline artifact is a states-explored reduction table: naive DFS → +hashi
 Concurrency bugs — race conditions, deadlocks, missed signals — are notoriously hard to find because they depend on exact thread ordering. Rather than running a program once and hoping for the right schedule, this checker systematically explores every distinct interleaving and reports the exact `(thread, step)` schedule that reaches a bad state.
 
 The selected [#12 bounded Java bytecode workstream](docs/plans/bytecode-contract.md)
-has an **internal loader, interpreter and concurrent exact DFS** (94A/94B; [foundation](docs/measurements/94A-bytecode-foundation.md), [concurrency evidence](docs/measurements/94B-bytecode-concurrency.md)).
-94B includes pure checks and measured instruction-reference/batched execution. Public evidence/CLI/library selection follows in 94C; no public bytecode
-selection is available yet. Weak-memory work remains unselected.
+now exposes the initial **bounded, sequentially consistent bytecode profile**: annotated fixed actors,
+exact DFS, monitor deadlocks, declared checks, artifact-bound evidence and strict replay through the
+library, CLI, reports and viewer. Start with the [compiled lost-update and two-lock examples](examples/bytecode/README.md).
+The [94C release ledger](docs/measurements/94C-bytecode-release.md) records validation and limitations;
+[94B](docs/measurements/94B-bytecode-concurrency.md) owns the batching measurements and preservation argument.
+Objects/arrays, general exceptions, wider primitives/libraries and additional bytecode search strategies
+remain later phases. Weak-memory work remains unselected.
 
-The project is built as a clean, spec-driven proof-of-concept. It is not a production Java bytecode checker; programs are modeled as explicit atomic steps or bounded `.ilv` source over cloneable shared state so the core algorithms can be taught, verified, and measured.
+The project is a spec-driven proof of concept for small explicit models, bounded `.ilv` source and a
+restricted interpreted Java profile. It does not execute unrestricted Java or claim Java Memory Model coverage.
 
 ## What it does
 
+- **Compiled Java models** — explicitly compile annotated fixtures, then select `--bytecode <binary-name> --class-path <directory>`; exact DFS is the initial supported bytecode strategy.
 - **Readable source models** — `.ilv` atomic blocks, bounded reusable helpers, branching, repetition and bounded loops share the existing checker and source-aware trace viewer.
 - **Exhaustive DFS** — tries every enabled thread at every reachable configuration.
 - **State hashing** — collapses identical configurations so the search space becomes a DAG instead of a tree.
@@ -77,6 +83,8 @@ Available bugs: `peterson`, `broken-peterson`, `broken-peterson-v2`, `deadlock`,
 | `--all` | Run entire corpus |
 | `--file <path>` | Load program from JSON file |
 | `--source <path>` | Load a bounded concurrent `.ilv` source model |
+| `--bytecode <binary-name>` | Check a compiled annotated Java model; requires `--class-path`, defaults to DFS/EXACT |
+| `--class-path <directory>` | Sole immutable class directory for BYTECODE; no jars or automatic compilation |
 | `--symmetry` | Opt-in checked symmetry for source or certified declarative JSON; requires explicit `--store exact` or `--store bitstate` (default `both` is rejected) |
 
 ### Examples

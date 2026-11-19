@@ -1,5 +1,5 @@
 /**
- * Immutable internal resource profile; public bytecode selection remains unavailable until 94C.
+ * Immutable resource profile for controlled bytecode interpretation.
  */
 package dev.samhb.interleave.bytecode;
 
@@ -16,14 +16,14 @@ package dev.samhb.interleave.bytecode;
  * @param setupHeapCells setup cell allowance
  * @param checkInstructions observer invocation work allowance
  */
-record BytecodeLimits(int actorInstructions, int actorAllocations, int actorHeapCells,
+public record BytecodeLimits(int actorInstructions, int actorAllocations, int actorHeapCells,
                       int maxCallDepth, int maxArrayLength, int maxStringLength,
                       int setupInstructions, int setupAllocations, int setupHeapCells,
-                      int checkInstructions) {
+                      int checkInstructions) implements java.io.Serializable {
     /**
      * Rejects zero, negative and above-ceiling limits before any target input is processed.
      */
-    BytecodeLimits {
+    public BytecodeLimits {
         int[] values = {actorInstructions, actorAllocations, actorHeapCells, maxCallDepth,
             maxArrayLength, maxStringLength, setupInstructions, setupAllocations, setupHeapCells, checkInstructions};
         int[] ceilings = {4096,4096,65536,256,4096,4096,65536,4096,65536,16384};
@@ -36,9 +36,9 @@ record BytecodeLimits(int actorInstructions, int actorAllocations, int actorHeap
 
     /**
      * Returns the provisional resource profile for the first bytecode release.
-     * @return provisional engineering defaults, subject to the 94B measurement gate
+     * @return provisional engineering defaults, reviewed against the 94B feasibility fixtures
      */
-    static BytecodeLimits defaults() {
+    public static BytecodeLimits defaults() {
         return new BytecodeLimits(256,128,8192,32,64,256,4096,128,8192,1024);
     }
 }

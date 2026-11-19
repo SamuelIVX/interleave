@@ -80,6 +80,7 @@ public final class SoundnessAttestation {
             .toList();
 
         for (BenchmarkResult result : exactResults) {
+            if (result.bytecodeResult() != null) continue;
             String key = result.bugName();
             String actualVerdict = result.verdict();
             BenchmarkProgram program = programs.get(key);
@@ -114,6 +115,20 @@ if (program != null) {
         // report violations. A violation found under a bounded search is a real schedule, so the
         // replay check must cover it rather than being skipped along with the inconclusive ones.
         for (BenchmarkResult result : results) {
+            if (result.bytecodeResult() != null) {
+                try {
+                    var run = result.bytecodeResult();
+                    var traces = new java.util.ArrayList<dev.samhb.interleave.TraceRecord>();
+                    traces.addAll(run.failingTraces()); traces.addAll(run.deadlockedTraces());
+                    traces.addAll(run.completedTraces()); traces.addAll(run.incompleteTraces());
+                    if (traces.isEmpty() || run.bytecodeIdentity() == null) return SoundnessCheck.failed("Missing BYTECODE evidence");
+                    var replayer = new TraceReplayer();
+                    for (var trace : traces) replayer.replayBytecode(result.bytecodeProgram(), trace);
+                } catch (RuntimeException invalid) {
+                    return SoundnessCheck.failed("BYTECODE replay failed for " + result.bugName() + ": " + invalid.getMessage());
+                }
+                continue;
+            }
             if ("VIOLATION".equals(result.verdict())) {
                 Trace failingTrace = result.failingTrace().orElse(null);
                 if (failingTrace == null) {

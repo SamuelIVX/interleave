@@ -71,6 +71,17 @@ public final class ReportWriter {
         sb.append(table.formatMarkdown());
         sb.append("\n");
 
+        for (var row : results) {
+            if (row.bytecodeResult() != null) {
+                var run = row.bytecodeResult();
+                sb.append("## BYTECODE evidence\n\nArtifact: `").append(run.bytecodeIdentity().artifactDigest())
+                    .append("` · profile `").append(run.bytecodeIdentity().profileVersion())
+                    .append("` · requested/effective DFS · EXACT · ").append(row.verdict()).append("\n\n");
+                sb.append("Witness details (real method/BCI locations, monitor waits, checks and cutoffs):\n\n```json\n")
+                    .append(run.toJson()).append("\n```\n\n");
+            }
+        }
+
         SoundnessAttestation attestation = new SoundnessAttestation(results, programs);
         sb.append(attestation.formatMarkdown());
 
@@ -94,6 +105,12 @@ public final class ReportWriter {
 
         for (int i = 0; i < results.size(); i++) {
             BenchmarkResult result = results.get(i);
+            if (result.bytecodeResult() != null) {
+                sb.append(formatBytecode(result));
+                if (i < results.size() - 1) sb.append(",");
+                sb.append("\n");
+                continue;
+            }
             boolean symmetryReduction = result.symmetryReduction();
             sb.append("    {\n");
             if (symmetryReduction) sb.append("      \"symmetryReduction\": true,\n");
@@ -143,6 +160,23 @@ public final class ReportWriter {
         sb.append("}\n");
 
         return sb.toString();
+    }
+
+    /** Emits owned BYTECODE rows without fabricating legacy source evidence.
+     * @param row harness-produced result
+     * @return consumer-compatible row with complete typed run and representative witnesses */
+    private static String formatBytecode(BenchmarkResult row) {
+        var run = row.bytecodeResult();
+        // Preserve the producer's escaped UTF-16 text through UTF-8 transport. Generic Gson
+        // reparsing/reserialization can reintroduce isolated surrogates into the output string.
+        var json = new StringBuilder(run.toJson().stripTrailing());
+        json.setLength(json.length() - 1);
+        json.append(",\n  \"bug\": ").append(GSON.toJson(row.bugName()));
+        json.append(",\n  \"preemptionsUsed\": null");
+        var failures = !run.failingTraces().isEmpty() ? run.failingTraces() : run.deadlockedTraces();
+        if (!failures.isEmpty()) json.append(",\n  \"failingTrace\": ").append(failures.getFirst().toJson());
+        if (!run.incompleteTraces().isEmpty()) json.append(",\n  \"incompleteTrace\": ").append(run.incompleteTraces().getFirst().toJson());
+        return json.append("\n}").toString();
     }
 
     /**

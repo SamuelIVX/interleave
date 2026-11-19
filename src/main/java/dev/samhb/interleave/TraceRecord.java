@@ -21,6 +21,8 @@ public final class TraceRecord implements Serializable {
     private final String programHash;
     /** State snapshots. */
     private final List<StateSnapshot> states;
+    /** Optional immutable BYTECODE diagnostics; source metadata is never fabricated for this profile. */
+    private final dev.samhb.interleave.core.BytecodeEvidence bytecodeEvidence;
     /** Optional immutable source diagnostics. */
     private final TraceEvidence evidence;
 
@@ -62,6 +64,21 @@ public final class TraceRecord implements Serializable {
      */
     public TraceRecord(List<Integer> threadIds, List<StepOutcome> outcomes, TraceOutcome outcome, String programHash,
                        List<StateSnapshot> states, TraceEvidence evidence) {
+        this(threadIds,outcomes,outcome,programHash,states,evidence,null);
+    }
+
+    /** Creates an aligned record with explicitly separate source or bytecode payloads.
+     * Native streams are build-specific; this field addition deliberately changes the generated UID.
+     * @param threadIds original selected actors
+     * @param outcomes actual coarse operation outcomes
+     * @param outcome original terminal category
+     * @param programHash diagnostic hash, equal to artifact identity for bytecode
+     * @param states immutable display snapshots
+     * @param evidence optional source diagnostics
+     * @param bytecodeEvidence optional artifact-bound bytecode diagnostics
+     * @throws IllegalArgumentException for conflicting profiles or misaligned bytecode data */
+    public TraceRecord(List<Integer> threadIds,List<StepOutcome> outcomes,TraceOutcome outcome,String programHash,
+                       List<StateSnapshot> states,TraceEvidence evidence,dev.samhb.interleave.core.BytecodeEvidence bytecodeEvidence) {
         this.threadIds = List.copyOf(threadIds);
         this.outcomes = List.copyOf(outcomes);
         this.outcome = outcome;
@@ -69,8 +86,14 @@ public final class TraceRecord implements Serializable {
         this.states = states == null ? List.of() : List.copyOf(states);
         if (threadIds.size() != outcomes.size() || (evidence != null && evidence.sourceDigest() != null
                 && evidence.executedSteps().size() != threadIds.size())) throw new IllegalArgumentException("Misaligned trace");
-        this.evidence = evidence;
+        this.evidence = evidence;this.bytecodeEvidence=bytecodeEvidence;
+        if(bytecodeEvidence!=null && (evidence!=null || !java.util.Objects.equals(programHash,bytecodeEvidence.identity().artifactDigest())
+            || bytecodeEvidence.transitions().size()!=threadIds.size() || this.states.size()!=threadIds.size()+1))throw new IllegalArgumentException("Conflicting or misaligned BYTECODE record");
     }
+
+    /** Returns distinct artifact-bound bytecode diagnostics, otherwise null.
+     * @return immutable BYTECODE payload, never source spans */
+    public dev.samhb.interleave.core.BytecodeEvidence bytecodeEvidence(){return bytecodeEvidence;}
 
     /** Returns source diagnostics, or null for legacy records.
      * @return source diagnostics, or null for legacy records
@@ -123,8 +146,17 @@ public final class TraceRecord implements Serializable {
      * @return enriched trace record
      */
     public TraceRecord withStates(List<StateSnapshot> states) {
-        return new TraceRecord(this.threadIds, this.outcomes, this.outcome, this.programHash, states, evidence);
+        return new TraceRecord(this.threadIds, this.outcomes, this.outcome, this.programHash, states, evidence,bytecodeEvidence);
     }
+
+    /** Imports a bounded BYTECODE witness without executing model code.
+     * The payload remains untrusted until {@code TraceReplayer.replayBytecode} authenticates it.
+     * Existing source and declarative import routes retain their own schemas.
+     * @param json JSON produced by {@link #toJson()} for a BYTECODE record
+     * @return immutable typed trace
+     * @throws IllegalArgumentException for malformed, oversized or conflicting evidence
+     */
+    public static TraceRecord fromJson(String json) { return BytecodeTraceJson.read(json); }
 
     /**
      * Serializes thread choices, step outcomes, terminal verdict, the optional program fingerprint,
@@ -134,6 +166,7 @@ public final class TraceRecord implements Serializable {
     public String toJson() {
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
+        if(bytecodeEvidence!=null)sb.append("  \"programKind\": \"BYTECODE\",\n  \"bytecodeEvidence\": ").append(GSON.toJson(bytecodeEvidence)).append(",\n");
         sb.append("  \"threads\": [");
         for (int i = 0; i < threadIds.size(); i++) {
             if (i > 0) sb.append(", ");
@@ -160,6 +193,6 @@ public final class TraceRecord implements Serializable {
             if (evidence.cutoff() != null) sb.append(",\n  \"cutoff\": ").append(GSON.toJson(evidence.cutoff()));
         }
         sb.append("\n}");
-        return sb.toString();
+        return bytecodeEvidence == null ? sb.toString() : ResultJson.bytecodeText(sb.toString());
     }
 }

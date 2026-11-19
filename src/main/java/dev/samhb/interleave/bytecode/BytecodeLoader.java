@@ -34,7 +34,7 @@ final class BytecodeLoader {
      */
     static final int MAX_CLASSES=64;
     /**
-     * Annotation protocol prefix; definitions are test-only until94C.
+     * Annotation protocol prefix; definitions are parsed as metadata, never reflectively invoked.
      */
     private static final String ANNOTATION="Ldev/samhb/interleave/bytecode/";
     /**
@@ -496,7 +496,7 @@ final class BytecodeLoader {
         try {
             var digest=MessageDigest.getInstance("SHA-256");
             var sink=new DataOutputStream(new DigestOutputStream(OutputStream.nullOutputStream(),digest));
-            sink.writeUTF("BYTECODE-94A-1"); sink.writeInt(bytes.size());
+            sink.writeUTF(BytecodeProgram.PROFILE_VERSION); sink.writeInt(bytes.size());
             for (var entry : bytes.entrySet()) {
                 byte[] name=entry.getKey().getBytes(java.nio.charset.StandardCharsets.UTF_8);
                 sink.writeInt(name.length); sink.write(name); sink.writeInt(entry.getValue().length); sink.write(entry.getValue());

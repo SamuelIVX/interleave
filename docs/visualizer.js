@@ -183,6 +183,106 @@ function normalizeResourcePrefix(value, diagnostics){
   return {trace:{...source,threads:value.threads,outcomes:value.outcomes,outcome:'INCOMPLETE',states},meta};
 }
 
+/** Validates distinct BYTECODE data without coercing values or inventing source spans.
+ * SECURITY: checks bounded structures before rendering; replay authentication belongs to Java.
+ * @param {Object} raw untrusted trace, result or report
+ * @returns {{trace:Object,meta:Object}} original witness plus honest run verdict
+ * @throws {Error} for incompatible identity, schema, precision or terminal classifications
+ */
+function normalizeBytecode(raw){
+  const fail = () => {throw new Error('Invalid BYTECODE evidence or precision');};
+  const object = x => x && typeof x==='object' && !Array.isArray(x);
+  const text = x => typeof x==='string' && x.length>0 && x.length<=65536;
+  const integer = x => Number.isSafeInteger(x) && x>=0;
+  const digest = x => typeof x==='string' && /^[0-9a-f]{64}$/.test(x);
+  const method = x => object(x) && ['owner','name','descriptor'].every(k=>text(x[k]));
+  const location = x => method(x) && integer(x.bci);
+  const identity = x => {
+    if(!object(x) || !digest(x.artifactDigest) || x.profileVersion!=='BYTECODE-SC-1' || !text(x.modelClass) || x.mode!=='BATCHED' ||
+      x.requestedStrategy!=='DFS' || x.effectiveStrategy!=='DFS' || x.fallbackReason!=null || !Array.isArray(x.actors) ||
+      x.actors.length<1 || x.actors.length>8 || !Array.isArray(x.checks) || x.checks.length>65536) fail();
+    x.actors.forEach((a,i)=>{if(!object(a) || a.id!==i || !method(a.method) || a.method.descriptor!=='()V')fail();});
+    x.checks.forEach(c=>{if(!object(c) || !method(c.method) || c.method.descriptor!=='()Z' || !['ALWAYS','FINAL'].includes(c.when))fail();});
+    const ceilings={actorInstructions:4096,actorAllocations:4096,actorHeapCells:65536,maxCallDepth:256,maxArrayLength:4096,maxStringLength:4096,setupInstructions:65536,setupAllocations:4096,setupHeapCells:65536,checkInstructions:16384};
+    if(!object(x.limits) || Object.keys(x.limits).length!==10)fail();
+    for(const [k,max] of Object.entries(ceilings))if(!integer(x.limits[k]) || x.limits[k]<1 || x.limits[k]>max)fail();
+  };
+  const equal = (a,b) => {
+    if(a===b)return true;
+    if(!a || !b || typeof a!=='object' || typeof b!=='object' || Array.isArray(a)!==Array.isArray(b))return false;
+    const keys=Object.keys(a);return keys.length===Object.keys(b).length && keys.every(k=>Object.hasOwn(b,k) && equal(a[k],b[k]));
+  };
+  const fault = f => {if(!object(f) || !text(f.type) || !location(f.location) || !Array.isArray(f.stack) || !f.stack.length || f.stack.length>256 || !f.stack.every(location))fail();};
+  const cutoff = c => {if(!object(c) || !text(c.reason) || !location(c.location) || !integer(c.limit) || c.limit<1 || !integer(c.required) || c.required<1 || !integer(c.remaining))fail();};
+  const terminal = (t,replay=false) => {
+    const outcomes={COMPLETED:'COMPLETED',DEADLOCK:'DEADLOCK',UNCAUGHT_EXCEPTION:'VIOLATION',CHECK_FALSE:'VIOLATION',CUTOFF:'INCOMPLETE',OBSERVER_ERROR:'INCOMPLETE',OBSERVER_LIMIT:'INCOMPLETE',INTERRUPTED:'INCOMPLETE'};
+    if(!object(t) || (!Object.hasOwn(outcomes,t.kind) && !(replay && t.kind==='PREFIX')) || !Array.isArray(t.waits) || t.waits.length>8)fail();
+    const actorFailure=['UNCAUGHT_EXCEPTION','CUTOFF'].includes(t.kind);
+    if(actorFailure ? !integer(t.actor) || t.actor>7 : t.actor!==-1)fail();
+    if(t.fault!=null){if(!actorFailure)fail();fault(t.fault);}else if(t.kind==='UNCAUGHT_EXCEPTION')fail();
+    if((t.cutoff!=null)!==(t.kind==='CUTOFF'))fail();if(t.cutoff)cutoff(t.cutoff);
+    const checkKind={CHECK_FALSE:'FALSE',OBSERVER_ERROR:'ERROR',OBSERVER_LIMIT:'LIMIT'}[t.kind];
+    if((t.check!=null)!==(checkKind!=null))fail();
+    if(t.check){const c=t.check;if(c.kind!==checkKind || !method(c.check) || !location(c.location) || (c.fault!=null)!==(checkKind==='ERROR') || (c.cutoff!=null)!==(checkKind==='LIMIT'))fail();if(c.fault)fault(c.fault);if(c.cutoff)cutoff(c.cutoff);}
+    if((t.waits.length>0)!==(t.kind==='DEADLOCK'))fail();
+    t.waits.forEach(w=>{if(!object(w) || !integer(w.actor) || w.actor>7 || !integer(w.owner) || w.owner>7 || !text(w.monitor) || !integer(w.depth) || w.depth<1)fail();});
+    if((t.interruption!=null)!==(t.kind==='INTERRUPTED') || (t.interruption!=null && !['MAX_STATES','MAX_TIME','KEY_BYTES','CANCELLED'].includes(t.interruption)))fail();
+    return outcomes[t.kind];
+  };
+  const opcodes=new Set('NOP POP POP2 DUP DUP_X1 DUP_X2 DUP2 DUP2_X1 DUP2_X2 SWAP IADD ISUB IMUL IDIV IREM INEG ISHL ISHR IUSHR IAND IOR IXOR I2B I2C I2S MONITORENTER MONITOREXIT ATHROW IFEQ IFNE IFLT IFGE IFGT IFLE IF_ICMPEQ IF_ICMPNE IF_ICMPLT IF_ICMPGE IF_ICMPGT IF_ICMPLE IF_ACMPEQ IF_ACMPNE IFNULL IFNONNULL GOTO GOTO_W ACONST_NULL ICONST_M1 ICONST_0 ICONST_1 ICONST_2 ICONST_3 ICONST_4 ICONST_5 BIPUSH SIPUSH LDC LDC_W ILOAD ALOAD ISTORE ASTORE ILOAD_W ALOAD_W ISTORE_W ASTORE_W IINC IINC_W IRETURN ARETURN RETURN LOOKUPSWITCH TABLESWITCH GETFIELD PUTFIELD GETSTATIC PUTSTATIC INVOKESTATIC INVOKESPECIAL INVOKEVIRTUAL INVOKEINTERFACE NEW'.split(' '));
+  for(const prefix of ['ILOAD','ALOAD','ISTORE','ASTORE'])for(let i=0;i<4;i++)opcodes.add(prefix+'_'+i);
+  const typed = v => {
+    if(!object(v) || typeof v.raw!=='string' || v.raw.length>65536)fail();
+    switch(v.type){
+      case 'INT': if(!/^(0|-?[1-9][0-9]*)$/.test(v.raw) || BigInt(v.raw)<-2147483648n || BigInt(v.raw)>2147483647n)fail();break;
+      case 'LONG': if(!/^(0|-?[1-9][0-9]*)$/.test(v.raw) || BigInt(v.raw)<-9223372036854775808n || BigInt(v.raw)>9223372036854775807n)fail();break;
+      case 'FLOAT_BITS': if(!/^[0-9a-f]{8}$/.test(v.raw))fail();break;
+      case 'DOUBLE_BITS': if(!/^[0-9a-f]{16}$/.test(v.raw))fail();break;
+      case 'BOOLEAN': if(!['true','false'].includes(v.raw))fail();break;
+      case 'NULL': if(v.raw!=='')fail();break;
+      case 'REFERENCE': case 'TEXT': case 'FAULT': if(!text(v.raw))fail();break;
+      default: fail();
+    }
+  };
+  const values = map => {if(!object(map) || Object.keys(map).length>65536)fail();Object.entries(map).forEach(([k,v])=>{if(!text(k))fail();typed(v);});};
+  const trace = t => {
+    if(!object(t) || t.programKind!=='BYTECODE' || ['sourceDigest','executedSteps','failure','cutoff'].some(k=>Object.hasOwn(t,k)))fail();
+    const d=t.bytecodeEvidence;
+    if(!object(d) || d.version!==1)fail();identity(d.identity);
+    if(t.programHash!==d.identity.artifactDigest || !Array.isArray(t.threads) || t.threads.length>MAX_SCHEDULE || !t.threads.every(a=>integer(a) && a<d.identity.actors.length) ||
+      !Array.isArray(t.outcomes) || t.outcomes.length!==t.threads.length || !t.outcomes.every(o=>['ADVANCED','TERMINATED','ASSERTION_FAILED'].includes(o)) ||
+      !Array.isArray(d.transitions) || d.transitions.length!==t.threads.length || !Array.isArray(d.snapshots) || d.snapshots.length!==t.threads.length+1 || !Array.isArray(t.states) || t.states.length!==d.snapshots.length)fail();
+    let work=0;
+    d.transitions.forEach((s,i)=>{
+      if(!object(s) || s.actor!==t.threads[i] || !Array.isArray(s.operations) || !s.operations.length || (work+=s.operations.length)>65536)fail();
+      s.operations.forEach(op=>{if(!object(op) || !location(op.location) || (op.line!=null && (!integer(op.line) || op.line<1)) || !['OPCODE','MONITOR_ENTER','RETURN','EXCEPTION','TERMINATION','FAILURE','CUTOFF','FUEL_CUTOFF'].includes(op.event) || (op.opcode!=null)!==(op.event==='OPCODE') || (op.opcode!=null && !opcodes.has(op.opcode)))fail();});
+    });
+    d.snapshots.forEach((s,i)=>{
+      if(!object(s) || !digest(s.stateDigest) || !object(s.locals) || Object.keys(s.locals).length>8 || !Array.isArray(s.heap) || s.heap.length>36864)fail();
+      values(s.fields);Object.values(s.locals).forEach(values);
+      s.heap.forEach(o=>{if(!object(o) || !text(o.identity) || !text(o.type) || typeof o.shared!=='boolean' || typeof o.initialized!=='boolean' || !Number.isSafeInteger(o.owner) || o.owner<-2 || o.owner>7 || !integer(o.depth) || (o.owner===-2)!==(o.depth===0))fail();});
+      const display = map => Object.fromEntries(Object.entries(map).map(([k,v])=>[k,v.type.toLowerCase()+':'+v.raw]));
+      if(!equal(t.states[i],{fields:display(s.fields),locals:Object.fromEntries(Object.entries(s.locals).map(([a,v])=>[a,display(v)]))}))fail();
+    });
+    if(terminal(d.terminal)!==t.outcome)fail();if(d.replayObservation!=null)terminal(d.replayObservation,true);
+    return t;
+  };
+  if(Array.isArray(raw.threads)){
+    const t=trace(raw);return {trace:t,meta:{programKind:'BYTECODE',verdict:t.outcome,bug:t.bytecodeEvidence.identity.modelClass,storeType:'EXACT',strategy:'DFS'}};
+  }
+  if(raw.programKind!=='BYTECODE' || raw.storeType!=='EXACT' || raw.strategy!=='DFS' || raw.requestedStrategy!=='DFS' || raw.effectiveStrategy!=='DFS' || raw.fallbackReason!=null || raw.symmetryReduction===true || typeof raw.limitExceeded!=='boolean' || typeof raw.hasViolation!=='boolean')fail();
+  identity(raw.bytecodeIdentity);
+  const buckets=['failingTraces','deadlockedTraces','incompleteTraces','completedTraces'];
+  const expected=['VIOLATION','DEADLOCK','INCOMPLETE','COMPLETED'];
+  const traces=[];
+  buckets.forEach((key,i)=>{if(!Array.isArray(raw[key]) || raw[key].length>MAX_SCHEDULE)fail();for(const t of raw[key]){trace(t);if(t.outcome!==expected[i] || !equal(t.bytecodeEvidence.identity,raw.bytecodeIdentity))fail();traces.push(t);}});
+  if(!traces.length || raw.hasViolation!==(raw.failingTraces.length>0))fail();
+  const verdict=raw.failingTraces.length || raw.deadlockedTraces.length ? 'VIOLATION' : raw.limitExceeded || raw.incompleteTraces.length ? 'INCOMPLETE' : 'PASS';
+  if(raw.verdict!==verdict)fail();
+  const selected=traces[0];
+  return {trace:selected,meta:{programKind:'BYTECODE',verdict,bug:raw.bug || raw.bytecodeIdentity.modelClass,storeType:'EXACT',strategy:'DFS',statesExplored:raw.statesExplored,wallTimeMs:raw.wallTimeMs,heapDeltaBytes:raw.heapDeltaBytes,limitExceeded:raw.limitExceeded}};
+}
+
 /**
  * Normalize any supported raw JSON payload into a {trace, meta} pair.
  * Supports resource prefixes, TraceRecord {threads}, ReportWriter {benchmarks}, and TestResult
@@ -194,6 +294,11 @@ function normalizeResourcePrefix(value, diagnostics){
  */
 function normalize(raw){
   if(!raw || typeof raw !== 'object') throw new Error('JSON must be an object');
+  if(Array.isArray(raw.benchmarks)){
+    const selected=raw.benchmarks.find(b=>b.failingTrace) || raw.benchmarks.find(b=>b.incompleteTrace) || raw.benchmarks[0];
+    if(selected?.programKind==='BYTECODE')return normalizeBytecode(selected);
+  }
+  if(raw.programKind==='BYTECODE' || raw.bytecodeEvidence!=null)return normalizeBytecode(raw);
   const diagnostics = (value, threads, outcome = value.outcome) => {
     const validSpan = (span) => span && typeof span.file === 'string' &&
       ['line','column','endLine','endColumn'].every(k=>Number.isSafeInteger(span[k]) && span[k]>0) &&
@@ -403,6 +508,20 @@ function renderHeader(){
     parts.push(addKV('candidate checks', `${search.candidatesChecked} / ${search.candidateLimit}`));
     parts.push(addKV('search scope', 'Original subsequences only; no global shortest guarantee'));
   }
+  if(currentTrace.bytecodeEvidence){
+    const data=currentTrace.bytecodeEvidence, end=data.terminal;
+    const at=p=>`${capName(p.owner)}.${capName(p.name)}${capStr(p.descriptor)} BCI ${p.bci}`;
+    parts.push(addKV('profile', `BYTECODE ${data.identity.profileVersion}`));
+    parts.push(addKV('artifact', data.identity.artifactDigest));
+    parts.push(addKV('traversal', `${data.identity.requestedStrategy} → ${data.identity.effectiveStrategy}`));
+    parts.push(addKV('terminal', end.kind));
+    if(end.fault)parts.push(addKV('fault', `${capStr(end.fault.type)} at ${at(end.fault.location)}`));
+    if(end.cutoff)parts.push(addKV('cutoff', `${capStr(end.cutoff.reason)} actor ${end.actor} at ${at(end.cutoff.location)}; limit ${end.cutoff.limit}, required ${end.cutoff.required}, remaining ${end.cutoff.remaining}`));
+    if(end.check)parts.push(addKV('check', `${capStr(end.check.kind)} ${at(end.check.location)}`));
+    end.waits.forEach(w=>parts.push(addKV('monitor wait', `actor ${w.actor} waits for ${w.owner} on ${capStr(w.monitor)} depth ${w.depth}`)));
+    if(end.interruption)parts.push(addKV('interruption', `${end.interruption}; original run INCOMPLETE`));
+    if(data.replayObservation)parts.push(addKV('replay observation', `${data.replayObservation.kind}; one prefix only`));
+  }
   if(currentTrace.sourceDigest) parts.push(addKV('source digest', currentTrace.sourceDigest));
   const terminal = currentTrace.cutoff || currentTrace.failure;
   if(terminal){
@@ -502,7 +621,10 @@ function renderTimeline(){
       if(activeTid===tid){
         const sourceStep = currentTrace.executedSteps?.[idx];
         const stepIdx = sourceStep ? sourceStep.instructionIndex : counters[tid];
-        const info = sourceStep ? {label:sourceStep.label,detail:`${capName(sourceStep.source.file)}:${sourceStep.source.line}:${sourceStep.source.column}–${sourceStep.source.endLine}:${sourceStep.source.endColumn} — ${sourceStep.label}`} : stepInfoFor(programThreadsById, tid, stepIdx);
+        const bytecodeStep=currentTrace.bytecodeEvidence?.transitions[idx];
+        const first=bytecodeStep?.operations[0];
+        const bytecodeInfo=first ? {label:`${first.location.name} BCI ${first.location.bci}`,detail:bytecodeStep.operations.map(op=>`${op.location.owner}.${op.location.name}${op.location.descriptor} BCI ${op.location.bci}${op.line==null ? '' : ' line '+op.line} ${op.opcode || op.event}`).join('; ')} : null;
+        const info = bytecodeInfo || (sourceStep ? {label:sourceStep.label,detail:`${capName(sourceStep.source.file)}:${sourceStep.source.line}:${sourceStep.source.column}–${sourceStep.source.endLine}:${sourceStep.source.endColumn} — ${sourceStep.label}`} : stepInfoFor(programThreadsById, tid, stepIdx));
         const rawLabel = info ? info.label : `step ${stepIdx}`;
         const pill = document.createElement('span');
         pill.className = 'cell-active';
@@ -602,6 +724,21 @@ function renderStateStrip(){
   ['Scope','Name','Value at selected config'].forEach(t=>{ const th=document.createElement('th'); th.textContent=t; hr.append(th); });
   thead.append(hr); table.append(thead);
   const tbody = document.createElement('tbody');
+  const bytecodeHeap=currentTrace.bytecodeEvidence?.snapshots[selectedIdx]?.heap;
+  if(bytecodeHeap){
+    for(const object of bytecodeHeap.slice(0,MAX_FIELDS)){
+      const row=document.createElement('tr');
+      const owner=object.owner===-2 ? 'unowned' : object.owner===-1 ? 'setup' : `actor ${object.owner}`;
+      for(const value of ['Monitor',`${object.identity} ${object.type}`,`owner ${owner}; depth ${object.depth}; shared ${object.shared}; initialized ${object.initialized}`]){
+        const cell=document.createElement('td');cell.textContent=capStr(value);row.append(cell);
+      }
+      tbody.append(row);
+    }
+    if(bytecodeHeap.length>MAX_FIELDS){
+      const note=document.createElement('p');note.textContent=`Showing ${MAX_FIELDS} of ${bytecodeHeap.length} monitor objects at this configuration.`;el.append(note);
+    }
+  }
+
 
   if(snapshot){
     let rowCount = 0;
