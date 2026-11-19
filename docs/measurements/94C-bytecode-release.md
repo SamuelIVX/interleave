@@ -204,21 +204,94 @@ integrity assertion replaced the probe. No interpreter execution hang is claimed
 
 The raw files and comparison scripts are retained in the persistent sibling `interleave-94c-evidence`.
 `final-affected.xml` is labeled as an assembled comparison dataset; it is not an official build-gate
-report. `compare-mutations.py` records unchanged-method checks and changed/moved methods separately.
+report. The committed [comparison helper](94C-compare-mutations.py) records unchanged-method checks and
+changed/moved methods separately.
 No residual is silently declared equivalent. No 94C runtime performance, broader-heap cost, DPOR
 reduction or JPF measurement is invented. The unchanged 94B argument/default review remains the
 applicable evidence for the admitted executor/scheduler behavior.
 
-Reproduce with JDK 26 and the existing pinned Gradle/PIT dependencies:
+### Mutation scopes and test selection
+
+Use JDK 26 and the existing pinned Gradle/PIT dependencies. The baseline was captured at
+`6eb939ea19c3938db8052fc1b32d8f157fc913c7` in the untouched baseline checkout, before feature edits.
+The later reports were captured at successive implementation snapshots. Running the same scopes
+on a newer snapshot reproduces the procedure, **not necessarily the historical counts**. Exact
+historical comparison requires the archived XML and matching compiled baseline/feature snapshots;
+those raw artifacts remain in the local evidence directory rather than Git.
+
+These are the recorded Gradle scopes. `targetTests` remains `dev.samhb.interleave.*` for **every PIT
+run**, as configured in `build.gradle.kts`; no narrowed test selector or target-test override was used.
+`-PpitestTargetOverride` changes production mutation targets only. Default state/cb is not the full
+project. Save `build/reports/pitest/mutations.xml` after each completed run, before another PIT run
+replaces it, using the filenames in the comments. Preserve the rejected census even though R6 fails.
 
 ```sh
 ./gradlew --max-workers=1 -PpitestThreads=1 build javadoc
+
+# Baseline checkout: baseline-default.xml
+# Feature checkout: final-default.xml
 ./gradlew --max-workers=1 -PpitestThreads=1 pitest
+
+# Baseline checkout: baseline-affected.xml (3,894 mutants)
+./gradlew --max-workers=1 -PpitestThreads=1 pitest '-PpitestTargetOverride=dev.samhb.interleave.bytecode.*,dev.samhb.interleave.InterleaveRunner*,dev.samhb.interleave.TestResult*,dev.samhb.interleave.TraceRecord*,dev.samhb.interleave.search.TraceReplayer*,dev.samhb.interleave.report.BenchmarkHarness*,dev.samhb.interleave.report.BenchmarkResult*,dev.samhb.interleave.report.ReportWriter*,dev.samhb.interleave.report.SoundnessAttestation*,dev.samhb.interleave.cli.Main*'
+
+# Feature checkout: affected-census.xml (historical 4,988-mutant rejected census)
+./gradlew --max-workers=1 -PpitestThreads=1 pitest '-PpitestTargetOverride=dev.samhb.interleave.bytecode.*,dev.samhb.interleave.BytecodeTraceJson*,dev.samhb.interleave.ResultJson*,dev.samhb.interleave.core.BytecodeEvidence*,dev.samhb.interleave.InterleaveRunner*,dev.samhb.interleave.TestResult*,dev.samhb.interleave.TraceRecord*,dev.samhb.interleave.search.TraceReplayer*,dev.samhb.interleave.report.BenchmarkHarness*,dev.samhb.interleave.report.BenchmarkResult*,dev.samhb.interleave.report.ReportWriter*,dev.samhb.interleave.report.SoundnessAttestation*,dev.samhb.interleave.cli.Main*'
+
+# Feature checkout: postfix-focused.xml (1,095-mutant evidence/replay/result scope)
+./gradlew --max-workers=1 -PpitestThreads=1 pitest '-PpitestTargetOverride=dev.samhb.interleave.BytecodeTraceJson*,dev.samhb.interleave.ResultJson*,dev.samhb.interleave.core.BytecodeEvidence*,dev.samhb.interleave.bytecode.BytecodeRuntime*,dev.samhb.interleave.bytecode.BytecodeReplay*,dev.samhb.interleave.bytecode.BytecodeSnapshots*,dev.samhb.interleave.bytecode.BytecodeObservations*,dev.samhb.interleave.TestResult*,dev.samhb.interleave.report.BenchmarkResult*'
+
+# Feature checkout: final-codec-dto.xml (330-mutant scope)
 ./gradlew --max-workers=1 -PpitestThreads=1 pitest '-PpitestTargetOverride=dev.samhb.interleave.BytecodeTraceJson*,dev.samhb.interleave.core.BytecodeEvidence*'
+
+# Feature checkout: final-report-pit.xml (259-mutant scope)
 ./gradlew --max-workers=1 -PpitestThreads=1 pitest '-PpitestTargetOverride=dev.samhb.interleave.report.ReportWriter*'
 ```
+
+The public entry/replay checks and BYTECODE artifact producer also ran with these JUnit selectors.
+They are separate test invocations, **not restrictions on PIT's test selection**:
+
+```sh
+./gradlew --max-workers=1 -PpitestThreads=1 test --tests '*BytecodeReleaseTest' --tests '*BytecodeReplayTest'
+./gradlew --max-workers=1 -PpitestThreads=1 test --tests '*BytecodeReleaseTest.bytecodeViewerUsesFreshProducerArtifacts'
+```
+
+### Accessible comparison procedure
+
+The [portable helper](94C-compare-mutations.py) reads `baseline-default.xml`, `final-default.xml`,
+`baseline-affected.xml`, `affected-census.xml`, `postfix-focused.xml`, `final-codec-dto.xml` and
+`final-report-pit.xml` from the evidence directory. It requires Python 3.8+ and JDK 26 `javap`.
+Supply the compiled class directories matching the compared snapshots; do not substitute another
+checkout's classes just because its branch name matches.
+
+```sh
+python3 docs/measurements/94C-compare-mutations.py /path/to/interleave-94c-evidence /path/to/baseline/build/classes/java/main /path/to/feature/build/classes/java/main --javap /path/to/jdk26/bin/javap
+```
+
+It replaces **whole classes** in this order: affected census, evidence/replay/result scope, final
+codec/DTO scope, final report scope. It writes `comparison-affected.xml` and `comparison-inherited.json`
+as derived artifacts, leaving the raw reports unchanged. Default fingerprints/statuses must match
+exactly. For inherited affected kills, it compares descriptor-complete normalized method code and
+checks matching mutant identities only in unchanged bodies; changed/moved bodies are listed separately.
+Duplicate fingerprints, missing reports, residual resource errors and lost comparable kills fail the
+helper's assertions. The composite is never passed to `mutationRatchet` or represented as one PIT run.
+
+The committed helper was checked against the archived inputs: default455/13, composite4013/420/560,
+2356 unchanged-body inherited kills retained, zero lost comparable kills and2 survivor improvements.
+Those checks do not establish equivalence of residual mutants or a one-to-one mapping for moved code.
 
 For the browser matrix, regenerate the Java artifacts with the test selection/environment in
 `.github/workflows/build.yml` after mutation testing, then run `npm test --prefix docs`. BYTECODE_DIR
 accepts relative and absolute directories. The built-jar probe uses Gradle's exact current jar path
 in normal test and PIT JVMs, avoiding stale or mutation-harness artifact selection.
+
+### PR #141 minor-review follow-up
+
+The unsupported-option matrix now loads the valid compiled fixture. Separate nonexistent-directory
+DPOR/bitstate cases require the strategy/store diagnostic, proving rejection before loading.
+The strengthened regression fails when the guard is bypassed in the isolated validation checkout
+and passes after restoration and on the PR checkout (`pr141-cli-guard-red.log`,
+`pr141-cli-restored-green.log`, `pr141-cli-guard-green.log`). No production code changed.
+The committed comparison helper reproduces the archived counts and inherited checks above;
+documentation links/fences and the exact scope/test-selection commands were checked. Routine
+minor feedback verification did not rerun CodeRabbit or the historical mutation censuses.

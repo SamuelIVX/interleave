@@ -128,9 +128,15 @@ class BytecodeReleaseTest {
         for(var extra:java.util.List.of(new String[]{"--strategy","DPOR"},new String[]{"--store","bitstate"},
                 new String[]{"--symmetry"},new String[]{"--simplify-cutoff"},new String[]{"--all"},
                 new String[]{"--bytecode","Other"},new String[]{"--max-preemptions","0"})) {
-            var args=new java.util.ArrayList<String>(java.util.List.of("--bytecode","Fixture","--class-path","missing"));
+            var args=new java.util.ArrayList<String>(java.util.List.of("--bytecode","Fixture","--class-path",classes.toString()));
             args.addAll(java.util.List.of(extra));var bad=cli(directory,args.toArray(String[]::new));
             assertEquals(1,bad.getKey(),bad.getValue());assertTrue(bad.getValue().contains("BYTECODE"),bad.getValue());
+        }
+        for(var extra:java.util.List.of(new String[]{"--strategy","DPOR"},new String[]{"--store","bitstate"})) {
+            var args=new java.util.ArrayList<String>(java.util.List.of("--bytecode","Fixture","--class-path",directory.resolve("missing").toString()));
+            args.addAll(java.util.List.of(extra));var bad=cli(directory,args.toArray(String[]::new));
+            assertEquals(1,bad.getKey(),bad.getValue());
+            assertTrue(bad.getValue().contains("BYTECODE currently supports only --strategy DFS --store exact"),bad.getValue());
         }
         assertEquals(1,cli(directory,"--bytecode","Fixture").getKey());
         assertEquals(1,cli(directory,"--class-path",classes.toString()).getKey());
