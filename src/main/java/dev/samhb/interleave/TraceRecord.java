@@ -149,6 +149,15 @@ public final class TraceRecord implements Serializable {
         return new TraceRecord(this.threadIds, this.outcomes, this.outcome, this.programHash, states, evidence,bytecodeEvidence);
     }
 
+    /** Imports a bounded BYTECODE witness without executing model code.
+     * The payload remains untrusted until {@code TraceReplayer.replayBytecode} authenticates it.
+     * Existing source and declarative import routes retain their own schemas.
+     * @param json JSON produced by {@link #toJson()} for a BYTECODE record
+     * @return immutable typed trace
+     * @throws IllegalArgumentException for malformed, oversized or conflicting evidence
+     */
+    public static TraceRecord fromJson(String json) { return BytecodeTraceJson.read(json); }
+
     /**
      * Serializes thread choices, step outcomes, terminal verdict, the optional program fingerprint,
      * and optional state snapshots.
@@ -184,6 +193,6 @@ public final class TraceRecord implements Serializable {
             if (evidence.cutoff() != null) sb.append(",\n  \"cutoff\": ").append(GSON.toJson(evidence.cutoff()));
         }
         sb.append("\n}");
-        return sb.toString();
+        return bytecodeEvidence == null ? sb.toString() : ResultJson.bytecodeText(sb.toString());
     }
 }

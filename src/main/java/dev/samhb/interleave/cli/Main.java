@@ -41,6 +41,38 @@ public final class Main {
     /** Exact. */
     private static final String EXACT = "EXACT";
 
+    /** Parses the bounded BYTECODE profile before any artifact loading or search.
+     * @param args complete arguments; only DFS/EXACT and JSON output are admitted */
+    private static void handleBytecode(String[] args) {
+        try {
+            var values = new HashMap<String,String>(); boolean json = false;
+            for (int i = 0; i < args.length; i++) {
+                String flag = args[i];
+                if (flag.equals("--json")) {
+                    if (json) throw new IllegalArgumentException("Duplicate --json");
+                    json = true; continue;
+                }
+                if (!Set.of("--bytecode", "--class-path", "--strategy", "--store").contains(flag))
+                    throw new IllegalArgumentException("Unsupported BYTECODE option: " + flag);
+                if (values.containsKey(flag)) throw new IllegalArgumentException("Duplicate " + flag);
+                if (i + 1 >= args.length || args[i + 1].startsWith("--")) throw new IllegalArgumentException("Missing value for " + flag);
+                values.put(flag, args[++i]);
+            }
+            if (!values.containsKey("--bytecode") || !values.containsKey("--class-path"))
+                throw new IllegalArgumentException("BYTECODE requires --bytecode <binary-name> and --class-path <directory>");
+            if (!values.getOrDefault("--strategy", "DFS").equalsIgnoreCase("DFS")
+                    || !values.getOrDefault("--store", "exact").equalsIgnoreCase("exact"))
+                throw new IllegalArgumentException("BYTECODE currently supports only --strategy DFS --store exact");
+            var program = dev.samhb.interleave.format.BytecodeProgramLoader.load(Paths.get(values.get("--class-path")), values.get("--bytecode"));
+            var rows = new BenchmarkHarness().runBytecode(program);
+            var writer = new ReportWriter(rows, List.of());
+            System.out.println(json ? writer.writeJson() : writer.writeMarkdown());
+        } catch (IllegalArgumentException failure) {
+            System.err.println("Error: BYTECODE: " + failure.getMessage());
+            System.exit(1);
+        }
+    }
+
     /**
      * The highest preemption bound that is meaningful with a Bloom-filter store.
      *
@@ -82,6 +114,11 @@ public final class Main {
         }
         if ("generate".equals(args[0])) {
             handleGenerate(Arrays.copyOfRange(args, 1, args.length));
+            return;
+        }
+
+        if (Arrays.asList(args).contains("--bytecode") || Arrays.asList(args).contains("--class-path")) {
+            handleBytecode(args);
             return;
         }
 
@@ -450,6 +487,7 @@ public final class Main {
         System.out.println("Usage: interleave <bug-name> [flags]");
         System.out.println("       interleave --file <path> [flags]");
         System.out.println("       interleave --source <path.ilv> [flags]");
+        System.out.println("       interleave --bytecode <binary-name> --class-path <directory> [--json] [--strategy DFS] [--store exact]");
         System.out.println("       interleave --all [flags]");
         System.out.println("       interleave generate --template <id> [flags]");
         System.out.println();

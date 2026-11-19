@@ -336,7 +336,7 @@ public final class TestResult implements Serializable {
         // on the result's content. Consumers can then branch on the key without checking presence.
         sb.append("  \"incompleteTraces\": ").append(jsonTraces(incompleteTraces)).append("\n");
         sb.append("}\n");
-        return sb.toString();
+        return bytecode == null ? sb.toString() : ResultJson.bytecodeText(sb.toString());
     }
 
     /**

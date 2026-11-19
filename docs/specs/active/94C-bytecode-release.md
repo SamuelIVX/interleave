@@ -1,10 +1,10 @@
-<!-- Roadmap #12 / 94C: implementation milestone specification; no production implementation in this PR. -->
+<!-- Roadmap #12 / 94C: initial public BYTECODE release and its acceptance contract. -->
 # Spec 94C: Initial public bytecode release
 
 ## Objective
 
 Deliver initial public bytecode release as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: specified, not implemented or measured.** The
+**Type: delta. Status: local acceptance complete; release gates recorded in the [94C ledger](../../measurements/94C-bytecode-release.md).** The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 94C only.
 
@@ -112,17 +112,23 @@ choose existing equivalent modules at implementation after connected-source insp
 - [verified] Planning main is `2a242c4`; the existing engine has immutable Program, forward SourceStep
 continuations and source-specific evidence. The shared contract records inspected integration constraints.
 - [approved decision] This milestone and the shared contract define the selected behavior/release boundary.
-- [unverified] This milestone's bytecode implementation, measurements, compiler/runtime acceptance and
-mutation results. No authoring review establishes those results.
+- [implemented] Public loading/runner, owned BYTECODE evidence, strict replay/JSON, CLI, reports,
+soundness replay and viewer routes. Native streams retain build-specific generated serialization identity.
+- [evidence] The [94C ledger](../../measurements/94C-bytecode-release.md) distinguishes completed
+local checks from pending publication gates. 94B's batching argument/default review applies to the
+unchanged admitted opcode profile; this phase expands consumers, not target language semantics.
+
 
 ## Tests
 
-`publicBytecodeLoaderAndRunnerWorkFromJar` (R1/R5), `bytecodeCliRejectsUnsupportedSelections` (R1),
-`strictReplayAuthenticatesEveryBytecodeOutcome` (R2/R3), `bytecodeReportsRetainPrecisionAndLocations` (R4),
-`bytecodeViewerUsesFreshProducerArtifacts` (R4), `legacyProfilesRemainCompatible` (R4).
-Kill missing identity/limit/choice checks, false SOURCE routing, premature completion and precision upgrades.
-These are intended behavioral contracts/test names, not tests already implemented or executed.
-Use independent expected values/oracles, preserve distinct regression cases and save generated seeds.
+Actual public regressions are in `BytecodeReleaseTest` and `BytecodeReplayTest`: built-jar consumers
+and actual CLI selections (R1/R5), artifact/model/declaration/operation/state/terminal authentication
+and external-prefix preservation (R2/R3), real runtime faults/cleanup and observer limits (R3/R4),
+lossless UTF-16/wide-tag transport and report soundness (R4), and fresh producer/browser artifacts
+with monitor snapshots and real compiler locations (R4/R5). Existing source/declarative/replay/symmetry
+regressions remain in the full suite. The [94C ledger](../../measurements/94C-bytecode-release.md)
+records 2,085 passing tests, mutation scopes and review dispositions without treating tests as proof
+of future reduction or wider language coverage.
 
 ## Constraints
 

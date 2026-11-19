@@ -189,7 +189,7 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
     /** Terminal meaning; PREFIX appears only as a separate external-prefix replay observation.
      * @param kind COMPLETED, DEADLOCK, UNCAUGHT_EXCEPTION, CHECK_FALSE, CUTOFF, OBSERVER_ERROR, OBSERVER_LIMIT, INTERRUPTED or PREFIX
      * @param actor fault/cutoff actor, otherwise -1
-     * @param fault original actor fault
+     * @param fault original actor fault, also retained as context when cleanup is cut off
      * @param cutoff modeled actor cutoff
      * @param check separate observer failure
      * @param waits concrete deadlock relationships
@@ -201,7 +201,8 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
             if(!Set.of("COMPLETED","DEADLOCK","UNCAUGHT_EXCEPTION","CHECK_FALSE","CUTOFF","OBSERVER_ERROR","OBSERVER_LIMIT","INTERRUPTED","PREFIX").contains(kind))throw new IllegalArgumentException("Unknown bytecode terminal");
             boolean actorFailure=kind.equals("UNCAUGHT_EXCEPTION") || kind.equals("CUTOFF");
             if(actorFailure ? actor<0 || actor>7 : actor!= -1)throw new IllegalArgumentException("Invalid terminal actor");
-            if((fault!=null)!=kind.equals("UNCAUGHT_EXCEPTION") || (cutoff!=null)!=kind.equals("CUTOFF")
+            if((kind.equals("UNCAUGHT_EXCEPTION") && fault==null) || (fault!=null && !Set.of("UNCAUGHT_EXCEPTION","CUTOFF").contains(kind))
+                || (cutoff!=null)!=kind.equals("CUTOFF")
                 || (check!=null)!=Set.of("CHECK_FALSE","OBSERVER_ERROR","OBSERVER_LIMIT").contains(kind)
                 || kind.equals("DEADLOCK")!=!waits.isEmpty() || (interruption!=null)!=kind.equals("INTERRUPTED"))throw new IllegalArgumentException("Conflicting bytecode terminal causes");
             if(check!=null && !check.kind().equals(switch(kind){case "CHECK_FALSE"->"FALSE";case "OBSERVER_ERROR"->"ERROR";default->"LIMIT";}))throw new IllegalArgumentException("Wrong observer classification");

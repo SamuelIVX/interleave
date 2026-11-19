@@ -15,6 +15,11 @@ import java.util.Optional;
  * Immutable result of a single benchmark run (one strategy + one store type).
  */
 public final class BenchmarkResult {
+    /** Actual frozen BYTECODE model; unavailable to arbitrary legacy row constructors. */
+    private final dev.samhb.interleave.bytecode.BytecodeProgram bytecodeProgram;
+    /** Owned BYTECODE run including every terminal category. */
+    private final dev.samhb.interleave.TestResult bytecodeResult;
+
     /** Whether this row counts checked model representative visits. */
     private final boolean symmetryReduction;
     /** Strategy. */
@@ -191,6 +196,7 @@ public final class BenchmarkResult {
                            double estimatedFalsePositiveRate, int bitstateBitCount,
                            double bitstateBitDensity, Integer preemptionsUsed,
                            List<StateSnapshot> states) {
+        this.bytecodeProgram = null; this.bytecodeResult = null;
         this.symmetryReduction = false;
         this.strategy = strategy;
         this.bugName = bugName;
@@ -219,6 +225,8 @@ public final class BenchmarkResult {
      * @param symmetryReduction whether checked model orbit search produced this row
      */
     private BenchmarkResult(BenchmarkResult row, Program program, DfsResult result, boolean symmetryReduction) {
+        if (row.bytecodeResult != null) throw new IllegalArgumentException("BYTECODE rows cannot be relabeled with legacy exploration");
+        this.bytecodeProgram = null; this.bytecodeResult = null;
         this.symmetryReduction = symmetryReduction;
         this.strategy = row.strategy; this.bugName = row.bugName; this.statesExplored = row.statesExplored;
         this.wallTimeMs = row.wallTimeMs; this.heapDeltaBytes = row.heapDeltaBytes;
@@ -241,11 +249,35 @@ public final class BenchmarkResult {
         this.incompleteStates = snapshots;
     }
 
+    /** Creates a BYTECODE row only from the harness's owned execution.
+     * @param program frozen executed model
+     * @param result actual exact run */
+    BenchmarkResult(dev.samhb.interleave.bytecode.BytecodeProgram program, dev.samhb.interleave.TestResult result) {
+        this.bytecodeProgram = program; this.bytecodeResult = result;
+        this.symmetryReduction = false; this.sourceModel = false; this.strategy = "DFS";
+        this.bugName = program.modelClass(); this.statesExplored = result.statesExplored();
+        this.wallTimeMs = result.wallTimeMs(); this.heapDeltaBytes = result.heapDeltaBytes();
+        this.verdict = result.hasViolation() || !result.deadlockedTraces().isEmpty() ? "VIOLATION"
+            : result.hasIncomplete() || result.limitExceeded() ? "INCOMPLETE" : "PASS";
+        this.failingTrace = null; this.storeType = StoreType.EXACT;
+        this.estimatedFalsePositiveRate = 0; this.bitstateBitCount = 0; this.bitstateBitDensity = 0;
+        this.preemptionsUsed = null; this.states = List.of(); this.incompleteTraces = List.of(); this.incompleteStates = List.of();
+    }
+
+    /** Returns the actual frozen model for report-owned replay.
+     * @return model, or null for legacy rows */
+    dev.samhb.interleave.bytecode.BytecodeProgram bytecodeProgram() { return bytecodeProgram; }
+
+    /** Returns owned typed evidence without projecting it into SOURCE traces.
+     * @return run, or null for legacy rows */
+    dev.samhb.interleave.TestResult bytecodeResult() { return bytecodeResult; }
+
     /**
      * Attaches run evidence without altering legacy public constructor contracts.
      * @param program executed model, or null when no replay context is available
      * @param result actual exploration evidence
      * @return a new row preserving all counts and diagnostics
+     * @throws IllegalArgumentException if this BYTECODE row would be relabeled with legacy evidence
      */
     public BenchmarkResult withExploration(Program program, DfsResult result) {
         return new BenchmarkResult(this, program, result, symmetryReduction);

@@ -51,13 +51,24 @@ final class BytecodeFixtures {
      * @throws IOException for fixture file failures
      */
     static Path compile(Path directory, int release, String body) throws IOException {
+        return compile(directory, release, body, true);
+    }
+
+    /** Compiles with optional real debug tables for consumer location tests.
+     * @param directory workspace
+     * @param release input release
+     * @param body Java fixture
+     * @param debug whether to emit debug metadata
+     * @return compiled directory
+     * @throws IOException for file failures */
+    static Path compile(Path directory, int release, String body, boolean debug) throws IOException {
         Path sources=directory.resolve("sources"), output=directory.resolve("classes");
         Files.createDirectories(sources); Files.createDirectories(output);
         Path source=sources.resolve("Fixture.java");
         Files.writeString(source,"import dev.samhb.interleave.bytecode.*;\n"+body,StandardCharsets.UTF_8);
         var diagnostics=new ByteArrayOutputStream();
         int result=ToolProvider.getSystemJavaCompiler().run(null,diagnostics,diagnostics,"--release",Integer.toString(release),
-            "-g","-classpath",ANNOTATIONS,"-d",output.toString(),source.toString());
+            debug ? "-g" : "-g:none","-classpath",ANNOTATIONS,"-d",output.toString(),source.toString());
         assertEquals(0,result,diagnostics.toString(StandardCharsets.UTF_8)); return output;
     }
 

@@ -10,7 +10,8 @@ import java.time.Duration;
 import java.util.*;
 
 /** Deep bytecode integration seam; no mutable execution state or caller-supplied callback is exposed.
- * Library clients normally use format.BytecodeProgramLoader, InterleaveRunner and search.TraceReplayer. */
+ * Library clients normally use {@link dev.samhb.interleave.format.BytecodeProgramLoader}, whose class
+ * example shows loading with limits, execution, retained-trace selection and matching strict replay. */
 public final class BytecodeRuntime {
     /** Prevents construction of this stateless integration facade. */
     private BytecodeRuntime() {}
@@ -53,6 +54,16 @@ public final class BytecodeRuntime {
             failed,deadlocked,completed,incomplete,!result.traversalComplete()).withRunMetadata(false,resource,false);
     }
 
+    /** Authenticates BYTECODE identity, operations, checks, snapshots, monitors and exact terminal meaning.
+     * External records authenticate their captured prefix and retain the original incomplete outcome.
+     * @param program frozen selected artifact
+     * @param record immutable original record
+     * @return owned replay record with separate actual prefix observations
+     * @throws dev.samhb.interleave.search.CorruptedTraceException for identity/evidence mismatches
+     * @throws IllegalScheduleException for a disabled or foreign actor
+     * @throws java.util.concurrent.CancellationException for host interruption */
+    public static TraceRecord replay(BytecodeProgram program,TraceRecord record){return BytecodeReplay.replay(program,record);}
+
     /** Constructs selected declaration identity independently of the manifest's possible shared closure.
      * @param program frozen loaded definition
      * @return immutable public profile/model identity */
@@ -69,14 +80,22 @@ public final class BytecodeRuntime {
      * @param witness actual selected path and owned snapshots
      * @return public immutable trace */
     private static TraceRecord record(BytecodeProgram program,BytecodeExplorer.Witness witness) {
-        var transitions=witness.schedule().stream().map(selection->new BytecodeEvidence.Transition(selection.actor(),
-            selection.executed().stream().map(operation->new BytecodeEvidence.Operation(operation.location(),line(program,operation.location()),
-                operation.opcode()==null ? null : operation.opcode().name(),operation.event())).toList())).toList();
+        var transitions=witness.schedule().stream().map(selection->transition(program,selection)).toList();
         var terminal=terminal(witness.outcome());var evidence=new BytecodeEvidence(1,identity(program),transitions,witness.snapshots(),terminal,null);
         var choices=witness.schedule().stream().map(BytecodeExplorer.Selection::actor).toList();
         var outcomes=witness.schedule().stream().map(BytecodeRuntime::stepOutcome).toList();
         return new TraceRecord(choices,outcomes,traceOutcome(terminal),program.artifactDigest(),
             witness.snapshots().stream().map(BytecodeSnapshots::display).toList(),null,evidence);
+    }
+
+    /** Converts real selected opcode/event positions using frozen optional debug metadata.
+     * @param program frozen artifact
+     * @param selection actual actor operation sequence
+     * @return immutable descriptor/BCI transition */
+    static BytecodeEvidence.Transition transition(BytecodeProgram program,BytecodeExplorer.Selection selection) {
+        return new BytecodeEvidence.Transition(selection.actor(),selection.executed().stream().map(operation->
+            new BytecodeEvidence.Operation(operation.location(),line(program,operation.location()),
+                operation.opcode()==null ? null : operation.opcode().name(),operation.event())).toList());
     }
 
     /** Maps actual selected events into the legacy coarse step vocabulary without source continuations.
