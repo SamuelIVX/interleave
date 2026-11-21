@@ -244,7 +244,7 @@ function normalizeBytecode(raw){
       default: fail();
     }
   };
-  const values = map => {if(!object(map) || Object.keys(map).length>65536)fail();Object.entries(map).forEach(([k,v])=>{if(!text(k))fail();typed(v);});};
+  const values = (map,limit=65536) => {if(!object(map) || Object.keys(map).length>limit)fail();Object.entries(map).forEach(([k,v])=>{if(!text(k))fail();typed(v);});};
   const trace = t => {
     if(!object(t) || t.programKind!=='BYTECODE' || ['sourceDigest','executedSteps','failure','cutoff'].some(k=>Object.hasOwn(t,k)))fail();
     const d=t.bytecodeEvidence;
@@ -257,9 +257,13 @@ function normalizeBytecode(raw){
       if(!object(s) || s.actor!==t.threads[i] || !Array.isArray(s.operations) || !s.operations.length || (work+=s.operations.length)>65536)fail();
       s.operations.forEach(op=>{if(!object(op) || !location(op.location) || (op.line!=null && (!integer(op.line) || op.line<1)) || !['OPCODE','MONITOR_ENTER','RETURN','EXCEPTION','TERMINATION','FAILURE','CUTOFF','FUEL_CUTOFF'].includes(op.event) || (op.opcode!=null)!==(op.event==='OPCODE') || (op.opcode!=null && !opcodes.has(op.opcode)))fail();});
     });
+    // Each object/array header pays for its length slot; setup has at most nine diagnostics
+    // after construction completes. Every actor permanently owns its heap-cell charges.
+    const limits=d.identity.limits;
+    const fieldLimit=limits.setupHeapCells+d.identity.actors.length*limits.actorHeapCells+9;
     d.snapshots.forEach((s,i)=>{
       if(!object(s) || !digest(s.stateDigest) || !object(s.locals) || Object.keys(s.locals).length>8 || !Array.isArray(s.heap) || s.heap.length>36864)fail();
-      values(s.fields);Object.values(s.locals).forEach(values);
+      values(s.fields,fieldLimit);Object.values(s.locals).forEach(map=>values(map));
       s.heap.forEach(o=>{if(!object(o) || !text(o.identity) || !text(o.type) || typeof o.shared!=='boolean' || typeof o.initialized!=='boolean' || !Number.isSafeInteger(o.owner) || o.owner<-2 || o.owner>7 || !integer(o.depth) || (o.owner===-2)!==(o.depth===0))fail();});
       const display = map => Object.fromEntries(Object.entries(map).map(([k,v])=>[k,v.type.toLowerCase()+':'+v.raw]));
       if(!equal(t.states[i],{fields:display(s.fields),locals:Object.fromEntries(Object.entries(s.locals).map(([a,v])=>[a,display(v)]))}))fail();

@@ -30,7 +30,7 @@ remain rejected because no replacement for the JDK verifier's bridge-method gap 
 
 Field lookup preserves declaring owner/name/descriptor identities. Virtual lookup respects class
 methods and maximally specific interface defaults; special calls retain constructor/super semantics.
-Reciprocal same-package nest membership, sealed permitted edges in the unnamed-module profile,
+Reciprocal same-package nest membership, sealed permitted edges in the single unnamed module,
 and member/staticness/access rules are checked.
 Resolution and runtime selection are distinct, following the admitted cases of
 [JVMS5.4.3–5.4.6](https://docs.oracle.com/en/java/javase/26/docs/specs/jvms/jvms-5.html#jvms-5.4.6);
@@ -265,7 +265,7 @@ sharing) completed without R6 detections: 1714 KILLED,237 SURVIVED,93 NO_COVERAG
 (`final-owned-state.xml`). The earlier three-class run
 passed1327 KILLED,186 SURVIVED,91 NO_COVERAGE /1604 (`final-refined.xml`).
 
-## Final measured results
+## Pre-review measured results (4f1da27)
 
 All six fresh JDK26 forks completed with mandatory independent outcome equivalence: three heap
 forks and three initial-release forks, nine measured samples per fixture/mode (72 total). No PIT
@@ -315,10 +315,10 @@ Reproduce initial-release forks with `profileBytecode` instead of `profileByteco
 completion logs are retained in the local evidence directory.
 
 Measured checker/harness/test/build diff SHA-256: `215d266cc2ae0be7242fb9bc0a1c96dcdcfe69b21a8302a3e7de595509bec013`.
-No production or measurement-code changes followed these samples. Source/artifact digests and
+These samples precede the PR142 corrections below. Source/artifact digests and
 exact limits are in each fork’s `conditions.md`.
 
-## Final mutation comparison
+## Pre-review mutation comparison (4f1da27)
 
 | Observation | KILLED | SURVIVED | NO_COVERAGE | Resource detections | Total |
 |---|---:|---:|---:|---:|---:|
@@ -380,3 +380,114 @@ implementation, optimized bytecode DPOR measurement or JPF compatibility evidenc
 Final fresh-reader testing correctly distinguished local acceptance, pending CI/manual review, mutation
 assembly limits, inherited preservation, six-fork measurements and SC-1 compatibility. Two stale
 retention/sharedness-status claims were corrected; the reader inspected docs only, not runtime evidence.
+
+## PR142 review corrections
+
+All11 inline findings, the outside-diff viewer finding and the additional sealed-subtype finding
+were independently validated. No requested finding was silently deferred.
+
+| Review item | Disposition and regression |
+|---|---|
+| Protected-receiver failure Javadoc | Document LINKAGE rejection separately from verified stack analysis |
+| Hierarchy failure Javadoc | Distinguish missing declarations/null from METADATA, cycles, conflicting defaults and invalid special owners |
+| Special selection/static shadow | Select instance declarations through the superclass chain; independent JVM returns1 with static B and2 with instance B |
+| Access/nest helper Javadoc | Describe inaccessible symbolic types and invalid reciprocal nests |
+| Repeated hierarchy validation | Cache only successful validation by the existing strictly increasing frozen input-byte version; a2000-call/3000-method fixture timed out at20s before the fix and loads within its bound after it; this is a regression ceiling, not a benchmark |
+| Access on selected super target | Retain symbolic resolution access, remove repeated selected-target access; JVM accepts package-private B while inaccessible symbolic A still rejects |
+| Invokeinterface visibility | Apply selected public-target rule to the opcode, not the declaration’s interface owner; class-view call returns2, interface-view rejects |
+| Transitive unknown promotion | Close newly promoted unreachable parents through descendants before observations; actor-rooted graph stays private, repeated refresh adds no promotions |
+| Inherited fields/exhaustiveness | Require exhaustive exploration and exactly COMPLETED in addition to JVM values |
+| Heap measurement outcome guard | Require exactly the successful expected graph, aliases and values from each fixture in both test and profiling entry |
+| Implicit monitor/oracle | Classify publication only after frame entry; allocation cutoff after a discarded Node omits its private cells |
+| Outside-diff viewer bound | Replace per-map65536 field cap with setup+actor selected heap-cell allowances plus9 setup diagnostics; actual two-actor arrays cost36883 cells each and exceed65536 snapshot fields; normalize accepts73728 and rejects88202 entries against88201 bound |
+| Additional sealed subtype | JVMS5.3.5 allows a permitted public cross-package subtype in the same runtime module; actual JVM positive/nonpublic-negative controls establish the distinction |
+
+The JVM references are [special invocation](https://docs.oracle.com/en/java/javase/26/docs/specs/jvms/jvms-6.html#jvms-6.5.invokespecial)
+and [deriving classes](https://docs.oracle.com/en/java/javase/26/docs/specs/jvms/jvms-5.html#jvms-5.3.5).
+Before fixes, the new regression batch failed on selection/visibility, sealed admission, unknown
+promotion, premature oracle promotion and the hierarchy deadline. The first special-static test
+transformation was rejected by the Class-File API; replacing its method body/flags via a fresh method
+definition fixed that test setup. Viewer normalization independently reproduced the old field cap.
+The related regression batch and normalization boundary checks pass after corrections.
+
+These corrections change sharedness traversal work. The earlier tables and mutation observations
+above describe the pre-review snapshot; refreshed measurements/scoped evidence follow below.
+
+### Refreshed verification and measurement evidence
+
+The final integrated build and strict Javadoc pass **2127 tests**. Strict private doclint passes
+the four changed production files. Complete browser compatibility passes309 assertions,0 failures
+and0 console errors; normalization additionally accepts/rejects the large aggregate snapshot cases.
+Browser checks consumed the fresh integrated-build artifacts before PIT, avoiding a redundant
+Gradle producer run. Existing default/broad mutation runs are not repeated for these scoped fixes.
+
+Six refreshed forks (`pr142-{heap,initial}-fork-{1,2,3}`) pass normalized outcome equivalence and
+the new heap-specific expected-outcome guard. JDK26/512MiB/SerialGC/warmups/repetitions are unchanged.
+The short browser matrix overlapped the beginning of this sample batch; no PIT ran concurrently.
+Ranges expose this ordinary machine-load variability; no isolated timing or universal speedup is
+claimed. All state/transition/encoding/sharedness counts match the pre-review table.
+
+| Fixture/mode | Encoding ms median (range) | Elapsed ms median (range) | Retained KiB median (range) |
+|---|---:|---:|---:|
+| aliased-array/REFERENCE | 0.409 (0.358–1.215) | 1.092 (0.941–2.098) | 83.570 (83.570–83.766) |
+| aliased-array/BATCHED | 0.135 (0.120–0.201) | 0.597 (0.537–0.905) | 31.891 (31.891–31.891) |
+| cyclic-publication/REFERENCE | 0.627 (0.455–1.912) | 2.136 (1.595–8.371) | 138.531 (138.406–139.648) |
+| cyclic-publication/BATCHED | 0.253 (0.186–0.295) | 1.497 (1.214–2.048) | 49.562 (49.562–50.047) |
+| lost-update/REFERENCE | 1.635 (0.930–1.872) | 3.561 (2.798–5.113) | 93.312 (93.234–94.125) |
+| lost-update/BATCHED | 0.605 (0.275–1.336) | 1.917 (1.058–2.433) | 42.406 (42.328–42.773) |
+| two-lock/REFERENCE | 1.736 (1.397–2.413) | 3.936 (2.989–5.069) | 462.625 (462.555–463.414) |
+| two-lock/BATCHED | 0.517 (0.338–0.648) | 1.598 (1.095–1.673) | 119.547 (119.547–119.883) |
+
+Measured correction diff against4f1da27 SHA-256: `5c221818c3c0c1fda23f9e8bc057d4c6188734232cce21a80f8432038ae51544`.
+A later loader-only cache-key refinement is outside timed search and does not change the measured
+executor, state, sharing, encoding or fixtures. The hash identifies the measured source snapshot. The one integrated run before
+this final run caught a redundant traversal of an already-rooted promoted object; narrowing the
+extra closure to unknown/unreachable parents preserved the original instrumentation expectation
+without weakening its assertion.
+
+CodeRabbit CLI0.8.1 completed an actual `review_completed` with0 findings across12 correction
+files (`pr142-coderabbit.ndjson`). The subsequent tiny refinement avoids reclosing already-rooted
+promotions; ordinary review and the final integrated build cover it. This is not a fabricated
+review of later documentation bookkeeping. Current raw review output is retained durably in the
+sibling evidence directory.
+
+No broad/default PIT rerun or additional Gradle producer run is claimed for this patch. The scoped
+Loader/Hierarchy/Sharing observations and updated inherited comparison are recorded below.
+
+The first three-class correction census produced1078 KILLED,178 SURVIVED,90 NO_COVERAGE and2
+TIMED_OUT /1348; R6 failed, and raw `pr142-scoped-before.xml` preserves it. Both timeouts remove
+Map.size calls in the newly added validation cache, reintroducing repeated expensive validation.
+The cache now uses the existing bounded aggregate byte count as its class-set version: each new
+frozen class read strictly increases total, immutable metadata never changes within that version,
+and failed loading aborts. Only successful hierarchy validation records a version. This removes
+redundant size queries and a separate generation counter. No operator, timeout, target-test or
+resource gate is changed; only the loader needs a scoped rerun.
+
+### Completed correction mutation evidence
+
+The loader-only rerun passes R6: **757 KILLED,122 SURVIVED,50 NO_COVERAGE /929**, with zero
+timeout, memory, run-error or nonviable detections (`pr142-loader.xml`). The failed three-class
+report remains unchanged. The hierarchy/sharing class observations from it contain no resource
+detections; latest loader observations replace that entire class, not selected favorable mutants.
+
+The updated affected assembly is **4947 KILLED,637 SURVIVED,598 NO_COVERAGE /6182**. It is still
+not one passing affected/whole-project PIT run and is never supplied to the ratchet. The unchanged
+compiled-method comparison retains every one of3017 comparable baseline kills; six inherited
+survivors become kills and one uncovered mutant becomes a covered survivor. The comparable count
+differs from the pre-review3028 because changed constructor/method bodies leave that comparison,
+not because baseline kills are silently discarded or claimed preserved across changed code.
+Changed/moved methods remain separately listed with no one-to-one preservation claim.
+
+The helper reads the existing pre-review default455/13/0 observations; no new default run is
+claimed. Reproduce the affected assembly by appending these whole-class reports to the earlier
+comparison command, in order:
+
+```sh
+--replacement-report pr142-scoped-before.xml --replacement-report pr142-loader.xml
+```
+
+The2127-test integrated build preceded the small cache-key refinement. Focused loader, dispatch,
+input-boundary, strict Javadoc and four-file private doclint pass after it; the final PIT invocation
+also passes its unmutated coverage run with the full unchanged target-test selection. Browser
+artifacts and search measurements precede that loader-only refinement and cover unchanged search/
+consumer behavior. No blanket timeout change, mutation gate relaxation or test weakening occurred.

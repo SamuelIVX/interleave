@@ -63,4 +63,16 @@ class BytecodeHeapReleaseTest {
             }
         }
     }
+    /** Real bounded multidimensional heaps can expose more than65536 snapshot field entries.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void snapshotsCoverAggregateActorHeap(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"@Model public class Fixture{public Fixture(){}@Actor(id=0)public void a(){int[][] x=new int[9][4096];}@Actor(id=1)public void b(){int[][] x=new int[9][4096];}}");
+        var limits=new BytecodeLimits(256,128,40000,32,4096,256,4096,128,8192,1024);var program=BytecodeLoader.load(classes,"Fixture",limits);
+        var state=BytecodeFixtures.run(program,program.initialState(),0);state=BytecodeFixtures.run(program,state,1);
+        assertEquals(36883,state.executions.get(0).cells);assertEquals(36883,state.executions.get(1).cells);
+        var snapshot=BytecodeSnapshots.capture(state,state.canonicalBytes());assertTrue(snapshot.fields().size()>65536);
+        assertTrue(snapshot.fields().size()<=88201);assertEquals("0",snapshot.fields().get("actor:1:9[4095]").raw());
+    }
+
 }

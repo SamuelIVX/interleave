@@ -319,7 +319,8 @@ class BytecodeDispatchTest {
         var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());var state=BytecodeFixtures.run(program,program.initialState(),0);
         assertEquals(new Int(2),state.statics.get(new BytecodeProgram.FieldId("Base","n","I")));assertEquals(1,state.statics.size());
         assertEquals(new Int(4),state.fixtureField("v"));assertEquals("2:4",BytecodeFixtures.oracle(directory,classes,"Fixture f=new Fixture();f.actor();System.out.print(Fixture.n+\":\"+((Base)f).v);"));
-        assertEquals(BytecodeExplorer.Kind.COMPLETED,new BytecodeExplorer(program,BytecodeScheduler.Mode.BATCHED).explore(10000).witnesses().getFirst().outcome().kind());
+        var result=new BytecodeExplorer(program,BytecodeScheduler.Mode.BATCHED).explore(10000);assertTrue(result.exhaustive());
+        assertEquals(java.util.Set.of(BytecodeExplorer.Kind.COMPLETED),result.witnesses().stream().map(w->w.outcome().kind()).collect(java.util.stream.Collectors.toSet()));
     }
 
     /** Both production granularities retain the concrete array lost-update violation and successful result.

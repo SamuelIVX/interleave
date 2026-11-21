@@ -69,6 +69,8 @@ final class BytecodeLoader {
      * Input byte accounting.
      */
     private int total;
+    /** Input version last successfully checked; each frozen class read strictly increases total bytes. */
+    private int validatedBytes=-1;
     /**
      * Pending role-specific call-graph validation.
      */
@@ -255,7 +257,8 @@ final class BytecodeLoader {
      * @param type named component, array or cast type
      * @param caller accessing application class
      * @param location real reference position
-     * @throws IOException for unavailable metadata */
+     * @throws IOException for unavailable metadata
+     * @throws BytecodeLoadException with LINKAGE for an inaccessible symbolic leaf type */
     private void typeAccess(ClassDesc type,String caller,BytecodeLocation location) throws IOException {
         fieldType(type);while(type.isArray())type=type.componentType();
         if(type.isClassOrInterface() && !type.equals(ConstantDescs.CD_Object))
@@ -288,7 +291,6 @@ final class BytecodeLoader {
                 resolved=hierarchy.special(caller.id.owner(),owner,resolved);
                 if(resolved==null || (hierarchy.flags(resolved) & (ACC_ABSTRACT|ACC_STATIC))!=0)
                     throw problem("LINKAGE","Invalid selected special target",location);
-                access(caller.id.owner(),resolved.owner(),hierarchy.flags(resolved),location);
             }
             pending.add(new Work(resolved,role));return;
         }
@@ -297,7 +299,7 @@ final class BytecodeLoader {
             if((entry.getValue().flags().flagsMask() & (ACC_INTERFACE|ACC_ABSTRACT))!=0 || !hierarchy.assignable(entry.getKey(),owner))continue;
             var target=hierarchy.dispatch(entry.getKey(),resolved);
             if(target==null || (hierarchy.flags(target) & (ACC_ABSTRACT|ACC_STATIC))!=0
-                || (classes.get(resolved.owner()).flags().flagsMask() & ACC_INTERFACE)!=0 && (hierarchy.flags(target) & ACC_PUBLIC)==0)
+                || call.opcode()==Opcode.INVOKEINTERFACE && (hierarchy.flags(target) & ACC_PUBLIC)==0)
                 throw problem("LINKAGE","Missing concrete dispatch target for "+entry.getKey(),location);
             pending.add(new Work(target,role));
         }
@@ -310,6 +312,9 @@ final class BytecodeLoader {
     /** Rejects cyclic/wrong-kind inheritance, final superclasses and inherited annotated entries.
      * @throws BytecodeLoadException for malformed closed hierarchy */
     private void validateHierarchy() {
+        // The existing bounded byte count versions the immutable, monotonically growing class set.
+        // No extra size calls or independently maintained generation counter are needed.
+        if(validatedBytes==total)return;
         var hierarchy=hierarchy();
         for(var entry:classes.entrySet()) {
             String name=entry.getKey();var type=entry.getValue();nestHost(name);
@@ -353,15 +358,16 @@ final class BytecodeLoader {
                     || !annotations(method,ANNOTATION+"Check;").isEmpty())throw problem("DECLARATION","Inherited annotated entry point",null);
             }
         }
+        validatedBytes=total;
     }
 
     /** Validates sealed edges in this single-directory, unnamed-module application profile.
      * @param child actual direct subtype
      * @param parent declaring superclass/interface
-     * @throws BytecodeLoadException for a forbidden or cross-package unnamed-module subtype */
+     * @throws BytecodeLoadException for an unlisted subtype or a nonpublic cross-package subtype */
     private void permittedSubtype(String child,String parent) {
         var permitted=classes.get(parent).findAttribute(Attributes.permittedSubclasses());
-        if(permitted.isPresent() && (!packageName(child).equals(packageName(parent))
+        if(permitted.isPresent() && ((classes.get(child).flags().flagsMask() & ACC_PUBLIC)==0 && !packageName(child).equals(packageName(parent))
             || permitted.get().permittedSubclasses().stream().noneMatch(type->type.asInternalName().equals(child))))
             throw problem("LINKAGE","Subtype is not permitted by sealed parent "+parent,null);
     }
@@ -548,7 +554,8 @@ final class BytecodeLoader {
     /** Checks symbolic class visibility independently of inherited member declaration visibility.
      * @param caller accessing class
      * @param owner symbolic class owner
-     * @param location real reference position */
+     * @param location real reference position
+     * @throws BytecodeLoadException with LINKAGE for an inaccessible symbolic type */
     private void classAccess(String caller,String owner,BytecodeLocation location) {
         if((classes.get(owner).flags().flagsMask() & ACC_PUBLIC)==0 && !packageName(caller).equals(packageName(owner)))
             throw problem("LINKAGE","Inaccessible symbolic class",location);
@@ -556,7 +563,8 @@ final class BytecodeLoader {
 
     /** Validates reciprocal same-package nest membership before granting private access.
      * @param member potential nest member
-     * @return validated nest host */
+     * @return validated nest host
+     * @throws BytecodeLoadException with LINKAGE for invalid or nonreciprocal nest metadata */
     private String nestHost(String member) {
         var type=classes.get(member);var host=type.findAttribute(Attributes.nestHost());
         if(host.isEmpty())return member;

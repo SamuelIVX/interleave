@@ -94,4 +94,32 @@ class BytecodePublicationTest {
             }
         }
     }
+    /** Unknown ownership promotes a discarded parent and its actor-rooted descendant in one refresh.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void unknownParentPromotesDescendantsAtomically(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"class Node{Node next;}@Model public class Fixture{public Fixture(){}@Actor(id=0)public void actor(){}}");
+        var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());
+        for(boolean rooted:new boolean[]{true,false}) {
+            var state=program.initialState();var parent=new Ref(0,0);var child=new Ref(0,1);
+            var p=new ObjectValue("Node");p.shared=false;var c=new ObjectValue("Node");c.shared=false;
+            p.fields.put(new BytecodeProgram.FieldId("Node","next","LNode;"),child);state.heap.put(parent,p);state.heap.put(child,c);
+            state.frame(0).locals.put(1,rooted ? parent : child);
+            var work=BytecodeSharing.refresh(state);
+            assertEquals(!rooted,p.shared);assertEquals(!rooted,c.shared);assertEquals(rooted ? 0 : 2,work.promotions());
+            assertEquals(0,BytecodeSharing.refresh(state).promotions());
+        }
+    }
+
+    /** An implicit monitor event before NEW cannot promote a discarded graph before a failed allocation.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void implicitMonitorEntryDoesNotPublish(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,26,"class Node{int value;}@Model public class Fixture{public Fixture(){}void discard(){new Node();}synchronized void lock(){new Object();}@Actor(id=0)public void actor(){discard();lock();}}");
+        var limits=new BytecodeLimits(256,1,8192,32,64,256,4096,128,8192,1024);var program=BytecodeLoader.load(classes,"Fixture",limits);
+        var expected=BytecodeInstructionOracle.enumerate(program);assertEquals(1,expected.size());var outcome=expected.iterator().next();
+        assertEquals("CUTOFF",outcome.kind());assertEquals("ALLOCATIONS",outcome.cutoff().reason());assertTrue(outcome.fields().keySet().stream().noneMatch(k->k.contains("Node")));
+        for(var mode:BytecodeScheduler.Mode.values()){var result=new BytecodeExplorer(program,mode).explore(10000);assertTrue(result.traversalComplete());assertEquals(expected,BytecodeBatchingOracleTest.independentProjection(result));}
+    }
+
 }

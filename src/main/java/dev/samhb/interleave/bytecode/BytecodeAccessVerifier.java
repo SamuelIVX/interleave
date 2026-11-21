@@ -21,7 +21,9 @@ final class BytecodeAccessVerifier {
      * Class-File verifier cannot derive from field/method declarations.
      * @param method decoded admitted method
      * @param hierarchy frozen declarations
-     * @param fields resolved field declarations */
+     * @param fields resolved field declarations
+     * @throws BytecodeLoadException with LINKAGE for a non-null cross-package protected instance
+     * receiver whose verified type is not assignable to the caller class */
     static void validate(BytecodeMethod method,BytecodeHierarchy hierarchy,Map<BytecodeProgram.FieldId,BytecodeProgram.Field> fields) {
         var frames=new HashMap<Integer,StackMapFrameInfo>();
         method.code.findAttribute(Attributes.stackMapTable()).ifPresent(table->table.entries().forEach(frame->frames.put(method.target(frame.target()),frame)));
@@ -95,7 +97,9 @@ final class BytecodeAccessVerifier {
      * @param hierarchy closed type relation
      * @param owner declaring class
      * @param flags member flags
-     * @param receiver verified static receiver type */
+     * @param receiver verified static receiver type
+     * @throws BytecodeLoadException with LINKAGE for a non-null cross-package protected instance
+     * receiver not assignable to the caller class; this is an admission failure, not stack analysis */
     private static void receiver(BytecodeMethod method,BytecodeMethod.Op op,BytecodeHierarchy hierarchy,String owner,int flags,String receiver) {
         String caller=method.id.owner();
         if((flags & ACC_PROTECTED)!=0 && !packageName(caller).equals(packageName(owner)) && !NULL.equals(receiver)

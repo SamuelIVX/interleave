@@ -23,7 +23,7 @@ class BytecodeHeapMeasurementTest {
      * @throws Exception for fixture failures */
     @Test void dynamicHeapOutcomeGate(@TempDir Path directory) throws Exception {
         for(String fixture:List.of("cyclic-publication","aliased-array")) {
-            var program=fixture(directory,fixture);var expected=BytecodeInstructionOracle.enumerate(program);
+            var program=fixture(directory,fixture);var expected=BytecodeInstructionOracle.enumerate(program);requireOutcomes(fixture,expected);
             for(var mode:BytecodeScheduler.Mode.values()) {
                 var result=new BytecodeExplorer(program,mode).explore(100000);assertTrue(result.exhaustive());
                 assertEquals(expected,BytecodeBatchingOracleTest.independentProjection(result));
@@ -47,7 +47,7 @@ class BytecodeHeapMeasurementTest {
             .append("\n- Two warmups and three measured repetitions per fixture/mode; alternating mode order. Retained heap is post-compaction used heap with actual store/witnesses live, minus the pre-run post-GC heap.\n")
             .append("- History-only counts come from a separate production-granularity enumeration, checked against actual unique-state counts; only sharing flags are erased in comparison copies. Its work is outside timed samples.\n");
         for(String fixture:List.of("cyclic-publication","aliased-array")) {
-            var program=fixture(output,fixture);var expected=BytecodeInstructionOracle.enumerate(program);
+            var program=fixture(output,fixture);var expected=BytecodeInstructionOracle.enumerate(program);requireOutcomes(fixture,expected);
             conditions.append("- ").append(fixture).append(" source SHA-256: ").append(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(Files.readAllBytes(output.resolve(fixture).resolve("sources/Fixture.java")))))
                 .append("; artifact: ").append(program.artifactDigest()).append("; limits: ").append(program.limits()).append('\n');
             for(var mode:BytecodeScheduler.Mode.values())for(int i=0;i<2;i++)run(program,expected,mode);
@@ -59,6 +59,24 @@ class BytecodeHeapMeasurementTest {
             }
         }
         Files.write(output.resolve("samples.csv"),rows,StandardCharsets.UTF_8);Files.writeString(output.resolve("conditions.md"),conditions);
+    }
+
+    /** Pins the one successful final graph independently of either execution enumeration.
+     * @param fixture checked-in source fixture
+     * @param outcomes independent instruction observations
+     * @throws AssertionError for a missing/extra outcome or wrong final graph/value */
+    private static void requireOutcomes(String fixture,Set<BytecodeInstructionOracle.Observation> outcomes) {
+        var fields=new TreeMap<String,BytecodeState.Value>();
+        var reference=new BytecodeState.Ref(0,0);String descriptor=fixture.equals("aliased-array") ? "[Ljava/lang/Object;" : "LNode;";
+        fields.put(BytecodeInstructionOracle.cellKey(BytecodeState.FIXTURE,new BytecodeProgram.FieldId("Fixture","published",descriptor)),reference);
+        fields.put(BytecodeInstructionOracle.cellKey(BytecodeState.FIXTURE,new BytecodeProgram.FieldId("Fixture","seen","I")),new BytecodeState.Int(1));
+        if(fixture.equals("aliased-array"))fields.put(BytecodeInstructionOracle.cellKey(reference,new BytecodeProgram.FieldId("[Ljava/lang/Object;","[0]","Ljava/lang/Object;")),reference);
+        else if(fixture.equals("cyclic-publication")) {
+            fields.put(BytecodeInstructionOracle.cellKey(reference,new BytecodeProgram.FieldId("Node","next","LNode;")),reference);
+            fields.put(BytecodeInstructionOracle.cellKey(reference,new BytecodeProgram.FieldId("Node","value","I")),new BytecodeState.Int(7));
+        }else throw new AssertionError("Unknown heap fixture "+fixture);
+        var expected=new BytecodeInstructionOracle.Observation("COMPLETED",-1,null,null,null,List.of(),Map.copyOf(fields));
+        if(!outcomes.equals(Set.of(expected)))throw new AssertionError("Wrong known heap outcome: "+fixture+" "+outcomes);
     }
 
     /** Runs with live storage retained and rejects any incomplete/mismatched measurement.

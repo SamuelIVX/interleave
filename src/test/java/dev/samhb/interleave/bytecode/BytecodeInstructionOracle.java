@@ -57,7 +57,7 @@ final class BytecodeInstructionOracle {
                     var object=state.heap.get(monitor);waits.add(waitKey(actor,object.monitorOwner,monitor,object.monitorDepth));
                 } else {
                     var before=state.executions.get(actor);
-                    if(before.phase==Phase.RUNNING) {
+                    if(before.phase==Phase.RUNNING && state.frame(actor).entered) {
                         var instruction=state.frame(actor).method.ops.get(state.frame(actor).bci).instruction();
                         boolean changed=instruction instanceof java.lang.classfile.instruction.NewObjectInstruction
                             || instruction instanceof java.lang.classfile.instruction.NewPrimitiveArrayInstruction
@@ -166,6 +166,10 @@ final class BytecodeInstructionOracle {
             before.forEach((ref,set)->{
                 var object=state.heap.get(ref);if(object==null)return;
                 for(int owner:set){object.fields.values().forEach(v->mark.accept(v,owner));if(object.elements!=null)object.elements.forEach(v->mark.accept(v,owner));}
+            });
+            if(before.equals(owners))state.heap.keySet().forEach(ref->{
+                var set=owners.get(ref);
+                if(set==null || set.size()>1 || set.contains(SETUP))mark.accept(ref,SETUP);
             });
             changed=!before.equals(owners);
         }while(changed);

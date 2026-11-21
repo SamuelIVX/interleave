@@ -51,10 +51,25 @@ final class BytecodeSharing {
                 if(object.elements!=null)for(Value value:object.elements)if(value instanceof Ref target && !target.equals(NULL)){edges++;pending.add(target);}
             }
         }
+        var promoted=new ArrayDeque<Ref>();
         for(var entry:state.heap.entrySet()) {
             var owners=reached.get(entry.getKey());
             boolean exclusive=owners!=null && owners.size()==1 && !owners.contains(SETUP);
-            if(!exclusive && !entry.getValue().shared){entry.getValue().shared=true;promotions++;}
+            if(!exclusive && !entry.getValue().shared){
+                entry.getValue().shared=true;promotions++;
+                // Reached shared/multi-actor descendants were already classified transitively above.
+                if(owners==null)promoted.add(entry.getKey());
+            }
+        }
+        // Unknown ownership can promote an unreachable parent whose child still has an actor root.
+        // Close those promotions before any observer sees a shared-to-private edge.
+        while(!promoted.isEmpty()) {
+            var object=state.heap.get(promoted.removeFirst());objects++;
+            var children=new ArrayList<Value>(object.fields.values());if(object.elements!=null)children.addAll(object.elements);
+            for(Value value:children)if(value instanceof Ref reference && !reference.equals(NULL)) {
+                edges++;var child=state.heap.get(reference);
+                if(child!=null && !child.shared){child.shared=true;promotions++;promoted.add(reference);}
+            }
         }
         return new Work(1,objects,edges,promotions);
     }

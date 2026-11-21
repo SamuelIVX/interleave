@@ -30,7 +30,8 @@ final class BytecodeHierarchy {
 
     /** Requires explicit application metadata.
      * @param type internal name
-     * @return frozen declaration */
+     * @return frozen declaration
+     * @throws BytecodeLoadException with METADATA when the application type is absent */
     ClassModel metadata(String type) {
         var value=types.get(type);
         if(value==null)throw problem("METADATA","Unknown hierarchy type "+type,null);
@@ -115,7 +116,9 @@ final class BytecodeHierarchy {
      * @param owner lookup class/interface
      * @param name method name
      * @param descriptor JVM method descriptor
-     * @return declaration or null when missing */
+     * @return declaration or null when no method is declared or inherited
+     * @throws BytecodeLoadException with METADATA for absent type metadata or LINKAGE for a
+     * superclass cycle or conflicting maximally specific defaults */
     BytecodeMethod.Id method(String owner,String name,String descriptor) {
         var seen=new HashSet<String>();
         for(String next=owner;next!=null && !next.equals("java/lang/Object");next=parent(next)) {
@@ -131,7 +134,9 @@ final class BytecodeHierarchy {
      * @param owner runtime class or interface
      * @param name method name
      * @param descriptor JVM descriptor
-     * @return default/abstract interface declaration, or null */
+     * @return default/abstract interface declaration, or null when none exists
+     * @throws BytecodeLoadException with METADATA for absent type metadata or LINKAGE for
+     * conflicting maximally specific defaults */
     private BytecodeMethod.Id interfaceMethod(String owner,String name,String descriptor) {
         var candidates=new ArrayList<BytecodeMethod.Id>();
         for(String next:ancestors(owner)) {
@@ -185,7 +190,9 @@ final class BytecodeHierarchy {
      * @param caller calling class
      * @param symbolic symbolic owner
      * @param resolved resolved member
-     * @return exact special target */
+     * @return selected instance declaration, or null when no target exists
+     * @throws BytecodeLoadException with METADATA for absent type metadata or LINKAGE for an
+     * invalid special owner or conflicting defaults; caller supplies a validated acyclic hierarchy */
     BytecodeMethod.Id special(String caller,String symbolic,BytecodeMethod.Id resolved) {
         if(resolved.name().equals("<init>") || (flags(resolved)&ACC_PRIVATE)!=0)return resolved;
         if((metadata(symbolic).flags().flagsMask() & ACC_INTERFACE)!=0) {
@@ -194,7 +201,13 @@ final class BytecodeHierarchy {
             return resolved;
         }
         if(!caller.equals(symbolic) && !assignable(caller,symbolic))throw problem("LINKAGE","Special call requires current class or superclass",null);
-        return !caller.equals(symbolic) ? method(parent(caller),resolved.name(),resolved.descriptor()) : resolved;
+        if(caller.equals(symbolic))return resolved;
+        String start=parent(caller);
+        for(String next=start;next!=null && !next.equals("java/lang/Object");next=parent(next)) {
+            var candidate=new BytecodeMethod.Id(next,resolved.name(),resolved.descriptor());int flags=flags(candidate);
+            if(flags>=0 && (flags & ACC_STATIC)==0)return candidate;
+        }
+        return interfaceMethod(start,resolved.name(),resolved.descriptor());
     }
 
     /** Extracts an internal class package for JVM inheritance rules.
