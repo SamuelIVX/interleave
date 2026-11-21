@@ -9,7 +9,7 @@ package dev.samhb.interleave.bytecode;
  * @param actorAllocations actor object allowance
  * @param actorHeapCells actor cell allowance
  * @param maxCallDepth maximum frames per execution owner
- * @param maxArrayLength future array length allowance
+ * @param maxArrayLength per-array length allowance
  * @param maxStringLength future String UTF-16 allowance
  * @param setupInstructions setup work allowance
  * @param setupAllocations setup object allowance

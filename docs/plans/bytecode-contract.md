@@ -3,7 +3,7 @@
 
 ## Objective and status
 
-**Selected; 94A/94B implemented, 94C initial public profile locally accepted; PR/CI/manual review pending.** Approved scope: controlled interpretation of compiled Java for fixed
+**Selected; 94A/94B/94C merged, 95 heap profile implemented and locally verified; draft PR/CI/manual acceptance pending.** Approved scope: controlled interpretation of compiled Java for fixed
 actors under bounded sequential consistency (SC). The first public release must find a real lost update
 and a two-lock deadlock through loading, search, evidence, strict replay, library/CLI, reports and viewer.
 No target-code host-JVM fallback is permitted. This is not unrestricted Java or full Java Memory Model coverage.
@@ -14,7 +14,8 @@ and parked conditional/deferred tasks remain unselected. The specification PR es
 evidence. The [94A implementation ledger](../measurements/94A-bytecode-foundation.md) records subsequent
 loader/single-actor evidence; [the94B ledger](../measurements/94B-bytecode-concurrency.md) records
 internal concurrent execution, batching preservation and measured setup-only sharedness costs. The [94C ledger](../measurements/94C-bytecode-release.md) records public library/CLI, replay and consumer
-verification. Broader heap costs, restricted DPOR and JPF gates remain pending. [Vocabulary](../../CONTEXT.md) owns domain terms; this document
+verification. The [95 ledger](../measurements/95-bytecode-heap.md) records dynamic heap/sharedness
+measurements and local heap-profile acceptance. Restricted DPOR and JPF gates remain pending. [Vocabulary](../../CONTEXT.md) owns domain terms; this document
 owns common behavior, interface seams, verification and phase boundaries.
 
 ## Sequential delivery and ownership
@@ -226,7 +227,9 @@ failure into PASS. An earlier established finding remains recorded if a later br
 ## Faults, monitors and verdicts
 
 Model null field/monitor access as NullPointerException and integer divide/remainder zero as
-ArithmeticException. Preserve prior instruction effects; the faulting opcode follows JVM semantics
+ArithmeticException. Phase95 adds supported array/cast faults and the dynamic
+IncompatibleClassChangeError for an incompatible interface receiver; statically known linkage failures
+still reject during loading. Preserve prior instruction effects; the faulting opcode follows JVM semantics
 and consumes fuel. Required cleanup/unwinding runs, then an uncaught actor exception is
 VIOLATION/UNCAUGHT_EXCEPTION, distinct from CHECK_FALSE. Capture actor, exception type, throwing
 class/method/descriptor/BCI, and interpreted frames; do not use a host stack as target evidence.
@@ -288,8 +291,8 @@ Cell limits bound modeled storage, not JVM bytes. Metadata/input caps and a glob
 abort protect implementation overhead; report external safety aborts honestly as INCOMPLETE. Allocation,
 cell and depth cutoffs name the omitted allocation/invoke location, reason and configured limit.
 For simultaneous failures use fuel first, then opcode dynamic validity (e.g. negative length), then
-array/String length, allocation count, cells, depth as applicable. Failed allocations charge no cells
-or identities; an executed allocating opcode consumes fuel even if it cannot allocate. No exception
+array/String length, allocation count, cells, depth as applicable. Each failed component allocation charges no cells
+or identity; earlier successful multidimensional components remain committed as specified in95; an executed allocating opcode consumes fuel even if it cannot allocate. No exception
 object allocation is required for initial modeled VM faults: bounded pending-fault metadata belongs
 to actor state, with no fabricated user-visible Throwable before 96.
 
@@ -430,7 +433,8 @@ state relation, event matching, counterexample tests and limits. A green suite a
 
 [verified, 94B] Reference/batched tiny-fixture measurements, setup-only sharedness costs and batching
 preservation are recorded in the [94B ledger](../measurements/94B-bytecode-concurrency.md).
-[unverified] Broader-heap sharedness costs, optimized reduction measurements and JPF compatibility.
+[measured]95 records tiny cyclic/array heap fixtures and actual sharedness work; larger-graph costs
+remain unmeasured. [unverified] Optimized reduction measurements and JPF compatibility.
 [deferred research] Frozen exhausted actors, fuel-free cycle detection, broader cyclic DPOR and
 initializer allowlists. None is a release requirement or implied optimization opportunity.
 

@@ -488,6 +488,7 @@ public final class Main {
         System.out.println("       interleave --file <path> [flags]");
         System.out.println("       interleave --source <path.ilv> [flags]");
         System.out.println("       interleave --bytecode <binary-name> --class-path <directory> [--json] [--strategy DFS] [--store exact]");
+        System.out.println("       BYTECODE: bounded SC objects/arrays/closed dispatch; no user handlers or host-JVM fallback");
         System.out.println("       interleave --all [flags]");
         System.out.println("       interleave generate --template <id> [flags]");
         System.out.println();

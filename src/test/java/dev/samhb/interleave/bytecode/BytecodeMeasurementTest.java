@@ -29,8 +29,8 @@ class BytecodeMeasurementTest {
                 assertTrue(result.exhaustive());assertEquals(expected,BytecodeBatchingOracleTest.independentProjection(result));
                 assertTrue(result.metrics().encodingBytes()>=result.metrics().retainedKeyBytes());
                 assertEquals(1,result.metrics().sharing().traversals());assertEquals(0,result.metrics().sharing().promotions());
-                assertEquals(fixture.equals("two-lock") ? 4 : 2,result.metrics().sharing().objects());
-                assertEquals(fixture.equals("two-lock") ? 2 : 0,result.metrics().sharing().edges());
+                assertEquals(fixture.equals("two-lock") ? 10 : 4,result.metrics().sharing().objects());
+                assertEquals(fixture.equals("two-lock") ? 6 : 0,result.metrics().sharing().edges());
             }
         }
     }
@@ -121,7 +121,7 @@ class BytecodeMeasurementTest {
 
     /** Requests two synchronous full collections under the configured Serial GC and verifies progress.
      * @throws InterruptedException if measurement is cancelled */
-    private static void collect() throws InterruptedException {
+    static void collect() throws InterruptedException {
         long before=gcCount();System.gc();Thread.sleep(20);System.gc();Thread.sleep(20);
         if(gcCount()<=before)throw new IllegalStateException("Explicit GC made no observable progress; retained-memory sample invalid");
     }

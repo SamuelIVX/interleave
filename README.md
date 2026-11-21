@@ -9,12 +9,13 @@ The headline artifact is a states-explored reduction table: naive DFS → +hashi
 Concurrency bugs — race conditions, deadlocks, missed signals — are notoriously hard to find because they depend on exact thread ordering. Rather than running a program once and hoping for the right schedule, this checker systematically explores every distinct interleaving and reports the exact `(thread, step)` schedule that reaches a bad state.
 
 The selected [#12 bounded Java bytecode workstream](docs/plans/bytecode-contract.md)
-now exposes the initial **bounded, sequentially consistent bytecode profile**: annotated fixed actors,
+now exposes a **bounded, sequentially consistent bytecode heap profile**: annotated fixed actors,
 exact DFS, monitor deadlocks, declared checks, artifact-bound evidence and strict replay through the
-library, CLI, reports and viewer. Start with the [compiled lost-update and two-lock examples](examples/bytecode/README.md).
-The [94C release ledger](docs/measurements/94C-bytecode-release.md) records validation and limitations;
-[94B](docs/measurements/94B-bytecode-concurrency.md) owns the batching measurements and preservation argument.
-Objects/arrays, general exceptions, wider primitives/libraries and additional bytecode search strategies
+library, CLI, reports and viewer. Actor-created objects, primitive/reference arrays, aliases, closed hierarchy dispatch and transitive publication are supported. Start with the [compiled lost-update and two-lock examples](examples/bytecode/README.md).
+The [95 heap ledger](docs/measurements/95-bytecode-heap.md) records heap acceptance and the extended batching argument;
+[94C](docs/measurements/94C-bytecode-release.md) records initial release compatibility, and
+[94B](docs/measurements/94B-bytecode-concurrency.md) records the earlier setup-only batching measurements.
+General exceptions, wider primitive computation/libraries and additional bytecode search strategies
 remain later phases. Weak-memory work remains unselected.
 
 The project is a spec-driven proof of concept for small explicit models, bounded `.ilv` source and a

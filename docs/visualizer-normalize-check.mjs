@@ -250,13 +250,15 @@ assert.equal(normalize({...resource,replay:{...replay,states:[replay.states[0],{
 // Fresh BYTECODE producers preserve run precision and distinct instruction locations.
 if(process.env.BYTECODE_DIR){
   assert.equal(read(resolve(root,process.env.BYTECODE_DIR,'bytecode-lost-update.json')),read(process.env.BYTECODE_DIR+'/bytecode-lost-update.json'),'Configured relative and absolute BYTECODE directories identify the same artifact');
-  const expected={'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION'};
+  const expected={'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',heap:'PASS','array-fault':'VIOLATION',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION'};
   for(const [name,verdict] of Object.entries(expected)){
     const raw=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-'+name+'.json'));
     const value=normalize(raw);assert.equal(value.meta.verdict,verdict,name);
     assert.equal(value.meta.programKind,'BYTECODE');assert(value.trace.bytecodeEvidence);
     assert.equal(value.trace.executedSteps,undefined);assert.equal(value.trace.sourceDigest,undefined);
     if(name==='no-line')assert(value.trace.bytecodeEvidence.transitions.every(t=>t.operations.every(op=>op.line==null)));
+    if(name==='heap')assert(value.trace.bytecodeEvidence.snapshots.at(-1).fields['actor:0:0[0]'].raw==='actor:0:0');
+    if(name==='array-fault')assert.equal(value.trace.bytecodeEvidence.terminal.fault.type,'java/lang/ArrayStoreException');
     if(name==='deadlock')assert.equal(value.trace.bytecodeEvidence.terminal.waits.length,2);
   }
   const report=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-report.json'));

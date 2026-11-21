@@ -78,7 +78,7 @@ class BytecodeInputBoundaryTest {
         assertThrows(BytecodeLoadException.class,()->BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults()));
         Path interfaces=BytecodeFixtures.compile(directory.resolve("interface"),26,
             "@Model public class Fixture { Marker value; public Fixture() {} @Actor(id=0) public void actor() {} } interface Marker {}");
-        assertEquals("UNSUPPORTED",assertThrows(BytecodeLoadException.class,()->BytecodeLoader.load(interfaces,"Fixture",BytecodeLimits.defaults())).category);
+        assertEquals(BytecodeState.NULL,BytecodeLoader.load(interfaces,"Fixture",BytecodeLimits.defaults()).initialState().fixtureField("value"));
     }
 
     /** Pads with a bounded, nonexecuting standard debug attribute, retaining a valid class.

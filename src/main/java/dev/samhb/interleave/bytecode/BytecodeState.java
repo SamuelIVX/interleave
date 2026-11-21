@@ -1,5 +1,5 @@
 /**
- * Complete owned foundation state, including resources, aliases and pending terminal events.
+ * Complete owned heap-profile state, including resources, aliases and pending terminal events.
  */
 package dev.samhb.interleave.bytecode;
 
@@ -32,12 +32,15 @@ final class BytecodeState {
     /**
      * Operand/local value families admitted by this profile.
      */
-    sealed interface Value permits Int, Ref, Thrown {}
+    sealed interface Value permits Int, Ref, Thrown, WideZero {}
     /**
      * Models a JVM int, including the boolean operand representation.
      * @param value JVM int (also boolean representation)
      */
     record Int(int value) implements Value {}
+    /** Default-only wide array slot; computations remain excluded until97.
+     * @param type LONG, FLOAT or DOUBLE tag */
+    record WideZero(String type) implements Value {}
     /**
      * Names a permanent object identity in a setup, actor or constant namespace.
      * @param owner setup/actor/constant namespace
@@ -113,7 +116,7 @@ final class BytecodeState {
          */ CUTOFF
     }
     /**
-     * Mutable heap object; Object/fixture only until95.
+     * Mutable application object or exact-descriptor array.
      */
     static final class ObjectValue {
         /**
@@ -125,13 +128,15 @@ final class BytecodeState {
          */
         final NavigableMap<BytecodeProgram.FieldId,Value> fields = new TreeMap<>();
         /**
-         * Historical promotion, conservative for all setup objects in94A.
+         * Irreversible historical promotion; setup objects begin shared.
          */
         boolean shared = true;
         /**
          * Constructor completion affects legal future execution.
          */
         boolean initialized;
+        /** Array elements, null for ordinary objects; type retains rank and exact component descriptor. */
+        ArrayList<Value> elements;
         /**
          * Monitor owner; -2 denotes unowned.
          */
@@ -151,7 +156,7 @@ final class BytecodeState {
          */
         ObjectValue copy() {
             var copy = new ObjectValue(type); copy.fields.putAll(fields); copy.shared = shared;
-            copy.initialized = initialized; copy.monitorOwner = monitorOwner; copy.monitorDepth = monitorDepth;
+            copy.initialized = initialized; copy.elements=elements==null ? null : new ArrayList<>(elements); copy.monitorOwner = monitorOwner; copy.monitorDepth = monitorDepth;
             return copy;
         }
     }
@@ -264,13 +269,14 @@ final class BytecodeState {
         var state = new BytecodeState(); var setup = new Execution();
         state.executions.put(SETUP,setup);
         long cells=1L+program.classes.size()+program.fields.values().stream().filter(field ->
-            (field.flags() & ClassFile.ACC_STATIC)!=0 || field.id().owner().equals(program.model)).count();
+            (field.flags() & ClassFile.ACC_STATIC)!=0).count()+program.hierarchy.instanceFields(program.model).size();
         if (cells>program.limits.setupHeapCells()) throw new BytecodeLoadException("LIMIT","Setup default cells exceed allowance",null);
         var fixture = new ObjectValue(program.model);
         for (var field : program.fields.values()) {
             if ((field.flags() & ClassFile.ACC_STATIC) != 0) state.statics.put(field.id(),field.initial());
-            else if (field.id().owner().equals(program.model)) fixture.fields.put(field.id(),field.initial());
+
         }
+        program.hierarchy.instanceFields(program.model).forEach(field->fixture.fields.put(field.id(),field.initial()));
         state.heap.put(FIXTURE,fixture); setup.allocations=1; setup.nextSequence=1;
         for (String type : program.classes) {
             var monitor = new ObjectValue("java/lang/Class"); monitor.initialized=true;
@@ -298,17 +304,19 @@ final class BytecodeState {
     }
 
     /**
-     * Encodes all future-relevant foundation state, independent of diagnostic toString output.
+     * Encodes all future-relevant heap-profile state, independent of diagnostic toString output.
      * @return versioned length-delimited canonical payload
      */
     byte[] canonicalBytes() {
         try {
             var bytes = new ByteArrayOutputStream(); var out = new DataOutputStream(bytes);
-            out.writeInt(1); out.writeInt(heap.size());
+            out.writeInt(2); out.writeInt(heap.size());
             for (var entry : heap.entrySet()) {
                 value(out,entry.getKey()); var object=entry.getValue(); text(out,object.type);
                 out.writeBoolean(object.shared); out.writeBoolean(object.initialized);
                 out.writeInt(object.monitorOwner); out.writeInt(object.monitorDepth); fields(out,object.fields);
+                out.writeBoolean(object.elements!=null);
+                if(object.elements!=null){out.writeInt(object.elements.size());for(Value element:object.elements)value(out,element);}
             }
             fields(out,statics); out.writeInt(executions.size());
             for (var entry : executions.entrySet()) {
@@ -322,7 +330,7 @@ final class BytecodeState {
                 }
                 out.writeInt(execution.frames.size());
                 for (var frame : execution.frames) {
-                    location(out,frame.method.location(frame.bci)); out.writeBoolean(frame.entered); value(out,frame.methodMonitor);
+                    location(out,frame.method.location(frame.bci)); out.writeBoolean(frame.entered); value(out,frame.methodMonitor); value(out,frame.constructorReceiver);
                     out.writeInt(frame.locals.size());
                     for (var local : frame.locals.entrySet()) { out.writeInt(local.getKey()); value(out,local.getValue()); }
                     out.writeInt(frame.stack.size()); for (Value operand : frame.stack) value(out,operand);
@@ -354,6 +362,7 @@ final class BytecodeState {
         switch (value) {
             case null -> out.writeByte(0);
             case Int number -> { out.writeByte(1); out.writeInt(number.value()); }
+            case WideZero wide -> {out.writeByte(4);text(out,wide.type());}
             case Ref reference -> { out.writeByte(2); out.writeInt(reference.owner()); out.writeLong(reference.sequence()); }
             case Thrown thrown -> { out.writeByte(3); fault(out,thrown.fault()); }
         }

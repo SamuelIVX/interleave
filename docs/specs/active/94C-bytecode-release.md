@@ -4,7 +4,7 @@
 ## Objective
 
 Deliver initial public bytecode release as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: local acceptance complete; release gates recorded in the [94C ledger](../../measurements/94C-bytecode-release.md).** The
+**Type: delta. Status: merged in PR141 at5385a3c; release gates recorded in the [94C ledger](../../measurements/94C-bytecode-release.md).** The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 94C only.
 

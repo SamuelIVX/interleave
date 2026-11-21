@@ -2,7 +2,7 @@
 package dev.samhb.interleave.bytecode;
 
 import java.lang.classfile.Opcode;
-import java.lang.classfile.instruction.FieldInstruction;
+import java.lang.classfile.instruction.*;
 import java.util.*;
 
 /** Pure choices and isolated selected transitions using the single opcode executor. */
@@ -83,9 +83,11 @@ final class BytecodeScheduler {
             var before=state.executions.get(actor);boolean publication=false;
             if(probe.opcode()==Opcode.PUTFIELD || probe.opcode()==Opcode.PUTSTATIC) {
                 var frame=before.frames.getLast();var field=(FieldInstruction)frame.method.ops.get(frame.bci).instruction();
-                publication=field.type().stringValue().startsWith("L");
+                publication=field.type().stringValue().startsWith("L") || field.type().stringValue().startsWith("[");
             }
-            var result=OpcodeExecutor.step(program,state,actor);var next=result.state();
+            publication|=probe.opcode()==Opcode.AASTORE || probe.opcode()==Opcode.NEW || probe.opcode()==Opcode.NEWARRAY
+                || probe.opcode()==Opcode.ANEWARRAY || probe.opcode()==Opcode.MULTIANEWARRAY;
+            int heapBefore=state.heap.size();var result=OpcodeExecutor.step(program,state,actor);var next=result.state();
             int charged=next.executions.get(actor).instructions-before.instructions;
             String event=charged>0 ? "OPCODE" : probe.exhausted() ? "FUEL_CUTOFF" : switch(before.phase) {
                 case RUNNING -> "MONITOR_ENTER";case RETURNING -> "RETURN";case EXCEPTION -> "EXCEPTION";
@@ -94,7 +96,7 @@ final class BytecodeScheduler {
             };
             executed.add(new Executed(probe.location(),charged==0 ? null : probe.opcode(),event));
             instructions+=charged;kind=result.kind();state=next;observable|=probe.observable();
-            if(publication && kind==OpcodeExecutor.Kind.ADVANCED)sharing=sharing.plus(BytecodeSharing.refresh(state));
+            if(publication && (kind==OpcodeExecutor.Kind.ADVANCED || next.heap.size()!=heapBefore))sharing=sharing.plus(BytecodeSharing.refresh(state));
             // Every discovered return/fault/cutoff yields before terminal delivery, including local failures.
             if(mode==Mode.REFERENCE || kind!=OpcodeExecutor.Kind.ADVANCED
                 || state.executions.get(actor).phase!=BytecodeState.Phase.RUNNING)break;

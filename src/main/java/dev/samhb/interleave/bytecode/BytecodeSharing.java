@@ -1,68 +1,68 @@
-/** Conservative transitive sharing for the setup-only heap, with actual traversal instrumentation. */
+/** Conservative transitive sharedness with irreversible history and measured traversal work. */
 package dev.samhb.interleave.bytecode;
 
 import java.util.*;
 import static dev.samhb.interleave.bytecode.BytecodeState.*;
 
-/** Never establishes actor-exclusive heap ownership in94B; unknown and historical sharing stay shared. */
+/** Proves exclusivity from actor roots; publication promotes entire reachable graphs atomically. */
 final class BytecodeSharing {
-    /** Prevents construction of the stateless sharing traversal. */
+    /** Prevents construction of this stateless traversal. */
     private BytecodeSharing() {}
 
-    /** Actual sharedness work, outside the model's canonical state and resource counters.
+    /** Actual sharing work outside canonical state/resource allowances.
      * @param traversals refresh operations
-     * @param objects distinct heap objects processed across refreshes
-     * @param edges nonnull reference-field edges visited from roots
-     * @param promotions false-to-true historical sharing changes
-     */
+     * @param objects object visits across root traversals
+     * @param edges reference edges visited
+     * @param promotions irreversible false-to-true changes */
     record Work(long traversals,long objects,long edges,long promotions) {
-        /** Empty work for transitions which do not change reference reachability. */
+        /** Empty sharing work. */
         static final Work NONE=new Work(0,0,0,0);
-        /** Combines actual work without changing target state.
-         * @param other additional traversal work
-         * @return summed counters */
+        /** Adds instrumentation without modifying target state.
+         * @param other additional work
+         * @return combined measurements */
         Work plus(Work other){return new Work(traversals+other.traversals,objects+other.objects,edges+other.edges,promotions+other.promotions);}
     }
 
-    /** Traverses fixture/static/actor roots and conservatively promotes unresolved ownership.
-     * The initial profile has setup-only objects; no heap access is batched as actor-local.
-     * @param state owned scratch, never an unselected committed parent
-     * @return actual object/edge work and irreversible promotions
-     */
+    /** Recomputes reachability after reference writes/allocations, retaining historical promotions.
+     * Shared roots include historically shared objects even after their last public alias disappears.
+     * A fresh actor allocation is exclusively on that actor's stack; the executor establishes its
+     * initial locality. Unreachable objects cannot regain an alias without passing through a traced
+     * heap edge. Thus losing a last local root cannot create a new cross-actor path between refreshes.
+     * @param state selected owned successor
+     * @return actual traversal/edge/promotion counts */
     static Work refresh(BytecodeState state) {
-        var queue=new ArrayDeque<Ref>();queue.add(FIXTURE);
-        for(var value:state.statics.values())enqueue(queue,value);
-        for(var entry:state.executions.entrySet()) {
-            if(entry.getKey()<0)continue;
-            var execution=entry.getValue();enqueue(queue,execution.returned);
+        var roots=new TreeMap<Integer,List<Ref>>();var shared=new ArrayList<Ref>();roots.put(SETUP,shared);
+        shared.add(FIXTURE);state.statics.values().forEach(value->root(shared,value));
+        state.heap.forEach((reference,object)->{if(object.shared)shared.add(reference);});
+        state.executions.forEach((owner,execution)->{
+            if(owner<0)return;var actor=new ArrayList<Ref>();roots.put(owner,actor);root(actor,execution.returned);
             for(var frame:execution.frames) {
-                for(var value:frame.locals.values())enqueue(queue,value);
-                for(var value:frame.stack)enqueue(queue,value);
-                enqueue(queue,frame.methodMonitor);
+                frame.locals.values().forEach(value->root(actor,value));frame.stack.forEach(value->root(actor,value));root(actor,frame.methodMonitor);root(actor,frame.constructorReceiver);
+            }
+        });
+        var reached=new HashMap<Ref,Set<Integer>>();long objects=0,edges=0,promotions=0;
+        for(var entry:roots.entrySet()) {
+            var pending=new ArrayDeque<>(entry.getValue());var seen=new HashSet<Ref>();
+            while(!pending.isEmpty()) {
+                Ref reference=pending.removeFirst();if(!seen.add(reference))continue;
+                var object=state.heap.get(reference);if(object==null)continue;
+                objects++;reached.computeIfAbsent(reference,ignored->new HashSet<>()).add(entry.getKey());
+                for(Value value:object.fields.values())if(value instanceof Ref target && !target.equals(NULL)){edges++;pending.add(target);}
+                if(object.elements!=null)for(Value value:object.elements)if(value instanceof Ref target && !target.equals(NULL)){edges++;pending.add(target);}
             }
         }
-        var seen=new HashSet<Ref>();long objects=0,edges=0,promotions=0;
-        while(!queue.isEmpty()) {
-            var reference=queue.removeFirst();if(!seen.add(reference))continue;
-            var object=state.heap.get(reference);if(object==null)continue;
-            objects++;if(!object.shared){object.shared=true;promotions++;}
-            for(var value:object.fields.values()) {
-                if(value instanceof Ref target && !target.equals(NULL)){edges++;queue.addLast(target);}
-            }
-        }
-        // shortcut:94B cannot allocate actor-local objects; unresolved setup ownership remains shared until95 analysis.
         for(var entry:state.heap.entrySet()) {
-            if(seen.add(entry.getKey())) {
-                objects++;if(!entry.getValue().shared){entry.getValue().shared=true;promotions++;}
-            }
+            var owners=reached.get(entry.getKey());
+            boolean exclusive=owners!=null && owners.size()==1 && !owners.contains(SETUP);
+            if(!exclusive && !entry.getValue().shared){entry.getValue().shared=true;promotions++;}
         }
         return new Work(1,objects,edges,promotions);
     }
 
-    /** Adds actual reference roots, excluding null and non-reference VM metadata.
-     * @param queue pending roots
-     * @param value target slot or pending value */
-    private static void enqueue(ArrayDeque<Ref> queue,Value value) {
-        if(value instanceof Ref reference && !reference.equals(NULL))queue.addLast(reference);
+    /** Adds only nonnull target reference roots.
+     * @param roots root list
+     * @param value interpreted slot */
+    private static void root(List<Ref> roots,Value value) {
+        if(value instanceof Ref reference && !reference.equals(NULL))roots.add(reference);
     }
 }

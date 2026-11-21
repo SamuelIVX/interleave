@@ -25,6 +25,8 @@ final class BytecodeFrame {
      * Real current byte index.
      */
     int bci;
+    /** Original constructor receiver, independent of verifier-legal overwrites of local zero. */
+    final BytecodeState.Ref constructorReceiver;
     /**
      * Whether implicit synchronized entry has completed.
      */
@@ -41,6 +43,7 @@ final class BytecodeFrame {
      */
     BytecodeFrame(BytecodeMethod method, List<BytecodeState.Value> arguments) {
         this.method = method;
+        constructorReceiver=method.id.name().equals("<init>") ? (BytecodeState.Ref)arguments.getFirst() : null;
         for (int i = 0; i < arguments.size(); i++) locals.put(i,arguments.get(i));
         entered = (method.flags & java.lang.classfile.ClassFile.ACC_SYNCHRONIZED) == 0;
     }
@@ -51,7 +54,7 @@ final class BytecodeFrame {
      */
     private BytecodeFrame(BytecodeFrame original) {
         method = original.method; locals.putAll(original.locals); stack.addAll(original.stack);
-        bci = original.bci; entered = original.entered; methodMonitor = original.methodMonitor;
+        bci = original.bci; entered = original.entered; methodMonitor = original.methodMonitor;constructorReceiver=original.constructorReceiver;
     }
 
     /**

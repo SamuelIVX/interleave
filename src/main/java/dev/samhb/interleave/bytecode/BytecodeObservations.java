@@ -68,7 +68,12 @@ final class BytecodeObservations {
      * @return immutable normalized observation */
     static BytecodeExplorer.Outcome outcome(BytecodeState state,BytecodeExplorer.Kind kind,int actor,Fault fault,Cutoff cutoff,String interruption,List<BytecodeExplorer.Wait> waits,BytecodeChecks.Failure observer) {
         var shared=new TreeMap<BytecodeExplorer.Cell,Value>();state.statics.forEach((field,value)->shared.put(new BytecodeExplorer.Cell(NULL,field),value));
-        state.heap.forEach((reference,object)->{if(object.shared)object.fields.forEach((field,value)->shared.put(new BytecodeExplorer.Cell(reference,field),value));});
+        state.heap.forEach((reference,object)->{
+            if(!object.shared)return;
+            object.fields.forEach((field,value)->shared.put(new BytecodeExplorer.Cell(reference,field),value));
+            if(object.elements!=null)for(int i=0;i<object.elements.size();i++)
+                shared.put(new BytecodeExplorer.Cell(reference,new BytecodeProgram.FieldId(object.type,"["+i+"]",object.type.substring(1))),object.elements.get(i));
+        });
         return new BytecodeExplorer.Outcome(kind,actor,fault,cutoff,interruption,waits,shared,observer);
     }
 }

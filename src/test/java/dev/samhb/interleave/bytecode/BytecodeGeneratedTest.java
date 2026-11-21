@@ -45,6 +45,42 @@ class BytecodeGeneratedTest {
         }
     }
 
+    /** Fixed-seed heap/cast/dispatch programs use the same independent JVM and deletion shrinker.
+     * @param directory compiler workspace
+     * @throws Exception for fixture/oracle failures */
+    @Test void generatedHeapProgramsMatchJvmWithShrinking(@TempDir Path directory) throws Exception {
+        long seed=0x952026L;var random=new Random(seed);
+        for(int sample=0;sample<12;sample++) {
+            int initial=random.nextInt();var operations=new ArrayList<String>();
+            for(int index=0;index<5;index++) {
+                int n=random.nextInt(17)-8;
+                operations.add(switch(random.nextInt(4)) {
+                    case 0 -> "{int[] a=new int[2];a[1]=x;x=a[1]+"+n+";}";
+                    case 1 -> "{Cell c=new Cell(x);Read r=c;x=r.read()+"+n+";}";
+                    case 2 -> "{Object[] a=new Cell[1];a[0]=new Cell(x);x=((Cell)a[0]).read()^"+n+";}";
+                    default -> "{Cell c=new Cell(x);c.next=c;Object o=c;if(o instanceof Cell)x=((Cell)o).next.read()-("+n+");}";
+                });
+            }
+            int release=new int[]{17,21,26}[sample%3];
+            if(!matches(directory.resolve("case"+sample),release,heapSource(initial,operations))) {
+                int selected=sample;int[] attempt={0};
+                var minimal=shrink(operations,candidate->{try{return !matches(directory.resolve("shrink"+selected+"-"+attempt[0]++),release,heapSource(initial,candidate));}
+                    catch(Exception failure){throw new IllegalStateException(failure);}});
+                Path regression=Path.of("build/bytecode-regressions/heap-seed-"+seed+"-case-"+sample+"/Fixture.java");
+                Files.createDirectories(regression.getParent());Files.writeString(regression,heapSource(initial,minimal));
+                fail("Heap differential mismatch; saved "+regression);
+            }
+        }
+    }
+
+    /** Adds a bounded application hierarchy around independently generated actor statements.
+     * @param initial initial JVM int
+     * @param operations bounded statements
+     * @return complete compiler fixture */
+    private static String heapSource(int initial,List<String> operations) {
+        return "interface Read{int read();}class Cell implements Read{int x;Cell next;Cell(int x){this.x=x;}public int read(){return x;}}"+source(initial,operations);
+    }
+
     /** The test-only shrinker removes irrelevant operations and reaches deletion-one-minimality. */
     @Test void shrinkerRetainsOnlyFailureConditions() {
         var input=List.of("prefix","requiredA","noise","requiredB","suffix");

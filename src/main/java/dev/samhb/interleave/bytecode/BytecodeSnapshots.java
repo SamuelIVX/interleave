@@ -24,6 +24,10 @@ final class BytecodeSnapshots {
         state.heap.forEach((reference,object)->{
             String id=identity(reference);heap.add(new BytecodeEvidence.ObjectState(id,object.type,object.shared,object.initialized,object.monitorOwner,object.monitorDepth));
             object.fields.forEach((field,slot)->fields.put(id+"."+field(field),value(slot)));
+            if(object.elements!=null) {
+                fields.put(id+".length",number(object.elements.size()));
+                for(int i=0;i<object.elements.size();i++)fields.put(id+"["+i+"]",value(object.elements.get(i)));
+            }
         });
         state.executions.forEach((actor,execution)->{
             var slots=new TreeMap<String,BytecodeEvidence.Value>();
@@ -38,7 +42,7 @@ final class BytecodeSnapshots {
                 var frame=execution.frames.get(index);String prefix="frame"+index+".";
                 slots.put(prefix+"method",text(frame.method.id.toString()));slots.put(prefix+"bci",number(frame.bci));
                 slots.put(prefix+"entered",new BytecodeEvidence.Value("BOOLEAN",Boolean.toString(frame.entered)));
-                slots.put(prefix+"monitor",value(frame.methodMonitor));
+                slots.put(prefix+"monitor",value(frame.methodMonitor));slots.put(prefix+"constructor",value(frame.constructorReceiver));
                 frame.locals.forEach((slot,entry)->slots.put(prefix+"local"+slot,value(entry)));
                 for(int operand=0;operand<frame.stack.size();operand++)slots.put(prefix+"stack"+operand,value(frame.stack.get(operand)));
             }
@@ -68,13 +72,14 @@ final class BytecodeSnapshots {
         return (reference.owner()==SETUP ? "setup:" : reference.owner()== -2 ? "class:" : "actor:"+reference.owner()+":")+reference.sequence();
     }
 
-    /** Converts a category-one slot; wider raw-bit tags are reserved by the public schema.
+    /** Converts category-one slots and default-only wide array cells without numeric coercion.
      * @param slot immutable VM slot, or null for an uninitialized diagnostic slot
      * @return immutable lossless tagged value */
     private static BytecodeEvidence.Value value(Value slot) {
         return switch(slot) {
             case null -> new BytecodeEvidence.Value("NULL","");
             case Int integer -> number(integer.value());
+            case WideZero wide -> new BytecodeEvidence.Value(wide.type().equals("LONG") ? "LONG" : wide.type()+"_BITS",wide.type().equals("LONG") ? "0" : wide.type().equals("FLOAT") ? "00000000" : "0000000000000000");
             case Ref reference -> reference.equals(NULL) ? new BytecodeEvidence.Value("NULL","") : new BytecodeEvidence.Value("REFERENCE",identity(reference));
             case Thrown thrown -> new BytecodeEvidence.Value("FAULT",thrown.fault().toString());
         };

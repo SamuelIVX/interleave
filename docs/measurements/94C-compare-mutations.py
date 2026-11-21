@@ -12,6 +12,7 @@ parser.add_argument('evidence',type=Path,help='Directory containing the saved XM
 parser.add_argument('baseline_classes',type=Path,help='Baseline build/classes/java/main directory')
 parser.add_argument('feature_classes',type=Path,help='Feature build/classes/java/main directory')
 parser.add_argument('--javap',default='javap',help='JDK 26 javap executable')
+parser.add_argument('--replacement-report',action='append',help='Whole-class replacement XML in evidence; repeat in chronological order (default: historical94C reports)')
 args=parser.parse_args()
 EVIDENCE=args.evidence
 
@@ -77,7 +78,7 @@ def methods(directory, classes):
 
 # Replace whole classes with the latest recorded run, never individual favorable mutants.
 rows=list(E.parse(EVIDENCE/'affected-census.xml').getroot())
-for name in ('postfix-focused.xml','final-codec-dto.xml','final-report-pit.xml'):
+for name in (args.replacement_report or ('postfix-focused.xml','final-codec-dto.xml','final-report-pit.xml')):
     current=list(E.parse(EVIDENCE/name).getroot())
     assert current, name
     replaced={m.findtext('mutatedClass') for m in current}

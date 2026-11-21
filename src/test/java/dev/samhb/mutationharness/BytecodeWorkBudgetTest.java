@@ -68,6 +68,24 @@ class BytecodeWorkBudgetTest {
         assertEquals("BOUND_EXCEEDED",run("BytecodeChecks",mutant,true));
     }
 
+    /** A removed real class-count checkpoint cannot turn the monotone loader closure into an infinite pass loop.
+     * @throws Exception for checker/child failures */
+    @Test void catchesNonconvergentLoaderClosure() throws Exception {
+        var file=classFile();int[] changed={0};
+        var mutant=file.transformClass(file.parse(bytes("BytecodeLoader")),ClassTransform.transformingMethodBodies(
+            method->method.methodName().equalsString("load"),(code,element)->{
+                if(changed[0]==0 && element instanceof InvokeInstruction call && call.owner().asInternalName().equals("java/util/Map") && call.name().equalsString("size")) {
+                    code.pop().iconst_0();changed[0]++;
+                } else code.with(element);
+            }));
+        assertEquals(1,changed[0]);assertEquals(List.of(),file.verify(mutant));
+        var instrumented=BytecodeWorkBudget.instrument(mutant,true,getClass().getClassLoader());
+        assertEquals(List.of(),file.verify(instrumented));
+        assertThrows(IllegalArgumentException.class,()->BytecodeWorkBudget.instrument(mutant,false,getClass().getClassLoader()));
+        // The child starts with the already transformed replacement, matching PIT's redefinition path.
+        assertEquals("BOUND_EXCEEDED",run("BytecodeLoader",instrumented,false));
+    }
+
     /** Binding/checkpoint drift fails closed rather than silently omitting the instrumentation.
      * @throws Exception for class-file failures */
     @Test void rejectsMethodAndCheckpointDrift() throws Exception {
