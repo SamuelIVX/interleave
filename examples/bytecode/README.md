@@ -31,9 +31,37 @@ line tables; replay remains based on exact artifact bytes and real BCIs.
 Use fixture-constructor fields for locks. A declaration such as `static final Object LOCK=new Object()`
 requires executable `<clinit>` and rejects, as do ordinary static arrays, enum initialization and
 compiler-generated assertion-status setup. Use declared `@Check` methods instead of Java `assert`.
-Arrays, actor allocations/general dispatch, user catch/finally, wider primitives/core libraries,
+User catch/finally, wider primitive computation/core libraries,
 CBS/DPOR/bitstate and atomics belong to later selected phases. Weak memory remains unselected. Compiler-generated synchronized
 cleanup is supported; runtime null/division faults remain modeled behavior rather than loader errors.
+
+The heap profile (`BYTECODE-SC-2`) also interprets actor-created application objects, inherited/hidden
+fields, constructor chaining, closed virtual/interface dispatch and private nest access. Arrays retain
+exact rank/component types, reference aliases and per-dimension allocation charges; int/boolean/byte/
+char/short array operations are supported. Long/float/double arrays may be allocated with zero defaults;
+their element load/store/computation opcodes remain rejected until97. Array cloning remains in97.
+Null, bounds, negative-size, array-store and cast faults are modeled, including monitor cleanup.
+
+`HeapPublication.java` demonstrates a published cycle with an aliased array and interface check:
+
+```sh
+javac --release 17 -g -cp build/libs/interleave-1.0-SNAPSHOT.jar -d build/bytecode-examples examples/bytecode/HeapPublication.java
+./gradlew --max-workers=1 -PpitestThreads=1 run --args='--bytecode examples.bytecode.HeapPublication --class-path build/bytecode-examples --json'
+```
+
+Allocations are charged permanently to setup or the allocating actor, including after escape and loss
+of reachability. Identities are namespace plus sequence and are never renumbered/reused. A failed
+multidimensional allocation retains earlier successful dimensions in cutoff evidence. No actor is
+frozen after exhaustion: that entire prefix ends and sibling alternatives continue. Each object costs
+one header cell plus inherited instance fields; each array costs one header plus length elements.
+Unknown reachability is shared; sharing is irreversible within a run. This implementation conservatively
+keeps all field/array accesses and allocations as scheduling boundaries, including local heap accesses.
+Local arithmetic/transport still batches; REFERENCE and BATCHED use one executor.
+
+Profile identity changed because the admitted language and canonical state changed. Old SC-1 evidence
+is rejected by this SC-2 loader/replayer rather than silently reinterpreted; source/JSON model behavior
+and existing wire shapes remain unchanged. [The95 ledger](../../docs/measurements/95-bytecode-heap.md)
+records this profile's actual acceptance and measurements.
 
 [The shared contract](../../docs/plans/bytecode-contract.md) defines the complete supported profile.
 The [94B ledger](../../docs/measurements/94B-bytecode-concurrency.md) contains real reference/batched

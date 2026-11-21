@@ -115,6 +115,24 @@ tasks.register<JavaExec>("profileBytecode") {
     args(output.get(), fork.get())
 }
 
+// Spec95 heap measurement uses the same fixed heap and compacting collector as the94B runner.
+tasks.register<JavaExec>("profileBytecodeHeap") {
+    group = "verification"
+    description = "Measure instruction/reference bytecode execution (Spec 95)"
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("dev.samhb.interleave.bytecode.BytecodeHeapMeasurementTest")
+    javaLauncher.set(javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(26)) })
+    minHeapSize = "512m"
+    maxHeapSize = "512m"
+    // Eliminate SerialGC dead-space retention, which otherwise contaminates live-heap deltas.
+    jvmArgs("-XX:+UseSerialGC", "-XX:MarkSweepDeadRatio=0")
+    val fork = providers.gradleProperty("profileFork").orElse("1")
+    val output = providers.gradleProperty("bytecodeProfileOutput")
+        .orElse(layout.buildDirectory.dir("reports/bytecode-heap-profile/fork-${fork.get()}").get().asFile.absolutePath)
+    args(output.get(), fork.get())
+}
+
 tasks.withType<JavaCompile> {
     options.encoding = Charsets.UTF_8.name()
     options.release.set(26)

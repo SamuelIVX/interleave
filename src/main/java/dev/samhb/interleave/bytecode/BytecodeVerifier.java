@@ -1,5 +1,5 @@
 /**
- * First-profile opcode/purity admission and structured compiler monitor-cleanup validation.
+ * Heap-profile opcode/purity admission and structured compiler monitor-cleanup validation.
  */
 package dev.samhb.interleave.bytecode;
 
@@ -23,7 +23,7 @@ final class BytecodeVerifier {
         Opcode.DUP_X1,Opcode.DUP_X2,Opcode.DUP2,Opcode.DUP2_X1,Opcode.DUP2_X2,Opcode.SWAP,
         Opcode.IADD,Opcode.ISUB,Opcode.IMUL,Opcode.IDIV,Opcode.IREM,Opcode.INEG,
         Opcode.ISHL,Opcode.ISHR,Opcode.IUSHR,Opcode.IAND,Opcode.IOR,Opcode.IXOR,
-        Opcode.I2B,Opcode.I2C,Opcode.I2S,Opcode.MONITORENTER,Opcode.MONITOREXIT,Opcode.ATHROW);
+        Opcode.I2B,Opcode.I2C,Opcode.I2S,Opcode.ARRAYLENGTH,Opcode.MONITORENTER,Opcode.MONITOREXIT,Opcode.ATHROW);
     /**
      * Supported conditional and unconditional branches.
      */
@@ -52,12 +52,19 @@ final class BytecodeVerifier {
                 case TableSwitchInstruction ignored -> true;
                 case FieldInstruction ignored -> true;
                 case InvokeInstruction ignored -> true;
-                case NewObjectInstruction ignored -> role==BytecodeLoader.Role.SETUP;
+                case NewObjectInstruction ignored -> true;
+                case NewPrimitiveArrayInstruction ignored -> true;
+                case NewReferenceArrayInstruction ignored -> true;
+                case NewMultiArrayInstruction ignored -> true;
+                case TypeCheckInstruction ignored -> true;
+                case ArrayLoadInstruction load -> load.typeKind()!=TypeKind.LONG && load.typeKind()!=TypeKind.FLOAT && load.typeKind()!=TypeKind.DOUBLE;
+                case ArrayStoreInstruction store -> store.typeKind()!=TypeKind.LONG && store.typeKind()!=TypeKind.FLOAT && store.typeKind()!=TypeKind.DOUBLE;
                 default -> SIMPLE.contains(code);
             };
             if (!allowed || (code==Opcode.ATHROW && !cleanupThrows.contains(op.bci())))
                 throw problem("UNSUPPORTED","Unsupported reachable opcode "+code,method.location(op.bci()));
-            if (role==BytecodeLoader.Role.CHECK && (instruction instanceof NewObjectInstruction
+            if (role==BytecodeLoader.Role.CHECK && (instruction instanceof NewObjectInstruction || instruction instanceof NewPrimitiveArrayInstruction
+                || instruction instanceof NewReferenceArrayInstruction || instruction instanceof NewMultiArrayInstruction || instruction instanceof ArrayStoreInstruction
                 || code==Opcode.PUTFIELD || code==Opcode.PUTSTATIC || code==Opcode.MONITORENTER || code==Opcode.MONITOREXIT))
                 throw problem("PURITY","Checks cannot mutate, allocate or synchronize",method.location(op.bci()));
             for (int successor : successors(method,op)) {
@@ -68,7 +75,7 @@ final class BytecodeVerifier {
     }
 
     /**
-     * Admits only the first profile's category-one load and store types.
+     * Admits only the heap profile's category-one load and store types.
      * @param kind verifier type kind
      * @return whether one-slot int/reference transport is supported
      */
@@ -151,6 +158,9 @@ final class BytecodeVerifier {
             if (instruction instanceof ReturnInstruction && !locks.isEmpty())
                 throw problem("MALFORMED","Return with unmatched monitor entry",method.location(bci));
             boolean canThrow=instruction instanceof FieldInstruction || instruction instanceof InvokeInstruction
+                || instruction instanceof ArrayLoadInstruction || instruction instanceof ArrayStoreInstruction || instruction instanceof TypeCheckInstruction
+                || instruction instanceof NewObjectInstruction || instruction instanceof NewPrimitiveArrayInstruction || instruction instanceof NewReferenceArrayInstruction
+                || instruction instanceof NewMultiArrayInstruction || code==Opcode.ARRAYLENGTH
                 || code==Opcode.IDIV || code==Opcode.IREM || code==Opcode.MONITORENTER || code==Opcode.ATHROW;
             if (canThrow) {
                 int handler=method.handler(bci);

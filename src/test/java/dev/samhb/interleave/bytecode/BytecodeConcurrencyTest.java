@@ -119,13 +119,15 @@ class BytecodeConcurrencyTest {
             }
             """);
         var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());var state=program.initialState();var lock=(Ref)state.fixtureField("lock");
-        var initial=BytecodeSharing.refresh(state);assertEquals(new BytecodeSharing.Work(1,3,1,0),initial);
+        var initial=BytecodeSharing.refresh(state);assertEquals(new BytecodeSharing.Work(1,5,2,0),initial);
         var scheduler=new BytecodeScheduler(program,BytecodeScheduler.Mode.BATCHED);
         state=scheduler.advance(state,0).state();var publication=scheduler.advance(state,0);state=publication.state();
-        assertEquals(NULL,state.fixtureField("lock"));assertEquals(new BytecodeSharing.Work(1,3,0,0),publication.sharing());
+        assertEquals(NULL,state.fixtureField("lock"));assertEquals(new BytecodeSharing.Work(1,5,0,0),publication.sharing());
         assertTrue(state.frame(0).locals.containsValue(lock));assertTrue(state.heap.get(lock).shared);
         var historic=state.canonicalBytes();state.heap.get(lock).shared=false;assertFalse(Arrays.equals(historic,state.canonicalBytes()));
-        assertEquals(new BytecodeSharing.Work(1,3,0,1),BytecodeSharing.refresh(state));assertArrayEquals(historic,state.canonicalBytes());
+        // This synthetic flag erasure now establishes sole actor reachability; real promotions are irreversible.
+        assertEquals(0,BytecodeSharing.refresh(state).promotions());
+        state.heap.get(lock).shared=true;assertArrayEquals(historic,state.canonicalBytes());
         // Unknown/unreachable setup objects are also shared; the profile never infers exclusivity.
         state.frame(0).locals.values().removeIf(lock::equals);state.frame(0).stack.clear();state.heap.get(lock).shared=false;
         assertEquals(1,BytecodeSharing.refresh(state).promotions());assertTrue(state.heap.get(lock).shared);
@@ -209,10 +211,10 @@ class BytecodeConcurrencyTest {
         var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());var scheduler=new BytecodeScheduler(program,BytecodeScheduler.Mode.BATCHED);
         var read=scheduler.advance(program.initialState(),0).state();var field=new BytecodeProgram.FieldId("Fixture","published","Ljava/lang/Object;");
         assertEquals(NULL,read.statics.get(field));var published=scheduler.advance(read,0);
-        assertEquals(new Ref(SETUP,1),published.state().statics.get(field));assertEquals(new BytecodeSharing.Work(1,3,1,0),published.sharing());
+        assertEquals(new Ref(SETUP,1),published.state().statics.get(field));assertEquals(new BytecodeSharing.Work(1,5,2,0),published.sharing());
         // A trusted history mutation checks promotion accounting without claiming95's reachable local heap.
         var history=read.copy();history.heap.get(new Ref(SETUP,1)).shared=false;var before=history.canonicalBytes();
-        var promoted=scheduler.advance(history,0);assertEquals(new BytecodeSharing.Work(1,3,1,1),promoted.sharing());
+        var promoted=scheduler.advance(history,0);assertEquals(new BytecodeSharing.Work(1,5,2,1),promoted.sharing());
         assertTrue(promoted.state().heap.get(new Ref(SETUP,1)).shared);assertFalse(history.heap.get(new Ref(SETUP,1)).shared);assertArrayEquals(before,history.canonicalBytes());
     }
 

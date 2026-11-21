@@ -198,7 +198,7 @@ function normalizeBytecode(raw){
   const method = x => object(x) && ['owner','name','descriptor'].every(k=>text(x[k]));
   const location = x => method(x) && integer(x.bci);
   const identity = x => {
-    if(!object(x) || !digest(x.artifactDigest) || x.profileVersion!=='BYTECODE-SC-1' || !text(x.modelClass) || x.mode!=='BATCHED' ||
+    if(!object(x) || !digest(x.artifactDigest) || !['BYTECODE-SC-1','BYTECODE-SC-2'].includes(x.profileVersion) || !text(x.modelClass) || x.mode!=='BATCHED' ||
       x.requestedStrategy!=='DFS' || x.effectiveStrategy!=='DFS' || x.fallbackReason!=null || !Array.isArray(x.actors) ||
       x.actors.length<1 || x.actors.length>8 || !Array.isArray(x.checks) || x.checks.length>65536) fail();
     x.actors.forEach((a,i)=>{if(!object(a) || a.id!==i || !method(a.method) || a.method.descriptor!=='()V')fail();});
@@ -229,7 +229,7 @@ function normalizeBytecode(raw){
     if((t.interruption!=null)!==(t.kind==='INTERRUPTED') || (t.interruption!=null && !['MAX_STATES','MAX_TIME','KEY_BYTES','CANCELLED'].includes(t.interruption)))fail();
     return outcomes[t.kind];
   };
-  const opcodes=new Set('NOP POP POP2 DUP DUP_X1 DUP_X2 DUP2 DUP2_X1 DUP2_X2 SWAP IADD ISUB IMUL IDIV IREM INEG ISHL ISHR IUSHR IAND IOR IXOR I2B I2C I2S MONITORENTER MONITOREXIT ATHROW IFEQ IFNE IFLT IFGE IFGT IFLE IF_ICMPEQ IF_ICMPNE IF_ICMPLT IF_ICMPGE IF_ICMPGT IF_ICMPLE IF_ACMPEQ IF_ACMPNE IFNULL IFNONNULL GOTO GOTO_W ACONST_NULL ICONST_M1 ICONST_0 ICONST_1 ICONST_2 ICONST_3 ICONST_4 ICONST_5 BIPUSH SIPUSH LDC LDC_W ILOAD ALOAD ISTORE ASTORE ILOAD_W ALOAD_W ISTORE_W ASTORE_W IINC IINC_W IRETURN ARETURN RETURN LOOKUPSWITCH TABLESWITCH GETFIELD PUTFIELD GETSTATIC PUTSTATIC INVOKESTATIC INVOKESPECIAL INVOKEVIRTUAL INVOKEINTERFACE NEW'.split(' '));
+  const opcodes=new Set('NOP POP POP2 DUP DUP_X1 DUP_X2 DUP2 DUP2_X1 DUP2_X2 SWAP IADD ISUB IMUL IDIV IREM INEG ISHL ISHR IUSHR IAND IOR IXOR I2B I2C I2S MONITORENTER MONITOREXIT ATHROW IFEQ IFNE IFLT IFGE IFGT IFLE IF_ICMPEQ IF_ICMPNE IF_ICMPLT IF_ICMPGE IF_ICMPGT IF_ICMPLE IF_ACMPEQ IF_ACMPNE IFNULL IFNONNULL GOTO GOTO_W ACONST_NULL ICONST_M1 ICONST_0 ICONST_1 ICONST_2 ICONST_3 ICONST_4 ICONST_5 BIPUSH SIPUSH LDC LDC_W ILOAD ALOAD ISTORE ASTORE ILOAD_W ALOAD_W ISTORE_W ASTORE_W IINC IINC_W IRETURN ARETURN RETURN LOOKUPSWITCH TABLESWITCH GETFIELD PUTFIELD GETSTATIC PUTSTATIC INVOKESTATIC INVOKESPECIAL INVOKEVIRTUAL INVOKEINTERFACE NEW NEWARRAY ANEWARRAY MULTIANEWARRAY ARRAYLENGTH IALOAD BALOAD CALOAD SALOAD AALOAD IASTORE BASTORE CASTORE SASTORE AASTORE CHECKCAST INSTANCEOF'.split(' '));
   for(const prefix of ['ILOAD','ALOAD','ISTORE','ASTORE'])for(let i=0;i<4;i++)opcodes.add(prefix+'_'+i);
   const typed = v => {
     if(!object(v) || typeof v.raw!=='string' || v.raw.length>65536)fail();
@@ -244,7 +244,7 @@ function normalizeBytecode(raw){
       default: fail();
     }
   };
-  const values = map => {if(!object(map) || Object.keys(map).length>65536)fail();Object.entries(map).forEach(([k,v])=>{if(!text(k))fail();typed(v);});};
+  const values = (map,limit=65536) => {if(!object(map) || Object.keys(map).length>limit)fail();Object.entries(map).forEach(([k,v])=>{if(!text(k))fail();typed(v);});};
   const trace = t => {
     if(!object(t) || t.programKind!=='BYTECODE' || ['sourceDigest','executedSteps','failure','cutoff'].some(k=>Object.hasOwn(t,k)))fail();
     const d=t.bytecodeEvidence;
@@ -257,9 +257,13 @@ function normalizeBytecode(raw){
       if(!object(s) || s.actor!==t.threads[i] || !Array.isArray(s.operations) || !s.operations.length || (work+=s.operations.length)>65536)fail();
       s.operations.forEach(op=>{if(!object(op) || !location(op.location) || (op.line!=null && (!integer(op.line) || op.line<1)) || !['OPCODE','MONITOR_ENTER','RETURN','EXCEPTION','TERMINATION','FAILURE','CUTOFF','FUEL_CUTOFF'].includes(op.event) || (op.opcode!=null)!==(op.event==='OPCODE') || (op.opcode!=null && !opcodes.has(op.opcode)))fail();});
     });
+    // Each object/array header pays for its length slot; setup has at most nine diagnostics
+    // after construction completes. Every actor permanently owns its heap-cell charges.
+    const limits=d.identity.limits;
+    const fieldLimit=limits.setupHeapCells+d.identity.actors.length*limits.actorHeapCells+9;
     d.snapshots.forEach((s,i)=>{
       if(!object(s) || !digest(s.stateDigest) || !object(s.locals) || Object.keys(s.locals).length>8 || !Array.isArray(s.heap) || s.heap.length>36864)fail();
-      values(s.fields);Object.values(s.locals).forEach(values);
+      values(s.fields,fieldLimit);Object.values(s.locals).forEach(map=>values(map));
       s.heap.forEach(o=>{if(!object(o) || !text(o.identity) || !text(o.type) || typeof o.shared!=='boolean' || typeof o.initialized!=='boolean' || !Number.isSafeInteger(o.owner) || o.owner<-2 || o.owner>7 || !integer(o.depth) || (o.owner===-2)!==(o.depth===0))fail();});
       const display = map => Object.fromEntries(Object.entries(map).map(([k,v])=>[k,v.type.toLowerCase()+':'+v.raw]));
       if(!equal(t.states[i],{fields:display(s.fields),locals:Object.fromEntries(Object.entries(s.locals).map(([a,v])=>[a,display(v)]))}))fail();

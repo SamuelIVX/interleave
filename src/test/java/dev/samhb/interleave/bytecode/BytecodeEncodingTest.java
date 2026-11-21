@@ -20,12 +20,12 @@ class BytecodeEncodingTest {
             """);
         var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());
         try(var in=new DataInputStream(new ByteArrayInputStream(program.initialState().canonicalBytes()))) {
-            assertEquals(1,in.readInt()); assertEquals(3,in.readInt());
-            reference(in,-2,0); text(in,"java/lang/Class"); objectHeader(in); assertEquals(0,in.readInt());
+            assertEquals(2,in.readInt()); assertEquals(3,in.readInt());
+            reference(in,-2,0); text(in,"java/lang/Class"); objectHeader(in); assertEquals(0,in.readInt()); assertFalse(in.readBoolean());
             reference(in,-1,0); text(in,"Fixture"); objectHeader(in); assertEquals(2,in.readInt());
             field(in,"lock","Ljava/lang/Object;"); reference(in,-1,1);
-            field(in,"value","I"); integer(in,7);
-            reference(in,-1,1); text(in,"java/lang/Object"); objectHeader(in); assertEquals(0,in.readInt());
+            field(in,"value","I"); integer(in,7); assertFalse(in.readBoolean());
+            reference(in,-1,1); text(in,"java/lang/Object"); objectHeader(in); assertEquals(0,in.readInt()); assertFalse(in.readBoolean());
             assertEquals(1,in.readInt()); field(in,"CONSTANT","I"); integer(in,3);
             assertEquals(2,in.readInt());
             assertEquals(-1,in.readInt()); assertEquals(6,in.readInt()); // setup TERMINATED
@@ -34,7 +34,7 @@ class BytecodeEncodingTest {
             assertEquals(0,in.readInt()); assertEquals(0,in.readInt()); // actor RUNNING
             assertEquals(0,in.readInt()); assertEquals(0,in.readInt()); assertEquals(0,in.readInt()); assertEquals(0L,in.readLong());
             assertFalse(in.readBoolean()); assertFalse(in.readBoolean()); assertEquals(0,in.readUnsignedByte()); assertFalse(in.readBoolean());
-            assertEquals(1,in.readInt()); location(in,"actor",0); assertTrue(in.readBoolean()); assertEquals(0,in.readUnsignedByte());
+            assertEquals(1,in.readInt()); location(in,"actor",0); assertTrue(in.readBoolean()); assertEquals(0,in.readUnsignedByte()); assertEquals(0,in.readUnsignedByte());
             assertEquals(1,in.readInt()); assertEquals(0,in.readInt()); reference(in,-1,0); assertEquals(0,in.readInt()); assertEquals(-1,in.read());
         }
     }

@@ -35,7 +35,7 @@ public final class BytecodeProgram {
      */
     record Field(FieldId id, int flags, BytecodeState.Value initial) {}
     /**
-     * Declared observer metadata; execution belongs to94B.
+     * Declared observer metadata for separately budgeted pure execution.
      * @param method observer identity
      * @param always initial/transition versus final observation
      */
@@ -76,6 +76,8 @@ public final class BytecodeProgram {
      * Never exposed directly; every execution receives its own copy.
      */
     private final BytecodeState setup;
+    /** Frozen member resolution and reference assignability. */
+    final BytecodeHierarchy hierarchy;
 
     /**
      * Freezes metadata and the optional construction-time snapshot.
@@ -87,11 +89,13 @@ public final class BytecodeProgram {
      * @param classes sorted application names
      * @param limits immutable resource profile
      * @param digest exact artifact digest
+     * @param hierarchy frozen metadata-only resolution
      * @param setup interpreted setup snapshot, null only during private loading
      */
     BytecodeProgram(String model, Map<BytecodeMethod.Id,BytecodeMethod> methods,
                     Map<FieldId,Field> fields, List<BytecodeMethod.Id> actors, List<Check> checks,
-                    List<String> classes, BytecodeLimits limits, String digest, BytecodeState setup) {
+                    List<String> classes, BytecodeLimits limits, String digest, BytecodeState setup,BytecodeHierarchy hierarchy) {
+        this.hierarchy=hierarchy;
         this.model = model; this.methods = Map.copyOf(methods); this.fields = Map.copyOf(fields);
         this.actors = List.copyOf(actors); this.checks = List.copyOf(checks); this.classes = List.copyOf(classes);
         this.limits = limits; this.digest = digest; this.setup = setup == null ? null : setup.copy();
@@ -104,7 +108,7 @@ public final class BytecodeProgram {
     public String artifactDigest() { return digest; }
 
     /** Version of the admitted language, intrinsic costs and sequentially consistent execution profile. */
-    static final String PROFILE_VERSION="BYTECODE-SC-1";
+    static final String PROFILE_VERSION="BYTECODE-SC-2";
 
     /** Returns the frozen execution-profile version used to authenticate evidence.
      * @return bounded sequentially consistent profile identifier */

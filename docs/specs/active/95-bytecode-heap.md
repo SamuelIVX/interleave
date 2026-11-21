@@ -1,10 +1,11 @@
-<!-- Roadmap #12 / 95: implementation milestone specification; no production implementation in this PR. -->
+<!-- Roadmap #12 / 95: heap-profile implementation and acceptance contract. -->
 # Spec 95: Objects, arrays and dispatch
 
 ## Objective
 
 Deliver objects, arrays and dispatch as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: specified, not implemented or measured.** The
+**Type: delta. Status: implemented and locally verified; draft PR/CI/manual acceptance pending.**
+Actual evidence and release limitations are recorded in the [95 ledger](../../measurements/95-bytecode-heap.md). The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 95 only.
 
@@ -50,7 +51,7 @@ the shared failure priority, preserving prior committed instructions and explici
 allocation effects when a later component hits a budget. No GC/renumbering SHALL occur.
 5. **R5 — Complete extension.** WHEN this broader profile is selected, THE SYSTEM SHALL extend strict
 replay/evidence/consumers and the two-mode preservation argument with dynamic allocation, dispatch and
-publication cases. New dynamic VM faults SHALL follow initial unwind/uncaught semantics; user catch remains rejected.
+publication cases. New dynamic VM faults SHALL follow initial unwind/uncaught semantics, including the JVM's dynamic IncompatibleClassChangeError for an incompatible interface receiver; user catch remains rejected.
 
 ## Failure Modes & Edge Cases
 
@@ -104,8 +105,7 @@ choose existing equivalent modules at implementation after connected-source insp
 - [verified] Planning main is `2a242c4`; the existing engine has immutable Program, forward SourceStep
 continuations and source-specific evidence. The shared contract records inspected integration constraints.
 - [approved decision] This milestone and the shared contract define the selected behavior/release boundary.
-- [unverified] This milestone's bytecode implementation, measurements, compiler/runtime acceptance and
-mutation results. No authoring review establishes those results.
+- [implementation] The heap profile is implemented; its ledger records final local checks, fresh mutation comparisons, measurements and completed reviews. Authoring review never establishes runtime acceptance.
 
 ## Tests
 
@@ -113,7 +113,7 @@ mutation results. No authoring review establishes those results.
 `transitivePublicationPrecedesVisibleEscape` (R3), `escapeRetainsAllocatorCharges` (R4),
 `reversedAllocationsKeepNamespacedIdentity` (R4), `heapProfileReplaysAcrossConsumers` (R5).
 Kill omitted inherited cells, actor-global allocation sequence, reversible sharing and alias-copy errors.
-These are intended behavioral contracts/test names, not tests already implemented or executed.
+These names describe the acceptance contracts. The implementation ledger maps them to actual tests and records executed evidence.
 Use independent expected values/oracles, preserve distinct regression cases and save generated seeds.
 
 ## Constraints
@@ -142,6 +142,6 @@ publication; record completed/quota/error status through agent-setup without inv
 - 94B/95/96/97: review the batching preservation argument for every newly admitted behavior; 99/100/101:
 review reduction admission/resource/product obligations in addition to runtime tests.
 
-The specification-only PR runs document/link/structure validation, reader review and required actual
-CodeRabbit invocations. It does not run Java/PIT/browser feature checks for code that does not exist.
+The historical specification-only PR ran document/link/structure validation, reader review and required actual
+CodeRabbit invocations. Implementation now requires the Java/PIT/browser gates above and its own actual review.
 After publishing this milestone's implementation PR, report its link and stop; do not watch CI.

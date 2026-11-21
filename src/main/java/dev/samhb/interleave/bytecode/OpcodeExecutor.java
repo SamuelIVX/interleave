@@ -88,6 +88,9 @@ final class OpcodeExecutor {
                 return new Probe(Availability.BLOCKED,location,code,monitor,true,false);
         }
         boolean observable=op.instruction() instanceof FieldInstruction || op.instruction() instanceof ReturnInstruction
+            || op.instruction() instanceof NewObjectInstruction || op.instruction() instanceof NewPrimitiveArrayInstruction
+            || op.instruction() instanceof NewReferenceArrayInstruction || op.instruction() instanceof NewMultiArrayInstruction
+            || op.instruction() instanceof ArrayLoadInstruction || op.instruction() instanceof ArrayStoreInstruction
             || code==Opcode.MONITORENTER || code==Opcode.MONITOREXIT || code==Opcode.ATHROW;
         return new Probe(Availability.READY,location,code,monitor,observable,false);
     }
@@ -113,7 +116,7 @@ final class OpcodeExecutor {
     /**
      * Internal control transfer for a modeled VM fault, not a host throwable from target execution.
      */
-    private static final class Trap extends RuntimeException {
+    static final class Trap extends RuntimeException {
         /**
          * Existing cleanup exception token, or null for a new fault.
          */
@@ -209,7 +212,7 @@ final class OpcodeExecutor {
             execution.eventLocation=frame.method.location(frame.bci); execution.phase=Phase.RETURNING; return false;
         }
         if(instruction instanceof FieldInstruction field) {
-            var id=new BytecodeProgram.FieldId(field.owner().asInternalName(),field.name().stringValue(),field.type().stringValue());
+            var id=program.hierarchy.field(new BytecodeProgram.FieldId(field.owner().asInternalName(),field.name().stringValue(),field.type().stringValue()));
             switch(code) {
                 case GETSTATIC -> frame.push(state.statics.get(id));
                 case PUTSTATIC -> state.statics.put(id,narrow(id,frame.pop()));
@@ -219,25 +222,38 @@ final class OpcodeExecutor {
             }
             return true;
         }
+        if(BytecodeArrays.handles(instruction))return BytecodeArrays.execute(program,state,execution,frame,instruction,owner);
         if(instruction instanceof NewObjectInstruction allocation) {
-            int allocationLimit=program.limits.setupAllocations(), cellLimit=program.limits.setupHeapCells();
-            if(execution.allocations==allocationLimit) { cutoff(execution,frame,"ALLOCATIONS",allocationLimit,1,0); return false; }
-            if(execution.cells==cellLimit) { cutoff(execution,frame,"HEAP_CELLS",cellLimit,1,0); return false; }
-            var reference=new Ref(owner,execution.nextSequence++);
-            state.heap.put(reference,new ObjectValue(allocation.className().asInternalName()));
-            execution.allocations++; execution.cells++; frame.push(reference); return true;
+            String type=allocation.className().asInternalName();
+            var fields=type.equals("java/lang/Object") ? List.<BytecodeProgram.Field>of() : program.hierarchy.instanceFields(type);
+            int cells=1+fields.size();
+            if(!reserve(program,execution,frame,owner,cells))return false;
+            var reference=new Ref(owner,execution.nextSequence++);var object=new ObjectValue(type);
+            object.shared=owner==SETUP;fields.forEach(field->object.fields.put(field.id(),field.initial()));
+            state.heap.put(reference,object);execution.allocations++;execution.cells+=cells;frame.push(reference);return true;
         }
         if(instruction instanceof InvokeInstruction call) {
+            int count=call.typeSymbol().parameterCount();boolean isStatic=code==Opcode.INVOKESTATIC;
+            Ref receiver=isStatic ? null : (Ref)frame.stack.get(frame.stack.size()-count-1);
+            if(receiver!=null) {
+                var target=object(state,receiver); // Dynamic validity precedes depth exhaustion.
+                if(!program.hierarchy.assignable(target.type,call.owner().asInternalName()))throw new Trap("java/lang/IncompatibleClassChangeError",null);
+            }
             if(call.owner().asInternalName().equals("java/lang/Object")) {
-                object(state,(Ref)frame.pop()).initialized=true; return true;
+                frame.pop();if(object(state,receiver).type.equals("java/lang/Object"))object(state,receiver).initialized=true;return true;
             }
             if(execution.frames.size()==program.limits.maxCallDepth()) {
-                cutoff(execution,frame,"CALL_DEPTH",program.limits.maxCallDepth(),1,0); return false;
+                cutoff(execution,frame,"CALL_DEPTH",program.limits.maxCallDepth(),1,0);return false;
             }
-            int count=call.typeSymbol().parameterCount(); var arguments=new ArrayList<Value>();
-            for(int i=0; i<count; i++) arguments.add(frame.pop()); Collections.reverse(arguments);
-            var id=new BytecodeMethod.Id(call.owner().asInternalName(),call.name().stringValue(),call.type().stringValue());
-            execution.frames.add(new BytecodeFrame(program.methods.get(id),arguments)); return false;
+            String type=call.owner().asInternalName(),name=call.name().stringValue(),descriptor=call.type().stringValue();
+            var id=program.hierarchy.method(type,name,descriptor);
+            if(!isStatic && code!=Opcode.INVOKESPECIAL && (program.hierarchy.flags(id) & ACC_PRIVATE)==0)
+                id=program.hierarchy.dispatch(object(state,receiver).type,id);
+            if(code==Opcode.INVOKESPECIAL)id=program.hierarchy.special(frame.method.id.owner(),type,id);
+            var arguments=new ArrayList<Value>();
+            for(int i=0;i<count;i++)arguments.add(frame.pop());
+            if(!isStatic)arguments.add(frame.pop());Collections.reverse(arguments);
+            execution.frames.add(new BytecodeFrame(Objects.requireNonNull(program.methods.get(id),"Unvalidated dispatch target"),arguments));return false;
         }
         switch(code) {
             case NOP -> { }
@@ -270,6 +286,21 @@ final class OpcodeExecutor {
                 frame.push(new Int(result));
             }
         }
+        return true;
+    }
+
+    /** Checks permanent per-allocator counts/cells before creating an identity.
+     * @param program selected limits
+     * @param execution charged owner
+     * @param frame allocating instruction
+     * @param owner setup or actor namespace
+     * @param cells entire new object charge
+     * @return whether creation may commit */
+    static boolean reserve(BytecodeProgram program,Execution execution,BytecodeFrame frame,int owner,int cells) {
+        int allocations=owner==SETUP ? program.limits.setupAllocations() : program.limits.actorAllocations();
+        int heap=owner==SETUP ? program.limits.setupHeapCells() : program.limits.actorHeapCells();
+        if(execution.allocations>=allocations){cutoff(execution,frame,"ALLOCATIONS",allocations,1,allocations-execution.allocations);return false;}
+        if(cells>heap-execution.cells){cutoff(execution,frame,"HEAP_CELLS",heap,cells,heap-execution.cells);return false;}
         return true;
     }
 
@@ -312,6 +343,11 @@ final class OpcodeExecutor {
     private static void finishReturn(BytecodeState state,Execution execution,int owner) {
         var frame=execution.frames.removeLast();
         if(frame.methodMonitor!=null) release(state,frame.methodMonitor,owner);
+        if(frame.method.id.name().equals("<init>")) {
+            Ref reference=frame.constructorReceiver;var receiver=state.heap.get(reference);
+            if(receiver.type.equals(frame.method.id.owner()) && execution.frames.stream().noneMatch(f->f.method.id.name().equals("<init>")
+                && reference.equals(f.constructorReceiver)))receiver.initialized=true;
+        }
         if(execution.frames.isEmpty()) execution.phase=Phase.TERMINATION_PENDING;
         else {
             var caller=execution.frames.getLast(); caller.bci=caller.method.ops.get(caller.bci).next();
@@ -344,7 +380,7 @@ final class OpcodeExecutor {
      * @param reference receiver
      * @return modeled object or modeled null fault
      */
-    private static ObjectValue object(BytecodeState state,Ref reference) {
+    static ObjectValue object(BytecodeState state,Ref reference) {
         if(reference.equals(NULL)) throw new Trap("java/lang/NullPointerException",null);
         return Objects.requireNonNull(state.heap.get(reference),"Unknown interpreted reference");
     }
@@ -389,7 +425,7 @@ final class OpcodeExecutor {
      * @param required attempted work
      * @param remaining unspent allowance
      */
-    private static void cutoff(Execution execution,BytecodeFrame frame,String reason,int limit,int required,int remaining) {
+    static void cutoff(Execution execution,BytecodeFrame frame,String reason,int limit,int required,int remaining) {
         execution.eventLocation=frame.method.location(frame.bci);
         execution.cutoff=new Cutoff(reason,execution.eventLocation,limit,required,remaining); execution.phase=Phase.CUTOFF_PENDING;
     }

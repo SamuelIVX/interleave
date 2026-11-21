@@ -97,7 +97,7 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
     }
 
     /** Lossless typed value: wide numeric data is a string, never an untyped JSON number.
-     * LONG and raw FLOAT_BITS/DOUBLE_BITS reserve representation for later language phases.
+     * LONG and raw FLOAT_BITS/DOUBLE_BITS retain default wide array cells; wider computation belongs to later phases.
      * @param type INT, LONG, FLOAT_BITS, DOUBLE_BITS, BOOLEAN, REFERENCE, NULL, TEXT or FAULT
      * @param raw exact decimal, raw hex bits, permanent identity or diagnostic UTF-16 text */
     public record Value(String type,String raw) implements Serializable {
@@ -145,7 +145,7 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
     /** Original modeled runtime fault and interpreted stack.
      * @param type internal exception class name
      * @param location original faulting instruction
-     * @param stack interpreted method/BCI stack, outermost first */
+     * @param stack interpreted method/BCI stack, innermost first */
     public record Fault(String type,BytecodeLocation location,List<BytecodeLocation> stack) implements Serializable {
         /** Freezes the genuine fault stack. */
         public Fault {text(type);Objects.requireNonNull(location);stack=List.copyOf(stack);if(stack.isEmpty())throw new IllegalArgumentException("Missing fault stack");}

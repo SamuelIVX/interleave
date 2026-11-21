@@ -18,8 +18,6 @@ class BytecodeAdmissionTest {
      * @throws Exception for fixture failures */
     @Test void rejectsUnsupportedReachableProfiles(@TempDir Path directory) throws Exception {
         List<String> bodies=List.of(
-            "@Actor(id=0) public void actor() { Object x=new Object(); }",
-            "@Actor(id=0) public void actor() { int[] x=new int[1]; }",
             "@Actor(id=0) public void actor() { if(value==0) System.nanoTime(); }",
             "@Actor(id=0) public void actor() { try { value=1/value; } catch(ArithmeticException e) { value=1; } }",
             "@Actor(id=0) public void actor() { try { value=1/value; } finally { value++; } }",
@@ -261,14 +259,13 @@ class BytecodeAdmissionTest {
      *
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
-    @Test void rejectsNarrowDescriptorsAndInstanceCalls(@TempDir Path directory) throws Exception {
+    @Test void rejectsNarrowDescriptors(@TempDir Path directory) throws Exception {
         List<String> bodies=List.of("byte value;", "char value;", "short value;",
             "static byte helper(){return 1;} @Check public boolean check(){return helper()==1;}",
             "static char helper(){return 1;} @Check public boolean check(){return helper()==1;}",
-            "static short helper(){return 1;} @Check public boolean check(){return helper()==1;}",
-            "public Fixture(){this(1);} public Fixture(int x){}", "void helper(){} @Check public boolean check(){helper();return true;}");
+            "static short helper(){return 1;} @Check public boolean check(){return helper()==1;}");
         for(int index=0;index<bodies.size();index++) {
-            String constructor=index==6 ? "" : "public Fixture(){}";
+            String constructor="public Fixture(){}";
             var classes=BytecodeFixtures.compile(directory.resolve("case"+index),26,
                 "@Model public class Fixture {"+constructor+" @Actor(id=0) public void actor(){} "+bodies.get(index)+"}");
             assertEquals("UNSUPPORTED",assertThrows(BytecodeLoadException.class,

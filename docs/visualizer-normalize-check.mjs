@@ -250,13 +250,15 @@ assert.equal(normalize({...resource,replay:{...replay,states:[replay.states[0],{
 // Fresh BYTECODE producers preserve run precision and distinct instruction locations.
 if(process.env.BYTECODE_DIR){
   assert.equal(read(resolve(root,process.env.BYTECODE_DIR,'bytecode-lost-update.json')),read(process.env.BYTECODE_DIR+'/bytecode-lost-update.json'),'Configured relative and absolute BYTECODE directories identify the same artifact');
-  const expected={'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION'};
+  const expected={'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',heap:'PASS','array-fault':'VIOLATION',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION'};
   for(const [name,verdict] of Object.entries(expected)){
     const raw=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-'+name+'.json'));
     const value=normalize(raw);assert.equal(value.meta.verdict,verdict,name);
     assert.equal(value.meta.programKind,'BYTECODE');assert(value.trace.bytecodeEvidence);
     assert.equal(value.trace.executedSteps,undefined);assert.equal(value.trace.sourceDigest,undefined);
     if(name==='no-line')assert(value.trace.bytecodeEvidence.transitions.every(t=>t.operations.every(op=>op.line==null)));
+    if(name==='heap')assert(value.trace.bytecodeEvidence.snapshots.at(-1).fields['actor:0:0[0]'].raw==='actor:0:0');
+    if(name==='array-fault')assert.equal(value.trace.bytecodeEvidence.terminal.fault.type,'java/lang/ArrayStoreException');
     if(name==='deadlock')assert.equal(value.trace.bytecodeEvidence.terminal.waits.length,2);
   }
   const report=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-report.json'));
@@ -264,6 +266,22 @@ if(process.env.BYTECODE_DIR){
   assert.equal(normalize({benchmarks:[{bug:'legacy',verdict:'PASS'},bytecodeRow]}).meta.programKind,'BYTECODE');
   assert.equal(normalize({benchmarks:[{bug:'legacy',verdict:'VIOLATION',failingTrace:{threads:[0],outcomes:['ADVANCED']}},bytecodeRow]}).meta.bug,'legacy');
   const raw=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-lost-update.json'));
+  // Two int[9][4096] actor allocations cost 36,883 cells each; both fit 40,000.
+  // 73,728 element entries already exceed the former per-map cap of65,536.
+  const large=structuredClone(raw.failingTraces[0]);const largeTrace=large;
+  largeTrace.bytecodeEvidence.identity.limits.actorHeapCells=40000;
+  largeTrace.bytecodeEvidence.identity.limits.maxArrayLength=4096;
+  const fields=Object.fromEntries(Array.from({length:73728},(_,i)=>[`cell${i}`,{type:'INT',raw:'0'}]));
+  const display=Object.fromEntries(Object.keys(fields).map(k=>[k,'int:0']));
+  largeTrace.bytecodeEvidence.snapshots.forEach((snapshot,i)=>{snapshot.fields=fields;largeTrace.states[i].fields=display;});
+  assert.doesNotThrow(()=>normalize(large),'In-budget aggregate heap above65536 fields');
+  // Selected setup8192 + two actors40000 + nine setup diagnostics =88,201.
+  const excessive=structuredClone(large);
+  const over=Object.fromEntries(Array.from({length:88202},(_,i)=>[`cell${i}`,{type:'INT',raw:'0'}]));
+  excessive.bytecodeEvidence.snapshots[0].fields=over;
+  excessive.states[0].fields=Object.fromEntries(Object.keys(over).map(k=>[k,'int:0']));
+  assert.throws(()=>normalize(excessive),'Reject snapshot above aggregate bound');
+
   for(const change of [x=>x.storeType='BITSTATE',x=>x.verdict='PASS',x=>x.failingTraces[0].sourceDigest='0'.repeat(64),
     x=>x.failingTraces[0].bytecodeEvidence.version=2,x=>x.failingTraces[0].bytecodeEvidence.identity.mode='REFERENCE',
     x=>x.failingTraces[0].bytecodeEvidence.snapshots[0].fields['bad']={type:'LONG',raw:9007199254740992}]){

@@ -1,5 +1,5 @@
 /**
- * Bounded, metadata-only admission and interpreted setup for the internal first bytecode profile.
+ * Bounded, metadata-only admission and interpreted setup for the bounded bytecode heap profile.
  */
 package dev.samhb.interleave.bytecode;
 
@@ -69,6 +69,8 @@ final class BytecodeLoader {
      * Input byte accounting.
      */
     private int total;
+    /** Input version last successfully checked; each frozen class read strictly increases total bytes. */
+    private int validatedBytes=-1;
     /**
      * Pending role-specific call-graph validation.
      */
@@ -173,29 +175,37 @@ final class BytecodeLoader {
         var constructor=new BytecodeMethod.Id(model,"<init>","()V");
         MethodModel setup=method(constructor);
         if ((setup.flags().flagsMask() & ACC_PUBLIC)==0) throw problem("DECLARATION","Fixture requires public ()V constructor",null);
+        validateHierarchy();
         pending.add(new Work(constructor,Role.SETUP));
-        while (!pending.isEmpty()) {
-            Work work=pending.removeFirst(); if (!visited.add(work)) continue;
-            MethodModel method=method(work.method());
-            if ((method.flags().flagsMask() & (ACC_NATIVE|ACC_ABSTRACT|ACC_BRIDGE))!=0 || method.code().isEmpty())
-                throw problem("UNSUPPORTED","Reachable native/abstract/bridge method",null);
-            signature(method.methodTypeSymbol());
-            var decoded=methods.computeIfAbsent(work.method(),ignored -> new BytecodeMethod(work.method().owner(),method));
-            BytecodeVerifier.validate(decoded,work.role());
-            if (work.role()==Role.CHECK && (decoded.flags & ACC_SYNCHRONIZED)!=0)
-                throw problem("PURITY","Checks cannot synchronize",decoded.location(0));
-            for (var op : decoded.ops.values()) validateReference(decoded,op,work.role());
-        }
+        int knownClasses;
+        do {
+            knownClasses=classes.size();
+            while (!pending.isEmpty()) {
+                Work work=pending.removeFirst(); if (!visited.add(work)) continue;
+                MethodModel method=method(work.method());
+                if ((method.flags().flagsMask() & (ACC_NATIVE|ACC_ABSTRACT|ACC_BRIDGE))!=0 || method.code().isEmpty())
+                    throw problem("UNSUPPORTED","Reachable native/abstract/bridge method",null);
+                signature(method.methodTypeSymbol());
+                var decoded=methods.computeIfAbsent(work.method(),ignored -> new BytecodeMethod(work.method().owner(),method));
+                BytecodeVerifier.validate(decoded,work.role());
+                if (work.role()==Role.CHECK && (decoded.flags & ACC_SYNCHRONIZED)!=0)
+                    throw problem("PURITY","Checks cannot synchronize",decoded.location(0));
+                for (var op : decoded.ops.values()) validateReference(decoded,op,work.role());
+            }
+            if(classes.size()!=knownClasses){pending.addAll(visited);visited.clear();}
+        } while(!pending.isEmpty());
+        validateHierarchy();
         // Parsing is not verification. Never let the default reflection resolver participate.
         var verifier=ClassFile.of(ClassFile.ClassHierarchyResolverOption.of(this::hierarchy));
         for (ClassModel type : classes.values()) {
             List<VerifyError> errors=verifier.verify(type);
             if (!errors.isEmpty()) throw problem("MALFORMED",errors.getFirst().getMessage(),null);
         }
+        for(var decoded:methods.values())BytecodeAccessVerifier.validate(decoded,hierarchy(),fields);
         checks.sort(Comparator.comparing((BytecodeProgram.Check c)->c.method().owner())
             .thenComparing(c->c.method().name()).thenComparing(c->c.method().descriptor()));
         var program=new BytecodeProgram(model,methods,fields,new ArrayList<>(actors.values()),checks,
-            new ArrayList<>(classes.keySet()),limits,digest(),null);
+            new ArrayList<>(classes.keySet()),limits,digest(),null,hierarchy());
         var state=BytecodeState.beforeSetup(program); state.start(BytecodeState.SETUP,methods.get(constructor),List.of(BytecodeState.FIXTURE));
         while (state.executions.get(BytecodeState.SETUP).phase!=BytecodeState.Phase.TERMINATED) {
             state=OpcodeExecutor.step(program,state,BytecodeState.SETUP).state();
@@ -204,7 +214,7 @@ final class BytecodeLoader {
                 throw problem("SETUP",execution.fault!=null ? execution.fault.type() : execution.cutoff.reason(),
                     execution.fault!=null ? execution.fault.location() : execution.cutoff.location());
         }
-        return new BytecodeProgram(model,methods,fields,program.actors,checks,program.classes,limits,program.artifactDigest(),state);
+        return new BytecodeProgram(model,methods,fields,program.actors,checks,program.classes,limits,program.artifactDigest(),state,hierarchy());
     }
 
     /**
@@ -217,31 +227,149 @@ final class BytecodeLoader {
     private void validateReference(BytecodeMethod method,BytecodeMethod.Op op,Role role) throws IOException {
         Instruction instruction=op.instruction(); var location=method.location(op.bci());
         if (instruction instanceof FieldInstruction field) {
-            String owner=field.owner().asInternalName(); read(owner);
-            var id=new BytecodeProgram.FieldId(owner,field.name().stringValue(),field.type().stringValue());
+            String owner=field.owner().asInternalName(); read(owner);classAccess(method.id.owner(),owner,location);
+            var id=hierarchy().field(new BytecodeProgram.FieldId(owner,field.name().stringValue(),field.type().stringValue()));
             var declaration=fields.get(id);
-            if (declaration==null) throw problem("LINKAGE","Missing field "+id,location);
-            access(method.id.owner(),owner,declaration.flags(),location);
+            if (declaration==null) throw problem("LINKAGE","Missing field "+field.name(),location);
+            access(method.id.owner(),id.owner(),declaration.flags(),location);
             boolean isStatic=instruction.opcode()==Opcode.GETSTATIC || instruction.opcode()==Opcode.PUTSTATIC;
             if (((declaration.flags() & ACC_STATIC)!=0)!=isStatic) throw problem("LINKAGE","Field staticness mismatch",location);
             boolean write=instruction.opcode()==Opcode.PUTFIELD || instruction.opcode()==Opcode.PUTSTATIC;
-            if (write && (declaration.flags() & ACC_FINAL)!=0 && !(method.id.owner().equals(owner) && method.id.name().equals("<init>") && !isStatic))
+            if (write && (declaration.flags() & ACC_FINAL)!=0 && !(method.id.owner().equals(id.owner()) && method.id.name().equals("<init>") && !isStatic))
                 throw problem("LINKAGE","Illegal final field write",location);
         }
         if (instruction instanceof NewObjectInstruction allocation) {
-            if (!allocation.className().asInternalName().equals("java/lang/Object"))
-                throw problem("UNSUPPORTED","Only setup Object monitor allocation is supported",location);
+            String type=allocation.className().asInternalName();
+            if(!type.equals("java/lang/Object")) {
+                var target=read(type);
+                classAccess(method.id.owner(),type,location);
+                if((target.flags().flagsMask() & (ACC_INTERFACE|ACC_ABSTRACT))!=0)
+                    throw problem("LINKAGE","Cannot instantiate abstract/interface type",location);
+            }
         }
-        if (instruction instanceof InvokeInstruction call) {
-            String owner=call.owner().asInternalName(), name=call.name().stringValue(), descriptor=call.type().stringValue();
-            if (owner.equals("java/lang/Object") && name.equals("<init>") && descriptor.equals("()V")
-                && call.opcode()==Opcode.INVOKESPECIAL && !call.isInterface()) return;
-            if (call.opcode()!=Opcode.INVOKESTATIC || call.isInterface())
-                throw problem("UNSUPPORTED","Only known static application helpers are supported",location);
-            read(owner); var id=new BytecodeMethod.Id(owner,name,descriptor); MethodModel callee=method(id);
-            if ((callee.flags().flagsMask() & ACC_STATIC)==0) throw problem("LINKAGE","Call staticness mismatch",location);
-            access(method.id.owner(),owner,callee.flags().flagsMask(),location); pending.add(new Work(id,role));
+        if(instruction instanceof NewReferenceArrayInstruction array) typeAccess(array.componentType().asSymbol(),method.id.owner(),location);
+        if(instruction instanceof NewMultiArrayInstruction array) typeAccess(array.arrayType().asSymbol(),method.id.owner(),location);
+        if(instruction instanceof TypeCheckInstruction check) typeAccess(check.type().asSymbol(),method.id.owner(),location);
+        if (instruction instanceof InvokeInstruction call) validateCall(method,call,role,location);
+    }
+
+    /** Resolves and checks the leaf class named directly by array/type-check bytecode.
+     * @param type named component, array or cast type
+     * @param caller accessing application class
+     * @param location real reference position
+     * @throws IOException for unavailable metadata
+     * @throws BytecodeLoadException with LINKAGE for an inaccessible symbolic leaf type */
+    private void typeAccess(ClassDesc type,String caller,BytecodeLocation location) throws IOException {
+        fieldType(type);while(type.isArray())type=type.componentType();
+        if(type.isClassOrInterface() && !type.equals(ConstantDescs.CD_Object))
+            classAccess(caller,type.descriptorString().substring(1,type.descriptorString().length()-1),location);
+    }
+
+    /** Validates symbolic linkage and queues every closed dispatch alternative in its execution role.
+     * @param caller calling interpreted method
+     * @param call symbolic invocation
+     * @param role setup, actor or observer
+     * @param location real invocation BCI
+     * @throws IOException for unavailable application metadata */
+    private void validateCall(BytecodeMethod caller,InvokeInstruction call,Role role,BytecodeLocation location) throws IOException {
+        String owner=call.owner().asInternalName(),name=call.name().stringValue(),descriptor=call.type().stringValue();
+        if(owner.equals("java/lang/Object") && name.equals("<init>") && descriptor.equals("()V")
+            && call.opcode()==Opcode.INVOKESPECIAL && !call.isInterface())return;
+        read(owner);classAccess(caller.id.owner(),owner,location);signature(call.typeSymbol());validateHierarchy();var hierarchy=hierarchy();
+        if(((classes.get(owner).flags().flagsMask() & ACC_INTERFACE)!=0)!=call.isInterface())
+            throw problem("LINKAGE","Invocation owner kind mismatch",location);
+        var resolved=hierarchy.method(owner,name,descriptor);
+        if(resolved==null)throw problem("LINKAGE","Missing method "+owner+"."+name+descriptor,location);
+        int flags=hierarchy.flags(resolved);boolean isStatic=call.opcode()==Opcode.INVOKESTATIC;
+        if(((flags & ACC_STATIC)!=0)!=isStatic || name.equals("<clinit>")
+            || name.equals("<init>") && call.opcode()!=Opcode.INVOKESPECIAL)
+            throw problem("LINKAGE","Invocation staticness/name mismatch",location);
+        access(caller.id.owner(),resolved.owner(),flags,location);
+        if(isStatic || call.opcode()==Opcode.INVOKESPECIAL || (flags & ACC_PRIVATE)!=0) {
+            if((flags & ACC_ABSTRACT)!=0)throw problem("LINKAGE","Abstract direct invocation",location);
+            if(call.opcode()==Opcode.INVOKESPECIAL) {
+                resolved=hierarchy.special(caller.id.owner(),owner,resolved);
+                if(resolved==null || (hierarchy.flags(resolved) & (ACC_ABSTRACT|ACC_STATIC))!=0)
+                    throw problem("LINKAGE","Invalid selected special target",location);
+            }
+            pending.add(new Work(resolved,role));return;
         }
+        // Fixed-point rescans include classes reached by later constructors, signatures or dispatch bodies.
+        for(var entry:new ArrayList<>(classes.entrySet())) {
+            if((entry.getValue().flags().flagsMask() & (ACC_INTERFACE|ACC_ABSTRACT))!=0 || !hierarchy.assignable(entry.getKey(),owner))continue;
+            var target=hierarchy.dispatch(entry.getKey(),resolved);
+            if(target==null || (hierarchy.flags(target) & (ACC_ABSTRACT|ACC_STATIC))!=0
+                || call.opcode()==Opcode.INVOKEINTERFACE && (hierarchy.flags(target) & ACC_PUBLIC)==0)
+                throw problem("LINKAGE","Missing concrete dispatch target for "+entry.getKey(),location);
+            pending.add(new Work(target,role));
+        }
+    }
+
+    /** Freezes the currently discovered hierarchy for deterministic member lookup.
+     * @return metadata-only hierarchy */
+    private BytecodeHierarchy hierarchy(){return new BytecodeHierarchy(classes,fields);}
+
+    /** Rejects cyclic/wrong-kind inheritance, final superclasses and inherited annotated entries.
+     * @throws BytecodeLoadException for malformed closed hierarchy */
+    private void validateHierarchy() {
+        // The existing bounded byte count versions the immutable, monotonically growing class set.
+        // No extra size calls or independently maintained generation counter are needed.
+        if(validatedBytes==total)return;
+        var hierarchy=hierarchy();
+        for(var entry:classes.entrySet()) {
+            String name=entry.getKey();var type=entry.getValue();nestHost(name);
+            var path=new HashSet<String>();String parent=name;
+            while(parent!=null && !parent.equals("java/lang/Object")) {
+                if(!path.add(parent))throw problem("LINKAGE","Cyclic superclass hierarchy",null);
+                parent=hierarchy.parent(parent);
+            }
+            String superclass=hierarchy.parent(name);
+            if(superclass!=null && !superclass.equals("java/lang/Object")){classAccess(name,superclass,null);permittedSubtype(name,superclass);}
+            if(superclass!=null && !superclass.equals("java/lang/Object")
+                && (classes.get(superclass).flags().flagsMask() & (ACC_INTERFACE|ACC_FINAL))!=0)
+                throw problem("LINKAGE","Invalid superclass kind/finality",null);
+            for(var face:type.interfaces()) {
+                String target=face.asInternalName();classAccess(name,target,null);permittedSubtype(name,target);
+                if((classes.get(target).flags().flagsMask() & ACC_INTERFACE)==0
+                    || hierarchy.ancestors(target).contains(name))throw problem("LINKAGE","Invalid/cyclic interface hierarchy",null);
+            }
+            for(var method:type.methods()) {
+                String methodName=method.methodName().stringValue();int flags=method.flags().flagsMask();
+                if(methodName.startsWith("<"))continue;
+                String signature=methodName+method.methodType().stringValue();
+                if((flags & (ACC_PRIVATE|ACC_STATIC))==0 && Set.of("getClass()Ljava/lang/Class;","notify()V","notifyAll()V","wait()V","wait(J)V","wait(JI)V").contains(signature))
+                    throw problem("LINKAGE","Cannot override trusted final Object member "+signature,null);
+                for(String ancestor:hierarchy.ancestors(name)) {
+                    if(ancestor.equals(name) || ancestor.equals("java/lang/Object"))continue;
+                    var inherited=new BytecodeMethod.Id(ancestor,methodName,method.methodType().stringValue());int inheritedFlags=hierarchy.flags(inherited);
+                    if(inheritedFlags<0 || (inheritedFlags & ACC_PRIVATE)!=0
+                        || (classes.get(ancestor).flags().flagsMask() & ACC_INTERFACE)!=0 && (inheritedFlags & ACC_STATIC)!=0
+                        || (inheritedFlags & (ACC_PUBLIC|ACC_PROTECTED))==0
+                        && !packageName(name).equals(packageName(ancestor)))continue;
+                    // JVM overriding is distinct from Java source visibility rules: narrower raw
+                    // declarations may be valid, but an instance override of a final member is not.
+                    if((flags & (ACC_STATIC|ACC_PRIVATE))==0 && (inheritedFlags & (ACC_STATIC|ACC_FINAL))==ACC_FINAL)
+                        throw problem("LINKAGE","Illegal final method override "+name+"."+methodName,null);
+                }
+            }
+            if(name.equals(model))for(String ancestor:hierarchy.ancestors(model)) {
+                if(ancestor.equals(model) || ancestor.equals("java/lang/Object"))continue;
+                for(var method:classes.get(ancestor).methods())if(!annotations(method,ANNOTATION+"Actor;").isEmpty()
+                    || !annotations(method,ANNOTATION+"Check;").isEmpty())throw problem("DECLARATION","Inherited annotated entry point",null);
+            }
+        }
+        validatedBytes=total;
+    }
+
+    /** Validates sealed edges in this single-directory, unnamed-module application profile.
+     * @param child actual direct subtype
+     * @param parent declaring superclass/interface
+     * @throws BytecodeLoadException for an unlisted subtype or a nonpublic cross-package subtype */
+    private void permittedSubtype(String child,String parent) {
+        var permitted=classes.get(parent).findAttribute(Attributes.permittedSubclasses());
+        if(permitted.isPresent() && ((classes.get(child).flags().flagsMask() & ACC_PUBLIC)==0 && !packageName(child).equals(packageName(parent))
+            || permitted.get().permittedSubclasses().stream().noneMatch(type->type.asInternalName().equals(child))))
+            throw problem("LINKAGE","Subtype is not permitted by sealed parent "+parent,null);
     }
 
     /**
@@ -275,15 +403,15 @@ final class BytecodeLoader {
         BytecodeInput.validate(input);
         ClassModel type=ClassFile.of().parse(input);
         if (!type.thisClass().asInternalName().equals(name)) throw problem("MALFORMED","Class name/path mismatch",null);
-        if ((type.flags().flagsMask() & (ACC_INTERFACE|ACC_ANNOTATION|ACC_ENUM|ACC_MODULE))!=0)
+        if ((type.flags().flagsMask() & (ACC_ANNOTATION|ACC_ENUM|ACC_MODULE))!=0)
             throw problem("UNSUPPORTED","Unsupported application class kind",null);
         annotationPlacement(type,name.equals(model) ? Set.of("Model") : Set.of());
         classes.put(name,type); bytes.put(name,input);
         String parent=type.superclass().orElseThrow(()->problem("MALFORMED","Application class requires a superclass",null)).asInternalName();
-        if (!parent.equals("java/lang/Object")) {
-            read(parent); throw problem("UNSUPPORTED","Application inheritance starts in95",null);
-        }
-        if (!type.interfaces().isEmpty()) throw problem("UNSUPPORTED","Application interfaces start in95",null);
+        if (!parent.equals("java/lang/Object")) read(parent);
+        for(var face:type.interfaces())read(face.asInternalName());
+        var nest=type.findAttribute(Attributes.nestHost());
+        if(nest.isPresent())read(nest.get().nestHost().asInternalName());
         for (FieldModel field : type.fields()) {
             visibility(field.flags().flagsMask(),name+"."+field.fieldName().stringValue());
             annotationPlacement(field,Set.of());
@@ -357,14 +485,19 @@ final class BytecodeLoader {
      */
     private void fieldType(ClassDesc type) throws IOException {
         String descriptor=type.descriptorString();
+        if(type.isArray()) {
+            while(type.isArray())type=type.componentType();
+            if(type.isPrimitive())return;
+            fieldType(type);return;
+        }
         if (descriptor.equals("I") || descriptor.equals("Z")) return;
-        if (!type.isClassOrInterface()) throw problem("UNSUPPORTED","Only int/boolean/reference types in94A",null);
+        if (!type.isClassOrInterface()) throw problem("UNSUPPORTED","Only int/boolean/reference computation is supported",null);
         String owner=descriptor.substring(1,descriptor.length()-1);
         if (!owner.equals("java/lang/Object")) read(owner);
     }
 
     /**
-     * Checks all parameter and return types against the first profile.
+     * Checks all parameter and return types against the admitted computation profile.
      * @param descriptor method type
      * @throws IOException for missing signature classes
      */
@@ -401,9 +534,8 @@ final class BytecodeLoader {
     }
 
     /**
-     * Checks application class and member visibility without host linkage. Public members require
-     * an accessible class; private access requires the declaring class; package/protected access
-     * requires the same package in this profile. Nestmate and subclass access arrive in95.
+     * Checks resolved member visibility without host linkage. Symbolic class visibility is checked
+     * separately so inherited public members of nonpublic superclasses remain accessible.
      * @param caller accessing class
      * @param owner declaring class
      * @param flags member flags
@@ -411,11 +543,36 @@ final class BytecodeLoader {
      * @throws BytecodeLoadException with LINKAGE for an inaccessible class or member
      */
     private void access(String caller,String owner,int flags,BytecodeLocation location) {
-        int classFlags=classes.get(owner).flags().flagsMask();
         boolean samePackage=packageName(caller).equals(packageName(owner));
-        if (((classFlags & ACC_PUBLIC)==0 && !samePackage) || ((flags & ACC_PUBLIC)==0
-            && ((flags & ACC_PRIVATE)!=0 ? !caller.equals(owner) : !samePackage)))
-            throw problem("LINKAGE","Inaccessible member (nestmate access starts in95)",location);
+        boolean allowed=(flags & ACC_PUBLIC)!=0 || caller.equals(owner)
+            || (flags & ACC_PRIVATE)!=0 && nestHost(caller).equals(nestHost(owner))
+            || (flags & ACC_PRIVATE)==0 && (samePackage || (flags & ACC_PROTECTED)!=0 && hierarchy().assignable(caller,owner));
+        if(!allowed)
+            throw problem("LINKAGE","Inaccessible member",location);
+    }
+
+    /** Checks symbolic class visibility independently of inherited member declaration visibility.
+     * @param caller accessing class
+     * @param owner symbolic class owner
+     * @param location real reference position
+     * @throws BytecodeLoadException with LINKAGE for an inaccessible symbolic type */
+    private void classAccess(String caller,String owner,BytecodeLocation location) {
+        if((classes.get(owner).flags().flagsMask() & ACC_PUBLIC)==0 && !packageName(caller).equals(packageName(owner)))
+            throw problem("LINKAGE","Inaccessible symbolic class",location);
+    }
+
+    /** Validates reciprocal same-package nest membership before granting private access.
+     * @param member potential nest member
+     * @return validated nest host
+     * @throws BytecodeLoadException with LINKAGE for invalid or nonreciprocal nest metadata */
+    private String nestHost(String member) {
+        var type=classes.get(member);var host=type.findAttribute(Attributes.nestHost());
+        if(host.isEmpty())return member;
+        String name=host.get().nestHost().asInternalName();var root=classes.get(name);
+        if(root==null || !packageName(member).equals(packageName(name)) || root.findAttribute(Attributes.nestHost()).isPresent()
+            || root.findAttribute(Attributes.nestMembers()).stream().flatMap(a->a.nestMembers().stream())
+                .noneMatch(c->c.asInternalName().equals(member)))throw problem("LINKAGE","Invalid nest membership",null);
+        return name;
     }
 
     /**
@@ -473,12 +630,16 @@ final class BytecodeLoader {
      */
     private ClassHierarchyResolver.ClassHierarchyInfo hierarchy(ClassDesc descriptor) {
         String name=descriptor.descriptorString(); name=name.substring(1,name.length()-1);
+        if(classes.containsKey(name) && (classes.get(name).flags().flagsMask() & ACC_INTERFACE)!=0)
+            return ClassHierarchyResolver.ClassHierarchyInfo.ofInterface();
         String parent=switch(name) {
             case "java/lang/Object" -> null;
+            case "java/lang/ArrayIndexOutOfBoundsException" -> "java/lang/IndexOutOfBoundsException";
             case "java/lang/Throwable" -> "java/lang/Object";
             case "java/lang/Exception" -> "java/lang/Throwable";
             case "java/lang/RuntimeException" -> "java/lang/Exception";
-            case "java/lang/NullPointerException", "java/lang/ArithmeticException", "java/lang/IllegalMonitorStateException" -> "java/lang/RuntimeException";
+            case "java/lang/NullPointerException", "java/lang/ArithmeticException", "java/lang/IllegalMonitorStateException",
+                "java/lang/ClassCastException", "java/lang/NegativeArraySizeException", "java/lang/ArrayStoreException", "java/lang/IndexOutOfBoundsException" -> "java/lang/RuntimeException";
             default -> {
                 var model=classes.get(name);
                 if (model==null) throw problem("METADATA","Unknown hierarchy type "+name,null);
