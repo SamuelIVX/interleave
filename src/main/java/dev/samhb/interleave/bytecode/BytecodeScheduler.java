@@ -89,14 +89,14 @@ final class BytecodeScheduler {
                 || probe.opcode()==Opcode.ANEWARRAY || probe.opcode()==Opcode.MULTIANEWARRAY;
             int heapBefore=state.heap.size();var result=OpcodeExecutor.step(program,state,actor);var next=result.state();
             int charged=next.executions.get(actor).instructions-before.instructions;
-            String event=charged>0 ? "OPCODE" : probe.exhausted() ? "FUEL_CUTOFF" : switch(before.phase) {
-                case RUNNING -> "MONITOR_ENTER";case RETURNING -> "RETURN";case EXCEPTION -> "EXCEPTION";
+            String event=before.phase==BytecodeState.Phase.INTRINSIC_BODY ? "INTRINSIC_BODY" : charged>0 ? "OPCODE" : probe.exhausted() ? "FUEL_CUTOFF" : switch(before.phase) {
+                case INTRINSIC_BODY -> "INTRINSIC_BODY";case INTRINSIC_EXIT -> "MONITOR_EXIT";case RUNNING -> "MONITOR_ENTER";case RETURNING -> "RETURN";case EXCEPTION -> "EXCEPTION";
                 case TERMINATION_PENDING -> "TERMINATION";case FAILURE_PENDING -> "FAILURE";case CUTOFF_PENDING -> "CUTOFF";
                 default -> throw new IllegalStateException("No executable implicit event");
             };
             executed.add(new Executed(probe.location(),charged==0 ? null : probe.opcode(),event));
             instructions+=charged;kind=result.kind();state=next;observable|=probe.observable();
-            if(publication && (kind==OpcodeExecutor.Kind.ADVANCED || next.heap.size()!=heapBefore))sharing=sharing.plus(BytecodeSharing.refresh(state));
+            if((publication && kind==OpcodeExecutor.Kind.ADVANCED) || next.heap.size()!=heapBefore || result.referencesChanged())sharing=sharing.plus(BytecodeSharing.refresh(state));
             // Every discovered return/fault/cutoff yields before terminal delivery, including local failures.
             if(mode==Mode.REFERENCE || kind!=OpcodeExecutor.Kind.ADVANCED
                 || state.executions.get(actor).phase!=BytecodeState.Phase.RUNNING)break;

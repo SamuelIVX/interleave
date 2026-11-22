@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.*;
 
 /** Complete recorded bytecode execution with independently authenticated prefix replay observations.
- * @param version wire/native payload schema, currently1
+ * @param version wire/native payload schema, currently2
  * @param identity frozen artifact, model declarations, profile, limits and mode
  * @param transitions actual original actor selections and executed operations
  * @param snapshots immutable initial and transition-boundary snapshots
@@ -17,9 +17,17 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
                                Terminal terminal,Terminal replayObservation) implements Serializable {
     /** Freezes aligned evidence and rejects incompatible schemas or a nonterminal original record. */
     public BytecodeEvidence {
-        if(version!=1)throw new IllegalArgumentException("Unsupported bytecode evidence version");
+        if(version!=1 && version!=2)throw new IllegalArgumentException("Unsupported bytecode evidence version");
         Objects.requireNonNull(identity);Objects.requireNonNull(terminal);
+        if((version==2)!=identity.profileVersion().equals("BYTECODE-SC-3")
+            || version==1 && !Set.of("BYTECODE-SC-1","BYTECODE-SC-2").contains(identity.profileVersion()))
+            throw new IllegalArgumentException("Unsupported schema/profile pairing");
+        if(version==2) {
+            requireBudgetOwner(terminal,identity.actors().size());if(replayObservation!=null)requireBudgetOwner(replayObservation,identity.actors().size());
+        }
         transitions=List.copyOf(transitions);snapshots=List.copyOf(snapshots);
+        if(version==1 && transitions.stream().flatMap(transition->transition.operations().stream()).anyMatch(operation->
+            Set.of("INTRINSIC_BODY","MONITOR_EXIT").contains(operation.event())))throw new IllegalArgumentException("Intrinsic event requires bytecode evidence schema2");
         if(snapshots.size()!=transitions.size()+1 || terminal.kind().equals("PREFIX"))throw new IllegalArgumentException("Misaligned bytecode evidence");
     }
 
@@ -82,8 +90,8 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
         public Operation {
             Objects.requireNonNull(location);
             if(line!=null && line<1)throw new IllegalArgumentException("Invalid compiler line");
-            if(!Set.of("OPCODE","MONITOR_ENTER","RETURN","EXCEPTION","TERMINATION","FAILURE","CUTOFF","FUEL_CUTOFF").contains(event)
-                || event.equals("OPCODE")!=(opcode!=null))throw new IllegalArgumentException("Invalid bytecode operation");
+            if(!Set.of("OPCODE","MONITOR_ENTER","RETURN","EXCEPTION","TERMINATION","FAILURE","CUTOFF","FUEL_CUTOFF","INTRINSIC_BODY","MONITOR_EXIT").contains(event)
+                || (event.equals("OPCODE") || event.equals("INTRINSIC_BODY"))!=(opcode!=null))throw new IllegalArgumentException("Invalid bytecode operation");
             if(opcode!=null)java.lang.classfile.Opcode.valueOf(opcode);
         }
     }
@@ -156,10 +164,18 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
      * @param location omitted operation's real position
      * @param limit selected resource maximum
      * @param required work/demand for the attempt
-     * @param remaining allowance before the attempt */
-    public record Cutoff(String reason,BytecodeLocation location,int limit,int required,int remaining) implements Serializable {
-        /** Requires genuine resource/location data. */
-        public Cutoff {text(reason);Objects.requireNonNull(location);if(limit<1 || required<1 || remaining<0)throw new IllegalArgumentException("Invalid cutoff allowance");}
+     * @param remaining allowance before the attempt
+     * @param budgetOwner charged allocator/setup/observer; null only for legacy schema1 */
+    public record Cutoff(String reason,BytecodeLocation location,int limit,int required,int remaining,Integer budgetOwner) implements Serializable {
+        /** Retains source compatibility for legacy schema1 producers.
+         * @param reason bounded resource
+         * @param location omitted instruction
+         * @param limit selected maximum
+         * @param required attempted work
+         * @param remaining unspent allowance */
+        public Cutoff(String reason,BytecodeLocation location,int limit,int required,int remaining){this(reason,location,limit,required,remaining,null);}
+        /** Requires genuine resource/location data and a valid explicit or absent legacy owner. */
+        public Cutoff {if(budgetOwner!=null && budgetOwner!= -4 && budgetOwner!= -1 && (budgetOwner<0 || budgetOwner>7))throw new IllegalArgumentException("Invalid budget owner");text(reason);Objects.requireNonNull(location);if(limit<1 || required<1 || remaining<0)throw new IllegalArgumentException("Invalid cutoff allowance");}
     }
 
     /** Pure observer failure identity, never an actor exception.
@@ -217,4 +233,14 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
     /** Requires a nonempty immutable identifier/diagnostic value.
      * @param value required text */
     private static void text(String value){if(value==null || value.isEmpty())throw new IllegalArgumentException("Missing bytecode identity text");}
+    /** Requires new-schema resource ownership without guessing absent legacy data.
+     * @param actors declared actor count
+     * @param terminal original or replay terminal
+     * @throws IllegalArgumentException when a new-schema cutoff omits its charged owner */
+    private static void requireBudgetOwner(Terminal terminal,int actors) {
+        if(terminal.cutoff()!=null && (terminal.cutoff().budgetOwner()==null || terminal.cutoff().budgetOwner()== -4 || terminal.cutoff().budgetOwner()>=actors)
+            || terminal.check()!=null && terminal.check().cutoff()!=null && !Integer.valueOf(-4).equals(terminal.check().cutoff().budgetOwner()))
+            throw new IllegalArgumentException("Missing cutoff budget owner");
+    }
+
 }

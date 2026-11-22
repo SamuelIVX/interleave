@@ -198,7 +198,7 @@ function normalizeBytecode(raw){
   const method = x => object(x) && ['owner','name','descriptor'].every(k=>text(x[k]));
   const location = x => method(x) && integer(x.bci);
   const identity = x => {
-    if(!object(x) || !digest(x.artifactDigest) || !['BYTECODE-SC-1','BYTECODE-SC-2'].includes(x.profileVersion) || !text(x.modelClass) || x.mode!=='BATCHED' ||
+    if(!object(x) || !digest(x.artifactDigest) || !['BYTECODE-SC-1','BYTECODE-SC-2','BYTECODE-SC-3'].includes(x.profileVersion) || !text(x.modelClass) || x.mode!=='BATCHED' ||
       x.requestedStrategy!=='DFS' || x.effectiveStrategy!=='DFS' || x.fallbackReason!=null || !Array.isArray(x.actors) ||
       x.actors.length<1 || x.actors.length>8 || !Array.isArray(x.checks) || x.checks.length>65536) fail();
     x.actors.forEach((a,i)=>{if(!object(a) || a.id!==i || !method(a.method) || a.method.descriptor!=='()V')fail();});
@@ -213,7 +213,7 @@ function normalizeBytecode(raw){
     const keys=Object.keys(a);return keys.length===Object.keys(b).length && keys.every(k=>Object.hasOwn(b,k) && equal(a[k],b[k]));
   };
   const fault = f => {if(!object(f) || !text(f.type) || !location(f.location) || !Array.isArray(f.stack) || !f.stack.length || f.stack.length>256 || !f.stack.every(location))fail();};
-  const cutoff = c => {if(!object(c) || !text(c.reason) || !location(c.location) || !integer(c.limit) || c.limit<1 || !integer(c.required) || c.required<1 || !integer(c.remaining))fail();};
+  const cutoff = c => {if(c?.budgetOwner!=null && (!Number.isSafeInteger(c.budgetOwner) || ![-4,-1,0,1,2,3,4,5,6,7].includes(c.budgetOwner)))fail();if(!object(c) || !text(c.reason) || !location(c.location) || !integer(c.limit) || c.limit<1 || !integer(c.required) || c.required<1 || !integer(c.remaining))fail();};
   const terminal = (t,replay=false) => {
     const outcomes={COMPLETED:'COMPLETED',DEADLOCK:'DEADLOCK',UNCAUGHT_EXCEPTION:'VIOLATION',CHECK_FALSE:'VIOLATION',CUTOFF:'INCOMPLETE',OBSERVER_ERROR:'INCOMPLETE',OBSERVER_LIMIT:'INCOMPLETE',INTERRUPTED:'INCOMPLETE'};
     if(!object(t) || (!Object.hasOwn(outcomes,t.kind) && !(replay && t.kind==='PREFIX')) || !Array.isArray(t.waits) || t.waits.length>8)fail();
@@ -248,21 +248,28 @@ function normalizeBytecode(raw){
   const trace = t => {
     if(!object(t) || t.programKind!=='BYTECODE' || ['sourceDigest','executedSteps','failure','cutoff'].some(k=>Object.hasOwn(t,k)))fail();
     const d=t.bytecodeEvidence;
-    if(!object(d) || d.version!==1)fail();identity(d.identity);
+    if(!object(d) || ![1,2].includes(d.version))fail();identity(d.identity);
+    if((d.version===2)!==(d.identity.profileVersion==='BYTECODE-SC-3'))fail();
+    if(d.version===2){
+      for(const end of [d.terminal,d.replayObservation].filter(x=>x!=null)){
+        if(end.cutoff && (end.cutoff.budgetOwner==null || end.cutoff.budgetOwner===-4 || end.cutoff.budgetOwner>=d.identity.actors.length))fail();
+        if(end.check?.cutoff && end.check.cutoff.budgetOwner!==-4)fail();
+      }
+    }
     if(t.programHash!==d.identity.artifactDigest || !Array.isArray(t.threads) || t.threads.length>MAX_SCHEDULE || !t.threads.every(a=>integer(a) && a<d.identity.actors.length) ||
       !Array.isArray(t.outcomes) || t.outcomes.length!==t.threads.length || !t.outcomes.every(o=>['ADVANCED','TERMINATED','ASSERTION_FAILED'].includes(o)) ||
       !Array.isArray(d.transitions) || d.transitions.length!==t.threads.length || !Array.isArray(d.snapshots) || d.snapshots.length!==t.threads.length+1 || !Array.isArray(t.states) || t.states.length!==d.snapshots.length)fail();
     let work=0;
     d.transitions.forEach((s,i)=>{
       if(!object(s) || s.actor!==t.threads[i] || !Array.isArray(s.operations) || !s.operations.length || (work+=s.operations.length)>65536)fail();
-      s.operations.forEach(op=>{if(!object(op) || !location(op.location) || (op.line!=null && (!integer(op.line) || op.line<1)) || !['OPCODE','MONITOR_ENTER','RETURN','EXCEPTION','TERMINATION','FAILURE','CUTOFF','FUEL_CUTOFF'].includes(op.event) || (op.opcode!=null)!==(op.event==='OPCODE') || (op.opcode!=null && !opcodes.has(op.opcode)))fail();});
+      s.operations.forEach(op=>{if(!object(op) || !location(op.location) || (op.line!=null && (!integer(op.line) || op.line<1)) || !['OPCODE','MONITOR_ENTER','RETURN','EXCEPTION','TERMINATION','FAILURE','CUTOFF','FUEL_CUTOFF',...(d.version===2 ? ['INTRINSIC_BODY','MONITOR_EXIT'] : [])].includes(op.event) || (op.opcode!=null)!==(['OPCODE','INTRINSIC_BODY'].includes(op.event)) || (op.opcode!=null && !opcodes.has(op.opcode)))fail();});
     });
     // Each object/array header pays for its length slot; setup has at most nine diagnostics
     // after construction completes. Every actor permanently owns its heap-cell charges.
     const limits=d.identity.limits;
     const fieldLimit=limits.setupHeapCells+d.identity.actors.length*limits.actorHeapCells+9;
     d.snapshots.forEach((s,i)=>{
-      if(!object(s) || !digest(s.stateDigest) || !object(s.locals) || Object.keys(s.locals).length>8 || !Array.isArray(s.heap) || s.heap.length>36864)fail();
+      if(!object(s) || !digest(s.stateDigest) || !object(s.locals) || Object.keys(s.locals).length>8 || !Array.isArray(s.heap) || s.heap.length>limits.setupHeapCells+d.identity.actors.length*limits.actorAllocations)fail();
       values(s.fields,fieldLimit);Object.values(s.locals).forEach(map=>values(map));
       s.heap.forEach(o=>{if(!object(o) || !text(o.identity) || !text(o.type) || typeof o.shared!=='boolean' || typeof o.initialized!=='boolean' || !Number.isSafeInteger(o.owner) || o.owner<-2 || o.owner>7 || !integer(o.depth) || (o.owner===-2)!==(o.depth===0))fail();});
       const display = map => Object.fromEntries(Object.entries(map).map(([k,v])=>[k,v.type.toLowerCase()+':'+v.raw]));
@@ -520,7 +527,7 @@ function renderHeader(){
     parts.push(addKV('traversal', `${data.identity.requestedStrategy} → ${data.identity.effectiveStrategy}`));
     parts.push(addKV('terminal', end.kind));
     if(end.fault)parts.push(addKV('fault', `${capStr(end.fault.type)} at ${at(end.fault.location)}`));
-    if(end.cutoff)parts.push(addKV('cutoff', `${capStr(end.cutoff.reason)} actor ${end.actor} at ${at(end.cutoff.location)}; limit ${end.cutoff.limit}, required ${end.cutoff.required}, remaining ${end.cutoff.remaining}`));
+    if(end.cutoff)parts.push(addKV('cutoff', `${capStr(end.cutoff.reason)} actor ${end.actor} at ${at(end.cutoff.location)}; budget owner ${end.cutoff.budgetOwner==null ? 'unrecorded (legacy)' : end.cutoff.budgetOwner===-1 ? 'setup' : end.cutoff.budgetOwner===-4 ? 'observer' : 'actor '+end.cutoff.budgetOwner}; limit ${end.cutoff.limit}, required ${end.cutoff.required}, remaining ${end.cutoff.remaining}`));
     if(end.check)parts.push(addKV('check', `${capStr(end.check.kind)} ${at(end.check.location)}`));
     end.waits.forEach(w=>parts.push(addKV('monitor wait', `actor ${w.actor} waits for ${w.owner} on ${capStr(w.monitor)} depth ${w.depth}`)));
     if(end.interruption)parts.push(addKV('interruption', `${end.interruption}; original run INCOMPLETE`));

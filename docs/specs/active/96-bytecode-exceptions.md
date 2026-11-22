@@ -1,10 +1,11 @@
-<!-- Roadmap #12 / 96: implementation milestone specification; no production implementation in this PR. -->
+<!-- Roadmap #12 / 96: exception-profile implementation and acceptance contract. -->
 # Spec 96: General supported exceptions
 
 ## Objective
 
 Deliver general supported exceptions as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: specified, not implemented or measured.** The
+**Type: delta. Status: implemented locally; runtime, consumer, review and mutation gates pass; CI/manual review and merge pending.**
+Actual completed and pending evidence is recorded in the [96 ledger](../../measurements/96-bytecode-exceptions.md). The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 96 only.
 
@@ -135,19 +136,21 @@ constructor that a platform class does not declare.
 | java/lang/Throwable and declared supported subclasses | `<init>()V`, `<init>(Ljava/lang/String;)V`, `<init>(Ljava/lang/String;Ljava/lang/Throwable;)V` where declared |
 | java/lang/Throwable (protected subclass call) | `<init>(Ljava/lang/String;Ljava/lang/Throwable;ZZ)V` |
 | java/lang/Throwable | `getMessage()Ljava/lang/String;`, `getCause()Ljava/lang/Throwable;`, `addSuppressed(Ljava/lang/Throwable;)V`, `getSuppressed()[Ljava/lang/Throwable;` |
+| java/lang/NullPointerException | `getMessage()Ljava/lang/String;` for a proven available explicit message, resolving its declared override |
 | java/lang/AutoCloseable | `close()V` only through validated application implementations, interpreted with ordinary opcode costs |
 
 Supported VM types include NullPointerException, ArithmeticException, IllegalMonitorStateException,
 ClassCastException, NegativeArraySizeException, ArrayIndexOutOfBoundsException and ArrayStoreException;
 IllegalArgumentException/IllegalStateException support the specified Throwable validation faults.
-Include their metadata superclasses and IndexOutOfBoundsException. Explicit application-provided messages retain modeled UTF-16 contents. An implicit VM exception
+Include their metadata superclasses and IndexOutOfBoundsException. Error/LinkageError ancestry supports
+VM linkage-fault matching; those metadata-only ancestors do not gain general allocation or constructor support. Explicit application-provided messages retain modeled UTF-16 contents. An implicit VM exception
 message may remain a tagged unavailable value only when whole-program conservative analysis proves
 no reachable getMessage/other admitted operation can expose it to execution. Unsupported implicit
 message inspection, including unknown receiver origin, rejects before exploration; never substitute
 null or normalize a value used by application branches. A catch block testing getMessage()!=null for
 an implicit fault requires a supported exact message rule or loader rejection. Host stack formatting
 alone may normalize in differential comparisons; message-dependent target behavior may not.
-This initial profile rejects initCause on all receivers: its cause-overwrite error can call the
+This initial profile rejects the initCause(Throwable) descriptor family (including covariant returns) on all receivers: its cause-overwrite error can call the
 replacement cause's overridden toString and cannot be an effect-free atomic fault. Include a JVM
 fixture where that callback writes a field and a matching loader-negative test. Explicit message+cause
 constructors provide supported cause wiring without this hidden callback.
@@ -172,7 +175,21 @@ are forbidden in checks even when a particular call would not allocate. Throwabl
 fillInStackTrace uses its new unescaped receiver monitor; model required entry/exit events and reject
 application overrides as above, rather than invoking target code on the host.
 
+NPE.getMessage has an additional conditional receiver acquisition in the trusted JDK26 implementation:
+a non-null explicit message returns directly; a null explicit message enters synchronized(this). Model
+that entry/body/exit protocol despite the method declaration lacking ACC_SYNCHRONIZED. The explicit
+null result is known without executing native extended-message code. Reject this concrete target in
+checks, including conservative virtual dispatch alternatives. Unavailable implicit VM messages still
+reject inspection. The independent JVM blocking harness and interpreted two-lock cycle cover the
+conditional acquisition. See [OpenJDK26 NPE.getMessage](https://github.com/openjdk/jdk/blob/jdk-26-ga/src/java.base/share/classes/java/lang/NullPointerException.java).
+
 ## Current State
+
+The original authoring baseline was `2a242c4`; current implementation evidence starts from merged95
+`6a57184`. The [96 ledger](../../measurements/96-bytecode-exceptions.md) records completed local runtime,
+compiler/oracle and consumer checks and the final mutation comparison separately from pending CI/manual review and merge acceptance.
+
+### Authoring-time observations
 
 - [verified] Planning main is `2a242c4`; the existing engine has immutable Program, forward SourceStep
 continuations and source-specific evidence. The shared contract records inspected integration constraints.
@@ -186,7 +203,8 @@ mutation results. No authoring review establishes those results.
 `tryWithResourcesKeepsPrimaryAndSuppressed` (R3), `unwindCutoffDoesNotInventRelease` (R4),
 `exceptionIdentityAndConsumersReplayStrictly` (R5). Kill handler-order changes, duplicate release,
 missing suppression cells, missing pending state and observer-fault-as-violation mutations.
-These are intended behavioral contracts/test names, not tests already implemented or executed.
+These authoring-time names describe behavioral contracts. The ledger maps them to actual current
+tests and executed checks; a listed name alone is not execution evidence.
 Use independent expected values/oracles, preserve distinct regression cases and save generated seeds.
 
 ## Constraints

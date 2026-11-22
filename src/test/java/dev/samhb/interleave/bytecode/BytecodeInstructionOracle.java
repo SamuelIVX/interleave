@@ -53,7 +53,7 @@ final class BytecodeInstructionOracle {
                     var frame=state.frame(actor);Ref monitor;
                     if(!frame.entered)monitor=(frame.method.flags & java.lang.classfile.ClassFile.ACC_STATIC)!=0
                         ? BytecodeState.classMonitor(frame.method.id.owner(),program) : (Ref)frame.locals.get(0);
-                    else monitor=(Ref)frame.stack.getLast();
+                    else {var intrinsic=intrinsic(program,state,actor);monitor=intrinsic==null ? (Ref)frame.stack.getLast() : intrinsic.receiver();}
                     var object=state.heap.get(monitor);waits.add(waitKey(actor,object.monitorOwner,monitor,object.monitorDepth));
                 } else {
                     var before=state.executions.get(actor);
@@ -67,7 +67,14 @@ final class BytecodeInstructionOracle {
                         if(instruction instanceof java.lang.classfile.instruction.FieldInstruction field
                             && (field.opcode()==java.lang.classfile.Opcode.PUTFIELD || field.opcode()==java.lang.classfile.Opcode.PUTSTATIC))
                             changed=field.type().stringValue().startsWith("L") || field.type().stringValue().startsWith("[");
+                        if(instruction instanceof java.lang.classfile.instruction.InvokeInstruction)changed|=state.heap.entrySet().stream()
+                            .anyMatch(entry->!entry.getValue().fields.equals(next.state().heap.get(entry.getKey()).fields));
                         if(changed && (next.state().executions.get(actor).phase==Phase.RUNNING || next.state().heap.size()!=state.heap.size()))promote(next.state());
+                    }
+                    if(next.state().heap.size()!=state.heap.size() && before.phase!=Phase.RUNNING)promote(next.state());
+                    if(before.phase==Phase.INTRINSIC_BODY) {
+                        Ref receiver=before.intrinsic.receiver();
+                        if(!state.heap.get(receiver).fields.equals(next.state().heap.get(receiver).fields))promote(next.state());
                     }
                     pending.push(next.state());choices++;
                 }
@@ -87,14 +94,51 @@ final class BytecodeInstructionOracle {
         var frame=execution.frames.getLast();var instruction=frame.method.ops.get(frame.bci).instruction();
         int work=instruction instanceof java.lang.classfile.instruction.InvokeInstruction call
             && call.owner().asInternalName().equals("java/lang/Object") ? 2 : 1;
+        var intrinsic=intrinsic(program,state,actor);if(intrinsic!=null)work=intrinsic.work();
         if(execution.instructions+work>program.limits.actorInstructions())return false;
         Ref monitor;
         if(!frame.entered)monitor=(frame.method.flags & java.lang.classfile.ClassFile.ACC_STATIC)!=0
             ? BytecodeState.classMonitor(frame.method.id.owner(),program) : (Ref)frame.locals.get(0);
+        else if(intrinsic!=null && intrinsic.locks())monitor=intrinsic.receiver();
         else if(instruction.opcode()==java.lang.classfile.Opcode.MONITORENTER)monitor=(Ref)frame.stack.getLast();
         else return false;
         if(monitor.equals(NULL))return false;
         var object=state.heap.get(monitor);return object.monitorOwner!=-2 && object.monitorOwner!=actor;
+    }
+
+    /** Independent fixture call facts, without production intrinsic planning.
+     * @param receiver interpreted receiver
+     * @param work invoke plus modeled intrinsic units
+     * @param locks whether trusted declaration acquires that receiver */
+    private record Intrinsic(Ref receiver,int work,boolean locks) {}
+
+    /** Derives trusted call work and locking from decoded operands and current heap payloads.
+     * @param program closed declarations
+     * @param state committed fixture
+     * @param actor selected actor
+     * @return independent call facts, or null for ordinary interpreted calls */
+    private static Intrinsic intrinsic(BytecodeProgram program,BytecodeState state,int actor) {
+        var frame=state.frame(actor);var instruction=frame.method.ops.get(frame.bci).instruction();
+        if(!(instruction instanceof java.lang.classfile.instruction.InvokeInstruction call)
+            || call.opcode()==java.lang.classfile.Opcode.INVOKESTATIC || call.owner().asInternalName().equals("java/lang/Object"))return null;
+        var declaration=program.hierarchy.method(call.owner().asInternalName(),call.name().stringValue(),call.type().stringValue());
+        if(declaration==null)return null;
+        int count=call.typeSymbol().parameterCount();Ref receiver=(Ref)frame.stack.get(frame.stack.size()-count-1);
+        if(call.opcode()==java.lang.classfile.Opcode.INVOKESPECIAL)declaration=program.hierarchy.special(frame.method.id.owner(),call.owner().asInternalName(),declaration);
+        else if((program.hierarchy.flags(declaration)&java.lang.classfile.ClassFile.ACC_PRIVATE)==0 && !receiver.equals(NULL)) {
+            if(!program.hierarchy.assignable(state.heap.get(receiver).type,call.owner().asInternalName()))return null;
+            declaration=program.hierarchy.dispatch(state.heap.get(receiver).type,declaration);
+        }
+        if(declaration==null || !declaration.owner().startsWith("java/") || !program.hierarchy.assignable(declaration.owner(),"java/lang/Throwable"))return null;
+        int work=2;boolean locks=Set.of("getCause","addSuppressed","getSuppressed","<init>").contains(declaration.name());
+        if(declaration.owner().equals("java/lang/NullPointerException") && declaration.name().equals("getMessage") && !receiver.equals(NULL))
+            locks|=NULL.equals(state.heap.get(receiver).fields.get(new BytecodeProgram.FieldId("@Throwable","message","internal")));
+        if(declaration.descriptor().equals("(Ljava/lang/String;Ljava/lang/Throwable;ZZ)V"))locks=((Int)frame.stack.getLast()).value()!=0;
+        if(declaration.name().equals("getSuppressed") && !receiver.equals(NULL)) {
+            int entries=(int)state.heap.get(receiver).fields.keySet().stream().filter(field->field.owner().equals("@Throwable") && field.name().startsWith("suppressed")).count();
+            work=entries==0 ? 2 : entries+1;
+        }
+        return new Intrinsic(receiver,work,locks);
     }
 
     /** Evaluates checks through private primitive execution, with no production observer adapter.
@@ -157,7 +201,10 @@ final class BytecodeInstructionOracle {
             if(value instanceof Ref ref && !ref.equals(NULL))owners.computeIfAbsent(ref,k->new HashSet<>()).add(owner);
         };
         mark.accept(FIXTURE,SETUP);state.statics.values().forEach(value->mark.accept(value,SETUP));
-        state.executions.forEach((actor,e)->{if(actor>=0){mark.accept(e.returned,actor);for(var f:e.frames){
+        state.executions.forEach((actor,e)->{if(actor>=0){mark.accept(e.returned,actor);mark.accept(e.throwable,actor);
+            if(e.faultPayload!=null){mark.accept(e.faultPayload.message(),actor);mark.accept(e.faultPayload.cause(),actor);}
+            if(e.intrinsic!=null){mark.accept(e.intrinsic.receiver(),actor);e.intrinsic.arguments().forEach(v->mark.accept(v,actor));mark.accept(e.intrinsic.result(),actor);}
+            for(var f:e.frames){
             f.locals.values().forEach(v->mark.accept(v,actor));f.stack.forEach(v->mark.accept(v,actor));mark.accept(f.methodMonitor,actor);mark.accept(f.constructorReceiver,actor);
         }}});
         boolean changed;
@@ -190,7 +237,7 @@ final class BytecodeInstructionOracle {
         tokens(key,"executions",state.executions.size());
         for(var entry:state.executions.entrySet()) {
             var execution=entry.getValue();tokens(key,entry.getKey(),execution.phase,execution.instructions,execution.allocations,execution.cells,
-                execution.nextSequence,execution.fault,execution.cutoff,execution.returned,execution.eventLocation,execution.frames.size());
+                execution.nextSequence,execution.fault,execution.throwable,execution.faultPayload,execution.intrinsic,execution.cutoff,execution.returned,execution.eventLocation,execution.frames.size());
             for(var frame:execution.frames) {
                 tokens(key,frame.method.id,frame.bci,frame.entered,frame.methodMonitor,frame.constructorReceiver,frame.locals.size());
                 frame.locals.forEach((slot,value)->tokens(key,slot,value));tokens(key,frame.stack.size());frame.stack.forEach(value->tokens(key,value));

@@ -29,6 +29,44 @@ class BytecodeBatchingOracleTest {
         assertTrue(batched.metrics().states()<reference.metrics().states());
     }
 
+    /** Losing a private reference is a scheduling boundary because another actor can refresh sharing.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void referenceRootLossPreservesSharingHistory(@TempDir Path directory) throws Exception {
+        var actors=List.of(
+            "@Actor(id=0)public void first(){Throwable n=new Throwable();x=1;n=null;} @Actor(id=1)public void second(){if(x==1){Object dummy=new Object();y=1;}}",
+            "@Actor(id=0)public void first(){{Throwable n=new Throwable();x=1;}int n=0;} @Actor(id=1)public void second(){if(x==1){Object dummy=new Object();y=1;}}",
+            "public synchronized Throwable create(){x=1;return new Throwable();} @Actor(id=0)public void first(){create();} @Actor(id=1)public void second(){synchronized(this){if(x==1){Object dummy=new Object();y=1;}}}",
+            "public synchronized Throwable create(){x=1;return new Throwable();} @Actor(id=0)public void first(){if(create()!=null){x=1;}} @Actor(id=1)public void second(){synchronized(this){if(x==1){Object dummy=new Object();y=1;}}}",
+            "public synchronized Object[] create(){x=1;return new Object[1];} @Actor(id=0)public void first(){int n=create().length;} @Actor(id=1)public void second(){synchronized(this){if(x==1){Object dummy=new Object();y=1;}}}",
+            "public synchronized Throwable create(){x=1;return new Throwable();} @Actor(id=0)public void first(){boolean n=create() instanceof Throwable;} @Actor(id=1)public void second(){synchronized(this){if(x==1){Object dummy=new Object();y=1;}}}");
+        for(int sample=0;sample<actors.size();sample++) {
+            var classes=BytecodeFixtures.compile(directory.resolve("case"+sample),17,
+                "@Model public class Fixture {public int x,y;public Fixture(){}"+actors.get(sample)+"}");
+            compare(BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults()));
+        }
+    }
+
+    /** A valid bare constructor consumes its final uninitialized receiver after a visible write.
+     * @param directory compiler workspace
+     * @throws Exception for class transformation or fixture failures */
+    @Test void bareObjectConstructorRetainsRootLossBoundary(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,17,"""
+            @Model public class Fixture {public int x,y;public Fixture(){}
+              @Actor(id=0)public void first(){new Object();x=1;}
+              @Actor(id=1)public void second(){if(x==1){Object dummy=new Object();y=1;}}}
+            """);
+        var parser=java.lang.classfile.ClassFile.of();var file=classes.resolve("Fixture.class");
+        java.nio.file.Files.write(file,parser.transformClass(parser.parse(java.nio.file.Files.readAllBytes(file)),
+            java.lang.classfile.ClassTransform.transformingMethodBodies(method->method.methodName().equalsString("first"),(code,item)->{
+                if(item instanceof java.lang.classfile.instruction.NewObjectInstruction) {
+                    code.with(item).aload(0).iconst_1().putfield(java.lang.constant.ClassDesc.of("Fixture"),"x",java.lang.constant.ConstantDescs.CD_int);
+                } else if(item instanceof java.lang.classfile.instruction.InvokeInstruction || item instanceof java.lang.classfile.instruction.ReturnInstruction)code.with(item);
+            })));
+        assertEquals("1:1",BytecodeFixtures.oracle(directory,classes,"Fixture f=new Fixture();f.first();f.second();System.out.print(f.x+\":\"+f.y);"));
+        compare(BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults()));
+    }
+
     /** Static increments retain both real shared-read/write outcomes in both scheduling modes.
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
@@ -124,7 +162,7 @@ class BytecodeBatchingOracleTest {
 
     /** Compares both production granularities with the independently scheduled/encoded reference.
      * @param program actual interpreter fixture */
-    private static void compare(BytecodeProgram program) {
+    static void compare(BytecodeProgram program) {
         var expected=BytecodeInstructionOracle.enumerate(program);
         for(var mode:BytecodeScheduler.Mode.values()) {
             var result=new BytecodeExplorer(program,mode).explore(100000);assertTrue(result.traversalComplete());

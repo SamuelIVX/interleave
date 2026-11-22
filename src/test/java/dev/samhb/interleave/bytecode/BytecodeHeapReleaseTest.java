@@ -35,7 +35,7 @@ class BytecodeHeapReleaseTest {
             var decoded=TraceRecord.fromJson(trace.toJson());
             assertEquals(trace.bytecodeEvidence(),decoded.bytecodeEvidence());
             assertEquals(trace.states(),new TraceReplayer().replayBytecode(program,decoded).states());
-            assertEquals("BYTECODE-SC-2",decoded.bytecodeEvidence().identity().profileVersion());
+            assertEquals("BYTECODE-SC-3",decoded.bytecodeEvidence().identity().profileVersion());
             var last=trace.bytecodeEvidence().snapshots().getLast();assertTrue(last.heap().stream().anyMatch(o->o.identity().startsWith("actor:0:")));
             if(body.contains("new double"))assertTrue(last.fields().values().stream().anyMatch(v->v.type().equals("DOUBLE_BITS") && v.raw().equals("0000000000000000")));
             if(body.contains("new float"))assertTrue(last.fields().values().stream().anyMatch(v->v.type().equals("FLOAT_BITS") && v.raw().equals("00000000")));

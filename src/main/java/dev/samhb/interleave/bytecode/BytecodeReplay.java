@@ -22,7 +22,7 @@ final class BytecodeReplay {
     static TraceRecord replay(BytecodeProgram program,TraceRecord record) {
         Objects.requireNonNull(program);Objects.requireNonNull(record);cancelled();
         var data=record.bytecodeEvidence();
-        if(data==null || record.evidence()!=null || !BytecodeRuntime.identity(program).equals(data.identity())
+        if(data==null || data.version()!=2 || record.evidence()!=null || !BytecodeRuntime.identity(program).equals(data.identity())
             || !program.artifactDigest().equals(record.programHash()))throw corrupt("Bytecode artifact/model/declaration/profile/limits/mode mismatch");
         if(data.transitions().size()!=record.threadIds().size() || record.outcomes().size()!=record.threadIds().size()
             || data.snapshots().size()!=record.threadIds().size()+1 || record.states().size()!=data.snapshots().size())throw corrupt("Misaligned bytecode record");
@@ -44,7 +44,7 @@ final class BytecodeReplay {
             if(record.outcome()!=TraceOutcome.INCOMPLETE)throw corrupt("External bytecode interruption was upgraded");
         } else if(!original.equals(actualTerminal) || record.outcome()!=BytecodeRuntime.traceOutcome(actualTerminal))throw corrupt("Bytecode terminal/check/monitor/cutoff mismatch");
         if(data.replayObservation()!=null && !data.replayObservation().equals(actualTerminal))throw corrupt("Changed bytecode replay observation");
-        var replayed=new BytecodeEvidence(1,BytecodeRuntime.identity(program),transitions,snapshots,original,actualTerminal);
+        var replayed=new BytecodeEvidence(2,BytecodeRuntime.identity(program),transitions,snapshots,original,actualTerminal);
         return new TraceRecord(record.threadIds(),record.outcomes(),record.outcome(),program.artifactDigest(),
             snapshots.stream().map(BytecodeSnapshots::display).toList(),null,replayed);
     }

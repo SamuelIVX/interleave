@@ -1,0 +1,8 @@
+{
+  "producerCommit": "6a571844df9f4580dec8f57cd0acf01dcbe3fa06",
+  "profile": "BYTECODE-SC-2",
+  "evidenceVersion": 1,
+  "description": "Actual legacy cutoff from interpreted two-allocation fixture with actor allocation budget1; old native record lacks budgetOwner.",
+  "sha256": "04e5788a07a764524b0e62f9a01315eaccc3a38ea85ded95c550a9f0011edc8c",
+  "base64": "rO0ABXNyADFkZXYuc2FtaGIuaW50ZXJsZWF2ZS5jb3JlLkJ5dGVjb2RlRXZpZGVuY2UkQ3V0b2ZmAAAAAAAAAAACAAVJAAVsaW1pdEkACXJlbWFpbmluZ0kACHJlcXVpcmVkTAAIbG9jYXRpb250ADBMZGV2L3NhbWhiL2ludGVybGVhdmUvYnl0ZWNvZGUvQnl0ZWNvZGVMb2NhdGlvbjtMAAZyZWFzb250ABJMamF2YS9sYW5nL1N0cmluZzt4cAAAAAEAAAAAAAAAAXNyAC5kZXYuc2FtaGIuaW50ZXJsZWF2ZS5ieXRlY29kZS5CeXRlY29kZUxvY2F0aW9uAAAAAAAAAAACAARJAANiY2lMAApkZXNjcmlwdG9ycQB+AAJMAARuYW1lcQB+AAJMAAVvd25lcnEAfgACeHAAAAAIdAADKClWdAAFYWN0b3J0AAdGaXh0dXJldAALQUxMT0NBVElPTlM="
+}

@@ -78,6 +78,10 @@ public final class BytecodeProgram {
     private final BytecodeState setup;
     /** Frozen member resolution and reference assignability. */
     final BytecodeHierarchy hierarchy;
+    /** Frozen admitted trusted targets, including inherited interface implementations. */
+    final Set<BytecodeMethod.Id> intrinsics;
+    /** Sorted deterministic literal identities in the constant namespace. */
+    final Map<String,BytecodeState.Ref> strings;
 
     /**
      * Freezes metadata and the optional construction-time snapshot.
@@ -89,13 +93,15 @@ public final class BytecodeProgram {
      * @param classes sorted application names
      * @param limits immutable resource profile
      * @param digest exact artifact digest
+     * @param intrinsics exact admitted trusted targets from closed dispatch validation
      * @param hierarchy frozen metadata-only resolution
      * @param setup interpreted setup snapshot, null only during private loading
      */
     BytecodeProgram(String model, Map<BytecodeMethod.Id,BytecodeMethod> methods,
                     Map<FieldId,Field> fields, List<BytecodeMethod.Id> actors, List<Check> checks,
-                    List<String> classes, BytecodeLimits limits, String digest, BytecodeState setup,BytecodeHierarchy hierarchy) {
-        this.hierarchy=hierarchy;
+                    List<String> classes, BytecodeLimits limits, String digest, BytecodeState setup,BytecodeHierarchy hierarchy,Set<BytecodeMethod.Id> intrinsics) {
+        this.hierarchy=hierarchy;this.intrinsics=Set.copyOf(intrinsics);
+        this.strings=BytecodeStrings.identities(methods,fields,this.intrinsics);
         this.model = model; this.methods = Map.copyOf(methods); this.fields = Map.copyOf(fields);
         this.actors = List.copyOf(actors); this.checks = List.copyOf(checks); this.classes = List.copyOf(classes);
         this.limits = limits; this.digest = digest; this.setup = setup == null ? null : setup.copy();
@@ -108,7 +114,7 @@ public final class BytecodeProgram {
     public String artifactDigest() { return digest; }
 
     /** Version of the admitted language, intrinsic costs and sequentially consistent execution profile. */
-    static final String PROFILE_VERSION="BYTECODE-SC-2";
+    static final String PROFILE_VERSION="BYTECODE-SC-3";
 
     /** Returns the frozen execution-profile version used to authenticate evidence.
      * @return bounded sequentially consistent profile identifier */

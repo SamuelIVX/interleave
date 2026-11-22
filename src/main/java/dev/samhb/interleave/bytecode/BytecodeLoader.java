@@ -53,6 +53,8 @@ final class BytecodeLoader {
      * Reachable interpreted methods.
      */
     private final Map<BytecodeMethod.Id,BytecodeMethod> methods=new HashMap<>();
+    /** Exact trusted implementations admitted through direct and closed dispatch alternatives. */
+    private final Set<BytecodeMethod.Id> intrinsics=new HashSet<>();
     /**
      * Complete declaration index, built once per class so repeated references do not rescan metadata.
      */
@@ -186,6 +188,10 @@ final class BytecodeLoader {
                 if ((method.flags().flagsMask() & (ACC_NATIVE|ACC_ABSTRACT|ACC_BRIDGE))!=0 || method.code().isEmpty())
                     throw problem("UNSUPPORTED","Reachable native/abstract/bridge method",null);
                 signature(method.methodTypeSymbol());
+                for(var handler:method.code().orElseThrow().exceptionHandlers())if(handler.catchType().isPresent()) {
+                    String type=handler.catchType().orElseThrow().asInternalName();read(type);
+                    if(!hierarchy().assignable(type,"java/lang/Throwable"))throw problem("MALFORMED","Catch type must extend Throwable",null);
+                }
                 var decoded=methods.computeIfAbsent(work.method(),ignored -> new BytecodeMethod(work.method().owner(),method));
                 BytecodeVerifier.validate(decoded,work.role());
                 if (work.role()==Role.CHECK && (decoded.flags & ACC_SYNCHRONIZED)!=0)
@@ -201,11 +207,15 @@ final class BytecodeLoader {
             List<VerifyError> errors=verifier.verify(type);
             if (!errors.isEmpty()) throw problem("MALFORMED",errors.getFirst().getMessage(),null);
         }
-        for(var decoded:methods.values())BytecodeAccessVerifier.validate(decoded,hierarchy(),fields);
+        boolean implicitExposed=methods.values().stream().anyMatch(decoded->decoded.code.exceptionHandlers().stream()
+            .anyMatch(handler->!decoded.metadataCleanup(decoded.target(handler.handler()))));
+        for(var decoded:methods.values()) {
+            BytecodeVerifier.monitors(decoded,hierarchy());BytecodeAccessVerifier.validate(decoded,hierarchy(),fields,implicitExposed);
+        }
         checks.sort(Comparator.comparing((BytecodeProgram.Check c)->c.method().owner())
             .thenComparing(c->c.method().name()).thenComparing(c->c.method().descriptor()));
         var program=new BytecodeProgram(model,methods,fields,new ArrayList<>(actors.values()),checks,
-            new ArrayList<>(classes.keySet()),limits,digest(),null,hierarchy());
+            new ArrayList<>(classes.keySet()),limits,digest(),null,hierarchy(),intrinsics);
         var state=BytecodeState.beforeSetup(program); state.start(BytecodeState.SETUP,methods.get(constructor),List.of(BytecodeState.FIXTURE));
         while (state.executions.get(BytecodeState.SETUP).phase!=BytecodeState.Phase.TERMINATED) {
             state=OpcodeExecutor.step(program,state,BytecodeState.SETUP).state();
@@ -214,7 +224,7 @@ final class BytecodeLoader {
                 throw problem("SETUP",execution.fault!=null ? execution.fault.type() : execution.cutoff.reason(),
                     execution.fault!=null ? execution.fault.location() : execution.cutoff.location());
         }
-        return new BytecodeProgram(model,methods,fields,program.actors,checks,program.classes,limits,program.artifactDigest(),state,hierarchy());
+        return new BytecodeProgram(model,methods,fields,program.actors,checks,program.classes,limits,program.artifactDigest(),state,hierarchy(),intrinsics);
     }
 
     /**
@@ -242,6 +252,8 @@ final class BytecodeLoader {
             String type=allocation.className().asInternalName();
             if(!type.equals("java/lang/Object")) {
                 var target=read(type);
+                if(type.startsWith("java/") && !BytecodePlatform.constructible(type))
+                    throw problem("UNSUPPORTED","Platform allocation is outside the exception profile",location);
                 classAccess(method.id.owner(),type,location);
                 if((target.flags().flagsMask() & (ACC_INTERFACE|ACC_ABSTRACT))!=0)
                     throw problem("LINKAGE","Cannot instantiate abstract/interface type",location);
@@ -273,10 +285,13 @@ final class BytecodeLoader {
      * @throws IOException for unavailable application metadata */
     private void validateCall(BytecodeMethod caller,InvokeInstruction call,Role role,BytecodeLocation location) throws IOException {
         String owner=call.owner().asInternalName(),name=call.name().stringValue(),descriptor=call.type().stringValue();
+        if(owner.startsWith("["))throw problem("UNSUPPORTED","Array library operations are outside the current profile",location);
         if(owner.equals("java/lang/Object") && name.equals("<init>") && descriptor.equals("()V")
             && call.opcode()==Opcode.INVOKESPECIAL && !call.isInterface())return;
         read(owner);classAccess(caller.id.owner(),owner,location);signature(call.typeSymbol());validateHierarchy();var hierarchy=hierarchy();
-        if(((classes.get(owner).flags().flagsMask() & ACC_INTERFACE)!=0)!=call.isInterface())
+        if(name.equals("initCause") && descriptor.startsWith("(Ljava/lang/Throwable;)") && hierarchy.assignable(owner,"java/lang/Throwable"))
+            throw problem("UNSUPPORTED","Throwable.initCause may invoke unsupported target callbacks",location);
+        if(((hierarchy().metadata(owner).flags().flagsMask() & ACC_INTERFACE)!=0)!=call.isInterface())
             throw problem("LINKAGE","Invocation owner kind mismatch",location);
         var resolved=hierarchy.method(owner,name,descriptor);
         if(resolved==null)throw problem("LINKAGE","Missing method "+owner+"."+name+descriptor,location);
@@ -292,17 +307,36 @@ final class BytecodeLoader {
                 if(resolved==null || (hierarchy.flags(resolved) & (ACC_ABSTRACT|ACC_STATIC))!=0)
                     throw problem("LINKAGE","Invalid selected special target",location);
             }
-            pending.add(new Work(resolved,role));return;
+            admitTarget(resolved,role,location);return;
         }
+        if(BytecodePlatform.intrinsic(resolved))admitTarget(resolved,role,location);
+        else if(resolved.owner().startsWith("java/") && !(resolved.owner().equals("java/lang/AutoCloseable") && name.equals("close") && descriptor.equals("()V")))
+            throw problem("UNSUPPORTED","Unsupported platform operation "+resolved,location);
         // Fixed-point rescans include classes reached by later constructors, signatures or dispatch bodies.
-        for(var entry:new ArrayList<>(classes.entrySet())) {
-            if((entry.getValue().flags().flagsMask() & (ACC_INTERFACE|ACC_ABSTRACT))!=0 || !hierarchy.assignable(entry.getKey(),owner))continue;
+        for(var entry:hierarchy.types.entrySet()) {
+            String runtime=entry.getKey();
+            if(!classes.containsKey(runtime) && !BytecodePlatform.constructible(runtime) && !runtime.equals("java/lang/String"))continue;
+            if((entry.getValue().flags().flagsMask() & (ACC_INTERFACE|ACC_ABSTRACT))!=0 || !hierarchy.assignable(runtime,owner))continue;
             var target=hierarchy.dispatch(entry.getKey(),resolved);
             if(target==null || (hierarchy.flags(target) & (ACC_ABSTRACT|ACC_STATIC))!=0
                 || call.opcode()==Opcode.INVOKEINTERFACE && (hierarchy.flags(target) & ACC_PUBLIC)==0)
                 throw problem("LINKAGE","Missing concrete dispatch target for "+entry.getKey(),location);
-            pending.add(new Work(target,role));
+            admitTarget(target,role,location);
         }
+    }
+
+    /** Admits an exact intrinsic or queues an interpreted application callback.
+     * @param target resolved dispatch declaration
+     * @param role transitive execution role
+     * @param location causing application invoke
+     * @throws BytecodeLoadException for unsupported platform execution or impure observers */
+    private void admitTarget(BytecodeMethod.Id target,Role role,BytecodeLocation location) {
+        if(BytecodePlatform.intrinsic(target)) {
+            if(role==Role.CHECK && (!target.name().equals("getMessage") || target.owner().equals("java/lang/NullPointerException")))throw problem("PURITY","Checks cannot allocate or synchronize through Throwable operations",location);
+            intrinsics.add(target);return;
+        }
+        if(target.owner().startsWith("java/"))throw problem("UNSUPPORTED","Unsupported platform operation "+target,location);
+        pending.add(new Work(target,role));
     }
 
     /** Freezes the currently discovered hierarchy for deterministic member lookup.
@@ -326,24 +360,26 @@ final class BytecodeLoader {
             String superclass=hierarchy.parent(name);
             if(superclass!=null && !superclass.equals("java/lang/Object")){classAccess(name,superclass,null);permittedSubtype(name,superclass);}
             if(superclass!=null && !superclass.equals("java/lang/Object")
-                && (classes.get(superclass).flags().flagsMask() & (ACC_INTERFACE|ACC_FINAL))!=0)
+                && (hierarchy.metadata(superclass).flags().flagsMask() & (ACC_INTERFACE|ACC_FINAL))!=0)
                 throw problem("LINKAGE","Invalid superclass kind/finality",null);
             for(var face:type.interfaces()) {
                 String target=face.asInternalName();classAccess(name,target,null);permittedSubtype(name,target);
-                if((classes.get(target).flags().flagsMask() & ACC_INTERFACE)==0
+                if((hierarchy.metadata(target).flags().flagsMask() & ACC_INTERFACE)==0
                     || hierarchy.ancestors(target).contains(name))throw problem("LINKAGE","Invalid/cyclic interface hierarchy",null);
             }
             for(var method:type.methods()) {
                 String methodName=method.methodName().stringValue();int flags=method.flags().flagsMask();
                 if(methodName.startsWith("<"))continue;
                 String signature=methodName+method.methodType().stringValue();
+                if(signature.equals("fillInStackTrace()Ljava/lang/Throwable;") && hierarchy.assignable(name,"java/lang/Throwable"))
+                    throw problem("UNSUPPORTED","Application Throwable fillInStackTrace override",null);
                 if((flags & (ACC_PRIVATE|ACC_STATIC))==0 && Set.of("getClass()Ljava/lang/Class;","notify()V","notifyAll()V","wait()V","wait(J)V","wait(JI)V").contains(signature))
                     throw problem("LINKAGE","Cannot override trusted final Object member "+signature,null);
                 for(String ancestor:hierarchy.ancestors(name)) {
                     if(ancestor.equals(name) || ancestor.equals("java/lang/Object"))continue;
                     var inherited=new BytecodeMethod.Id(ancestor,methodName,method.methodType().stringValue());int inheritedFlags=hierarchy.flags(inherited);
                     if(inheritedFlags<0 || (inheritedFlags & ACC_PRIVATE)!=0
-                        || (classes.get(ancestor).flags().flagsMask() & ACC_INTERFACE)!=0 && (inheritedFlags & ACC_STATIC)!=0
+                        || (hierarchy.metadata(ancestor).flags().flagsMask() & ACC_INTERFACE)!=0 && (inheritedFlags & ACC_STATIC)!=0
                         || (inheritedFlags & (ACC_PUBLIC|ACC_PROTECTED))==0
                         && !packageName(name).equals(packageName(ancestor)))continue;
                     // JVM overriding is distinct from Java source visibility rules: narrower raw
@@ -354,7 +390,7 @@ final class BytecodeLoader {
             }
             if(name.equals(model))for(String ancestor:hierarchy.ancestors(model)) {
                 if(ancestor.equals(model) || ancestor.equals("java/lang/Object"))continue;
-                for(var method:classes.get(ancestor).methods())if(!annotations(method,ANNOTATION+"Actor;").isEmpty()
+                for(var method:hierarchy.metadata(ancestor).methods())if(!annotations(method,ANNOTATION+"Actor;").isEmpty()
                     || !annotations(method,ANNOTATION+"Check;").isEmpty())throw problem("DECLARATION","Inherited annotated entry point",null);
             }
         }
@@ -366,7 +402,7 @@ final class BytecodeLoader {
      * @param parent declaring superclass/interface
      * @throws BytecodeLoadException for an unlisted subtype or a nonpublic cross-package subtype */
     private void permittedSubtype(String child,String parent) {
-        var permitted=classes.get(parent).findAttribute(Attributes.permittedSubclasses());
+        var permitted=hierarchy().metadata(parent).findAttribute(Attributes.permittedSubclasses());
         if(permitted.isPresent() && ((classes.get(child).flags().flagsMask() & ACC_PUBLIC)==0 && !packageName(child).equals(packageName(parent))
             || permitted.get().permittedSubclasses().stream().noneMatch(type->type.asInternalName().equals(child))))
             throw problem("LINKAGE","Subtype is not permitted by sealed parent "+parent,null);
@@ -380,6 +416,7 @@ final class BytecodeLoader {
      */
     private ClassModel read(String name) throws IOException {
         if (classes.containsKey(name)) return classes.get(name);
+        if(BytecodePlatform.admitted(name) && !name.equals(model))return BytecodePlatform.metadata().get(name);
         internal(name.replace('/','.'));
         if (name.startsWith("java/") || name.startsWith("jdk/") || name.startsWith("sun/"))
             throw problem("UNSUPPORTED","Unknown platform metadata: "+name,null);
@@ -420,9 +457,10 @@ final class BytecodeLoader {
             BytecodeState.Value initial=descriptor.equals("I") || descriptor.equals("Z") ? new BytecodeState.Int(0) : BytecodeState.NULL;
             var constant=field.findAttribute(Attributes.constantValue());
             if (constant.isPresent() && (field.flags().flagsMask() & ACC_STATIC)!=0) {
-                if (!(constant.get().constant().constantValue() instanceof Integer value))
-                    throw problem("UNSUPPORTED","Unsupported executable ConstantValue type",null);
-                initial=new BytecodeState.Int(descriptor.equals("Z") ? value & 1 : value);
+                Object value=constant.get().constant().constantValue();
+                if(value instanceof Integer number)initial=new BytecodeState.Int(descriptor.equals("Z") ? number & 1 : number);
+                else if(value instanceof String text && descriptor.equals("Ljava/lang/String;"))initial=new BytecodeState.Literal(text);
+                else throw problem("UNSUPPORTED","Unsupported executable ConstantValue type",null);
             }
             if (fields.putIfAbsent(id,new BytecodeProgram.Field(id,field.flags().flagsMask(),initial))!=null)
                 throw problem("MALFORMED","Duplicate field",null);
@@ -557,7 +595,7 @@ final class BytecodeLoader {
      * @param location real reference position
      * @throws BytecodeLoadException with LINKAGE for an inaccessible symbolic type */
     private void classAccess(String caller,String owner,BytecodeLocation location) {
-        if((classes.get(owner).flags().flagsMask() & ACC_PUBLIC)==0 && !packageName(caller).equals(packageName(owner)))
+        if((hierarchy().metadata(owner).flags().flagsMask() & ACC_PUBLIC)==0 && !packageName(caller).equals(packageName(owner)))
             throw problem("LINKAGE","Inaccessible symbolic class",location);
     }
 
@@ -629,24 +667,10 @@ final class BytecodeLoader {
      * @return explicit trusted/application hierarchy
      */
     private ClassHierarchyResolver.ClassHierarchyInfo hierarchy(ClassDesc descriptor) {
-        String name=descriptor.descriptorString(); name=name.substring(1,name.length()-1);
-        if(classes.containsKey(name) && (classes.get(name).flags().flagsMask() & ACC_INTERFACE)!=0)
-            return ClassHierarchyResolver.ClassHierarchyInfo.ofInterface();
-        String parent=switch(name) {
-            case "java/lang/Object" -> null;
-            case "java/lang/ArrayIndexOutOfBoundsException" -> "java/lang/IndexOutOfBoundsException";
-            case "java/lang/Throwable" -> "java/lang/Object";
-            case "java/lang/Exception" -> "java/lang/Throwable";
-            case "java/lang/RuntimeException" -> "java/lang/Exception";
-            case "java/lang/NullPointerException", "java/lang/ArithmeticException", "java/lang/IllegalMonitorStateException",
-                "java/lang/ClassCastException", "java/lang/NegativeArraySizeException", "java/lang/ArrayStoreException", "java/lang/IndexOutOfBoundsException" -> "java/lang/RuntimeException";
-            default -> {
-                var model=classes.get(name);
-                if (model==null) throw problem("METADATA","Unknown hierarchy type "+name,null);
-                yield model.superclass().orElseThrow().asInternalName();
-            }
-        };
-        return ClassHierarchyResolver.ClassHierarchyInfo.ofClass(parent==null ? null : ClassDesc.of(parent.replace('/','.')));
+        String name=descriptor.descriptorString();name=name.substring(1,name.length()-1);
+        var type=hierarchy().metadata(name);
+        if((type.flags().flagsMask() & ACC_INTERFACE)!=0)return ClassHierarchyResolver.ClassHierarchyInfo.ofInterface();
+        return ClassHierarchyResolver.ClassHierarchyInfo.ofClass(type.superclass().map(c->c.asSymbol()).orElse(null));
     }
 
     /**

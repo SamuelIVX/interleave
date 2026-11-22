@@ -81,7 +81,7 @@ public final class BytecodeRuntime {
      * @return public immutable trace */
     private static TraceRecord record(BytecodeProgram program,BytecodeExplorer.Witness witness) {
         var transitions=witness.schedule().stream().map(selection->transition(program,selection)).toList();
-        var terminal=terminal(witness.outcome());var evidence=new BytecodeEvidence(1,identity(program),transitions,witness.snapshots(),terminal,null);
+        var terminal=terminal(witness.outcome());var evidence=new BytecodeEvidence(2,identity(program),transitions,witness.snapshots(),terminal,null);
         var choices=witness.schedule().stream().map(BytecodeExplorer.Selection::actor).toList();
         var outcomes=witness.schedule().stream().map(BytecodeRuntime::stepOutcome).toList();
         return new TraceRecord(choices,outcomes,traceOutcome(terminal),program.artifactDigest(),
@@ -139,7 +139,7 @@ public final class BytecodeRuntime {
     /** Copies exact omitted work and allowance.
      * @param cutoff optional modeled cutoff
      * @return public cutoff, otherwise null */
-    private static BytecodeEvidence.Cutoff cutoff(BytecodeState.Cutoff cutoff){return cutoff==null ? null : new BytecodeEvidence.Cutoff(cutoff.reason(),cutoff.location(),cutoff.limit(),cutoff.required(),cutoff.remaining());}
+    private static BytecodeEvidence.Cutoff cutoff(BytecodeState.Cutoff cutoff){return cutoff==null ? null : new BytecodeEvidence.Cutoff(cutoff.reason(),cutoff.location(),cutoff.limit(),cutoff.required(),cutoff.remaining(),cutoff.budgetOwner());}
 
     /** Reads optional compiler lines from already frozen metadata, with no filesystem or source-span inference.
      * @param program frozen artifact

@@ -38,14 +38,14 @@ final class BytecodeVerifier {
      * @param role allocation/purity context
      */
     static void validate(BytecodeMethod method,BytecodeLoader.Role role) {
-        Set<Integer> cleanupThrows=cleanupShapes(method);
+        handlerRanges(method);
         for (var op : method.ops.values()) {
             Instruction instruction=op.instruction(); Opcode code=instruction.opcode();
             boolean allowed=switch(instruction) {
                 case LoadInstruction load -> category(load.typeKind());
                 case StoreInstruction store -> category(store.typeKind());
                 case IncrementInstruction ignored -> true;
-                case ConstantInstruction constant -> code==Opcode.ACONST_NULL || constant.constantValue() instanceof Integer;
+                case ConstantInstruction constant -> code==Opcode.ACONST_NULL || constant.constantValue() instanceof Integer || constant.constantValue() instanceof String;
                 case ReturnInstruction returned -> returned.typeKind()==TypeKind.VOID || category(returned.typeKind());
                 case BranchInstruction ignored -> BRANCHES.contains(code);
                 case LookupSwitchInstruction ignored -> true;
@@ -61,7 +61,7 @@ final class BytecodeVerifier {
                 case ArrayStoreInstruction store -> store.typeKind()!=TypeKind.LONG && store.typeKind()!=TypeKind.FLOAT && store.typeKind()!=TypeKind.DOUBLE;
                 default -> SIMPLE.contains(code);
             };
-            if (!allowed || (code==Opcode.ATHROW && !cleanupThrows.contains(op.bci())))
+            if (!allowed)
                 throw problem("UNSUPPORTED","Unsupported reachable opcode "+code,method.location(op.bci()));
             if (role==BytecodeLoader.Role.CHECK && (instruction instanceof NewObjectInstruction || instruction instanceof NewPrimitiveArrayInstruction
                 || instruction instanceof NewReferenceArrayInstruction || instruction instanceof NewMultiArrayInstruction || instruction instanceof ArrayStoreInstruction
@@ -71,7 +71,6 @@ final class BytecodeVerifier {
                 if (!method.ops.containsKey(successor)) throw problem("MALFORMED","Invalid instruction target",method.location(op.bci()));
             }
         }
-        structuredMonitors(method);
     }
 
     /**
@@ -81,39 +80,25 @@ final class BytecodeVerifier {
      */
     private static boolean category(TypeKind kind) { return kind==TypeKind.INT || kind==TypeKind.REFERENCE; }
 
-    /**
-     * Recognizes only the verified store/load/exit/rethrow cleanup, not arbitrary catch-all handlers.
+    /** Validates handler region and target positions before full operand verification.
      * @param method decoded method
-     * @return exactly the admitted cleanup ATHROW positions
-     */
-    private static Set<Integer> cleanupShapes(BytecodeMethod method) {
-        var throwsAt=new HashSet<Integer>();
-        for (var handler : method.code.exceptionHandlers()) {
-            int start=method.target(handler.tryStart()), end=method.target(handler.tryEnd()), target=method.target(handler.handler());
-            if (handler.catchType().isPresent() || start>=end || !method.ops.containsKey(start)
-                || (end!=method.code.codeLength() && !method.ops.containsKey(end)) || !method.ops.containsKey(target))
-                throw problem("UNSUPPORTED","Only compiler monitor-cleanup handlers are supported",method.location(target));
-            var instructions=new ArrayList<Instruction>(); int bci=target;
-            for (int i=0; i<5; i++) {
-                var op=method.ops.get(bci);
-                if (op==null) throw problem("UNSUPPORTED","Truncated cleanup handler",method.location(target));
-                instructions.add(op.instruction()); if(i==4) throwsAt.add(bci); bci=op.next();
-            }
-            if (!(instructions.get(0) instanceof StoreInstruction saved) || saved.typeKind()!=TypeKind.REFERENCE
-                || !(instructions.get(1) instanceof LoadInstruction lock) || lock.typeKind()!=TypeKind.REFERENCE
-                || instructions.get(2).opcode()!=Opcode.MONITOREXIT
-                || !(instructions.get(3) instanceof LoadInstruction restored) || restored.typeKind()!=TypeKind.REFERENCE
-                || restored.slot()!=saved.slot() || restored.slot()==lock.slot() || instructions.get(4).opcode()!=Opcode.ATHROW)
-                throw problem("UNSUPPORTED","Unrecognized monitor-cleanup handler",method.location(target));
+     * @throws BytecodeLoadException for malformed handler bounds */
+    private static void handlerRanges(BytecodeMethod method) {
+        for(var handler:method.code.exceptionHandlers()) {
+            int start=method.target(handler.tryStart()),end=method.target(handler.tryEnd()),target=method.target(handler.handler());
+            if(start>=end || !method.ops.containsKey(start) || (end!=method.code.codeLength() && !method.ops.containsKey(end)) || !method.ops.containsKey(target))
+                throw problem("MALFORMED","Invalid exception handler bounds",method.location(target));
         }
-        return throwsAt;
     }
 
     /**
      * Propagates lock-slot stacks through all control paths, including protected-entry handler seeds.
      * @param method decoded method
+     * @param hierarchy frozen closed hierarchy
      */
-    private static void structuredMonitors(BytecodeMethod method) {
+    static void monitors(BytecodeMethod method,BytecodeHierarchy hierarchy) {
+        if(method.code.exceptionHandlers().isEmpty() && method.ops.values().stream().noneMatch(op->op.instruction().opcode()==Opcode.MONITORENTER || op.instruction().opcode()==Opcode.MONITOREXIT))return;
+        var throwableTypes=hierarchy.types.keySet().stream().filter(name->hierarchy.assignable(name,"java/lang/Throwable")).toList();
         var predecessors=new HashMap<Integer,Set<Integer>>();
         for(var op:method.ops.values()) for(int next:successors(method,op))
             predecessors.computeIfAbsent(next,ignored->new HashSet<>()).add(op.bci());
@@ -121,9 +106,6 @@ final class BytecodeVerifier {
             int bci=method.target(handler.handler());
             if(!predecessors.getOrDefault(bci,Set.of()).isEmpty())
                 throw problem("UNSUPPORTED","Cleanup cannot have normal control-flow entry",method.location(bci));
-            for(int index=0;index<4;index++) {
-                int next=method.ops.get(bci).next(); sequentialEntry(method,predecessors,bci,next); bci=next;
-            }
         }
         var states=new HashMap<Integer,List<Integer>>(); var queue=new ArrayDeque<Integer>();
         merge(method,states,queue,0,List.of());
@@ -132,7 +114,9 @@ final class BytecodeVerifier {
             var locks=new ArrayList<>(before); Instruction instruction=op.instruction(); Opcode code=instruction.opcode();
             // Seed even nonthrowing compiler regions, so unreachable cleanup cannot forge a lock proof.
             for(var handler : method.code.exceptionHandlers()) {
-                if(method.target(handler.tryStart())==bci) merge(method,states,queue,method.target(handler.handler()),before);
+                if(method.target(handler.tryStart())==bci)for(String type:throwableTypes) {
+                    int selected=method.handler(bci,type,hierarchy);if(selected>=0)merge(method,states,queue,selected,before);
+                }
             }
             if (instruction instanceof StoreInstruction store && locks.contains(store.slot())
                 || instruction instanceof IncrementInstruction increment && locks.contains(increment.slot()))
@@ -163,9 +147,11 @@ final class BytecodeVerifier {
                 || instruction instanceof NewMultiArrayInstruction || code==Opcode.ARRAYLENGTH
                 || code==Opcode.IDIV || code==Opcode.IREM || code==Opcode.MONITORENTER || code==Opcode.ATHROW;
             if (canThrow) {
-                int handler=method.handler(bci);
-                if(handler>=0) merge(method,states,queue,handler,before);
-                else if(!before.isEmpty()) throw problem("MALFORMED","Missing exceptional monitor cleanup",method.location(bci));
+                for(String type:throwableTypes) {
+                    int handler=method.handler(bci,type,hierarchy);
+                    if(handler>=0)merge(method,states,queue,handler,before);
+                    else if(!before.isEmpty())throw problem("MALFORMED","Missing exceptional monitor cleanup",method.location(bci));
+                }
             }
             for(int successor : successors(method,op)) merge(method,states,queue,successor,locks);
         }

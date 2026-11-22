@@ -32,12 +32,17 @@ final class BytecodeState {
     /**
      * Operand/local value families admitted by this profile.
      */
-    sealed interface Value permits Int, Ref, Thrown, WideZero {}
+    sealed interface Value permits Int, Ref, Thrown, WideZero, Unavailable, Literal {}
     /**
      * Models a JVM int, including the boolean operand representation.
      * @param value JVM int (also boolean representation)
      */
     record Int(int value) implements Value {}
+    /** Internal unknown VM message; never returned as a target-language value. */
+    enum Unavailable implements Value { /** Implicit VM message that admission proves cannot be inspected. */ MESSAGE }
+    /** Frozen input literal, resolved to an interned identity before execution.
+     * @param text exact UTF-16 class-file contents */
+    record Literal(String text) implements Value {}
     /** Default-only wide array slot; computations remain excluded until97.
      * @param type LONG, FLOAT or DOUBLE tag */
     record WideZero(String type) implements Value {}
@@ -80,9 +85,10 @@ final class BytecodeState {
      * @param location omitted instruction
      * @param limit configured maximum
      * @param required total instruction work when relevant
+     * @param budgetOwner allocator/setup/observer charged by the omitted operation
      * @param remaining allowance before attempt
      */
-    record Cutoff(String reason, BytecodeLocation location, int limit, int required, int remaining) {}
+    record Cutoff(String reason, BytecodeLocation location, int limit, int required, int remaining, int budgetOwner) {}
     /**
      * Execution and pending-event phases; zero-work events advance monotonically between opcodes.
      */
@@ -113,7 +119,9 @@ final class BytecodeState {
          */ FAILED,
         /**
          * A resource bound ended the whole execution prefix.
-         */ CUTOFF
+         */ CUTOFF,
+        /** A frozen receiver-monitor intrinsic body awaits execution. */ INTRINSIC_BODY,
+        /** An intrinsic body awaits exactly one monitor release. */ INTRINSIC_EXIT
     }
     /**
      * Mutable application object or exact-descriptor array.
@@ -196,6 +204,12 @@ final class BytecodeState {
          * Original failure, retained through unwinding.
          */
         Fault fault;
+        /** Materialized exception identity retained while unwinding and rethrowing. */
+        Ref throwable;
+        /** Exact known VM validation message/cause, absent for unavailable implicit messages. */
+        BytecodeThrowables.Payload faultPayload;
+        /** Frozen arguments and resource work under a selected intrinsic receiver monitor. */
+        BytecodeThrowables.Call intrinsic;
         /**
          * Prefix-ending omitted operation.
          */
@@ -215,7 +229,7 @@ final class BytecodeState {
         Execution copy() {
             var copy = new Execution(); frames.forEach(f -> copy.frames.add(f.copy()));
             copy.phase=phase; copy.instructions=instructions; copy.allocations=allocations; copy.cells=cells;
-            copy.nextSequence=nextSequence; copy.fault=fault; copy.cutoff=cutoff; copy.returned=returned;
+            copy.nextSequence=nextSequence; copy.fault=fault; copy.throwable=throwable; copy.faultPayload=faultPayload; copy.intrinsic=intrinsic; copy.cutoff=cutoff; copy.returned=returned;
             copy.eventLocation=eventLocation; return copy;
         }
     }
@@ -268,12 +282,12 @@ final class BytecodeState {
     static BytecodeState beforeSetup(BytecodeProgram program) {
         var state = new BytecodeState(); var setup = new Execution();
         state.executions.put(SETUP,setup);
-        long cells=1L+program.classes.size()+program.fields.values().stream().filter(field ->
+        long cells=(long)BytecodeThrowables.baseCells(program.hierarchy,program.model)+program.classes.size()+program.fields.values().stream().filter(field ->
             (field.flags() & ClassFile.ACC_STATIC)!=0).count()+program.hierarchy.instanceFields(program.model).size();
         if (cells>program.limits.setupHeapCells()) throw new BytecodeLoadException("LIMIT","Setup default cells exceed allowance",null);
         var fixture = new ObjectValue(program.model);
         for (var field : program.fields.values()) {
-            if ((field.flags() & ClassFile.ACC_STATIC) != 0) state.statics.put(field.id(),field.initial());
+            if ((field.flags() & ClassFile.ACC_STATIC) != 0) state.statics.put(field.id(),field.initial() instanceof Literal literal ? program.strings.get(literal.text()) : field.initial());
 
         }
         program.hierarchy.instanceFields(program.model).forEach(field->fixture.fields.put(field.id(),field.initial()));
@@ -282,7 +296,7 @@ final class BytecodeState {
             var monitor = new ObjectValue("java/lang/Class"); monitor.initialized=true;
             state.heap.put(classMonitor(type,program),monitor);
         }
-        setup.cells=(int)cells;
+        setup.cells=(int)cells;BytecodeStrings.install(program,state);
         return state;
     }
 
@@ -310,7 +324,7 @@ final class BytecodeState {
     byte[] canonicalBytes() {
         try {
             var bytes = new ByteArrayOutputStream(); var out = new DataOutputStream(bytes);
-            out.writeInt(2); out.writeInt(heap.size());
+            out.writeInt(3); out.writeInt(heap.size());
             for (var entry : heap.entrySet()) {
                 value(out,entry.getKey()); var object=entry.getValue(); text(out,object.type);
                 out.writeBoolean(object.shared); out.writeBoolean(object.initialized);
@@ -322,11 +336,13 @@ final class BytecodeState {
             for (var entry : executions.entrySet()) {
                 out.writeInt(entry.getKey()); var execution=entry.getValue(); out.writeInt(execution.phase.ordinal());
                 out.writeInt(execution.instructions); out.writeInt(execution.allocations); out.writeInt(execution.cells);
-                out.writeLong(execution.nextSequence); fault(out,execution.fault); location(out,execution.eventLocation);
+                out.writeLong(execution.nextSequence); value(out,execution.throwable);out.writeBoolean(execution.faultPayload!=null);
+                if(execution.faultPayload!=null){value(out,execution.faultPayload.message());value(out,execution.faultPayload.cause());out.writeBoolean(execution.faultPayload.causeInitialized());}
+                BytecodeThrowables.encode(out,execution.intrinsic); fault(out,execution.fault); location(out,execution.eventLocation);
                 value(out,execution.returned); out.writeBoolean(execution.cutoff != null);
                 if (execution.cutoff != null) {
                     var cutoff=execution.cutoff; text(out,cutoff.reason()); location(out,cutoff.location());
-                    out.writeInt(cutoff.limit()); out.writeInt(cutoff.required()); out.writeInt(cutoff.remaining());
+                    out.writeInt(cutoff.limit()); out.writeInt(cutoff.required()); out.writeInt(cutoff.remaining());out.writeInt(cutoff.budgetOwner());
                 }
                 out.writeInt(execution.frames.size());
                 for (var frame : execution.frames) {
@@ -358,10 +374,12 @@ final class BytecodeState {
      * @param value nullable typed slot
      * @throws IOException for sink failure
      */
-    private static void value(DataOutputStream out, Value value) throws IOException {
+    static void value(DataOutputStream out, Value value) throws IOException {
         switch (value) {
             case null -> out.writeByte(0);
             case Int number -> { out.writeByte(1); out.writeInt(number.value()); }
+            case Literal literal -> {out.writeByte(6);text(out,literal.text());}
+            case Unavailable ignored -> out.writeByte(5);
             case WideZero wide -> {out.writeByte(4);text(out,wide.type());}
             case Ref reference -> { out.writeByte(2); out.writeInt(reference.owner()); out.writeLong(reference.sequence()); }
             case Thrown thrown -> { out.writeByte(3); fault(out,thrown.fault()); }
@@ -396,7 +414,7 @@ final class BytecodeState {
      * @param text full UTF-16 code-unit string
      * @throws IOException for sink failure
      */
-    private static void text(DataOutputStream out, String text) throws IOException {
+    static void text(DataOutputStream out, String text) throws IOException {
         out.writeInt(text.length()); for (int i=0;i<text.length();i++) out.writeChar(text.charAt(i));
     }
 }

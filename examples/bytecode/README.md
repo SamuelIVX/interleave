@@ -31,11 +31,11 @@ line tables; replay remains based on exact artifact bytes and real BCIs.
 Use fixture-constructor fields for locks. A declaration such as `static final Object LOCK=new Object()`
 requires executable `<clinit>` and rejects, as do ordinary static arrays, enum initialization and
 compiler-generated assertion-status setup. Use declared `@Check` methods instead of Java `assert`.
-User catch/finally, wider primitive computation/core libraries,
+Wider primitive computation/core libraries,
 CBS/DPOR/bitstate and atomics belong to later selected phases. Weak memory remains unselected. Compiler-generated synchronized
 cleanup is supported; runtime null/division faults remain modeled behavior rather than loader errors.
 
-The heap profile (`BYTECODE-SC-2`) also interprets actor-created application objects, inherited/hidden
+The current profile (`BYTECODE-SC-3`) also interprets actor-created application objects, inherited/hidden
 fields, constructor chaining, closed virtual/interface dispatch and private nest access. Arrays retain
 exact rank/component types, reference aliases and per-dimension allocation charges; int/boolean/byte/
 char/short array operations are supported. Long/float/double arrays may be allocated with zero defaults;
@@ -58,10 +58,47 @@ Unknown reachability is shared; sharing is irreversible within a run. This imple
 keeps all field/array accesses and allocations as scheduling boundaries, including local heap accesses.
 Local arithmetic/transport still batches; REFERENCE and BATCHED use one executor.
 
-Profile identity changed because the admitted language and canonical state changed. Old SC-1 evidence
-is rejected by this SC-2 loader/replayer rather than silently reinterpreted; source/JSON model behavior
-and existing wire shapes remain unchanged. [The95 ledger](../../docs/measurements/95-bytecode-heap.md)
-records this profile's actual acceptance and measurements.
+The exception profile also supports ordered typed/catch-all handlers, rethrow, compiled finally and
+try-with-resources using interpreted application `AutoCloseable.close` callbacks. Throwable,
+Exception, RuntimeException and selected VM exception constructors retain message/cause/suppression
+state. String literals and String ConstantValue fields are interned immutable UTF-16 payloads;
+message identity is preserved, but String computation and general JDK execution remain unsupported.
+Unknown implicit VM message inspection rejects before exploration. In particular, a catch block
+calling `getMessage` on an implicit null/division fault is unsupported. Conservative joins can also
+reject an explicit message whose receiver origin is unknown; a statically typed application exception
+subclass or a proven straight-line explicit allocation avoids that ambiguity.
+
+`ResourceCleanup.java` preserves the body failure, closes two resources in reverse order and retains
+their ordered suppressed failures. Its FINAL check passes:
+
+```sh
+javac --release 17 -g -cp build/libs/interleave-1.0-SNAPSHOT.jar -d build/bytecode-examples examples/bytecode/ResourceCleanup.java
+./gradlew --max-workers=1 -PpitestThreads=1 run --args='--bytecode examples.bytecode.ResourceCleanup --class-path build/bytecode-examples --json'
+```
+
+A Throwable costs six base cells plus inherited application fields and one cell per suppressed
+reference. Appended suppression remains charged to the exception's original allocator, even when
+another actor performs the call. Nonempty `getSuppressed` results allocate fresh arrays charged to the
+caller; empty results share a bounded constant array. Constants consume setup cells without consuming
+setup application-allocation counts or changing application identities. Strings cost a header, length
+and one cell per UTF-16 unit. No target objects are garbage-collected or renumbered.
+
+Trusted synchronized getters and suppression operations acquire the receiver monitor and can block or
+deadlock. Entry/body/exit are separate events; full instruction fuel is checked before blocking.
+`NullPointerException.getMessage` also acquires its receiver monitor for an explicit null message;
+a non-null explicit message returns without that acquisition. Potential NPE getter targets and other
+synchronizing intrinsics reject in checks. Constructor internal stack-trace synchronization is modeled,
+but stack-trace APIs are unsupported.
+Throwable `initCause`, cause-only platform constructors and application `fillInStackTrace` overrides
+reject because they can invoke callbacks outside this narrow intrinsic contract. Error/LinkageError
+metadata supports VM-fault ancestry and catches; it does not admit their arbitrary construction.
+
+Current evidence uses schema2/profileSC3/canonical state3. SC1/SC2 schema1 evidence remains displayable,
+but current strict replay rejects older semantic identities. New cutoffs record the executing actor
+and the charged budget owner separately; legacy absent ownership is never guessed. The source/JSON
+model routes retain their existing semantics. [The96 ledger](../../docs/measurements/96-bytecode-exceptions.md)
+records actual exception acceptance, measurements and the batching preservation argument; the95 ledger
+retains the historical heap-profile evidence.
 
 [The shared contract](../../docs/plans/bytecode-contract.md) defines the complete supported profile.
 The [94B ledger](../../docs/measurements/94B-bytecode-concurrency.md) contains real reference/batched
@@ -88,7 +125,9 @@ BYTECODE schema and does not authenticate target execution; strict replay perfor
 It rejects duplicate keys, conflicting fields, unknown schemas and scalar coercions, with limits of
 16 Mi UTF-16 code units of JSON text, 64 nesting levels and one million JSON nodes. Tagged wide numeric values
 are strings/raw bits, reserved for later execution coverage. Native Java streams are build-specific:
-this release changes generated serialization identities, and incompatible older streams reject.
+the current BYTECODE payload is versioned. The previous cutoff record remains readable with an absent
+legacy budget owner; strict replay still requires the current artifact/profile/limits. Incompatible
+older record shapes reject.
 Streams produced before the 94C field additions (including merged 94B at `6eb939e`) are outside the
 compatible native shape. Export JSON using the producing build before upgrading; a source/declarative
 record must continue through its existing consumer route. This importer accepts BYTECODE only.

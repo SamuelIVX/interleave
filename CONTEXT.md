@@ -15,6 +15,10 @@ _Avoid_: transition limit.
 
 **Cutoff**: An omitted modeled operation that ends one bounded execution prefix. It does not freeze the actor for continued execution of that prefix.
 
+**Budget owner**: The setup, actor or observer allowance charged by an operation. It can differ from the executing actor when an escaped Throwable grows its suppression payload.
+
+**Intrinsic continuation**: Frozen interpreted arguments and work retained between a trusted operation’s receiver-monitor entry, body and exit.
+
 **Resource interruption**: An external checker stop, such as a deadline or global memory safeguard. It establishes incompleteness without asserting a reproducible modeled cutoff.
 
 **Sharedness history**: Irreversible knowledge that an object has become shared during an execution, even if its current references later change.

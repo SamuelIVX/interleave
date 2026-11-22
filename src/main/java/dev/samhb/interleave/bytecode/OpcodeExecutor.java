@@ -37,9 +37,15 @@ final class OpcodeExecutor {
     /**
      * Returns an isolated state and the selected instruction or event outcome.
      * @param state isolated execution snapshot
+     * @param referencesChanged whether new target reference edges need sharedness closure
      * @param kind transition/event classification
      */
-    record Result(BytecodeState state,Kind kind) {}
+    record Result(BytecodeState state,Kind kind,boolean referencesChanged) {
+        /** Constructs a result without committed reference graph changes.
+         * @param state isolated successor
+         * @param kind event classification */
+        Result(BytecodeState state,Kind kind){this(state,kind,false);}
+    }
     /** Pure availability classification for one actor's next opcode or implicit event. */
     enum Availability {
         /** A scheduler selection can commit an opcode or pending event. */ READY,
@@ -72,34 +78,59 @@ final class OpcodeExecutor {
         if(execution.phase!=Phase.RUNNING) {
             var location=execution.frames.isEmpty() ? execution.eventLocation
                 : execution.frames.getLast().method.location(execution.frames.getLast().bci);
-            return new Probe(Availability.READY,location,null,null,true,false);
+            var opcode=execution.phase==Phase.INTRINSIC_BODY ? execution.frames.getLast().method.ops.get(execution.frames.getLast().bci).instruction().opcode() : null;
+            return new Probe(Availability.READY,location,opcode,null,true,false);
         }
         var frame=execution.frames.getLast();var op=frame.method.ops.get(frame.bci);var location=frame.method.location(frame.bci);
-        if(work(op)>limit(program,owner)-execution.instructions)
+        if(work(program,state,frame,op)>limit(program,owner)-execution.instructions)
             return new Probe(Availability.READY,location,null,null,true,true);
         if(!frame.entered) {
             Ref monitor=(frame.method.flags & ACC_STATIC)!=0 ? classMonitor(frame.method.id.owner(),program) : (Ref)frame.locals.get(0);
             return new Probe(busy(state,monitor,owner) ? Availability.BLOCKED : Availability.READY,location,null,monitor,true,false);
         }
+        var intrinsic=BytecodeThrowables.plan(program,state,frame,op);
+        if(intrinsic!=null && intrinsic.monitor()!=null)return new Probe(busy(state,intrinsic.monitor(),owner) ? Availability.BLOCKED : Availability.READY,
+            location,null,intrinsic.monitor(),true,false);
         var code=op.instruction().opcode();Ref monitor=null;
         if(code==Opcode.MONITORENTER) {
             monitor=(Ref)frame.stack.getLast();
             if(!monitor.equals(NULL) && busy(state,monitor,owner))
                 return new Probe(Availability.BLOCKED,location,code,monitor,true,false);
         }
-        boolean observable=op.instruction() instanceof FieldInstruction || op.instruction() instanceof ReturnInstruction
+        boolean observable=intrinsic!=null || op.instruction() instanceof FieldInstruction || op.instruction() instanceof ReturnInstruction
             || op.instruction() instanceof NewObjectInstruction || op.instruction() instanceof NewPrimitiveArrayInstruction
             || op.instruction() instanceof NewReferenceArrayInstruction || op.instruction() instanceof NewMultiArrayInstruction
             || op.instruction() instanceof ArrayLoadInstruction || op.instruction() instanceof ArrayStoreInstruction
-            || code==Opcode.MONITORENTER || code==Opcode.MONITOREXIT || code==Opcode.ATHROW;
+            || code==Opcode.MONITORENTER || code==Opcode.MONITOREXIT || code==Opcode.ATHROW || losesReferenceRoot(frame,op);
         return new Probe(Availability.READY,location,code,monitor,observable,false);
     }
 
+    /** Preserves scheduling around local root loss, which another actor's sharing traversal can observe.
+     * Loads/duplication preserve the actor's root set; overwrites, discards and reference comparisons
+     * may remove its last alias. These boundaries retain exact sharing-history outcomes.
+     * @param frame current locals and operand roots
+     * @param op selected verified operation
+     * @return whether local transport must remain separately schedulable */
+    private static boolean losesReferenceRoot(BytecodeFrame frame,BytecodeMethod.Op op) {
+        if(op.instruction() instanceof StoreInstruction store && frame.locals.get(store.slot()) instanceof Ref old && !old.equals(NULL))return true;
+        return switch(op.instruction().opcode()) {
+            case IFNULL,IFNONNULL,IF_ACMPEQ,IF_ACMPNE,ARRAYLENGTH,INSTANCEOF -> true;
+            case INVOKESPECIAL -> ((InvokeInstruction)op.instruction()).owner().asInternalName().equals("java/lang/Object");
+            case POP -> frame.stack.getLast() instanceof Ref reference && !reference.equals(NULL);
+            case POP2 -> frame.stack.subList(frame.stack.size()-2,frame.stack.size()).stream().anyMatch(value->value instanceof Ref reference && !reference.equals(NULL));
+            default -> false;
+        };
+    }
+
     /** Computes one admitted opcode's complete intrinsic work before execution.
+     * @param program frozen hierarchy
+     * @param state committed heap
+     * @param frame selected frame
      * @param op decoded instruction
      * @return opcode plus fixed intrinsic fuel
      */
-    private static int work(BytecodeMethod.Op op) {
+    private static int work(BytecodeProgram program,BytecodeState state,BytecodeFrame frame,BytecodeMethod.Op op) {
+        var intrinsic=BytecodeThrowables.plan(program,state,frame,op);if(intrinsic!=null)return intrinsic.cost();
         return op.instruction() instanceof InvokeInstruction call && call.owner().asInternalName().equals("java/lang/Object") ? 2 : 1;
     }
 
@@ -121,6 +152,10 @@ final class OpcodeExecutor {
          * Existing cleanup exception token, or null for a new fault.
          */
         final Fault original;
+        /** Existing target exception identity, absent for a fresh VM fault. */
+        Ref reference;
+        /** Exact supported validation message/cause, otherwise unavailable. */
+        BytecodeThrowables.Payload payload;
         /**
          * Transfers control for a modeled VM failure without exposing a host stack.
          * @param type modeled exception type
@@ -150,28 +185,61 @@ final class OpcodeExecutor {
             case FAILURE_PENDING -> { execution.phase=Phase.FAILED; return new Result(state,Kind.TERMINAL); }
             case CUTOFF_PENDING -> { execution.phase=Phase.CUTOFF; return new Result(state,Kind.TERMINAL); }
             case RETURNING -> { finishReturn(state,execution,owner); return new Result(state,Kind.ADVANCED); }
-            case EXCEPTION -> { unwind(state,execution,owner); return new Result(state,Kind.ADVANCED); }
+            case INTRINSIC_BODY -> {
+                var call=execution.intrinsic;execution.instructions+=call.cost();
+                boolean changed=false;
+                try {var body=BytecodeThrowables.body(program,state,execution,owner,call);execution.intrinsic=body.call();changed=body.referencesChanged();}
+                catch(Trap fault){recordFault(state,execution,execution.frames.getLast(),fault);}
+                if(execution.phase!=Phase.CUTOFF_PENDING)execution.phase=Phase.INTRINSIC_EXIT;
+                return new Result(state,execution.phase==Phase.CUTOFF_PENDING ? Kind.PENDING : Kind.ADVANCED,changed);
+            }
+            case INTRINSIC_EXIT -> {
+                var call=execution.intrinsic;release(state,call.monitor(),owner);execution.intrinsic=null;
+                if(execution.fault!=null){execution.phase=Phase.EXCEPTION;return new Result(state,Kind.PENDING);}
+                var caller=execution.frames.getLast();caller.bci=caller.method.ops.get(caller.bci).next();
+                if(call.result()!=null)caller.push(call.result());execution.phase=Phase.RUNNING;
+                return new Result(state,Kind.ADVANCED);
+            }
+            case EXCEPTION -> { unwind(program,state,execution,owner); return new Result(state,Kind.ADVANCED); }
             case RUNNING -> { /* Execute only after pure budget/enabledness decisions below. */ }
         }
         BytecodeFrame frame=execution.frames.getLast(); BytecodeMethod.Op op=frame.method.ops.get(frame.bci);
-        int required=work(op), limit=limit(program,owner);
+        int required=work(program,state,frame,op), limit=limit(program,owner);
         if(choice.exhausted()) {
-            cutoff(execution,frame,"INSTRUCTION_FUEL",limit,required,limit-execution.instructions);
+            cutoff(execution,frame,owner,"INSTRUCTION_FUEL",limit,required,limit-execution.instructions);
             return new Result(state,Kind.PENDING);
         }
         if(!frame.entered) {
             if(!acquire(state,choice.monitor(),owner))return new Result(state,Kind.BLOCKED);
             frame.methodMonitor=choice.monitor();frame.entered=true;return new Result(state,Kind.ADVANCED);
         }
+        var intrinsic=BytecodeThrowables.plan(program,state,frame,op);
+        if(intrinsic!=null && intrinsic.monitor()!=null) {
+            if(!acquire(state,intrinsic.monitor(),owner))return new Result(state,Kind.BLOCKED);
+            for(int i=0;i<intrinsic.arguments().size()+1;i++)frame.pop();
+            execution.intrinsic=intrinsic;execution.phase=Phase.INTRINSIC_BODY;return new Result(state,Kind.ADVANCED);
+        }
         execution.instructions+=required;
         try {
             if(execute(program,state,execution,frame,op,owner)) frame.bci=op.next();
         } catch(Trap fault) {
-            execution.fault=fault.original!=null ? fault.original : new Fault(fault.getMessage(),frame.method.location(frame.bci),
-                execution.frames.reversed().stream().map(f->f.method.location(f.bci)).toList());
-            execution.eventLocation=frame.method.location(frame.bci); execution.phase=Phase.EXCEPTION;
+            recordFault(state,execution,frame,fault);
         }
-        return new Result(state,execution.phase==Phase.RUNNING ? Kind.ADVANCED : Kind.PENDING);
+        return new Result(state,execution.phase==Phase.RUNNING ? Kind.ADVANCED : Kind.PENDING,
+            intrinsic!=null && intrinsic.method().name().equals("<init>") && execution.phase==Phase.RUNNING);
+    }
+
+    /** Captures original modeled failure identity without host target execution.
+     * @param state owned heap for first-throw metadata
+     * @param execution selected owner
+     * @param frame actual throwing invocation/instruction
+     * @param fault internal modeled control transfer */
+    private static void recordFault(BytecodeState state,Execution execution,BytecodeFrame frame,Trap fault) {
+        execution.fault=fault.original!=null ? fault.original : new Fault(fault.getMessage(),frame.method.location(frame.bci),
+            execution.frames.reversed().stream().map(f->f.method.location(f.bci)).toList());
+        execution.throwable=fault.reference;execution.faultPayload=fault.payload;
+        if(fault.reference!=null)state.heap.get(fault.reference).fields.putIfAbsent(BytecodeThrowables.ORIGIN,new Thrown(execution.fault));
+        execution.eventLocation=frame.method.location(frame.bci);execution.phase=Phase.EXCEPTION;
     }
 
     /**
@@ -188,7 +256,7 @@ final class OpcodeExecutor {
                                    BytecodeFrame frame,BytecodeMethod.Op op,int owner) {
         Instruction instruction=op.instruction(); Opcode code=instruction.opcode();
         if(instruction instanceof ConstantInstruction constant) {
-            frame.push(code==Opcode.ACONST_NULL ? NULL : new Int((Integer)constant.constantValue())); return true;
+            frame.push(code==Opcode.ACONST_NULL ? NULL : constant.constantValue() instanceof String text ? program.strings.get(text) : new Int((Integer)constant.constantValue())); return true;
         }
         if(instruction instanceof LoadInstruction load) { frame.push(frame.locals.get(load.slot())); return true; }
         if(instruction instanceof StoreInstruction store) { frame.locals.put(store.slot(),frame.pop()); return true; }
@@ -226,7 +294,7 @@ final class OpcodeExecutor {
         if(instruction instanceof NewObjectInstruction allocation) {
             String type=allocation.className().asInternalName();
             var fields=type.equals("java/lang/Object") ? List.<BytecodeProgram.Field>of() : program.hierarchy.instanceFields(type);
-            int cells=1+fields.size();
+            int cells=BytecodeThrowables.baseCells(program.hierarchy,type)+fields.size();
             if(!reserve(program,execution,frame,owner,cells))return false;
             var reference=new Ref(owner,execution.nextSequence++);var object=new ObjectValue(type);
             object.shared=owner==SETUP;fields.forEach(field->object.fields.put(field.id(),field.initial()));
@@ -239,11 +307,16 @@ final class OpcodeExecutor {
                 var target=object(state,receiver); // Dynamic validity precedes depth exhaustion.
                 if(!program.hierarchy.assignable(target.type,call.owner().asInternalName()))throw new Trap("java/lang/IncompatibleClassChangeError",null);
             }
+            var intrinsic=BytecodeThrowables.plan(program,state,frame,op);
+            if(intrinsic!=null) {
+                var completed=BytecodeThrowables.body(program,state,execution,owner,intrinsic).call();
+                for(int i=0;i<count+1;i++)frame.pop();if(completed.result()!=null)frame.push(completed.result());return true;
+            }
             if(call.owner().asInternalName().equals("java/lang/Object")) {
                 frame.pop();if(object(state,receiver).type.equals("java/lang/Object"))object(state,receiver).initialized=true;return true;
             }
             if(execution.frames.size()==program.limits.maxCallDepth()) {
-                cutoff(execution,frame,"CALL_DEPTH",program.limits.maxCallDepth(),1,0);return false;
+                cutoff(execution,frame,owner,"CALL_DEPTH",program.limits.maxCallDepth(),1,0);return false;
             }
             String type=call.owner().asInternalName(),name=call.name().stringValue(),descriptor=call.type().stringValue();
             var id=program.hierarchy.method(type,name,descriptor);
@@ -272,7 +345,16 @@ final class OpcodeExecutor {
             case I2S -> frame.push(new Int((short)integer(frame.pop())));
             case MONITORENTER -> { if(!acquire(state,(Ref)frame.pop(),owner)) throw new IllegalStateException("Enabledness changed"); }
             case MONITOREXIT -> release(state,(Ref)frame.pop(),owner);
-            case ATHROW -> { var thrown=(Thrown)frame.pop(); throw new Trap(thrown.fault().type(),thrown.fault()); }
+            case ATHROW -> {
+                Value value=frame.pop();
+                if(value instanceof Thrown thrown) {
+                    var trap=new Trap(thrown.fault().type(),thrown.fault());trap.payload=execution.faultPayload;throw trap;
+                }
+                Ref reference=(Ref)value;var target=object(state,reference);
+                var origin=target.fields.get(BytecodeThrowables.ORIGIN);
+                var trap=new Trap(target.type,origin instanceof Thrown thrown ? thrown.fault() : null);
+                trap.reference=reference;throw trap;
+            }
             default -> {
                 int right=integer(frame.pop()),left=integer(frame.pop());
                 if((code==Opcode.IDIV || code==Opcode.IREM) && right==0) throw new Trap("java/lang/ArithmeticException",null);
@@ -299,8 +381,8 @@ final class OpcodeExecutor {
     static boolean reserve(BytecodeProgram program,Execution execution,BytecodeFrame frame,int owner,int cells) {
         int allocations=owner==SETUP ? program.limits.setupAllocations() : program.limits.actorAllocations();
         int heap=owner==SETUP ? program.limits.setupHeapCells() : program.limits.actorHeapCells();
-        if(execution.allocations>=allocations){cutoff(execution,frame,"ALLOCATIONS",allocations,1,allocations-execution.allocations);return false;}
-        if(cells>heap-execution.cells){cutoff(execution,frame,"HEAP_CELLS",heap,cells,heap-execution.cells);return false;}
+        if(execution.allocations>=allocations){cutoff(execution,frame,owner,"ALLOCATIONS",allocations,1,allocations-execution.allocations);return false;}
+        if(cells>heap-execution.cells){cutoff(execution,frame,owner,"HEAP_CELLS",heap,cells,heap-execution.cells);return false;}
         return true;
     }
 
@@ -359,15 +441,24 @@ final class OpcodeExecutor {
 
     /**
      * Executes one exception delivery/unwind event without charging imaginary opcodes.
+     * @param program validated hierarchy and limits
      * @param state owned state
      * @param execution faulting execution
      * @param owner actor/setup
      */
-    private static void unwind(BytecodeState state,Execution execution,int owner) {
+    private static void unwind(BytecodeProgram program,BytecodeState state,Execution execution,int owner) {
         if(execution.frames.isEmpty()) { execution.phase=Phase.FAILURE_PENDING; return; }
-        var frame=execution.frames.getLast(); int handler=frame.method.handler(frame.bci);
+        var frame=execution.frames.getLast(); int handler=frame.method.handler(frame.bci,execution.fault.type(),program.hierarchy);
         if(handler>=0) {
-            frame.stack.clear(); frame.push(new Thrown(execution.fault)); frame.bci=handler; execution.phase=Phase.RUNNING;
+            Value delivered;
+            if(execution.throwable==null && frame.method.metadataCleanup(handler))delivered=new Thrown(execution.fault);
+            else {
+                if(execution.throwable==null && !BytecodeThrowables.materialize(program,state,execution,owner))return;
+                delivered=execution.throwable;
+            }
+            frame.stack.clear();frame.push(delivered);frame.bci=handler;execution.phase=Phase.RUNNING;
+            if(!(delivered instanceof Thrown)){execution.fault=null;execution.faultPayload=null;}
+            execution.throwable=null;execution.eventLocation=null;
         } else {
             if(frame.methodMonitor!=null) release(state,frame.methodMonitor,owner);
             execution.frames.removeLast();
@@ -420,14 +511,15 @@ final class OpcodeExecutor {
      * Prepares a prefix-ending resource event without executing the omitted operation.
      * @param execution selected resource owner
      * @param frame omitted instruction
+     * @param owner charged resource namespace
      * @param reason resource
      * @param limit configured allowance
      * @param required attempted work
      * @param remaining unspent allowance
      */
-    static void cutoff(Execution execution,BytecodeFrame frame,String reason,int limit,int required,int remaining) {
+    static void cutoff(Execution execution,BytecodeFrame frame,int owner,String reason,int limit,int required,int remaining) {
         execution.eventLocation=frame.method.location(frame.bci);
-        execution.cutoff=new Cutoff(reason,execution.eventLocation,limit,required,remaining); execution.phase=Phase.CUTOFF_PENDING;
+        execution.cutoff=new Cutoff(reason,execution.eventLocation,limit,required,remaining,owner); execution.phase=Phase.CUTOFF_PENDING;
     }
     /**
      * Applies JVM boolean field narrowing while retaining other values.

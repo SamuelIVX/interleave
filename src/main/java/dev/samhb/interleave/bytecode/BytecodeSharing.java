@@ -35,7 +35,11 @@ final class BytecodeSharing {
         shared.add(FIXTURE);state.statics.values().forEach(value->root(shared,value));
         state.heap.forEach((reference,object)->{if(object.shared)shared.add(reference);});
         state.executions.forEach((owner,execution)->{
-            if(owner<0)return;var actor=new ArrayList<Ref>();roots.put(owner,actor);root(actor,execution.returned);
+            if(owner<0)return;var actor=new ArrayList<Ref>();roots.put(owner,actor);root(actor,execution.returned);root(actor,execution.throwable);
+            if(execution.faultPayload!=null){root(actor,execution.faultPayload.message());root(actor,execution.faultPayload.cause());}
+            if(execution.intrinsic!=null) {
+                root(actor,execution.intrinsic.receiver());execution.intrinsic.arguments().forEach(value->root(actor,value));root(actor,execution.intrinsic.result());
+            }
             for(var frame:execution.frames) {
                 frame.locals.values().forEach(value->root(actor,value));frame.stack.forEach(value->root(actor,value));root(actor,frame.methodMonitor);root(actor,frame.constructorReceiver);
             }

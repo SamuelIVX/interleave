@@ -3,7 +3,7 @@
 
 ## Objective and status
 
-**Selected; 94A/94B/94C merged, 95 heap profile implemented and locally verified; draft PR/CI/manual acceptance pending.** Approved scope: controlled interpretation of compiled Java for fixed
+**Selected; 94A/94B/94C/95 merged; 96 exceptions implemented with local acceptance complete; review/merge pending.** Approved scope: controlled interpretation of compiled Java for fixed
 actors under bounded sequential consistency (SC). The first public release must find a real lost update
 and a two-lock deadlock through loading, search, evidence, strict replay, library/CLI, reports and viewer.
 No target-code host-JVM fallback is permitted. This is not unrestricted Java or full Java Memory Model coverage.

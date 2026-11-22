@@ -17,7 +17,8 @@ final class BytecodeHierarchy {
      * @param types application metadata
      * @param fields complete field declarations */
     BytecodeHierarchy(Map<String,ClassModel> types,Map<BytecodeProgram.FieldId,BytecodeProgram.Field> fields) {
-        this.types=Map.copyOf(types);this.fields=Map.copyOf(fields);
+        var complete=new HashMap<>(BytecodePlatform.metadata());complete.putAll(types);
+        this.types=Map.copyOf(complete);this.fields=Map.copyOf(fields);
     }
 
     /** Returns the direct superclass, or null for the trusted Object root.
