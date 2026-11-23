@@ -102,7 +102,9 @@ final class BytecodeVerifier {
         var predecessors=new HashMap<Integer,Set<Integer>>();
         for(var op:method.ops.values()) for(int next:successors(method,op))
             predecessors.computeIfAbsent(next,ignored->new HashSet<>()).add(op.bci());
+        var protectedStarts=new HashSet<Integer>();
         for(var handler:method.code.exceptionHandlers()) {
+            protectedStarts.add(method.target(handler.tryStart()));
             int bci=method.target(handler.handler());
             if(!predecessors.getOrDefault(bci,Set.of()).isEmpty())
                 throw problem("UNSUPPORTED","Cleanup cannot have normal control-flow entry",method.location(bci));
@@ -112,12 +114,19 @@ final class BytecodeVerifier {
         while(!queue.isEmpty()) {
             int bci=queue.removeFirst(); var op=method.ops.get(bci); var before=states.get(bci);
             var locks=new ArrayList<>(before); Instruction instruction=op.instruction(); Opcode code=instruction.opcode();
-            // Seed even nonthrowing compiler regions, so unreachable cleanup cannot forge a lock proof.
-            for(var handler : method.code.exceptionHandlers()) {
-                if(method.target(handler.tryStart())==bci)for(String type:throwableTypes) {
-                    int selected=method.handler(bci,type,hierarchy);if(selected>=0)merge(method,states,queue,selected,before);
-                }
+            boolean canThrow=instruction instanceof FieldInstruction || instruction instanceof InvokeInstruction
+                || instruction instanceof ArrayLoadInstruction || instruction instanceof ArrayStoreInstruction || instruction instanceof TypeCheckInstruction
+                || instruction instanceof NewObjectInstruction || instruction instanceof NewPrimitiveArrayInstruction || instruction instanceof NewReferenceArrayInstruction
+                || instruction instanceof NewMultiArrayInstruction || code==Opcode.ARRAYLENGTH
+                || code==Opcode.IDIV || code==Opcode.IREM || code==Opcode.MONITORENTER || code==Opcode.ATHROW;
+            var exceptional=new LinkedHashSet<Integer>();
+            if(canThrow || protectedStarts.contains(bci)) {
+                var covering=method.coveringHandlers(bci);
+                for(String type:throwableTypes)exceptional.add(method.handler(covering,bci,type,hierarchy));
             }
+            // Seed even nonthrowing compiler regions, so unreachable cleanup cannot forge a lock proof.
+            if(protectedStarts.contains(bci))for(int selected:exceptional)
+                if(selected>=0)merge(method,states,queue,selected,before);
             if (instruction instanceof StoreInstruction store && locks.contains(store.slot())
                 || instruction instanceof IncrementInstruction increment && locks.contains(increment.slot()))
                 throw problem("MALFORMED","Active monitor slot overwritten",method.location(bci));
@@ -141,14 +150,8 @@ final class BytecodeVerifier {
             }
             if (instruction instanceof ReturnInstruction && !locks.isEmpty())
                 throw problem("MALFORMED","Return with unmatched monitor entry",method.location(bci));
-            boolean canThrow=instruction instanceof FieldInstruction || instruction instanceof InvokeInstruction
-                || instruction instanceof ArrayLoadInstruction || instruction instanceof ArrayStoreInstruction || instruction instanceof TypeCheckInstruction
-                || instruction instanceof NewObjectInstruction || instruction instanceof NewPrimitiveArrayInstruction || instruction instanceof NewReferenceArrayInstruction
-                || instruction instanceof NewMultiArrayInstruction || code==Opcode.ARRAYLENGTH
-                || code==Opcode.IDIV || code==Opcode.IREM || code==Opcode.MONITORENTER || code==Opcode.ATHROW;
             if (canThrow) {
-                for(String type:throwableTypes) {
-                    int handler=method.handler(bci,type,hierarchy);
+                for(int handler:exceptional) {
                     if(handler>=0)merge(method,states,queue,handler,before);
                     else if(!before.isEmpty())throw problem("MALFORMED","Missing exceptional monitor cleanup",method.location(bci));
                 }

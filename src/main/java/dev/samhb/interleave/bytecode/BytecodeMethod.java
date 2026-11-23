@@ -84,10 +84,32 @@ final class BytecodeMethod {
      * @param type actual modeled Throwable type
      * @param hierarchy closed metadata
      * @return matching handler target, or -1 */
-    int handler(int bci,String type,BytecodeHierarchy hierarchy) {
-        for(ExceptionCatch handler:code.exceptionHandlers())if(bci>=target(handler.tryStart()) && bci<target(handler.tryEnd())
+    int handler(int bci,String type,BytecodeHierarchy hierarchy) {return handler(code.exceptionHandlers(),bci,type,hierarchy);}
+
+    /** Selects the first matching entry from an ordered candidate subset.
+     * Runtime delivery supplies the table; verification can supply only entries covering the BCI.
+     * @param candidates table-order handler candidates
+     * @param bci real throwing position
+     * @param type modeled Throwable type
+     * @param hierarchy closed type metadata
+     * @return selected handler BCI, or -1 */
+    int handler(List<ExceptionCatch> candidates,int bci,String type,BytecodeHierarchy hierarchy) {
+        for(ExceptionCatch handler:candidates)if(bci>=target(handler.tryStart()) && bci<target(handler.tryEnd())
             && (handler.catchType().isEmpty() || hierarchy.assignable(type,handler.catchType().orElseThrow().asInternalName())))return target(handler.handler());
         return -1;
+    }
+
+    /** Filters one position once, preserving table order and the universal-handler shortcut.
+     * Entries after a covering catch-all/Throwable cannot select any modeled Throwable type.
+     * @param bci protected instruction position
+     * @return immutable covering candidates through the first universal match */
+    List<ExceptionCatch> coveringHandlers(int bci) {
+        var result=new ArrayList<ExceptionCatch>();
+        for(var handler:code.exceptionHandlers())if(bci>=target(handler.tryStart()) && bci<target(handler.tryEnd())) {
+            result.add(handler);
+            if(handler.catchType().isEmpty() || handler.catchType().orElseThrow().asInternalName().equals("java/lang/Throwable"))break;
+        }
+        return List.copyOf(result);
     }
 
     /** Recognizes only metadata-safe five-op compiler monitor cleanup transport.

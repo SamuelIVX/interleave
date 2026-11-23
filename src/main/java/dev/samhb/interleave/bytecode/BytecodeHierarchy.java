@@ -13,6 +13,9 @@ final class BytecodeHierarchy {
     /** Complete field declarations. */
     private final Map<BytecodeProgram.FieldId,BytecodeProgram.Field> fields;
 
+    /** Pure, bounded derived metadata shared safely by independent runs of this frozen hierarchy. */
+    private final Map<String,Set<String>> ancestorCache=new java.util.concurrent.ConcurrentHashMap<>();
+
     /** Freezes the closed metadata used by loading and execution.
      * @param types application metadata
      * @param fields complete field declarations */
@@ -68,17 +71,23 @@ final class BytecodeHierarchy {
         return descriptor.startsWith("[") ? descriptor : descriptor.substring(1,descriptor.length()-1);
     }
 
-    /** Collects supertypes iteratively, rejecting cycles separately during loading.
+    /** Reuses immutable supertype closures; cycles remain checked separately during loading.
      * @param type application name
      * @return all reachable ancestors including self */
-    Set<String> ancestors(String type) {
+    Set<String> ancestors(String type) {return ancestorCache.computeIfAbsent(type,this::collectAncestors);}
+
+    /** Computes one bounded closure without recursively mutating the metadata cache.
+     * @param type requested class or interface
+     * @return immutable ancestors including self
+     * @throws BytecodeLoadException for missing hierarchy metadata */
+    private Set<String> collectAncestors(String type) {
         var seen=new HashSet<String>();var pending=new ArrayDeque<String>();pending.add(type);
         while(!pending.isEmpty()) {
             String name=pending.removeFirst();if(!seen.add(name) || name.equals("java/lang/Object"))continue;
             var declaration=metadata(name);declaration.superclass().ifPresent(c->pending.add(c.asInternalName()));
             declaration.interfaces().forEach(c->pending.add(c.asInternalName()));
         }
-        return seen;
+        return Collections.unmodifiableSet(seen);
     }
 
     /** Resolves a symbolic field in JVM class/interface/superclass order.

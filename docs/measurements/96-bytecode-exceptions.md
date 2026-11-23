@@ -61,6 +61,23 @@ NPE target is forbidden in checks. Unsupported native extended-message behavior 
 | R4 | Per-actor/setup/observer accounting, allocator-after-escape growth and body-time recheck, blocked-count/fuel recomputation, held-lock cutoffs, exact pending identities/counts/payloads in canonical state and snapshots |
 | R5 | Library/native/JSON, built-jar CLI, reports, viewer, strict replay and tampering, complete ResourceCleanup example, independent instruction enumeration and fixed-seed sequential generation/shrinking/saved regressions |
 
+The current executable tests are in
+[BytecodeExceptionTest](../../src/test/java/dev/samhb/interleave/bytecode/BytecodeExceptionTest.java),
+[BytecodeExceptionBoundaryTest](../../src/test/java/dev/samhb/interleave/bytecode/BytecodeExceptionBoundaryTest.java),
+[BytecodeExceptionConcurrencyTest](../../src/test/java/dev/samhb/interleave/bytecode/BytecodeExceptionConcurrencyTest.java),
+[BytecodeReplayTest](../../src/test/java/dev/samhb/interleave/bytecode/BytecodeReplayTest.java),
+[BytecodeEncodingTest](../../src/test/java/dev/samhb/interleave/bytecode/BytecodeEncodingTest.java),
+[BytecodeReleaseTest](../../src/test/java/dev/samhb/interleave/bytecode/BytecodeReleaseTest.java) and
+[BytecodeGeneratedTest](../../src/test/java/dev/samhb/interleave/bytecode/BytecodeGeneratedTest.java).
+
+| Requirement | Current test symbols |
+|---|---|
+| R1 | `BytecodeExceptionTest.typedHandlerAndFinallyMatchJvm`, `BytecodeExceptionTest.orderedHandlersRethrowAndNullMatchJvm`, `BytecodeExceptionTest.handlerOrderIsArtifactBoundAndMatchesJvm` |
+| R2 | `BytecodeExceptionTest.nestedUnwindReleasesExactMonitorDepth`, `BytecodeReplayTest.cleanupFuelCutoffRetainsFaultAndHeldMonitor` |
+| R3 | `BytecodeExceptionTest.tryWithResourcesKeepsPrimaryAndSuppressed`, `BytecodeExceptionTest.resourceFailureVariantsMatchJvm`, `BytecodeExceptionBoundaryTest.longSuppressionListRetainsIdentityOrder` |
+| R4 | `BytecodeExceptionConcurrencyTest.suppressionRechecksOriginalAllocatorAtBody`, `BytecodeExceptionConcurrencyTest.escapedActorPayloadKeepsAllocatorAndCallerSeparate`, `BytecodeExceptionConcurrencyTest.blockedGetterRecomputesCountAndFuel`, `BytecodeEncodingTest.intrinsicContinuationIsLossless`, `BytecodeExceptionBoundaryTest.suppressionArrayResourceCutoffsRetainReceiver` |
+| R5 | `BytecodeExceptionTest.exceptionIdentityAndConsumersReplayStrictly`, `BytecodeReleaseTest.publicBytecodeLoaderAndRunnerWorkFromJar`, `BytecodeReleaseTest.bytecodeViewerUsesFreshProducerArtifacts`, `BytecodeGeneratedTest.generatedExceptionsMatchJvmWithShrinking` |
+
 The two-resource independent JVM output is `21:body:2:second:first:true:true`; both interpreter modes
 satisfy its declared checks. The suppression fixture uses nine allocations/47 cells (six six-cell
 Throwables, three three-cell arrays, two appended references), cross-checked against actual heap
@@ -102,7 +119,7 @@ passes242 KILLED/52 SURVIVED/7 NO_COVERAGE (301), no resource detections. That r
 independent continuation decoder and extra suppression-bound tests; the completed census below includes them.
 Neither uncovered mutants nor resource detections are killed mutants. No 100% kill claim is made.
 
-## Final affected mutation comparison
+## Initial publication mutation comparison (`45b5f5a`)
 
 One actual completed affected census passes R6 in 70m 08s (baseline 43m 21s):
 **5683 KILLED /771 SURVIVED /604 NO_COVERAGE =7058**, with zero timeout/memory/run-error detections.
@@ -149,9 +166,11 @@ Two initial comparison flags were independently adjudicated:
 The remaining 1757 matched inherited kills stay killed, with no unexplained loss. The two explicitly
 remapped lambda kills are confirmed separately. All excluded and surviving identities remain in raw
 reports; no one-to-one preservation claim is made for changed/bootstrap-dependent methods. Compiled
-runtime SHA256 manifests are identical between the measurement run and publication census.
+runtime SHA256 manifests at `45b5f5a` are identical between the measurement run and its publication
+census. The review correction below changes implementation code; those historical timing samples
+are not presented as measurements of the patched binary.
 
-## Refreshed reference/batching measurements
+## Initial publication reference/batching measurements (`45b5f5a`)
 
 The reused 94B runner measures the final runtime in three fresh JVM forks, two warmups per fixture/
 mode and three alternating repetitions:36 samples. Host: Apple M4,10 cores,16 GiB; OpenJDK26.0.2.1,
@@ -256,10 +275,10 @@ sharing closure and outcome projections, not a second JVM implementation.
    returns and exception/resource/terminal events retain scheduling boundaries. Only local computation
    and root-preserving transport, including loads of already-installed immutable literals, can coalesce.
    Reference stores that overwrite a non-null reference, POP/POP2 that drop references, and reference
-   comparisons, arraylength, instanceof and bare Object constructor calls retain boundaries. Losing a private root changes later sharing closure: a competing
+   comparisons, arraylength, instanceof, CHECKCAST and bare Object constructor calls retain boundaries. Losing a private root changes later sharing closure: a competing
    allocation can promote that unreachable object, and irreversible sharing history affects future
-   state. Seven independent-enumerator regressions cover nulling, integer slot reuse, POP after a
-   synchronized factory, a null comparison, arraylength, instanceof and a bare constructor; none filters orphan objects from outcome comparisons. Other actors
+   state. Eight independent-enumerator regressions cover nulling, integer slot reuse, POP after a
+   synchronized factory, a null comparison, arraylength, instanceof, a failing cast and a bare constructor; none filters orphan objects from outcome comparisons. Other actors
    and permitted checks cannot inspect an actor's private operands, instruction counters or pending
    call metadata. Shared writes and publication remain separate operations with sharing closure before
    the next observation. A shared increment still has distinct read and write choices.
@@ -342,7 +361,8 @@ WebSocket failure. Both attempt logs are retained. All findings were independent
 | Finding | Disposition |
 |---|---|
 | Stale baseline-stage status | Updated status docs |
-| Known validation message and cleanup payload loss | Preserve payload through metadata rethrow; exact message/cause regression |
+| Known validation message admission | Exact supported message/cause already modeled; verified with self-suppression regression |
+| Validation payload lost through monitor cleanup | Preserve payload through metadata rethrow and materialization; exact message/cause regression |
 | Concrete NPE target admission | Include closed trusted runtime alternatives; explicit-message regression |
 | Broad initCause name rejection | Restrict prohibited Throwable-parameter family, permit unrelated int overload |
 | Special invocation target | Apply JVM special selection before intrinsic admission at runtime; forged ancestor JVM case |
@@ -356,7 +376,7 @@ WebSocket failure. Both attempt logs are retained. All findings were independent
 Ordinary connected-code review additionally reproduced missing sharing-history outcomes when batching
 consumed the final private reference, and established the conditional NPE monitor from JDK26 source
 and a JVM harness. Root-loss boundaries and conditional lock/purity regressions now pass. The older95
-root-loss premise was insufficient for orphan sharing history; the argument below replaces that premise
+root-loss premise was insufficient for orphan sharing history; the argument above replaces that premise
 for SC3 rather than weakening normalization or removing historical sharing flags.
 
 The default PIT passes455 KILLED/13 SURVIVED/0 NO_COVERAGE (468), with every fingerprint/status
@@ -373,10 +393,36 @@ verified test/example-only follow-ups. Two fresh documentation readers answered 
 checked ambiguity; the stale authoring-time status and canonical/evidence-version ambiguity were fixed. CI/manual acceptance remains outside local evidence. No JPF compatibility, bytecode DPOR
 reduction, unrestricted Java behavior or complete Java Memory Model coverage is claimed.
 
-Configuration/document validation:127 changed local Markdown links exist; all three changed JS/MJS
+Initial publication configuration/document validation (`45b5f5a`):127 changed local Markdown links exist; all three changed JS/MJS
 files pass Node syntax checks; Ruby YAML parsing passes the workflow and CodeRabbit configuration.
 `coderabbit config validate` could not use the current official schema: CLI 0.8.1 reports
 `strict mode: unknown keyword: "x-undocumented"`. The prior sandbox DNS failure was retried on the
 host; no schema bypass or configuration weakening was used. This limitation does not replace or
 invalidate the separately completed actual reviews. Context-store validation reports zero errors and
 one existing machine-specific rollout-link warning. CI/manual acceptance is not yet checked.
+
+## PR143 feedback correction
+
+The six review comments are addressed together:
+
+| Comment | Correction and direct evidence |
+|---|---|
+| Review count | First-review findings2 and6 shared one fix but now have distinct table rows:12 findings,12 dispositions |
+| Requirement evidence | R1–R5 now name current test symbols and link their source files; every symbol was checked against source |
+| Verifier repeated work | Covering candidates are computed once per relevant BCI, retaining table order and stopping at a universal handler. Immutable ancestor closures are memoized in a thread-safe cache bounded by the frozen hierarchy. `BytecodeExceptionBoundaryTest.manyCoveringHandlersPreserveFirstMatch` checks15 overlapping handlers, twenty division sites and each first-match target against expected table entries; independent JVM/interpreter result378 is cross-checked as78+100+200 |
+| Failing cast | `BytecodeBatchingOracleTest.failingCastPreservesTerminalSharingHistories` was red before CHECKCAST became observable. Both reference and batched execution now retain the private and promoted terminal histories with `seen=1`; successful casts conservatively retain a boundary too |
+| Nonnull NPE getter | `BytecodeExceptionBoundaryTest.nonnullNpeMessageAvoidsMonitorDeadlock` covers the nonnull shortcut under contention, with an independent JVM harness and an explicit-lock control that does deadlock |
+| Exact retained monitor | `BytecodeExceptionBoundaryTest.suppressionArrayResourceCutoffsRetainReceiver` resolves `Fixture.primary` from the final snapshot and asserts that exact identity has owner0/depth1 for both array-length and caller-cell cutoffs |
+
+The integrated build/strict Javadoc passes2171 tests (zero failures/errors); private doclint passes all
+five touched production files. The complete source/JSON/bytecode browser matrix passes337 assertions, zero errors.
+One actual four-class PIT run (BytecodeHierarchy, BytecodeMethod, BytecodeVerifier, OpcodeExecutor)
+passes R6 in13m03s:1016 KILLED/169 SURVIVED/66 NO_COVERAGE (1251), no resource detections.
+The same classes at `45b5f5a` contributed991 KILLED/158 SURVIVED/66 NO_COVERAGE (1215) to the prior
+executed full census; that subset is not misrepresented as a separate fresh baseline run. All200
+matched non-lambda/non-bootstrap inherited kills remain killed; changed methods are excluded from
+one-to-one comparisons. No new full or composite mutation total is claimed. The original full/default counts above remain historical executed observations, not
+an invented post-correction whole-project run or an implicit composite. Runtime and loader changes
+are limited to these reviewed fixes; no new language/strategy phase or default-limit change is selected.
+No new CodeRabbit CLI cycle is required for this minor feedback correction; the two completed feature
+reviews and this ordinary review are recorded separately through agent-setup.

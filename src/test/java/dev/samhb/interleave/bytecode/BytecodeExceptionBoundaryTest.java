@@ -98,6 +98,31 @@ class BytecodeExceptionBoundaryTest {
         var result=InterleaveRunner.builder().build().runBytecode(program);assertFalse(result.hasIncomplete());assertFalse(result.deadlockedTraces().isEmpty());
     }
 
+    /** A nonnull message avoids the receiver lock even while the competing actor holds it.
+     * An explicit-lock control proves this topology detects an unconditional getter acquisition.
+     * @param directory compiler workspace
+     * @throws Exception for compiler/JVM or exploration failures */
+    @Test void nonnullNpeMessageAvoidsMonitorDeadlock(@TempDir Path directory) throws Exception {
+        for(boolean lockedControl:java.util.List.of(false,true)) {
+            String getter=lockedControl ? "synchronized(error){result=error.getMessage()==\"x\";}" : "result=error.getMessage()==\"x\";";
+            var work=directory.resolve(lockedControl ? "locked" : "unlocked");
+            var classes=BytecodeFixtures.compile(work,17,
+                "@Model public class Fixture {public NullPointerException error=new NullPointerException(\"x\");public Object lock=new Object();public boolean result;public Fixture(){}"
+                +"@Actor(id=0)public void first(){synchronized(error){synchronized(lock){}}}"
+                +"@Actor(id=1)public void second(){synchronized(lock){"+getter+"}}}");
+            if(!lockedControl)assertEquals("true:true",BytecodeFixtures.oracle(work,classes,"""
+                Fixture f=new Fixture();Thread worker=new Thread(f::second);boolean complete;
+                synchronized(f.error){worker.start();try{worker.join(2000);}catch(InterruptedException failure){throw new RuntimeException(failure);}complete=!worker.isAlive();}
+                try{worker.join(2000);}catch(InterruptedException failure){throw new RuntimeException(failure);}
+                System.out.print(complete+":"+f.result);
+                """));
+            var program=BytecodeProgramLoader.load(classes,"Fixture");BytecodeBatchingOracleTest.compare(program);
+            var result=InterleaveRunner.builder().build().runBytecode(program);
+            assertFalse(result.hasIncomplete());assertFalse(result.hasViolation());
+            assertEquals(lockedControl,!result.deadlockedTraces().isEmpty());assertFalse(result.completedTraces().isEmpty());
+        }
+    }
+
     /** A potentially synchronizing NPE getter cannot execute inside an observer.
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
@@ -159,7 +184,11 @@ class BytecodeExceptionBoundaryTest {
             assertEquals(length ? "ARRAY_LENGTH" : "HEAP_CELLS",cutoff.reason());
             assertEquals(length ? 3 : 4,cutoff.required());assertEquals(length ? 2 : 3,cutoff.remaining());
             assertEquals(0,cutoff.budgetOwner());assertEquals("actor",cutoff.location().name());
-            assertTrue(data.snapshots().getLast().heap().stream().anyMatch(o->o.owner()==0 && o.depth()==1));
+            var snapshot=data.snapshots().getLast();
+            var primary=snapshot.fields().get("setup:0.Fixture.primary:Ljava/lang/Throwable;");
+            assertNotNull(primary);assertEquals("REFERENCE",primary.type());
+            var monitor=snapshot.heap().stream().filter(object->object.identity().equals(primary.raw())).findFirst().orElseThrow();
+            assertEquals(0,monitor.owner());assertEquals(1,monitor.depth());
         }
     }
 
@@ -188,6 +217,43 @@ class BytecodeExceptionBoundaryTest {
         var program=BytecodeProgramLoader.load(classes,"Fixture");
         assertEquals(new BytecodeState.Int(1),BytecodeFixtures.run(program,program.initialState(),0).fixtureField("result"));
         assertEquals("UNSUPPORTED",assertThrows(BytecodeLoadException.class,()->BytecodeProgramLoader.load(classes,"java.lang.Throwable")).category);
+    }
+
+    /** Many overlapping handlers retain first table matches at every protected throwing position.
+     * @param directory compiler workspace
+     * @throws Exception for compilation, JVM or interpreter failures */
+    @Test void manyCoveringHandlersPreserveFirstMatch(@TempDir Path directory) throws Exception {
+        var source=new StringBuilder();
+        for(int i=0;i<12;i++)source.append("class E").append(i).append(" extends RuntimeException {} ");
+        source.append("@Model public class Fixture {public int result;public Fixture(){} static int read(int id,int zero){try{");
+        for(int i=0;i<12;i++)source.append("if(id==").append(i).append(")throw new E").append(i).append("();");
+        source.append("if(id==13)throw (RuntimeException)null;int value=100;");
+        for(int i=0;i<20;i++)source.append("value=value/zero;");
+        source.append("return value;}");
+        for(int i=0;i<12;i++)source.append("catch(E").append(i).append(" fault){return ").append(i+1).append(";}");
+        source.append("catch(ArithmeticException fault){return 100;}catch(RuntimeException fault){return 200;}catch(Throwable fault){return 300;}}")
+            .append("@Actor(id=0)public void actor(){for(int i=0;i<14;i++)result+=read(i,0);}}");
+        var classes=BytecodeFixtures.compile(directory,17,source.toString());
+        assertEquals("378",BytecodeFixtures.oracle(directory,classes,"Fixture f=new Fixture();f.actor();System.out.print(f.result);"));
+        var limits=new BytecodeLimits(4096,128,8192,32,64,256,4096,128,8192,1024);
+        var program=BytecodeProgramLoader.load(classes,"Fixture",limits);
+        var method=program.methods.get(new BytecodeMethod.Id("Fixture","read","(II)I"));
+        assertEquals(15,method.code.exceptionHandlers().size());
+        var expected=new java.util.HashMap<String,Integer>();
+        for(var handler:method.code.exceptionHandlers())expected.put(handler.catchType().orElseThrow().asInternalName(),method.target(handler.handler()));
+        for(var op:method.ops.values()) {
+            var covering=method.code.exceptionHandlers().stream().filter(h->op.bci()>=method.target(h.tryStart()) && op.bci()<method.target(h.tryEnd())).toList();
+            if(covering.isEmpty())continue;
+            for(int i=0;i<12;i++)assertEquals(expected.get("E"+i),method.handler(covering,op.bci(),"E"+i,program.hierarchy));
+            assertEquals(expected.get("java/lang/ArithmeticException"),method.handler(covering,op.bci(),"java/lang/ArithmeticException",program.hierarchy));
+            assertEquals(expected.get("java/lang/RuntimeException"),method.handler(covering,op.bci(),"java/lang/NullPointerException",program.hierarchy));
+            assertEquals(expected.get("java/lang/Throwable"),method.handler(covering,op.bci(),"java/lang/LinkageError",program.hierarchy));
+        }
+        var ancestors=program.hierarchy.ancestors("E0");assertSame(ancestors,program.hierarchy.ancestors("E0"));
+        assertThrows(UnsupportedOperationException.class,()->ancestors.remove("E0"));
+        var state=BytecodeFixtures.run(program,program.initialState(),0);
+        // Independent JVM result378 equals 1+...+12 (78), arithmetic100 and null-throw200.
+        assertEquals(new BytecodeState.Int(378),state.fixtureField("result"));
     }
 
 }

@@ -114,7 +114,7 @@ final class OpcodeExecutor {
     private static boolean losesReferenceRoot(BytecodeFrame frame,BytecodeMethod.Op op) {
         if(op.instruction() instanceof StoreInstruction store && frame.locals.get(store.slot()) instanceof Ref old && !old.equals(NULL))return true;
         return switch(op.instruction().opcode()) {
-            case IFNULL,IFNONNULL,IF_ACMPEQ,IF_ACMPNE,ARRAYLENGTH,INSTANCEOF -> true;
+            case IFNULL,IFNONNULL,IF_ACMPEQ,IF_ACMPNE,ARRAYLENGTH,INSTANCEOF,CHECKCAST -> true;
             case INVOKESPECIAL -> ((InvokeInstruction)op.instruction()).owner().asInternalName().equals("java/lang/Object");
             case POP -> frame.stack.getLast() instanceof Ref reference && !reference.equals(NULL);
             case POP2 -> frame.stack.subList(frame.stack.size()-2,frame.stack.size()).stream().anyMatch(value->value instanceof Ref reference && !reference.equals(NULL));

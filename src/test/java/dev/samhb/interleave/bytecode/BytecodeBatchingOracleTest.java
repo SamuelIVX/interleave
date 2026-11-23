@@ -67,6 +67,36 @@ class BytecodeBatchingOracleTest {
         compare(BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults()));
     }
 
+    /** A failing cast consumes the sole operand root after an independently observable write.
+     * Both private and promoted terminal histories are legal, depending on the competing allocation.
+     * @param directory compiler workspace
+     * @throws Exception for fixture transformation or execution failures */
+    @Test void failingCastPreservesTerminalSharingHistories(@TempDir Path directory) throws Exception {
+        var classes=BytecodeFixtures.compile(directory,17,"""
+            @Model public class Fixture {public int flag,seen;public Fixture(){}
+              @Actor(id=0)public void first(){Fixture unused=(Fixture)(Object)new Throwable();}
+              @Actor(id=1)public void second(){if(flag==1){int[] allocation=new int[1];seen=1;}}}
+            """);
+        var parser=java.lang.classfile.ClassFile.of();var file=classes.resolve("Fixture.class");
+        java.nio.file.Files.write(file,parser.transformClass(parser.parse(java.nio.file.Files.readAllBytes(file)),
+            java.lang.classfile.ClassTransform.transformingMethodBodies(method->method.methodName().equalsString("first"),(code,item)->{
+                if(item instanceof java.lang.classfile.instruction.TypeCheckInstruction)
+                    code.aload(0).iconst_1().putfield(java.lang.constant.ClassDesc.of("Fixture"),"flag",java.lang.constant.ConstantDescs.CD_int);
+                code.with(item);
+            })));
+        assertEquals("1:java.lang.ClassCastException",BytecodeFixtures.oracle(directory,classes,
+            "Fixture f=new Fixture();try{f.first();}catch(ClassCastException fault){System.out.print(f.flag+\":\"+fault.getClass().getName());}"));
+        var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());compare(program);
+        var seen=new BytecodeExplorer.Cell(BytecodeState.FIXTURE,new BytecodeProgram.FieldId("Fixture","seen","I"));
+        for(var mode:BytecodeScheduler.Mode.values()) {
+            var result=new BytecodeExplorer(program,mode).explore(100000);assertTrue(result.traversalComplete());
+            assertTrue(result.witnesses().stream().anyMatch(w->new BytecodeState.Int(1).equals(w.outcome().shared().get(seen))
+                && !w.state().heap.get(new BytecodeState.Ref(0,0)).shared));
+            assertTrue(result.witnesses().stream().anyMatch(w->new BytecodeState.Int(1).equals(w.outcome().shared().get(seen))
+                && w.state().heap.get(new BytecodeState.Ref(0,0)).shared));
+        }
+    }
+
     /** Static increments retain both real shared-read/write outcomes in both scheduling modes.
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
