@@ -79,15 +79,50 @@ final class BytecodeMethod {
      */
     int target(Label label) { return code.labelToBci(label); }
 
-    /**
-     * Selects the first cleanup handler covering a throwing position.
-     * @param bci throwing position
-     * @return first compiler cleanup handler, or -1
-     */
-    int handler(int bci) {
-        for (ExceptionCatch handler : code.exceptionHandlers()) {
-            if (bci >= target(handler.tryStart()) && bci < target(handler.tryEnd())) return target(handler.handler());
-        }
+    /** Selects the first table entry matching the real position and modeled exception type.
+     * @param bci throwing or invoking position
+     * @param type actual modeled Throwable type
+     * @param hierarchy closed metadata
+     * @return matching handler target, or -1 */
+    int handler(int bci,String type,BytecodeHierarchy hierarchy) {return handler(code.exceptionHandlers(),bci,type,hierarchy);}
+
+    /** Selects the first matching entry from an ordered candidate subset.
+     * Runtime delivery supplies the table; verification can supply only entries covering the BCI.
+     * @param candidates table-order handler candidates
+     * @param bci real throwing position
+     * @param type modeled Throwable type
+     * @param hierarchy closed type metadata
+     * @return selected handler BCI, or -1 */
+    int handler(List<ExceptionCatch> candidates,int bci,String type,BytecodeHierarchy hierarchy) {
+        for(ExceptionCatch handler:candidates)if(bci>=target(handler.tryStart()) && bci<target(handler.tryEnd())
+            && (handler.catchType().isEmpty() || hierarchy.assignable(type,handler.catchType().orElseThrow().asInternalName())))return target(handler.handler());
         return -1;
+    }
+
+    /** Filters one position once, preserving table order and the universal-handler shortcut.
+     * Entries after a covering catch-all/Throwable cannot select any modeled Throwable type.
+     * @param bci protected instruction position
+     * @return immutable covering candidates through the first universal match */
+    List<ExceptionCatch> coveringHandlers(int bci) {
+        var result=new ArrayList<ExceptionCatch>();
+        for(var handler:code.exceptionHandlers())if(bci>=target(handler.tryStart()) && bci<target(handler.tryEnd())) {
+            result.add(handler);
+            if(handler.catchType().isEmpty() || handler.catchType().orElseThrow().asInternalName().equals("java/lang/Throwable"))break;
+        }
+        return List.copyOf(result);
+    }
+
+    /** Recognizes only metadata-safe five-op compiler monitor cleanup transport.
+     * @param target validated handler entry
+     * @return whether no target operation can inspect or publish the exception token */
+    boolean metadataCleanup(int target) {
+        if(code.exceptionHandlers().stream().noneMatch(h->target(h.handler())==target && h.catchType().isEmpty()))return false;
+        var sequence=new ArrayList<Instruction>();int position=target;
+        for(int i=0;i<5;i++){var op=ops.get(position);if(op==null)return false;sequence.add(op.instruction());position=op.next();}
+        return sequence.get(0) instanceof StoreInstruction saved && saved.typeKind()==TypeKind.REFERENCE
+            && sequence.get(1) instanceof LoadInstruction lock && lock.typeKind()==TypeKind.REFERENCE
+            && sequence.get(2).opcode()==Opcode.MONITOREXIT
+            && sequence.get(3) instanceof LoadInstruction restored && restored.typeKind()==TypeKind.REFERENCE
+            && saved.slot()==restored.slot() && saved.slot()!=lock.slot() && sequence.get(4).opcode()==Opcode.ATHROW;
     }
 }

@@ -36,6 +36,17 @@ final class BytecodeSnapshots {
             slots.put("allocationSequence",new BytecodeEvidence.Value("LONG",Long.toString(execution.nextSequence)));
             if(execution.eventLocation!=null)slots.put("pending.location",text(execution.eventLocation.toString()));
             if(execution.returned!=null)slots.put("pending.return",value(execution.returned));
+            if(execution.intrinsic!=null) {
+                var call=execution.intrinsic;slots.put("intrinsic.method",text(call.method().toString()));
+                slots.put("intrinsic.receiver",value(call.receiver()));slots.put("intrinsic.monitor",value(call.monitor()));
+                slots.put("intrinsic.cost",number(call.cost()));slots.put("intrinsic.count",number(call.suppressionCount()));slots.put("intrinsic.result",value(call.result()));
+                for(int index=0;index<call.arguments().size();index++)slots.put("intrinsic.argument"+index,value(call.arguments().get(index)));
+            }
+            if(execution.faultPayload!=null) {
+                slots.put("pending.message",value(execution.faultPayload.message()));slots.put("pending.cause",value(execution.faultPayload.cause()));
+                slots.put("pending.causeInitialized",new BytecodeEvidence.Value("BOOLEAN",Boolean.toString(execution.faultPayload.causeInitialized())));
+            }
+            if(execution.throwable!=null)slots.put("pending.throwable",value(execution.throwable));
             if(execution.fault!=null)slots.put("pending.fault",text(execution.fault.toString()));
             if(execution.cutoff!=null)slots.put("pending.cutoff",text(execution.cutoff.toString()));
             for(int index=0;index<execution.frames.size();index++) {
@@ -69,7 +80,7 @@ final class BytecodeSnapshots {
      * @param reference nonnull modeled identity
      * @return stable tagged identity */
     static String identity(Ref reference) {
-        return (reference.owner()==SETUP ? "setup:" : reference.owner()== -2 ? "class:" : "actor:"+reference.owner()+":")+reference.sequence();
+        return (reference.owner()==SETUP ? "setup:" : reference.owner()== -2 ? "class:" : reference.owner()==8 ? "constant:" : "actor:"+reference.owner()+":")+reference.sequence();
     }
 
     /** Converts category-one slots and default-only wide array cells without numeric coercion.
@@ -79,6 +90,8 @@ final class BytecodeSnapshots {
         return switch(slot) {
             case null -> new BytecodeEvidence.Value("NULL","");
             case Int integer -> number(integer.value());
+            case Literal literal -> new BytecodeEvidence.Value("TEXT",literal.text());
+            case Unavailable ignored -> new BytecodeEvidence.Value("TEXT","unavailable VM message");
             case WideZero wide -> new BytecodeEvidence.Value(wide.type().equals("LONG") ? "LONG" : wide.type()+"_BITS",wide.type().equals("LONG") ? "0" : wide.type().equals("FLOAT") ? "00000000" : "0000000000000000");
             case Ref reference -> reference.equals(NULL) ? new BytecodeEvidence.Value("NULL","") : new BytecodeEvidence.Value("REFERENCE",identity(reference));
             case Thrown thrown -> new BytecodeEvidence.Value("FAULT",thrown.fault().toString());

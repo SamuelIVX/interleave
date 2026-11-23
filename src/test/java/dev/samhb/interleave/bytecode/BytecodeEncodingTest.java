@@ -20,7 +20,7 @@ class BytecodeEncodingTest {
             """);
         var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());
         try(var in=new DataInputStream(new ByteArrayInputStream(program.initialState().canonicalBytes()))) {
-            assertEquals(2,in.readInt()); assertEquals(3,in.readInt());
+            assertEquals(3,in.readInt()); assertEquals(3,in.readInt());
             reference(in,-2,0); text(in,"java/lang/Class"); objectHeader(in); assertEquals(0,in.readInt()); assertFalse(in.readBoolean());
             reference(in,-1,0); text(in,"Fixture"); objectHeader(in); assertEquals(2,in.readInt());
             field(in,"lock","Ljava/lang/Object;"); reference(in,-1,1);
@@ -30,9 +30,11 @@ class BytecodeEncodingTest {
             assertEquals(2,in.readInt());
             assertEquals(-1,in.readInt()); assertEquals(6,in.readInt()); // setup TERMINATED
             assertEquals(13,in.readInt()); assertEquals(2,in.readInt()); assertEquals(6,in.readInt()); assertEquals(2L,in.readLong());
+            assertEquals(0,in.readUnsignedByte());assertFalse(in.readBoolean());assertFalse(in.readBoolean()); // pending exception/ref/payload/intrinsic absent
             assertFalse(in.readBoolean()); location(in,"<init>",21); assertEquals(0,in.readUnsignedByte()); assertFalse(in.readBoolean()); assertEquals(0,in.readInt());
             assertEquals(0,in.readInt()); assertEquals(0,in.readInt()); // actor RUNNING
             assertEquals(0,in.readInt()); assertEquals(0,in.readInt()); assertEquals(0,in.readInt()); assertEquals(0L,in.readLong());
+            assertEquals(0,in.readUnsignedByte());assertFalse(in.readBoolean());assertFalse(in.readBoolean());
             assertFalse(in.readBoolean()); assertFalse(in.readBoolean()); assertEquals(0,in.readUnsignedByte()); assertFalse(in.readBoolean());
             assertEquals(1,in.readInt()); location(in,"actor",0); assertTrue(in.readBoolean()); assertEquals(0,in.readUnsignedByte()); assertEquals(0,in.readUnsignedByte());
             assertEquals(1,in.readInt()); assertEquals(0,in.readInt()); reference(in,-1,0); assertEquals(0,in.readInt()); assertEquals(-1,in.read());
@@ -68,16 +70,18 @@ class BytecodeEncodingTest {
             assertTrue(keys.add(java.util.Base64.getEncoder().encodeToString(state.canonicalBytes())));
         }
         for(var cutoff:java.util.List.of(
-            new BytecodeState.Cutoff("INSTRUCTION_FUEL",location,256,1,0),
-            new BytecodeState.Cutoff("CALL_DEPTH",location,256,1,0),
-            new BytecodeState.Cutoff("INSTRUCTION_FUEL",locations.get(1),256,1,0),
-            new BytecodeState.Cutoff("INSTRUCTION_FUEL",location,255,1,0),
-            new BytecodeState.Cutoff("INSTRUCTION_FUEL",location,256,2,0),
-            new BytecodeState.Cutoff("INSTRUCTION_FUEL",location,256,2,1))) {
+            new BytecodeState.Cutoff("INSTRUCTION_FUEL",location,256,1,0,0),
+            new BytecodeState.Cutoff("CALL_DEPTH",location,256,1,0,0),
+            new BytecodeState.Cutoff("INSTRUCTION_FUEL",locations.get(1),256,1,0,0),
+            new BytecodeState.Cutoff("INSTRUCTION_FUEL",location,255,1,0,0),
+            new BytecodeState.Cutoff("INSTRUCTION_FUEL",location,256,2,0,0),
+            new BytecodeState.Cutoff("INSTRUCTION_FUEL",location,256,2,1,0),
+            new BytecodeState.Cutoff("HEAP_CELLS",location,256,1,0,0),
+            new BytecodeState.Cutoff("HEAP_CELLS",location,256,1,0,-1))) {
             var state=program.initialState();state.executions.get(0).phase=BytecodeState.Phase.CUTOFF_PENDING;state.executions.get(0).cutoff=cutoff;
             assertTrue(keys.add(java.util.Base64.getEncoder().encodeToString(state.canonicalBytes())));
         }
-        assertEquals(19,keys.size()); // ten located/token variants, three fault variants, six cutoffs.
+        assertEquals(21,keys.size()); // ten located/token variants, three fault variants, eight cutoffs.
         var original=program.initialState();original.executions.get(0).phase=BytecodeState.Phase.EXCEPTION;
         original.executions.get(0).fault=new BytecodeState.Fault("java/lang/ArithmeticException",location,java.util.List.of(location));
         var relocated=original.copy();relocated.executions.get(0).fault=new BytecodeState.Fault(
@@ -86,6 +90,28 @@ class BytecodeEncodingTest {
         var restacked=original.copy();restacked.executions.get(0).fault=new BytecodeState.Fault(
             "java/lang/ArithmeticException",location,java.util.List.of(locations.get(1)));
         assertFalse(java.util.Arrays.equals(original.canonicalBytes(),restacked.canonicalBytes()));
+    }
+
+    /** Independently decodes suspended intrinsic arguments, frozen resource demand and exit result.
+     * These format-component values test framing; the loader admits executable invocation semantics.
+     * @throws IOException for a truncated or inconsistent encoding */
+    @Test void intrinsicContinuationIsLossless() throws IOException {
+        var receiver=new BytecodeState.Ref(0,7);var argument=new BytecodeState.Ref(1,9);
+        for(boolean getter:java.util.List.of(false,true)) {
+            var id=new BytecodeMethod.Id("java/lang/Throwable",getter ? "getSuppressed" : "addSuppressed",
+                getter ? "()[Ljava/lang/Throwable;" : "(Ljava/lang/Throwable;)V");
+            var call=new BytecodeThrowables.Call(id,receiver,getter ? java.util.List.of() : java.util.List.of(argument),
+                getter ? 3 : 2,2,receiver,getter ? argument : null);
+            var bytes=new ByteArrayOutputStream();BytecodeThrowables.encode(new DataOutputStream(bytes),call);
+            try(var in=new DataInputStream(new ByteArrayInputStream(bytes.toByteArray()))) {
+                assertTrue(in.readBoolean());text(in,"java/lang/Throwable");
+                text(in,getter ? "getSuppressed" : "addSuppressed");
+                text(in,getter ? "()[Ljava/lang/Throwable;" : "(Ljava/lang/Throwable;)V");
+                reference(in,0,7);assertEquals(getter ? 0 : 1,in.readInt());if(!getter)reference(in,1,9);
+                assertEquals(getter ? 3 : 2,in.readInt());assertEquals(2,in.readInt());reference(in,0,7);
+                if(getter)reference(in,1,9);else assertEquals(0,in.readUnsignedByte());assertEquals(-1,in.read());
+            }
+        }
     }
 
     /** Checks the always-present sharing, initialization and monitor fields for a fresh setup object.

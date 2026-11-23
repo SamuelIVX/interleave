@@ -80,12 +80,12 @@ class BytecodeSearchContractTest {
         var explorer=new BytecodeExplorer(program,BytecodeScheduler.Mode.REFERENCE);long start=System.nanoTime();var result=explorer.explore(140);long elapsed=System.nanoTime()-start;
         assertTrue(result.exhaustive());assertEquals(140,result.metrics().states());assertEquals(246,result.metrics().transitions());
         assertEquals(2,result.witnesses().size());assertEquals(178,result.metrics().instructions());assertEquals(178,result.metrics().opcodes());
-        assertEquals(247,result.metrics().encodingCalls());assertEquals(119051,result.metrics().encodingBytes());assertEquals(67438,result.metrics().retainedKeyBytes());
+        assertEquals(247,result.metrics().encodingCalls());assertEquals(121274,result.metrics().encodingBytes());assertEquals(68698,result.metrics().retainedKeyBytes());
         assertTrue(result.metrics().encodingNanos()>0);assertTrue(result.metrics().encodingNanos()<=elapsed);
         assertEquals(0,result.metrics().checkInvocations());assertEquals(0,result.metrics().checkInstructions());
         assertEquals(new BytecodeSharing.Work(1,4,0,0),result.metrics().sharing());
-        assertTrue(explorer.explore(new BytecodeExplorer.Budget(140,67438)).exhaustive());
-        var shortKeys=explorer.explore(new BytecodeExplorer.Budget(140,67437));assertFalse(shortKeys.exhaustive());
+        assertTrue(explorer.explore(new BytecodeExplorer.Budget(140,68698)).exhaustive());
+        var shortKeys=explorer.explore(new BytecodeExplorer.Budget(140,68697));assertFalse(shortKeys.exhaustive());
         assertEquals("KEY_BYTES",shortKeys.witnesses().getLast().outcome().interruption());
         var shortStates=explorer.explore(139);assertFalse(shortStates.exhaustive());assertEquals(139,shortStates.metrics().states());
         assertTrue(explorer.explore(140).exhaustive(),"A prior interruption must not leak into a reused explorer");

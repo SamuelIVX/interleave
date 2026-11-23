@@ -21,10 +21,11 @@ final class BytecodeAccessVerifier {
      * Class-File verifier cannot derive from field/method declarations.
      * @param method decoded admitted method
      * @param hierarchy frozen declarations
+     * @param implicitExposed whether general handlers can expose unknown implicit VM messages
      * @param fields resolved field declarations
      * @throws BytecodeLoadException with LINKAGE for a non-null cross-package protected instance
      * receiver whose verified type is not assignable to the caller class */
-    static void validate(BytecodeMethod method,BytecodeHierarchy hierarchy,Map<BytecodeProgram.FieldId,BytecodeProgram.Field> fields) {
+    static void validate(BytecodeMethod method,BytecodeHierarchy hierarchy,Map<BytecodeProgram.FieldId,BytecodeProgram.Field> fields,boolean implicitExposed) {
         var frames=new HashMap<Integer,StackMapFrameInfo>();
         method.code.findAttribute(Attributes.stackMapTable()).ifPresent(table->table.entries().forEach(frame->frames.put(method.target(frame.target()),frame)));
         var locals=new HashMap<Integer,String>();var stack=new ArrayList<String>();int slot=0;
@@ -51,7 +52,10 @@ final class BytecodeAccessVerifier {
                 int parameters=call.typeSymbol().parameterCount();boolean isStatic=code==Opcode.INVOKESTATIC;
                 if(!isStatic && !call.owner().asInternalName().equals("java/lang/Object")) {
                     var id=hierarchy.method(call.owner().asInternalName(),call.name().stringValue(),call.type().stringValue());
-                    receiver(method,op,hierarchy,id.owner(),hierarchy.flags(id),stack.get(stack.size()-parameters-1));
+                    String actual=stack.get(stack.size()-parameters-1);
+                    receiver(method,op,hierarchy,id.owner(),hierarchy.flags(id),actual);
+                    if(implicitExposed && BytecodePlatform.intrinsic(id) && id.name().equals("getMessage") && !knownMessage(actual,hierarchy))
+                        throw problem("UNSUPPORTED","Cannot prove implicit VM message unavailable to getMessage",method.location(op.bci()));
                 }
                 for(int i=0;i<parameters+(isStatic ? 0 : 1);i++)pop(stack);
                 String result=call.typeSymbol().returnType().descriptorString();if(!result.equals("V"))stack.add(type(result));continue;
@@ -59,8 +63,8 @@ final class BytecodeAccessVerifier {
             if(instruction instanceof LoadInstruction load){stack.add(locals.get(load.slot()));continue;}
             if(instruction instanceof StoreInstruction store){locals.put(store.slot(),pop(stack));continue;}
             if(instruction instanceof IncrementInstruction)continue;
-            if(instruction instanceof ConstantInstruction){stack.add(code==Opcode.ACONST_NULL ? NULL : "I");continue;}
-            if(instruction instanceof NewObjectInstruction allocation){stack.add(allocation.className().asInternalName());continue;}
+            if(instruction instanceof ConstantInstruction constant){stack.add(code==Opcode.ACONST_NULL ? NULL : constant.constantValue() instanceof String ? "java/lang/String" : "I");continue;}
+            if(instruction instanceof NewObjectInstruction allocation){stack.add("!"+allocation.className().asInternalName());continue;}
             if(instruction instanceof NewPrimitiveArrayInstruction){pop(stack);stack.add("[I");continue;}
             if(instruction instanceof NewReferenceArrayInstruction array){pop(stack);stack.add("["+array.componentType().asSymbol().descriptorString());continue;}
             if(instruction instanceof NewMultiArrayInstruction array){for(int i=0;i<array.dimensions();i++)pop(stack);stack.add(array.arrayType().asInternalName());continue;}
@@ -101,10 +105,29 @@ final class BytecodeAccessVerifier {
      * @throws BytecodeLoadException with LINKAGE for a non-null cross-package protected instance
      * receiver not assignable to the caller class; this is an admission failure, not stack analysis */
     private static void receiver(BytecodeMethod method,BytecodeMethod.Op op,BytecodeHierarchy hierarchy,String owner,int flags,String receiver) {
-        String caller=method.id.owner();
+        String caller=method.id.owner();receiver=plain(receiver);
         if((flags & ACC_PROTECTED)!=0 && !packageName(caller).equals(packageName(owner)) && !NULL.equals(receiver)
             && !hierarchy.assignable(receiver,caller))throw problem("LINKAGE","Protected receiver must be current class or subtype",method.location(op.bci()));
     }
+
+    /** Proves that an available message getter cannot observe an unknown implicit VM payload.
+     * Exact straight-line NEW identities are explicit; joins intentionally retain only static types.
+     * @param receiver verifier type/origin token
+     * @param hierarchy complete modeled Throwable relation
+     * @return whether every possible receiver has an explicit or exact supported message */
+    private static boolean knownMessage(String receiver,BytecodeHierarchy hierarchy) {
+        if(NULL.equals(receiver) || receiver.startsWith("!"))return true;
+        for(String fault:List.of("java/lang/NullPointerException","java/lang/ArithmeticException","java/lang/IllegalMonitorStateException",
+            "java/lang/ClassCastException","java/lang/NegativeArraySizeException","java/lang/ArrayIndexOutOfBoundsException",
+            "java/lang/ArrayStoreException","java/lang/IncompatibleClassChangeError"))
+            if(hierarchy.assignable(fault,receiver))return false;
+        return true;
+    }
+
+    /** Removes exact-allocation provenance when applying ordinary JVM type relationships.
+     * @param token static type with optional exact NEW marker
+     * @return ordinary type */
+    private static String plain(String token){return token.startsWith("!") ? token.substring(1) : token;}
 
     /** Resolves a verified expanded stack-map item, including uninitialized allocation references.
      * @param info verified type item

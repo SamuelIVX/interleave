@@ -76,7 +76,7 @@ class BytecodeReplayTest {
             prefix.programHash(),prefix.states(),null,prefix.bytecodeEvidence());
         assertThrows(dev.samhb.interleave.search.CorruptedTraceException.class,()->new TraceReplayer().replayBytecode(normal,upgraded));
         var d=prefix.bytecodeEvidence();
-        var forgedObservation=new dev.samhb.interleave.core.BytecodeEvidence(1,d.identity(),d.transitions(),d.snapshots(),d.terminal(),
+        var forgedObservation=new dev.samhb.interleave.core.BytecodeEvidence(2,d.identity(),d.transitions(),d.snapshots(),d.terminal(),
             new dev.samhb.interleave.core.BytecodeEvidence.Terminal("COMPLETED",-1,null,null,null,java.util.List.of(),null));
         var changed=new TraceRecord(prefix.threadIds(),prefix.outcomes(),prefix.outcome(),prefix.programHash(),prefix.states(),null,forgedObservation);
         assertThrows(dev.samhb.interleave.search.CorruptedTraceException.class,()->new TraceReplayer().replayBytecode(normal,changed));
@@ -153,7 +153,7 @@ class BytecodeReplayTest {
         String isolated="unicode:"+(char)0xd800+":"+(char)0xdc00;
         fields.put("text",new dev.samhb.interleave.core.BytecodeEvidence.Value("TEXT",isolated));
         snapshots.set(0,new dev.samhb.interleave.core.BytecodeEvidence.Snapshot(first.stateDigest(),fields,first.locals(),first.heap()));
-        var payload=new dev.samhb.interleave.core.BytecodeEvidence(1,data.identity(),data.transitions(),snapshots,data.terminal(),null);
+        var payload=new dev.samhb.interleave.core.BytecodeEvidence(2,data.identity(),data.transitions(),snapshots,data.terminal(),null);
         var record=new TraceRecord(original.threadIds(),original.outcomes(),original.outcome(),original.programHash(),snapshots.stream().map(BytecodeSnapshots::display).toList(),null,payload);
         var bytes=record.toJson().getBytes(java.nio.charset.StandardCharsets.UTF_8);
         var decoded=TraceRecord.fromJson(new String(bytes,java.nio.charset.StandardCharsets.UTF_8));
@@ -217,7 +217,7 @@ class BytecodeReplayTest {
         var trace=InterleaveRunner.builder().build().runBytecode(program).completedTraces().getFirst();var data=trace.bytecodeEvidence();
         for(var terminal:java.util.List.of(data.terminal(),new dev.samhb.interleave.core.BytecodeEvidence.Terminal("DEADLOCK",-1,null,null,null,
                 java.util.List.of(new dev.samhb.interleave.core.BytecodeEvidence.Wait(0,0,"setup:0",1)),null))) {
-            var fake=new dev.samhb.interleave.core.BytecodeEvidence(1,data.identity(),java.util.List.of(),java.util.List.of(data.snapshots().getFirst()),terminal,null);
+            var fake=new dev.samhb.interleave.core.BytecodeEvidence(2,data.identity(),java.util.List.of(),java.util.List.of(data.snapshots().getFirst()),terminal,null);
             var record=new TraceRecord(java.util.List.of(),java.util.List.of(),terminal.kind().equals("DEADLOCK")?dev.samhb.interleave.search.TraceOutcome.DEADLOCK:trace.outcome(),trace.programHash(),java.util.List.of(trace.states().getFirst()),null,fake);
             assertThrows(dev.samhb.interleave.search.CorruptedTraceException.class,()->new TraceReplayer().replayBytecode(program,record));
         }
@@ -227,7 +227,7 @@ class BytecodeReplayTest {
         var snapshots=new java.util.ArrayList<>(data.snapshots());snapshots.add(data.snapshots().getLast());
         var states=new java.util.ArrayList<>(trace.states());states.add(trace.states().getLast());
         var trailing=new TraceRecord(threads,outcomes,trace.outcome(),trace.programHash(),states,null,
-            new dev.samhb.interleave.core.BytecodeEvidence(1,data.identity(),steps,snapshots,data.terminal(),null));
+            new dev.samhb.interleave.core.BytecodeEvidence(2,data.identity(),steps,snapshots,data.terminal(),null));
         assertThrows(dev.samhb.interleave.search.CorruptedTraceException.class,()->new TraceReplayer().replayBytecode(program,trailing));
     }
 

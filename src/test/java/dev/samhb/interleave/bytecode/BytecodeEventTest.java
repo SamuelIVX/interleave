@@ -33,7 +33,7 @@ class BytecodeEventTest {
         var result=OpcodeExecutor.step(program,state,0); state=result.state();
         assertEquals(OpcodeExecutor.Kind.PENDING,result.kind()); var execution=state.executions.get(0);
         assertEquals(Phase.CUTOFF_PENDING,execution.phase); assertEquals(2,execution.instructions);
-        assertEquals(new Cutoff("INSTRUCTION_FUEL",new BytecodeLocation("Fixture","actor","()V",0),2,1,0),execution.cutoff);
+        assertEquals(new Cutoff("INSTRUCTION_FUEL",new BytecodeLocation("Fixture","actor","()V",0),2,1,0,0),execution.cutoff);
         result=OpcodeExecutor.step(program,state,0); state=result.state();
         assertEquals(OpcodeExecutor.Kind.TERMINAL,result.kind()); assertEquals(Phase.CUTOFF,state.executions.get(0).phase);
     }
@@ -127,7 +127,7 @@ class BytecodeEventTest {
             .withMethodBody("actor",MethodTypeDesc.of(ConstantDescs.CD_void),ACC_PUBLIC|flags,body));
         var method=new BytecodeMethod("Fixture",parser.parse(bytes).methods().getFirst());
         var limits=new BytecodeLimits(fuel,128,8192,32,64,256,4096,128,8192,1024);
-        return new BytecodeProgram("Fixture",Map.of(method.id,method),Map.of(),List.of(method.id),List.of(),List.of("Fixture"),limits,"test",null,new BytecodeHierarchy(Map.of("Fixture",parser.parse(bytes)),Map.of()));
+        return new BytecodeProgram("Fixture",Map.of(method.id,method),Map.of(),List.of(method.id),List.of(),List.of("Fixture"),limits,"test",null,new BytecodeHierarchy(Map.of("Fixture",parser.parse(bytes)),Map.of()),java.util.Set.of());
     }
 
     /** Starts an isolated actor using the internal instruction seam, without invoking a target constructor.

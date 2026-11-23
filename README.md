@@ -11,11 +11,12 @@ Concurrency bugs — race conditions, deadlocks, missed signals — are notoriou
 The selected [#12 bounded Java bytecode workstream](docs/plans/bytecode-contract.md)
 now exposes a **bounded, sequentially consistent bytecode heap profile**: annotated fixed actors,
 exact DFS, monitor deadlocks, declared checks, artifact-bound evidence and strict replay through the
-library, CLI, reports and viewer. Actor-created objects, primitive/reference arrays, aliases, closed hierarchy dispatch and transitive publication are supported. Start with the [compiled lost-update and two-lock examples](examples/bytecode/README.md).
-The [95 heap ledger](docs/measurements/95-bytecode-heap.md) records heap acceptance and the extended batching argument;
+library, CLI, reports and viewer. Actor-created objects, primitive/reference arrays, aliases, closed hierarchy dispatch, transitive publication and supported exceptions with interpreted resource cleanup are supported. Start with the [compiled lost-update and two-lock examples](examples/bytecode/README.md).
+The [96 exception ledger](docs/measurements/96-bytecode-exceptions.md) records the exception-profile gates;
+the [95 heap ledger](docs/measurements/95-bytecode-heap.md) records heap acceptance and the extended batching argument;
 [94C](docs/measurements/94C-bytecode-release.md) records initial release compatibility, and
 [94B](docs/measurements/94B-bytecode-concurrency.md) records the earlier setup-only batching measurements.
-General exceptions, wider primitive computation/libraries and additional bytecode search strategies
+Wider primitive computation/libraries and additional bytecode search strategies
 remain later phases. Weak-memory work remains unselected.
 
 The project is a spec-driven proof of concept for small explicit models, bounded `.ilv` source and a

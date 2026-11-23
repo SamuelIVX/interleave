@@ -250,7 +250,7 @@ assert.equal(normalize({...resource,replay:{...replay,states:[replay.states[0],{
 // Fresh BYTECODE producers preserve run precision and distinct instruction locations.
 if(process.env.BYTECODE_DIR){
   assert.equal(read(resolve(root,process.env.BYTECODE_DIR,'bytecode-lost-update.json')),read(process.env.BYTECODE_DIR+'/bytecode-lost-update.json'),'Configured relative and absolute BYTECODE directories identify the same artifact');
-  const expected={'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',heap:'PASS','array-fault':'VIOLATION',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION'};
+  const expected={'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',heap:'PASS','array-fault':'VIOLATION',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION',exception:'VIOLATION','exception-report':'VIOLATION','exception-cli':'VIOLATION','exception-owner':'INCOMPLETE','exception-completed':'PASS','exception-actor-owner':'INCOMPLETE'};
   for(const [name,verdict] of Object.entries(expected)){
     const raw=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-'+name+'.json'));
     const value=normalize(raw);assert.equal(value.meta.verdict,verdict,name);
@@ -259,6 +259,7 @@ if(process.env.BYTECODE_DIR){
     if(name==='no-line')assert(value.trace.bytecodeEvidence.transitions.every(t=>t.operations.every(op=>op.line==null)));
     if(name==='heap')assert(value.trace.bytecodeEvidence.snapshots.at(-1).fields['actor:0:0[0]'].raw==='actor:0:0');
     if(name==='array-fault')assert.equal(value.trace.bytecodeEvidence.terminal.fault.type,'java/lang/ArrayStoreException');
+    if(name==='exception-completed'){assert.equal(value.trace.bytecodeEvidence.terminal.kind,'COMPLETED');assert(value.trace.bytecodeEvidence.transitions.some(t=>t.operations.some(op=>op.event==='EXCEPTION')));}
     if(name==='deadlock')assert.equal(value.trace.bytecodeEvidence.terminal.waits.length,2);
   }
   const report=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-report.json'));
@@ -282,8 +283,19 @@ if(process.env.BYTECODE_DIR){
   excessive.states[0].fields=Object.fromEntries(Object.keys(over).map(k=>[k,'int:0']));
   assert.throws(()=>normalize(excessive),'Reject snapshot above aggregate bound');
 
+  // Display-only legacy shape compatibility; this synthetic projection is not a replay oracle.
+  for(const profile of ['BYTECODE-SC-1','BYTECODE-SC-2']){
+    const legacy=structuredClone(raw.failingTraces[0]);legacy.bytecodeEvidence.version=1;legacy.bytecodeEvidence.identity.profileVersion=profile;
+    assert.doesNotThrow(()=>normalize(legacy));
+  }
+  const owner=JSON.parse(read(process.env.BYTECODE_DIR+'/bytecode-exception-owner.json'));
+  assert.equal(owner.incompleteTraces[0].bytecodeEvidence.terminal.cutoff.budgetOwner,-1);
+  const missingOwner=structuredClone(owner);delete missingOwner.incompleteTraces[0].bytecodeEvidence.terminal.cutoff.budgetOwner;
+  assert.throws(()=>normalize(missingOwner));
+  const badOwner=structuredClone(owner);badOwner.incompleteTraces[0].bytecodeEvidence.terminal.cutoff.budgetOwner=7;
+  assert.throws(()=>normalize(badOwner));
   for(const change of [x=>x.storeType='BITSTATE',x=>x.verdict='PASS',x=>x.failingTraces[0].sourceDigest='0'.repeat(64),
-    x=>x.failingTraces[0].bytecodeEvidence.version=2,x=>x.failingTraces[0].bytecodeEvidence.identity.mode='REFERENCE',
+    x=>x.failingTraces[0].bytecodeEvidence.version=3,x=>x.failingTraces[0].bytecodeEvidence.identity.mode='REFERENCE',
     x=>x.failingTraces[0].bytecodeEvidence.snapshots[0].fields['bad']={type:'LONG',raw:9007199254740992}]){
     const altered=structuredClone(raw);change(altered);assert.throws(()=>normalize(altered));
   }

@@ -4,7 +4,7 @@
 ## Objective
 
 Deliver objects, arrays and dispatch as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: implemented and locally verified; draft PR/CI/manual acceptance pending.**
+**Type: delta. Status: merged in PR142 at `6a57184`.**
 Actual evidence and release limitations are recorded in the [95 ledger](../../measurements/95-bytecode-heap.md). The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 95 only.

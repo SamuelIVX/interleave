@@ -153,7 +153,7 @@ class BytecodeResourceTest {
             s->s.frame(0).locals.put(3,new Int(1)),s->s.frame(0).stack.add(new Int(1)),s->s.frame(0).bci=1,
             s->s.frame(0).entered=false,s->s.frame(0).methodMonitor=FIXTURE,s->s.executions.get(0).phase=Phase.TERMINATION_PENDING,
             s->s.executions.get(0).returned=new Int(2),s->s.executions.get(0).eventLocation=new BytecodeLocation("Fixture","actor","()V",0),
-            s->s.executions.get(0).cutoff=new Cutoff("INSTRUCTION_FUEL",new BytecodeLocation("Fixture","actor","()V",0),256,1,0),
+            s->s.executions.get(0).cutoff=new Cutoff("INSTRUCTION_FUEL",new BytecodeLocation("Fixture","actor","()V",0),256,1,0,0),
             s->s.executions.get(0).fault=new Fault("java/lang/NullPointerException",new BytecodeLocation("Fixture","actor","()V",0),List.of())
         );
         byte[] key=initial.canonicalBytes();

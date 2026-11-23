@@ -73,6 +73,34 @@ class BytecodeGeneratedTest {
         }
     }
 
+    /** Fixed-seed exception programs compare catch/finally/rethrow and suppression with the JVM.
+     * @param directory compiler workspace
+     * @throws Exception for differential or saved-regression failures */
+    @Test void generatedExceptionsMatchJvmWithShrinking(@TempDir Path directory) throws Exception {
+        long seed=0x962026L;var random=new Random(seed);
+        for(int sample=0;sample<12;sample++) {
+            int initial=random.nextInt(17);var operations=new ArrayList<String>();
+            for(int index=0;index<4;index++) {
+                int n=random.nextInt(7),divisor=random.nextInt(2);
+                operations.add(switch(random.nextInt(4)) {
+                    case 0 -> "try{x=18/"+divisor+";}catch(ArithmeticException e){x+="+n+";}finally{x^=3;}";
+                    case 1 -> "try{throw new RuntimeException(\"explicit\");}catch(Exception e){x+="+n+";}";
+                    case 2 -> "try{try{x=9/"+divisor+";}catch(ArithmeticException e){throw e;}}catch(RuntimeException e){x^="+n+";}";
+                    default -> "{Throwable e=new Throwable();Throwable child=new RuntimeException();e.addSuppressed(child);e.addSuppressed(child);x+=e.getSuppressed().length;}";
+                });
+            }
+            int release=new int[]{17,21,26}[sample%3];
+            if(!matches(directory.resolve("exceptions"+sample),release,source(initial,operations))) {
+                int selected=sample;int[] attempt={0};
+                var minimal=shrink(operations,candidate->{try{return !matches(directory.resolve("exception-shrink"+selected+"-"+attempt[0]++),release,source(initial,candidate));}
+                    catch(Exception failure){throw new IllegalStateException(failure);}});
+                Path regression=Path.of("build/bytecode-regressions/exception-seed-"+seed+"-case-"+sample+"/Fixture.java");
+                Files.createDirectories(regression.getParent());Files.writeString(regression,source(initial,minimal));
+                fail("Exception differential mismatch; saved "+regression);
+            }
+        }
+    }
+
     /** Adds a bounded application hierarchy around independently generated actor statements.
      * @param initial initial JVM int
      * @param operations bounded statements

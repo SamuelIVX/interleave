@@ -84,7 +84,7 @@ final class BytecodeArrays {
     private static Ref allocate(BytecodeProgram program,BytecodeState state,Execution execution,BytecodeFrame frame,int owner,String type,int[] lengths,int depth) {
         int length=lengths[depth];
         if(length>program.limits.maxArrayLength()) {
-            cutoff(execution,frame,"ARRAY_LENGTH",program.limits.maxArrayLength(),length,program.limits.maxArrayLength());return null;
+            cutoff(execution,frame,owner,"ARRAY_LENGTH",program.limits.maxArrayLength(),length,program.limits.maxArrayLength());return null;
         }
         if(!reserve(program,execution,frame,owner,1+length))return null;
         var reference=new Ref(owner,execution.nextSequence++);var array=new ObjectValue(type);array.initialized=true;array.shared=owner==SETUP;

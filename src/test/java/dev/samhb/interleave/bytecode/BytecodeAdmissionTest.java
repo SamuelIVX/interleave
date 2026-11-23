@@ -19,9 +19,6 @@ class BytecodeAdmissionTest {
     @Test void rejectsUnsupportedReachableProfiles(@TempDir Path directory) throws Exception {
         List<String> bodies=List.of(
             "@Actor(id=0) public void actor() { if(value==0) System.nanoTime(); }",
-            "@Actor(id=0) public void actor() { try { value=1/value; } catch(ArithmeticException e) { value=1; } }",
-            "@Actor(id=0) public void actor() { try { value=1/value; } finally { value++; } }",
-            "@Actor(id=0) public void actor() { throw new RuntimeException(); }",
             "@Actor(id=0) public void actor() { helper(); } static void helper() { System.nanoTime(); }",
             "@Actor(id=0) public void actor() {} @Check public boolean check() { return ++value==0; }",
             "@Actor(id=0) public void actor() {} @Check public boolean check() { helper(); return true; } static void helper() { value=2; }",
@@ -34,6 +31,25 @@ class BytecodeAdmissionTest {
                 "@Model public class Fixture { static int value; public Fixture() {} "+bodies.get(i)+" }");
             var error=assertThrows(BytecodeLoadException.class,()->BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults()),"case"+i);
             assertTrue(Set.of("UNSUPPORTED","PURITY").contains(error.category),error.getMessage());
+        }
+    }
+
+    /** The three initial-profile exception rejections now execute their distinct specified outcomes.
+     * @param directory compiler workspace
+     * @throws Exception for fixture failures */
+    @Test void formerExceptionRejectionsAreInterpreted(@TempDir Path directory) throws Exception {
+        var bodies=List.of(
+            "try{value=1/value;}catch(ArithmeticException e){value=1;}",
+            "try{value=1/value;}finally{value++;}",
+            "throw new RuntimeException();");
+        for(int index=0;index<bodies.size();index++) {
+            var classes=BytecodeFixtures.compile(directory.resolve("case"+index),26,
+                "@Model public class Fixture {public int value;public Fixture(){} @Actor(id=0)public void actor(){"+bodies.get(index)+"}}");
+            var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());
+            var state=BytecodeFixtures.run(program,program.initialState(),0);
+            assertEquals(index==0 ? BytecodeState.Phase.TERMINATED : BytecodeState.Phase.FAILED,state.executions.get(0).phase);
+            assertEquals(new BytecodeState.Int(index==2 ? 0 : 1),state.fixtureField("value"));
+            if(index!=0)assertEquals(index==1 ? "java/lang/ArithmeticException" : "java/lang/RuntimeException",state.executions.get(0).fault.type());
         }
     }
 
@@ -173,18 +189,21 @@ class BytecodeAdmissionTest {
                 ()->BytecodeLoader.load(classes,name,BytecodeLimits.defaults())).category);
     }
 
-    /** An unrelated typed catch cannot be treated as the monitor catch-all admitted by94A.
+    /** An unrelated typed catch cannot intercept a modeled null fault.
      *
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
-    @Test void rejectsTypedCatchEvenWhenFaultTypeDiffers(@TempDir Path directory) throws Exception {
+    @Test void unrelatedTypedCatchDoesNotInterceptFault(@TempDir Path directory) throws Exception {
         Path classes=BytecodeFixtures.compile(directory,26,"""
             @Model public class Fixture { Fixture absent; int value; public Fixture() {}
               @Actor(id=0) public void actor(){try{value=absent.value;}catch(ArithmeticException e){value=9;}}
             }
             """);
-        assertEquals("UNSUPPORTED",assertThrows(BytecodeLoadException.class,
-            ()->BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults())).category);
+        var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());
+        var state=BytecodeFixtures.run(program,program.initialState(),0);
+        assertEquals(BytecodeState.Phase.FAILED,state.executions.get(0).phase);
+        assertEquals("java/lang/NullPointerException",state.executions.get(0).fault.type());
+        assertEquals(new BytecodeState.Int(0),state.fixtureField("value"));
     }
 
 

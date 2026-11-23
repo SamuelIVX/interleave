@@ -27,7 +27,8 @@ final class BytecodeSharing {
      * Shared roots include historically shared objects even after their last public alias disappears.
      * A fresh actor allocation is exclusively on that actor's stack; the executor establishes its
      * initial locality. Unreachable objects cannot regain an alias without passing through a traced
-     * heap edge. Thus losing a last local root cannot create a new cross-actor path between refreshes.
+     * heap edge. Root loss can still change orphan promotion history at the next refresh, so the
+     * scheduler keeps reference-consuming operations separately observable.
      * @param state selected owned successor
      * @return actual traversal/edge/promotion counts */
     static Work refresh(BytecodeState state) {
@@ -35,7 +36,11 @@ final class BytecodeSharing {
         shared.add(FIXTURE);state.statics.values().forEach(value->root(shared,value));
         state.heap.forEach((reference,object)->{if(object.shared)shared.add(reference);});
         state.executions.forEach((owner,execution)->{
-            if(owner<0)return;var actor=new ArrayList<Ref>();roots.put(owner,actor);root(actor,execution.returned);
+            if(owner<0)return;var actor=new ArrayList<Ref>();roots.put(owner,actor);root(actor,execution.returned);root(actor,execution.throwable);
+            if(execution.faultPayload!=null){root(actor,execution.faultPayload.message());root(actor,execution.faultPayload.cause());}
+            if(execution.intrinsic!=null) {
+                root(actor,execution.intrinsic.receiver());execution.intrinsic.arguments().forEach(value->root(actor,value));root(actor,execution.intrinsic.result());
+            }
             for(var frame:execution.frames) {
                 frame.locals.values().forEach(value->root(actor,value));frame.stack.forEach(value->root(actor,value));root(actor,frame.methodMonitor);root(actor,frame.constructorReceiver);
             }
