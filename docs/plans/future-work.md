@@ -170,6 +170,17 @@ milestones (94A–94C, 95–101). #11 and deferred/conditional work remain unsel
 | 11 | Relaxed memory models | Very High | Spec-set | Fundamental semantics change — needs formal spec | Stage one selected memory model: state/transition foundations; complete execution and witness support; supported search/reduction integration. Keep each additional memory model separate. Exact PR count follows the semantics/proof scope. |
 | 12 | Bounded Java bytecode checking — selected, initial public release | Very High | Spec-set | Controlled JDK 26 Class-File API interpretation of fixed actors under bounded SC; no target host execution. | [Shared contract and Specs 94A–101](bytecode-contract.md): internal foundation (94A), concurrent feasibility gate (94B), complete public release (94C), then heap, exceptions, core library, CBS, restricted DPOR, narrow atomics and bitstate. 94A adds internal loading/single-actor execution; [foundation evidence](../measurements/94A-bytecode-foundation.md). 94B adds internal concurrent exact DFS, checks and measured batching; [concurrency evidence](../measurements/94B-bytecode-concurrency.md). 94C adds public BYTECODE loading, strict replay, CLI, reports and viewer; [release evidence](../measurements/94C-bytecode-release.md). Target ten sequential implementation PRs; 95 broader heap merged in PR142 at `6a57184`; its [ledger](../measurements/95-bytecode-heap.md) preserves measured evidence. 96 general exceptions is implemented with local acceptance complete; its [ledger](../measurements/96-bytecode-exceptions.md) records mutation/review evidence while CI/manual review and merge remain pending. DPOR measurements and JPF acceptance remain future gates. |
 
+## Selected verification infrastructure
+
+Sam selected [Spec 102 — CI-first mutation verification](../specs/active/102-ci-first-mutation-verification.md)
+as a separate infrastructure workstream before resuming the unfinished Spec 97 implementation.
+It specifies focused local feedback, fresh pinned-base/candidate CI analyses and calibrated class
+sharding while preserving existing tests, operators and acceptance floors. Publish the specification
+first, then implement the infrastructure in a separate PR. The original checkout and Spec 97 worktree
+changes remain preserved; neither new tooling nor acceleration is claimed by this specification.
+See the [authoring review record](ci-first-mutation-review.md). Specs 98–101 wait for complete Spec 97;
+#11 and deferred/conditional work remain parked.
+
 ## Deferred
 
 **#8 — Web UI / visualizer, Tier 2 (state-space DAG): deferred indefinitely.**
