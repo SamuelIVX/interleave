@@ -88,7 +88,11 @@ CLI/report/browser output. Effective DFS is exact with exact storage; source DPO
 ## Refactor Baseline & Rollback
 
 - Pre-change baseline: fetch and record actual merged-main SHA at implementation start; [98](98-bytecode-cbs.md) merged, plus the shared contract.
-Record fresh full build/strict Javadoc/tests and affected/default PIT fingerprints before production edits.
+Record fresh full build/strict Javadoc/tests and affected/default PIT fingerprints before production edits
+until [Spec 102](102-ci-first-mutation-verification.md) is implemented and calibrated. After adoption,
+its fresh pinned-base/candidate CI evidence replaces that timing requirement while retaining full
+build/strict Javadoc/tests and separate default/affected PIT at both revisions. Local scoped feedback
+does not replace acceptance. Historical evidence and any earlier timing deviations remain unchanged.
 The authoring SHA and older counts are historical context, never fresh implementation baselines.
 - Call-site migration: all paths listed in Scope, plus their existing connected tests and exports;
 new profile state reaches executor, encoder, replay and consumers in this same milestone where exposed.
