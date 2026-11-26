@@ -35,7 +35,7 @@ PIT reports establish a fresh census, a calibration result or a speedup.
 
 ## Test evidence and regression intent
 
-The small Python suite currently passes 31 tests, using actual files, private Git repositories,
+The initial publication passed31 Python tests; PR145 feedback expands this to38 passing tests, using actual files, private Git repositories,
 fixture subprocesses and independently compiled javac/javap cases. It does not mock the checker or
 claim to run PIT. Tests cover:
 
@@ -146,6 +146,54 @@ has zero errors and one pre-existing unrelated portability warning. Applicable r
 recorded through agent-setup. Independent review used sequential passes; no additional agents were
 spawned for implementation or review. Browser and local mutation reruns were omitted because no Java
 or viewer source changed, and complete mutation evidence belongs to this PR's pending CI gate.
+
+## PR145 feedback correction
+
+Reviewed all9 current inline threads and the1 outside-diff review-body comment against the actual
+callers, default ratchet and [PIT Gradle plugin1.19.0 implementation](https://github.com/szpak/gradle-pitest-plugin/blob/release/1.19.0/src/main/groovy/info/solidsoft/gradle/pitest/PitestTask.groovy).
+All10 are valid. No unrelated worktree or production Java source changed.
+
+| Review finding | Correction and evidence |
+|---|---|
+| Do not fail the94C diagnostic on unproved mutant matches | Shared comparison defaults to unverified protocol; historical invocation stays valid and reports unresolved obligations. Only CI's verified caller enables raw matching. A real legacy CLI fixture accepts unverified differences and leaves raw reports unchanged. |
+| Reject repeated scalar fields in PIT rows | Require exactly one class/method/descriptor/mutator element; otherwise-valid one-row engine totals cannot rescue duplicate method identities. Regression observed red before correction. |
+| Distinguish constructors from methods with the same name | Identify constructor declarations without a return type. Independently compiled `A()` and `void A()` retain separate entries, including a zero-mutant added method. Regression observed red. |
+| Validate the effective PIT test selector | Nonempty `overriddenTargetTests` precedes configured tests. Real exporter cases verify broad/empty fallback and narrowed override; Python rejects the narrowed selection before PIT. |
+| Bind the effective coordinator JVM arguments | Export ordered nonempty `mainProcessJvmArgs`, falling back to JavaExec arguments. Real exporter cases verify both branches and protocol rejection of changed arguments. |
+| Require evidence that the full default ratchet passed | Require its explicit full-scope `RESULT: PASS`; exact default target globs plus a scoped log fail. Existing equivalent statuses still receive no assertion-backed credit. Regression observed red. |
+| Protect the Gradle launch before accepting cancellation | Install TERM/INT handlers before Popen; handlers set a flag without unwinding launch or initial ownership recording. A paused external-process snapshot reproduced exit-15, then verifies exit130, child cleanup and an empty lock. Ordinary successful launch also passes. |
+| Use valid inputs in the order regression test | Begin with a valid passing full-input pair, reverse only the same features or classpath entries, and assert the specific protocol/input mismatch. |
+| Calibration test passes on a row-count error | Keep the changed one-row report's generated count at1, then assert the exact trial-equality failure. |
+| Include the required arguments in controller examples (outside diff) | Document both successful build-preflight records and output arguments. Existing real plan/validate roundtrip exercises those arguments. |
+
+One integrated local invocation passed build/strict Javadoc and all38 tool tests in11seconds; unchanged
+Java tests/Javadoc were up-to-date, not represented as a newly executed2171-test run. The exporter
+integration checks invoked only metadata actions under the real plugin; no PIT task ran. Narrowed
+selection and both coordinator-argument variants fail their corresponding metadata/provenance guards.
+Raw results: `pr145-fixes-integrated.log`, `pr145-*.json` and
+`pr145-config-and-regression-validation.json` in the external evidence directory.
+
+Three bounded fault injections into disposable copies of the Python tools confirm the strengthened
+tests detect omitted feature comparison, omitted input comparison and omitted calibration-status
+equality. These are tool-test checks, not PIT results or fresh mutation acceptance. Full remote
+mutation/calibration evidence remains pending; full mode and all existing gates remain in force.
+
+The targeted actual CodeRabbit0.8.1 feedback review completed all7 changed files with1 major finding:
+coordinator extra arguments alone omit Gradle-managed JVM settings. This was valid. The exporter now
+uses the public [JavaForkOptions API](https://docs.gradle.org/current/javadoc/org/gradle/process/JavaForkOptions.html)
+to copy PIT fork options into a disabled, nonexecuted scratch task, apply the plugin's main/fallback
+selection there and capture `allJvmArgs`. It does not mutate the real PIT task or launch a coordinator.
+
+A real managed-heap regression failed before correction (`pr145-managed-red.log`). After correction,
+all38 tool tests and build/Javadoc passed; a metadata-fixture assertion incorrectly expected Gradle
+to remove an earlier managed heap argument when an explicit extra heap argument followed. The actual
+API retains both in order. Correcting that fixture expectation made the final exporter-only check
+pass, preserving the complete vector and verifying that the real PIT task's heap setting is unchanged.
+Managed heap/property changes now produce a protocol mismatch while identical effective settings
+pass. Main/fallback selection is also exercised with managed settings present. Evidence:
+`pr145-managed-final.log`, `pr145-managed-export-final.log` and
+`pr145-managed-provenance-validation.json`. No second CLI loop was needed for this localized
+configuration correction; the completed review's finding and its verification are recorded explicitly.
 
 ## Remote acceptance and calibration
 

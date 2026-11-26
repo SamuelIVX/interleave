@@ -174,6 +174,8 @@ def completed_rows(directory: Path | str, record: dict) -> dict:
             'Reported class outside executed assignment')
     if record['scope'] == 'default':
         require('Mutation ratchet — assertion-backed coverage' in log, 'Default ratchet did not complete')
+        require(re.search(r'^  RESULT: PASS — \d+/\d+ = .* >= floor \d+%', log, re.M),
+                'Default full-scope ratchet did not pass')
     return rows
 
 
@@ -322,9 +324,7 @@ def local_run(root: Path | str, selectors: str) -> int:
                    '-PpitestTargetOverride=' + ','.join(classes), '--no-daemon']
         process_snapshot()  # Fail before launch when the host forbids process-tree supervision.
         print('Scoped feedback only; complete remote acceptance is still required.', flush=True)
-        child = subprocess.Popen(command, cwd=root, start_new_session=True)
-        lock.seek(0)
-        lock.truncate()
+        child = None
         owned = {}
 
         def refresh():
@@ -337,42 +337,47 @@ def local_run(root: Path | str, selectors: str) -> int:
             lock.flush()
             return live
 
-        refresh()
-        old_handler = signal.getsignal(signal.SIGTERM)
+        cancelled = False
 
         def interrupt(_signal, _frame):
-            """Use the same owned-child cleanup for termination and keyboard interruption."""
-            raise KeyboardInterrupt
+            """Defer cancellation until launch/ownership recording finishes; never unwind Popen."""
+            nonlocal cancelled
+            cancelled = True
 
-        signal.signal(signal.SIGTERM, interrupt)
-        cancelled = False
+        old_handler = signal.signal(signal.SIGTERM, interrupt)
+        old_int = signal.signal(signal.SIGINT, interrupt)
         try:
-            while child.poll() is None:
+            if cancelled:
+                return 130
+            child = subprocess.Popen(command, cwd=root, start_new_session=True)
+            refresh()
+            while not cancelled and child.poll() is None:
                 refresh()
                 time.sleep(0.1)
-        except KeyboardInterrupt:
-            cancelled = True
         finally:
             # Ignore a second interruption while cleaning only observed owned processes.
             signal.signal(signal.SIGTERM, signal.SIG_IGN)
-            old_int = signal.signal(signal.SIGINT, signal.SIG_IGN)
-            live = refresh()
-            orphaned = bool(live) and not cancelled
-            for shutdown_signal in (signal.SIGTERM, signal.SIGKILL):
-                for pid in live:
-                    try:
-                        os.kill(pid, shutdown_signal)
-                    except ProcessLookupError:
-                        pass
-                deadline = time.monotonic() + 2
-                while live and time.monotonic() < deadline:
-                    child.poll()  # Reap the launcher; orphan zombies are not running work.
-                    time.sleep(0.05)
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+            try:
+                if child is not None:
                     live = refresh()
-                if not live:
-                    break
-            signal.signal(signal.SIGTERM, old_handler)
-            signal.signal(signal.SIGINT, old_int)
+                    orphaned = bool(live) and not cancelled
+                    for shutdown_signal in (signal.SIGTERM, signal.SIGKILL):
+                        for pid in live:
+                            try:
+                                os.kill(pid, shutdown_signal)
+                            except ProcessLookupError:
+                                pass
+                        deadline = time.monotonic() + 2
+                        while live and time.monotonic() < deadline:
+                            child.poll()  # Reap the launcher; orphan zombies are not running work.
+                            time.sleep(0.05)
+                            live = refresh()
+                        if not live:
+                            break
+            finally:
+                signal.signal(signal.SIGTERM, old_handler)
+                signal.signal(signal.SIGINT, old_int)
         require(not live, 'Owned PIT descendants remain; process marker retained, diagnose before retrying')
         require(not orphaned, 'Launcher exited while descendants remained; cleaned them; scoped run failed')
         return 130 if cancelled else child.returncode
@@ -419,7 +424,7 @@ def check_metadata(metadata: dict) -> None:
     """Reject disabled history/coverage safeguards or narrowed test selection before accepting a run."""
     protocol = metadata['protocol']
     require({'gradle', 'java', 'vendor', 'javaMajor', 'pit', 'junit', 'settings', 'childArgs',
-             'launchJars', 'buildPlugins', 'mutablePaths', 'runtime', 'coordinatorRuntime', 'features'} <= protocol.keys(),
+             'launchJars', 'buildPlugins', 'mutablePaths', 'runtime', 'coordinatorRuntime', 'features', 'coordinatorArgs'} <= protocol.keys(),
             'Missing resolved protocol fields')
     require(protocol['runtime']['java.specification.version'] == '26', 'Actual PIT runtime differs')
     require(protocol['coordinatorRuntime']['java.specification.version'] == '26', 'Actual PIT coordinator runtime differs')
@@ -719,7 +724,7 @@ def main() -> int:
             patterns = SCOPE if population == 'affected' else DEFAULT_SCOPE
             selected = lambda methods: {key: value for key, value in methods.items()
                                         if any(fnmatch.fnmatchcase(key[0], pattern) for pattern in patterns)}
-            result = compare_methods(selected(old_methods), selected(new_methods), before, after)
+            result = compare_methods(selected(old_methods), selected(new_methods), before, after, protocol_verified=True)
             result.update(baseline_counts=dict(Counter(before.values())), candidate_counts=dict(Counter(after.values())))
             reports[population] = result
         save_json(args.output, reports)

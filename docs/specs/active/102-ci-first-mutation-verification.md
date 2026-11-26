@@ -165,9 +165,11 @@ remain untouched while this infrastructure is authored and implemented separatel
 
 - `local --classes <comma-separated selectors>`: scoped feedback with locking and both Gradle flags.
 - `plan --base <sha> --candidate <sha> --base-classes <directory> --candidate-classes <directory>
-  --output <manifest>`: plan assignments from separately compiled revision inventories.
-- `validate --manifest <file> --reports <directory>`: validate execution evidence and aggregate it.
-- `compare --baseline <directory> --candidate <directory>`: compare validated populations/keys.
+  --base-record <baseline-build/record.json> --candidate-record <candidate-build/record.json>
+  --output <manifest>`: plan assignments from separately compiled revision inventories and the
+  records produced by their corresponding successful build preflights.
+- `validate --manifest <file> --reports <directory> --output <directory>`: validate execution evidence and aggregate it.
+- `compare --baseline <directory> --candidate <directory> --output <file>`: compare validated populations/keys.
 
 Use an OS-backed lock under the canonical Git common directory, shared by the repository's
 worktrees. This serializes cooperating wrapper invocations; it is not a system-wide scheduler and
@@ -274,7 +276,11 @@ never selected favorable rows. A test edit requires a fresh complete affected po
 replacements after test edits remain diagnostic and are excluded from acceptance aggregates. Baseline
 and candidate may differ in test inputs, but each must have its own internally consistent census.
 Record effective PIT features in their actual order, both coordinator and minion JDK identities,
-and ordered launch/test classpaths, including directory/file interleaving. Bind the actual harness
+the complete effective ordered coordinator JVM arguments (including managed heap limits, system
+properties and argument providers after selecting main/fallback arguments) and ordered launch/test classpaths, including
+directory/file interleaving. Resolve a nonempty task-level test override before the configured test
+selector; validate what PIT actually receives. Default evidence requires the full ratchet's explicit
+`RESULT: PASS`, which scoped runs omit even when given the exact default target globs. Bind the actual harness
 agent and release JAR's logical entry contents (including manifests), ignoring only ZIP timestamps
 and entry order. Input comparison includes declared empty classpath directories.
 
@@ -296,6 +302,9 @@ same PIT protocol. Pool relocations still compare equal at the normalized body l
 proved coordinate mapping their mutant correspondence remains explicitly `unresolved-coordinates`,
 requiring human disposition. Do not guess correspondence by matching raw indexes across changed
 classes. Javap may omit literal trailing whitespace; rendered constants alone cannot prove equality.
+The shared comparator requires explicit caller-verified protocol equality before matching raw
+mutants. The historical four-argument diagnostic has no such manifests, reports `unresolved-protocol`
+and cannot infer lost or preserved kills. Its raw default identity/status comparison is diagnostic too.
 
 Retain declaration modifiers such as `synchronized`, static/native flags and access changes in the
 comparison. A javap NaN rendering does not expose its raw constant-pool payload; treat that method as

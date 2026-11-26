@@ -6,6 +6,10 @@ import org.gradle.jvm.toolchain.JavaLanguageVersion
 gradle.projectsEvaluated {
     def project = gradle.rootProject
     def pit = project.tasks.named('pitest').get()
+    // Copy public fork options to a disabled scratch task; inspecting them must not mutate PIT.
+    def coordinatorOptions = project.tasks.register('_mutationCoordinatorOptions', org.gradle.api.tasks.JavaExec) {
+        enabled = false
+    }.get()
     def extension = project.extensions.getByName('pitest')
     def output = project.findProperty('mutationMetadata')
     if (!output) throw new GradleException('mutationMetadata is required by the verification controller')
@@ -46,6 +50,8 @@ gradle.projectsEvaluated {
                 def value = property.isPresent() ? property.get() : null
                 settings[key] = value instanceof Set ? value.toList().sort() : value?.toString()
             }
+            // Match PitestTask.taskArgumentMap: the CLI override takes precedence when nonempty.
+            if (pit.overriddenTargetTests) settings.targetTests = pit.overriddenTargetTests.toList()
             def runtimeArtifacts = [:]
             def childArgs = pit.childProcessJvmArgs.getOrElse([]).collect {
                 if (it.startsWith('-javaagent:')) {
@@ -79,11 +85,16 @@ gradle.projectsEvaluated {
             }
             def coordinatorRuntime = runtimeIdentity(coordinatorJava)
             def runtime = actualJava == coordinatorJava ? coordinatorRuntime : runtimeIdentity(actualJava)
+            coordinatorOptions.jvmArgumentProviders.clear()
+            pit.copyTo(coordinatorOptions)
+            coordinatorOptions.jvmArgs = pit.mainProcessJvmArgs.getOrNull() ?: pit.jvmArgs ?: []
+            def coordinatorArgs = coordinatorOptions.allJvmArgs.toList()
             def value = [protocol: [gradle: gradle.gradleVersion, java: launcher.javaRuntimeVersion,
                 vendor: launcher.vendor, javaMajor: launcher.languageVersion.asInt(),
                 pit: extension.pitestVersion.get(), junit: extension.junit5PluginVersion.get(),
                 settings: settings, features: pit.features.getOrElse([]).toList() + (pit.additionalFeatures ?: []),
-                childArgs: childArgs, launchJars: orderedClasspath(pit.launchClasspath),
+                childArgs: childArgs, coordinatorArgs: coordinatorArgs,
+                launchJars: orderedClasspath(pit.launchClasspath),
                 buildPlugins: files(project.buildscript.configurations.classpath),
                 mutablePaths: pit.mutableCodePaths.files.collect { project.relativePath(it).replace(File.separator, '/') }.sort(),
                 runtime: runtime, coordinatorRuntime: coordinatorRuntime],

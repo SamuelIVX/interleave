@@ -36,8 +36,9 @@ def read_report(path: Path | str, allowed: frozenset = STATUSES) -> dict:
     result = {}
     for item in root:
         require(item.tag == "mutation", "Unexpected PIT element")
-        fields = tuple(item.findtext(name) for name in
-                       ("mutatedClass", "mutatedMethod", "methodDescription", "mutator"))
+        names = ("mutatedClass", "mutatedMethod", "methodDescription", "mutator")
+        require(all(len(item.findall(name)) == 1 for name in names), 'Expected exactly one scalar identity field')
+        fields = tuple(item.findtext(name) for name in names)
         require(all(value and value.strip() == value for value in fields), "Missing mutant identity")
         coordinates = []
         for parent, child in (("indexes", "index"), ("blocks", "block")):
@@ -127,7 +128,9 @@ def compiled_methods(directory: Path | str, classes: set[str] | None = None, jav
                 finish()
                 header = line.strip()
                 name = header.split('(')[0].split()[-1]
-                method = '<clinit>' if line == '  static {};' else '<init>' if name == owner else name
+                constructor = re.fullmatch(r'(?:(?:public|protected|private)\s+)?(?:<.*>\s+)?' + re.escape(owner),
+                                           header.split('(', 1)[0])
+                method = '<clinit>' if line == '  static {};' else '<init>' if constructor else name
                 descriptor = None
                 body = []
             elif method is not None:
@@ -139,12 +142,12 @@ def compiled_methods(directory: Path | str, classes: set[str] | None = None, jav
     return result
 
 
-def compare_methods(before: dict, after: dict, baseline: dict, candidate: dict) -> dict:
-    """Report lost matched kills and all unmatched methods; leave their dispositions to reviewers."""
+def compare_methods(before: dict, after: dict, baseline: dict, candidate: dict, *, protocol_verified: bool = False) -> dict:
+    """Match raw coordinates only with caller-verified protocol equality; otherwise report obligations."""
     # shortcut: raw ASM indexes are proved stable only for identical defining class bytes;
     # use an independently validated instruction mapper before widening this proven subset.
     unchanged = {key for key in before.keys() & after.keys()
-                 if before[key].code is not None and before[key] == after[key]}
+                 if protocol_verified and before[key].code is not None and before[key] == after[key]}
     comparable = {key: status for key, status in baseline.items() if key[:3] in unchanged}
     unmatched = []
     methods = before.keys() | after.keys() | {key[:3] for key in baseline} | {key[:3] for key in candidate}
@@ -157,7 +160,8 @@ def compare_methods(before: dict, after: dict, baseline: dict, candidate: dict) 
         elif new is None:
             change = 'removed'
         else:
-            change = old.reason or new.reason or ('changed-code' if old.code != new.code else 'unresolved-coordinates')
+            change = old.reason or new.reason or ('changed-code' if old.code != new.code else
+                'unresolved-protocol' if not protocol_verified else 'unresolved-coordinates')
         unmatched.append(dict(zip(('class', 'method', 'descriptor'), key),
                               change=change,
                               baseline_mutants=sum(k[:3] == key for k in baseline),

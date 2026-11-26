@@ -24,7 +24,7 @@ def resolved_fixture():
         'VOID_METHOD_CALLS', 'NON_VOID_METHOD_CALLS', 'PRIMITIVE_RETURNS', 'RETURNS', 'FALSE_RETURNS',
         'TRUE_RETURNS', 'EMPTY_RETURNS'])
     return {'protocol': {'javaMajor': 26, 'pit': '1.30.0', 'junit': '1.2.3', 'settings': settings, 'gradle': 'fixture', 'java': '26.0.1',
-                         'vendor': 'fixture', 'childArgs': [], 'launchJars': [], 'buildPlugins': [], 'features': [],
+                         'vendor': 'fixture', 'childArgs': [], 'coordinatorArgs': [], 'launchJars': [], 'buildPlugins': [], 'features': [],
                          'mutablePaths': ['build/classes/java/main'],
                          'runtime': {'java.specification.version': '26', 'java.runtime.version': 'fixture', 'java.vendor': 'fixture'},
                          'coordinatorRuntime': {'java.specification.version': '26'}},
@@ -87,6 +87,23 @@ class EvidenceTest(unittest.TestCase):
                 with self.subTest(source=source), self.assertRaises(ValueError):
                     mutation.load_json(file)
 
+    def test_duplicate_scalar_identity_fields_are_not_a_valid_row(self):
+        """A single counted row cannot choose one of two contradictory method identities."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            report = root / 'mutations.xml'
+            report.write_text('<mutations><mutation status="KILLED">'
+                '<mutatedClass>A</mutatedClass><mutatedMethod>first</mutatedMethod>'
+                '<mutatedMethod>second</mutatedMethod><methodDescription>()V</methodDescription>'
+                '<mutator>Math</mutator><indexes><index>1</index></indexes>'
+                '<blocks><block>0</block></blocks></mutation></mutations>')
+            (root / 'run.log').write_text('>> Generated 1 mutations Killed 1 (100%)\n'
+                                         '>> Mutations with no coverage 0.\nBUILD SUCCESSFUL\n')
+            record = {'version': 1, 'complete': True, 'exit': 0, 'scope': 'affected', 'targets': ['A'],
+                      'reportHash': mutation.fingerprint(report)}
+            with self.assertRaisesRegex(ValueError, 'scalar identity'):
+                mutation.completed_rows(root, record)
+
 
 class ComparisonTest(unittest.TestCase):
     """Compare actual operands without erasing target behavior or new methods."""
@@ -111,11 +128,73 @@ class ComparisonTest(unittest.TestCase):
         added = ('B', 'added', '()V')
         code = MethodCode('return', 'same')
         result = mutation.compare_methods({method: code}, {method: code, added: code},
-                                          {key: 'KILLED'}, {key: 'SURVIVED'})
+                                          {key: 'KILLED'}, {key: 'SURVIVED'}, protocol_verified=True)
         self.assertEqual([key], result['lost_kills'])
         self.assertEqual({"('KILLED', 'SURVIVED')": 1}, result['improvements'])
         self.assertEqual([{'class': 'B', 'method': 'added', 'descriptor': '()V', 'change': 'added',
                            'baseline_mutants': 0, 'candidate_mutants': 0}], result['unmatched_methods'])
+
+    def test_unverified_protocol_cannot_establish_a_lost_or_preserved_kill(self):
+        """The historical four-argument comparison has no authority to match PIT coordinates."""
+        method = ('A', 'run', '()V')
+        key = method + ('Math', (1,), (0,))
+        code = MethodCode('return', 'same')
+        result = mutation.compare_methods({method: code}, {method: code}, {key: 'KILLED'}, {key: 'SURVIVED'})
+        self.assertEqual([], result['lost_kills'])
+        self.assertEqual({}, result['unchanged_method_baseline'])
+        self.assertEqual('unresolved-protocol', result['unmatched_methods'][0]['change'])
+
+    def test_historical_cli_reports_unverified_differences_without_failing(self):
+        """Invoke the real legacy command with identical classes but unverified changed PIT identities."""
+        home = Path(os.environ.get('JAVA_HOME', '/usr')) / 'bin'
+        javac = str(home / 'javac') if (home / 'javac').exists() else 'javac'
+        javap = str(home / 'javap') if (home / 'javap').exists() else 'javap'
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / 'A.java'
+            source.write_text('public class A { public void run() {} }')
+            subprocess.run([javac, '--release', '26', '-d', str(root), str(source)], check=True,
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            before = ('<mutations><mutation status="KILLED"><mutatedClass>A</mutatedClass>'
+                '<mutatedMethod>run</mutatedMethod><methodDescription>()V</methodDescription>'
+                '<mutator>Math</mutator><indexes><index>1</index></indexes>'
+                '<blocks><block>0</block></blocks></mutation></mutations>')
+            after = before.replace('KILLED', 'SURVIVED').replace('<index>1', '<index>2')
+            originals = {}
+            for name, content in [('baseline-default.xml', before), ('baseline-affected.xml', before),
+                                  ('final-default.xml', after), ('affected-census.xml', after), ('current.xml', after)]:
+                path = root / name
+                path.write_text(content)
+                originals[name] = mutation.fingerprint(path)
+            legacy = Path(mutation.__file__).resolve().parents[1] / 'docs/measurements/94C-compare-mutations.py'
+            subprocess.run([sys.executable, '-B', str(legacy), str(root), str(root), str(root), '--javap', javap,
+                            '--replacement-report', 'current.xml'], check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            report = mutation.load_json(root / 'comparison-inherited.json')
+            self.assertEqual([], report['lost_kills'])
+            self.assertTrue(any(row['method'] == 'run' and row['change'] == 'unresolved-protocol'
+                                for row in report['unmatched_methods']))
+            self.assertEqual(originals, {name: mutation.fingerprint(root / name) for name in originals})
+
+    def test_constructor_and_class_named_method_are_separate_inventory_entries(self):
+        """Real javap declarations distinguish the constructor from an ordinary void A() method."""
+        home = Path(os.environ.get('JAVA_HOME', '/usr')) / 'bin'
+        javac = str(home / 'javac') if (home / 'javac').exists() else 'javac'
+        javap = str(home / 'javap') if (home / 'javap').exists() else 'javap'
+        with tempfile.TemporaryDirectory() as directory:
+            inventories = []
+            for label, extra in [('before', ''), ('after', 'public void A() {}')]:
+                root = Path(directory) / label
+                root.mkdir()
+                source = root / 'A.java'
+                source.write_text('public class A { public A() {} ' + extra + '}')
+                subprocess.run([javac, '--release', '26', '-d', str(root), str(source)], check=True,
+                               stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                inventories.append(mutation.compiled_methods(root, javap=javap))
+            self.assertEqual({('A', '<init>', '()V'), ('A', 'A', '()V')}, set(inventories[1]))
+            result = mutation.compare_methods(*inventories, {}, {}, protocol_verified=True)
+            added = [row for row in result['unmatched_methods'] if row['change'] == 'added']
+            self.assertEqual([{'class': 'A', 'method': 'A', 'descriptor': '()V', 'change': 'added',
+                               'baseline_mutants': 0, 'candidate_mutants': 0}], added)
 
     def test_actual_compiled_inventories_preserve_strings_and_added_methods(self):
         """Independent javac/javap fixtures test the real parser, not a fabricated disassembly shape."""
@@ -138,7 +217,7 @@ class ComparisonTest(unittest.TestCase):
                                 after[('A', 'value', '()Ljava/lang/String;')])
             self.assertIn(('A', 'added', '()V'), after)
             self.assertNotEqual(before[('A', 'guarded', '()V')], after[('A', 'guarded', '()V')])
-            result = mutation.compare_methods(before, after, {}, {})
+            result = mutation.compare_methods(before, after, {}, {}, protocol_verified=True)
             self.assertEqual(['added', 'changed-code', 'changed-code', 'unresolved-coordinates'],
                              sorted(x['change'] for x in result['unmatched_methods']))
 
@@ -147,11 +226,11 @@ class ComparisonTest(unittest.TestCase):
         method = ('A', 'run', '()V')
         key = method + ('Math', (1,), (0,))
         result = mutation.compare_methods({method: MethodCode('iadd', 'old')},
-            {method: MethodCode('iadd', 'new')}, {key: 'KILLED'}, {})
+            {method: MethodCode('iadd', 'new')}, {key: 'KILLED'}, {}, protocol_verified=True)
         self.assertEqual([], result['lost_kills'])
         self.assertEqual('unresolved-coordinates', result['unmatched_methods'][0]['change'])
         unresolved = MethodCode(None, 'same', 'unresolved-bootstrap-or-constant')
-        result = mutation.compare_methods({method: unresolved}, {method: unresolved}, {key: 'KILLED'}, {})
+        result = mutation.compare_methods({method: unresolved}, {method: unresolved}, {key: 'KILLED'}, {}, protocol_verified=True)
         self.assertEqual('unresolved-bootstrap-or-constant', result['unmatched_methods'][0]['change'])
         # A disassembler omission must remain visible rather than erase reported old kills.
         result = mutation.compare_methods({}, {}, {key: 'KILLED'}, {})
@@ -184,7 +263,7 @@ class ComparisonTest(unittest.TestCase):
             # javap may trim trailing literal whitespace; class bytes remain the proof boundary.
             self.assertNotEqual(inventories[0][value].class_digest, inventories[1][value].class_digest)
             key = method + ('Math', (4,), (0,))
-            result = mutation.compare_methods(*inventories, {key: 'KILLED'}, {})
+            result = mutation.compare_methods(*inventories, {key: 'KILLED'}, {}, protocol_verified=True)
             self.assertEqual([], result['lost_kills'])
             self.assertIn('unresolved-coordinates', [row['change'] for row in result['unmatched_methods']])
 
@@ -235,10 +314,23 @@ class PlanningTest(unittest.TestCase):
 
     def test_feature_and_classpath_order_changes_invalidate_provenance(self):
         """Identical files in a different loader order or changed filters are distinct protocols."""
-        expected = {'revision': 'a' * 40, 'protocol': {'features': ['+A', '-B']}, 'inputs': {}}
-        for observed in (dict(expected, protocol={'features': ['-B', '+A']}),
-                         dict(expected, inputs={'classpathOrder': ['other']})):
-            with self.assertRaises(ValueError):
+        expected = {'revision': 'a' * 40, 'protocol': dict(resolved_fixture()['protocol'],
+                    features=['+A', '-B'], coordinatorArgs=['-Xint']),
+                    'inputs': {'production': {'A': 'same'}, 'tests': {'Test': 'same'}, 'harness': {'Agent': 'same'},
+                               'mainResources': {}, 'testResources': {}, 'dependencies': [], 'classpathDirectories': {},
+                               'runtimeArtifacts': {}, 'classpathOrder': [{'name': 'first.jar', 'sha256': 'first'},
+                                                                         {'name': 'second.jar', 'sha256': 'second'}]}}
+        mutation.check_provenance(expected, copy.deepcopy(expected))
+        for field, message in [('features', 'Mismatched protocol'), ('classpathOrder', 'Mismatched inputs'),
+                               ('coordinatorArgs', 'Mismatched protocol')]:
+            observed = copy.deepcopy(expected)
+            if field == 'classpathOrder':
+                observed['inputs'][field].reverse()
+            elif field == 'features':
+                observed['protocol'][field].reverse()
+            else:
+                observed['protocol'][field] = ['-Xbatch']
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, message):
                 mutation.check_provenance(expected, observed)
 
     def test_runtime_jar_entries_bind_payloads_without_zip_timestamps(self):
@@ -342,12 +434,31 @@ class CompletionTest(unittest.TestCase):
                 '<methodDescription>()V</methodDescription><mutator>Math</mutator>'
                 '<indexes><index>1</index></indexes><blocks><block>0</block></blocks></mutation></mutations>')
             (root / 'run.log').write_text('>> Generated 1 mutations Killed 1 (100%)\n'
-                '>> Mutations with no coverage 0.\nMutation ratchet — assertion-backed coverage\nBUILD SUCCESSFUL\n')
+                '>> Mutations with no coverage 0.\nMutation ratchet — assertion-backed coverage\n'
+                '  RESULT: PASS — 0/1 = 0% >= floor 0%\nBUILD SUCCESSFUL\n')
             record = {'version': 1, 'complete': True, 'exit': 0, 'scope': 'default', 'targets': ['A'], 'empty': False,
                       'reportHash': mutation.fingerprint(root / 'mutations.xml')}
             self.assertEqual(['EQUIVALENT'], list(mutation.completed_rows(root, record).values()))
             record['scope'] = 'affected'
             with self.assertRaises(ValueError):
+                mutation.completed_rows(root, record)
+
+    def test_exact_default_selectors_do_not_make_scoped_ratchet_evidence_full(self):
+        """The full target globs can still be supplied via an override that skips aggregate gates."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'mutations.xml').write_text('<mutations><mutation status="KILLED">'
+                '<mutatedClass>dev.samhb.interleave.state.A</mutatedClass><mutatedMethod>run</mutatedMethod>'
+                '<methodDescription>()V</methodDescription><mutator>Math</mutator>'
+                '<indexes><index>1</index></indexes><blocks><block>0</block></blocks></mutation></mutations>')
+            log = ('>> Generated 1 mutations Killed 1 (100%)\n>> Mutations with no coverage 0.\n'
+                   'Mutation ratchet — assertion-backed coverage\n'
+                   '  SCOPED RUN (-PpitestTargetOverride) — R5 (total mutants) and R7 (floor)\n'
+                   '  are NOT enforced: both are full-scope checks and this run is a subset.\nBUILD SUCCESSFUL\n')
+            (root / 'run.log').write_text(log)
+            record = {'version': 1, 'complete': True, 'exit': 0, 'scope': 'default',
+                      'targets': sorted(mutation.DEFAULT_SCOPE), 'reportHash': mutation.fingerprint(root / 'mutations.xml')}
+            with self.assertRaisesRegex(ValueError, 'full-scope ratchet'):
                 mutation.completed_rows(root, record)
 
     def test_artifact_collection_failure_cannot_commit_gradle_success(self):
@@ -442,7 +553,8 @@ class AggregateTest(unittest.TestCase):
             (directory / 'mutations.xml').write_text('<mutations>' + rows + '</mutations>')
             record['reportHash'] = mutation.fingerprint(directory / 'mutations.xml')
             (directory / 'run.log').write_text(f'>> Generated {len(classes)} mutations Killed {len(classes)} (100%)\n'
-                '>> Mutations with no coverage 0.\nMutation ratchet — assertion-backed coverage\nBUILD SUCCESSFUL\n')
+                '>> Mutations with no coverage 0.\nMutation ratchet — assertion-backed coverage\n'
+                f'  RESULT: PASS — {len(classes)}/{len(classes)} = 100% >= floor 94%\nBUILD SUCCESSFUL\n')
         mutation.save_json(directory / 'record.json', record)
         return directory
 
@@ -545,15 +657,74 @@ class AggregateTest(unittest.TestCase):
             record = mutation.load_json(path.parent / 'record.json')
             record['reportHash'] = mutation.fingerprint(path)
             mutation.save_json(path.parent / 'record.json', record)
-            (path.parent / 'run.log').write_text('>> Generated 2 mutations Killed 0 (0%)\n'
+            (path.parent / 'run.log').write_text('>> Generated 1 mutations Killed 0 (0%)\n'
                                                '>> Mutations with no coverage 0.\nBUILD SUCCESSFUL\n')
             break
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, 'Sharded calibration differs from full reference'):
             mutation.validate_plan(self.plan, self.reports)
 
 
 class LocalExecutionTest(unittest.TestCase):
     """Drive real fixture processes across worktrees instead of launching expensive PIT."""
+
+    def test_cancellation_before_first_ownership_refresh_still_cleans_the_launcher(self):
+        """Pause the external ps boundary during launch; TERM must be deferred until ownership is safe."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            (root / 'gradlew').write_text('#!' + sys.executable + '\nimport os,pathlib,time\n'
+                'pathlib.Path("launcher.pid").write_text(str(os.getpid()))\ntime.sleep(30)\n')
+            (root / 'gradlew').chmod(0o755)
+            real_ps = shutil.which('ps')
+            binary = root / 'bin'
+            binary.mkdir()
+            # The first ps is preflight; the second is the first post-Popen refresh.
+            (binary / 'ps').write_text('#!' + sys.executable + '\nimport os,pathlib,time\n'
+                'counter=pathlib.Path("ps.count")\nn=int(counter.read_text())+1 if counter.exists() else 1\n'
+                'counter.write_text(str(n))\n'
+                'if n==2:\n deadline=time.monotonic()+5\n'
+                ' while not pathlib.Path("launcher.pid").exists() and time.monotonic()<deadline: time.sleep(.01)\n'
+                ' pathlib.Path("refresh.paused").touch()\n'
+                ' while not pathlib.Path("refresh.release").exists() and time.monotonic()<deadline: time.sleep(.01)\n'
+                'os.execv(' + repr(real_ps) + ', [' + repr(real_ps) + ',"-axo","pid=,ppid=,pgid=,lstart=,stat="])\n')
+            (binary / 'ps').chmod(0o755)
+            command = [sys.executable, '-B', str(Path(mutation.__file__)), 'local', '--repo', str(root), '--classes', 'A']
+            process = subprocess.Popen(command, cwd=root, env=dict(os.environ, PATH=str(binary) + os.pathsep + os.environ['PATH']),
+                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            try:
+                deadline = time.monotonic() + 5
+                while not (root / 'refresh.paused').exists() and time.monotonic() < deadline:
+                    time.sleep(.01)
+                self.assertTrue((root / 'refresh.paused').exists())
+                process.send_signal(signal.SIGTERM)
+                (root / 'refresh.release').touch()
+                self.assertEqual(130, process.wait(timeout=8))
+                pid = int((root / 'launcher.pid').read_text())
+                live = mutation.process_snapshot().get(pid)
+                self.assertTrue(live is None or live['zombie'])
+                self.assertEqual('', (root / '.git/interleave-pit.lock').read_text())
+            finally:
+                (root / 'refresh.release').touch()
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=5)
+                if (root / 'launcher.pid').exists():
+                    try:
+                        os.kill(int((root / 'launcher.pid').read_text()), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass
+
+    def test_normal_local_launch_completes_without_cancellation(self):
+        """Installing cancellation handlers before launch must preserve ordinary successful execution."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            (root / 'gradlew').write_text('#!' + sys.executable + '\nimport time\ntime.sleep(.2)\n')
+            (root / 'gradlew').chmod(0o755)
+            result = subprocess.run([sys.executable, '-B', str(Path(mutation.__file__)), 'local', '--repo', str(root),
+                                     '--classes', 'A'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=8)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual('', (root / '.git/interleave-pit.lock').read_text())
 
     def test_local_lock_rejects_overlap_and_handles_interrupt(self):
         """The argument vector is bounded, the other worktree is locked, and cancellation reaps."""
