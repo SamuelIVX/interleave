@@ -25,3 +25,9 @@ _Avoid_: transition limit.
 
 **Bytecode location**: An artifact-bound class, method descriptor and bytecode index, optionally accompanied by a compiler line number.
 _Avoid_: source span for bytecode evidence.
+
+**Mutation population**: The selected production classes and mutation operators whose actual mutant identities form one census. Its denominator is distinct from another population's denominator.
+
+**Analysis protocol**: The toolchain, eligible tests, operators, harness policy and execution settings under which mutation outcomes are observed. Source and runtime inputs identify the particular revision analyzed under that protocol.
+
+**Acceptance aggregate**: A complete validated mutation population for one immutable revision and one consistent set of production, test and runtime inputs. It may combine disjoint execution assignments; focused feedback under changed inputs is a separate observation.

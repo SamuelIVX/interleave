@@ -371,8 +371,9 @@ bootstrap support is restricted to 97's exact recipe; no general invokedynamic s
 
 ## Verification and measurement gates
 
-Separately selected [Spec 102](../specs/active/102-ci-first-mutation-verification.md) defines planned
-CI-first mutation verification. After its implementation and calibration, fresh pinned-base/candidate
+Separately selected [Spec 102](../specs/active/102-ci-first-mutation-verification.md) defines CI-first
+mutation verification; local implementation is under review and remote calibration/adoption remain
+pending. After its implementation and calibration, fresh pinned-base/candidate
 remote evidence replaces prospective archive-before-edit timing requirements while retaining full
 build/strict Javadoc/tests and separate default/affected PIT at both revisions. Local scoped checks
 provide feedback while complete gates remain required. Its specification

@@ -38,8 +38,30 @@ shell profile you prefer.
 ```bash
 ./gradlew --max-workers=1 -PpitestThreads=1 test       # full suite
 ./gradlew --max-workers=1 -PpitestThreads=1 pitest     # full mutation scope (state.* + cb.*)
-./gradlew javadoc                                       # cheap; no need for the flags
+./gradlew --max-workers=1 -PpitestThreads=1 javadoc
+python3 -B tools/mutation.py local --classes dev.samhb.interleave.bytecode.BytecodeFrame
 ```
+
+## Mutation feedback and remote acceptance
+
+Use the Spec 102 wrapper above for routine focused local PIT. It serializes cooperating invocations
+across worktrees, preserves all covering tests/operators and applies both local Gradle limits.
+Keep selectors explicit. Scoped feedback is not complete acceptance; direct Gradle commands remain
+available, so account for any manually started process before launching another. Python 3.10+ and
+Git are required; ordinary `check` also runs the small Python verification suite with JDK 26 fixtures.
+
+The paired affected CI workflow retains fresh baseline/candidate full builds, strict Javadoc, tests
+and separate default/affected PIT. It validates immutable merge-candidate identity, completed reports
+and exact production/test/runtime inputs. Test edits require a fresh complete affected population;
+older focused reports cannot fill its acceptance aggregate. The default ratchet's equivalent-mutant
+policy remains intact. See [Spec 102](docs/specs/active/102-ci-first-mutation-verification.md) and its
+[implementation ledger](docs/measurements/102-ci-first-mutation-verification.md).
+
+Sharded acceptance remains disabled in full mode until Sam reviews successful calibration. The
+specification's prospective baseline-timing transition is not adopted merely by this implementation
+being written or merged without that evidence. Preserve historical process deviations. Avoid
+repeating unchanged gates: scoped tests during editing, one integrated final check, remote complete
+mutation/calibration evidence. After PR publication report the link and stop; Sam supplies CI results.
 
 Test result XML lands in `build/test-results/test/`, and the mutation report in
 `build/reports/pitest/mutations.xml`. Both are easier to query programmatically than to read as HTML.

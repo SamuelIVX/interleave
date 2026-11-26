@@ -1,0 +1,246 @@
+# Fresh paired acceptance; calibrated sharding is deliberately not enabled yet (Spec 102).
+name: Affected mutation
+on:
+  workflow_call:
+    inputs:
+      base:
+        type: string
+        required: true
+      candidate:
+        type: string
+        required: true
+      head:
+        type: string
+        required: true
+      calibrate:
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Full base SHA, reachable from main
+        type: string
+        required: true
+      candidate:
+        description: Full candidate SHA, containing base and reachable in this repository
+        type: string
+        required: true
+      calibrate:
+        description: Compare one full reference with two four-shard trials
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  prepare:
+    name: Plan fresh mutation pair
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    outputs:
+      required: ${{ steps.select.outputs.required }}
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Require main for manual dispatch before checking out controller
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_REF: ${{ github.ref }}
+        run: if [ "$EVENT" = workflow_dispatch ]; then test "$DISPATCH_REF" = refs/heads/main; fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || inputs.candidate }}
+          path: controller
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate immutable revisions and changed paths
+        id: select
+        env:
+          BASE: ${{ inputs.base }}
+          CANDIDATE: ${{ inputs.candidate }}
+          HEAD: ${{ inputs.head }}
+          HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          MANUAL: ${{ github.event_name == 'workflow_dispatch' }}
+        run: |
+          args=()
+          if [ "$MANUAL" = true ]; then args+=(--manual); else args+=(--head "$HEAD"); fi
+          python3 controller/tools/mutation.py select --repo controller --base "$BASE" --candidate "$CANDIDATE" --head-repository "$HEAD_REPOSITORY" "${args[@]}" --output evidence/selection.json
+      - name: Set up Java
+        if: steps.select.outputs.required == 'true'
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '26'
+          cache: gradle
+          cache-dependency-path: controller/build.gradle.kts
+      - name: Check out baseline
+        if: steps.select.outputs.required == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.base }}
+          path: baseline
+          persist-credentials: false
+      - name: Reuse exact candidate build evidence
+        if: steps.select.outputs.required == 'true' && github.event_name != 'workflow_dispatch'
+        continue-on-error: true # Missing evidence is regenerated below, never accepted as complete.
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: mutation-candidate-build
+          path: evidence/candidate-build
+      - name: Reuse exact candidate default evidence
+        if: steps.select.outputs.required == 'true' && github.event_name != 'workflow_dispatch'
+        continue-on-error: true # The candidate-checks step must validate or regenerate it.
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: mutation-candidate-default
+          path: evidence/candidate-default
+      - name: Check out candidate for validated reuse or regeneration
+        if: steps.select.outputs.required == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.candidate }}
+          path: candidate
+          persist-credentials: false
+      - name: Fresh baseline build, strict Javadoc, tests and default PIT
+        if: steps.select.outputs.required == 'true'
+        env:
+          BASE: ${{ inputs.base }}
+        run: |
+          python3 controller/tools/mutation.py ci-run --checkout baseline --revision "$BASE" --label baseline --scope build --output evidence/baseline-build
+          python3 controller/tools/mutation.py ci-run --checkout baseline --revision "$BASE" --label baseline --scope default --output evidence/baseline-default
+      - name: Validate candidate checks or execute missing checks
+        if: steps.select.outputs.required == 'true'
+        env:
+          CANDIDATE: ${{ inputs.candidate }}
+        run: |
+          python3 controller/tools/mutation.py candidate-checks --checkout candidate --revision "$CANDIDATE" --evidence evidence
+      - name: Bind preflight inputs and assign class families
+        id: plan
+        if: steps.select.outputs.required == 'true'
+        env:
+          BASE: ${{ inputs.base }}
+          CANDIDATE: ${{ inputs.candidate }}
+          CALIBRATE: ${{ inputs.calibrate }}
+        run: |
+          args=()
+          if [ "$CALIBRATE" = true ]; then args+=(--calibrate); fi
+          python3 controller/tools/mutation.py plan --base "$BASE" --candidate "$CANDIDATE" --base-classes evidence/baseline-build/classes --candidate-classes evidence/candidate-build/classes --base-record evidence/baseline-build/record.json --candidate-record evidence/candidate-build/record.json --mode full "${args[@]}" --output evidence/plan.json
+      - name: Upload preparation and failure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mutation-prepared
+          path: evidence/
+          retention-days: 30
+          if-no-files-found: error
+      - name: Upload rejected reuse diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mutation-rejected-reuse
+          path: rejected-reuse/
+          retention-days: 30
+          if-no-files-found: ignore
+  analysis:
+    name: ${{ matrix.label }} PIT ${{ matrix.shard }} ${{ matrix.trial }}
+    needs: prepare
+    if: needs.prepare.outputs.required == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || inputs.candidate }}
+          path: controller
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ matrix.label == 'baseline' && inputs.base || inputs.candidate }}
+          path: target
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '26'
+          cache: gradle
+          cache-dependency-path: target/build.gradle.kts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: mutation-prepared
+          path: prepared
+      - name: Execute fresh assignment with all covering tests
+        env:
+          REVISION: ${{ matrix.label == 'baseline' && inputs.base || inputs.candidate }}
+          LABEL: ${{ matrix.label }}
+          SHARD: ${{ matrix.shard }}
+          TRIAL: ${{ matrix.trial }}
+        run: python3 controller/tools/mutation.py ci-run --checkout target --revision "$REVISION" --label "$LABEL" --scope affected --plan prepared/plan.json --shard "$SHARD" --trial "$TRIAL" --output "evidence/$LABEL-affected-$SHARD-$TRIAL"
+      - name: Upload execution and failure evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mutation-analysis-${{ matrix.label }}-${{ matrix.shard }}-${{ matrix.trial }}
+          path: evidence/
+          retention-days: 30
+          if-no-files-found: error
+  summary:
+    name: Affected mutation gate
+    needs: [prepare, analysis]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require completed dependencies
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_REF: ${{ github.ref }}
+          PREPARE: ${{ needs.prepare.result }}
+          REQUIRED: ${{ needs.prepare.outputs.required }}
+          ANALYSIS: ${{ needs.analysis.result }}
+          BASE: ${{ inputs.base }}
+          CANDIDATE: ${{ inputs.candidate }}
+          HEAD: ${{ inputs.head }}
+        run: |
+          if [ "$EVENT" = workflow_dispatch ]; then test "$DISPATCH_REF" = refs/heads/main; fi
+          test "$PREPARE" = success
+          if [ "$REQUIRED" = true ]; then test "$ANALYSIS" = success; fi
+          if [ "$REQUIRED" != true ]; then printf 'Documentation-only skip: base %s, candidate %s, head %s. No mutation run claimed.\n' "$BASE" "$CANDIDATE" "$HEAD" >> "$GITHUB_STEP_SUMMARY"; fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || inputs.candidate }}
+          path: controller
+          persist-credentials: false
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        if: needs.prepare.outputs.required == 'true'
+        with:
+          distribution: temurin
+          java-version: '26'
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.prepare.outputs.required == 'true'
+        with:
+          name: mutation-prepared
+          path: reports
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: needs.prepare.outputs.required == 'true'
+        with:
+          pattern: mutation-analysis-*
+          path: reports
+          merge-multiple: true
+      - name: Validate all populations and compare inherited kills
+        if: needs.prepare.outputs.required == 'true'
+        run: |
+          python3 controller/tools/mutation.py validate --manifest reports/plan.json --reports reports --output validated
+          python3 controller/tools/mutation.py compare --baseline validated/baseline --candidate validated/candidate --output validated/comparison.json
+          echo 'Fresh paired mutation checks passed. Unmatched methods still require ledger/PR dispositions; sharding remains disabled pending reviewed calibration.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload validated evidence or failure diagnostics
+        if: always() && needs.prepare.outputs.required == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mutation-validated
+          path: |
+            validated/
+            reports/plan.json
+          retention-days: 30
+          if-no-files-found: error

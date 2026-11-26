@@ -83,6 +83,19 @@ tasks.test {
     }
 }
 
+// Stdlib verification tools share the ordinary check gate; they never launch heavy PIT tests here.
+val mutationToolTests = tasks.register<Exec>("mutationToolTests") {
+    group = "verification"
+    description = "Validate mutation evidence, comparison and local process handling (Spec 102)"
+    commandLine("python3", "-B", "-m", "unittest", "discover", "-s", "tools", "-p", "test_*.py")
+    doFirst {
+        environment("JAVA_HOME", javaToolchains.launcherFor {
+            languageVersion = JavaLanguageVersion.of(26)
+        }.get().metadata.installationPath.asFile.absolutePath)
+    }
+}
+tasks.check { dependsOn(mutationToolTests) }
+
 // Opt-in measurements use test fixtures without shipping them or attaching mutation agents.
 tasks.register<JavaExec>("profileSearch") {
     group = "verification"
