@@ -20,6 +20,7 @@ class BytecodeWorkBudgetTest {
     @Test void preservesRealSearchAndObserverOutcomes() throws Exception {
         assertEquals("OUTCOMES [CHECK_FALSE, COMPLETED]",run(null,null,false));
         assertEquals("OUTCOMES [CHECK_FALSE, COMPLETED]",run(null,null,true));
+        assertEquals("OUTCOMES [CHECK_FALSE, COMPLETED]",run(null,null,true,"unbounded"));
     }
 
     /** Interrupts deterministically after an actual primitive commit, including a shared write and method entry.
@@ -42,6 +43,78 @@ class BytecodeWorkBudgetTest {
     /** Removing the actual deque pop must fail a finite graph-work assertion, never a wall-clock oracle.
      * @throws Exception for class/child failures */
     @Test void catchesRemovedDfsPop() throws Exception {
+        var file=classFile();var mutant=withoutDfsPop();
+        assertEquals(List.of(),file.verify(BytecodeWorkBudget.instrument(mutant,true,getClass().getClassLoader())));
+        assertEquals("BOUND_EXCEEDED",run("BytecodeExplorer",mutant,true));
+    }
+
+    /** An unlimited caller budget cannot disable the finite-prefix progress assertion.
+     * @throws Exception for class/child failures */
+    @Test void catchesRemovedDfsPopWithUnboundedSearch() throws Exception {
+        assertEquals("BOUND_EXCEEDED",run("BytecodeExplorer",withoutDfsPop(),true,"unbounded"));
+    }
+
+    /** The original configured-budget assertion remains independent of the new admission-prefix bound.
+     * @throws Exception for checker/child failures */
+    @Test void retainsConfiguredBudgetAssertion() throws Exception {
+        var file=classFile();int[] changes={0};boolean[] afterBudget={false};
+        var mutant=file.transformClass(file.parse(bytes("BytecodeExplorer")),ClassTransform.transformingMethodBodies(
+            method->method.methodName().equalsString("visit"),(code,element)->{
+                if(element instanceof InvokeInstruction call && call.owner().asInternalName().endsWith("BytecodeExplorer$Budget")
+                    && call.name().equalsString("maxStates"))afterBudget[0]=true;
+                if(afterBudget[0] && element instanceof BranchInstruction branch) {
+                    assertEquals(Opcode.IFLT,branch.opcode());code.branch(Opcode.IFLE,branch.target());changes[0]++;afterBudget[0]=false;
+                } else code.with(element);
+            }));
+        assertEquals(1,changes[0]);assertEquals(List.of(),file.verify(mutant));
+        assertEquals("STATE_LIMIT",run(null,null,true,"state-zero"));
+        assertEquals("STATE_LIMIT_MISSED",run("BytecodeExplorer",mutant,false,"state-zero"));
+        assertEquals("BOUND_EXCEEDED",run("BytecodeExplorer",mutant,true,"state-zero"));
+    }
+
+    /** A zero deadline still interrupts before state admission with the original or instrumented clock.
+     * @throws Exception for class/child failures */
+    @Test void preservesZeroDeadlineInterruption() throws Exception {
+        var original=withFixedClockOrigin();
+        assertEquals("ZERO_DEADLINE",run("BytecodeExplorer",original,false,"zero"));
+        assertEquals("ZERO_DEADLINE",run("BytecodeExplorer",original,true,"zero"));
+        assertEquals("POSITIVE_DEADLINE",run("BytecodeExplorer",original,false,"positive"));
+        assertEquals("POSITIVE_DEADLINE",run("BytecodeExplorer",original,true,"positive"));
+    }
+
+    /** The >= to > boundary mutant stays observable even when the host clock is beyond the origin.
+     * @throws Exception for class/child failures */
+    @Test void exposesZeroDeadlineBoundaryMutation() throws Exception {
+        var file=classFile();int[] changes={0};
+        var mutant=file.transformClass(file.parse(withFixedClockOrigin()),ClassTransform.transformingMethodBodies(
+            method->method.methodName().equalsString("stopReason"),(code,element)->{
+                if(element instanceof BranchInstruction branch && branch.opcode()==Opcode.IFLT) {
+                    code.branch(Opcode.IFLE,branch.target());changes[0]++;
+                } else code.with(element);
+            }));
+        assertEquals(1,changes[0]);assertEquals(List.of(),file.verify(mutant));
+        assertEquals("ZERO_DEADLINE",run("BytecodeExplorer",mutant,false,"zero"));
+        assertEquals("DEADLINE_MISSED",run("BytecodeExplorer",mutant,true,"zero"));
+    }
+
+    /** Supplies a deterministic past origin without replacing the actual deadline clock checkpoint.
+     * @return real checker definition with a fixed host-clock origin
+     * @throws Exception for missing checker bytes */
+    private byte[] withFixedClockOrigin() throws Exception {
+        var file=classFile();int[] changes={0};
+        var result=file.transformClass(file.parse(bytes("BytecodeExplorer")),ClassTransform.transformingMethodBodies(
+            method->method.methodName().equalsString("explore"),(code,element)->{
+                if(element instanceof InvokeInstruction call && call.owner().asInternalName().equals("java/lang/System")
+                    && call.name().equalsString("currentTimeMillis")) {code.lconst_0();changes[0]++;}
+                else code.with(element);
+            }));
+        assertEquals(1,changes[0]);assertEquals(List.of(),file.verify(result));return result;
+    }
+
+    /** Produces the actual call-removal mutant seen in both failed calibration trials.
+     * @return verified replacement definition
+     * @throws Exception for missing checker bytes */
+    private byte[] withoutDfsPop() throws Exception {
         var file=classFile();int[] changed={0};var original=bytes("BytecodeExplorer");
         var mutant=file.transformClass(file.parse(original),ClassTransform.transformingMethodBodies(
             method->method.methodName().equalsString("explore"),(code,element)->{
@@ -50,8 +123,7 @@ class BytecodeWorkBudgetTest {
                 } else code.with(element);
             }));
         assertEquals(1,changed[0]);assertEquals(List.of(),file.verify(mutant));
-        assertEquals(List.of(),file.verify(BytecodeWorkBudget.instrument(mutant,true,getClass().getClassLoader())));
-        assertEquals("BOUND_EXCEEDED",run("BytecodeExplorer",mutant,true));
+        return mutant;
     }
 
     /** A real root-return size removal is stopped by the independent per-invocation event bound.
@@ -104,6 +176,27 @@ class BytecodeWorkBudgetTest {
         }
     }
 
+    /** The new prefix/clock assertions reject missing fields, methods and initial clock checkpoints.
+     * @throws Exception for checker class-file failures */
+    @Test void rejectsSearchAccountingAndDeadlineDrift() throws Exception {
+        var file=classFile();var original=bytes("BytecodeExplorer");
+        for(var name:List.of("states","maxTimeMillis","startedMillis")) {
+            var missing=file.transformClass(file.parse(original),ClassTransform.dropping(element->
+                element instanceof FieldModel field && field.fieldName().equalsString(name)));
+            assertThrows(IllegalArgumentException.class,()->BytecodeWorkBudget.instrument(missing,false,getClass().getClassLoader()));
+        }
+        var missing=file.transformClass(file.parse(original),ClassTransform.dropping(element->
+            element instanceof MethodModel method && method.methodName().equalsString("stopReason")));
+        assertThrows(IllegalArgumentException.class,()->BytecodeWorkBudget.instrument(missing,false,getClass().getClassLoader()));
+        var noClock=file.transformClass(file.parse(original),ClassTransform.transformingMethodBodies(
+            method->method.methodName().equalsString("stopReason"),(code,element)->{
+                if(element instanceof InvokeInstruction call && call.owner().asInternalName().equals("java/lang/System")
+                    && call.name().equalsString("currentTimeMillis"))code.lconst_0();else code.with(element);
+            }));
+        assertThrows(IllegalArgumentException.class,()->BytecodeWorkBudget.instrument(noClock,false,getClass().getClassLoader()));
+        assertEquals(List.of(),file.verify(BytecodeWorkBudget.instrument(noClock,true,getClass().getClassLoader())));
+    }
+
     /** Resolves checker implementation types, never application model classes.
      * @return class-file service for host checker verification */
     private static ClassFile classFile(){return ClassFile.of(ClassFile.ClassHierarchyResolverOption.of(ClassHierarchyResolver.ofClassLoading(BytecodeWorkBudgetTest.class.getClassLoader())));}
@@ -120,12 +213,12 @@ class BytecodeWorkBudgetTest {
      * @param name optional replacement checker class
      * @param replacement optional actual mutant
      * @param agent whether the existing test-only agent is active
-     * @param modes optional deterministic cancellation probe mode
+     * @param modes optional cancellation, search-budget or deadline probe mode
      * @return stripped successful child output
      * @throws Exception for fixture/process failures */
     private String run(String name,byte[] replacement,boolean agent,String... modes) throws Exception {
         Path classes=Files.createTempDirectory(directory,"classes");String classpath=System.getProperty("interleave.testRuntimeClasspath");
-        Path source=classes.resolve("Fixture.java");String body=modes.length==0 ? """
+        Path source=classes.resolve("Fixture.java");String body=!Arrays.asList(modes).contains("cancel") ? """
             import dev.samhb.interleave.bytecode.*;
             @Model public class Fixture {public int x;public Fixture(){}
               @Actor(id=0)public void first(){x++;} @Actor(id=1)public void second(){x++;}
