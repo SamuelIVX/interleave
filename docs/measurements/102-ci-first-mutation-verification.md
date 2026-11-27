@@ -9,8 +9,9 @@ The implementation starts from freshly verified remote main
 unfinished Spec 97 worktree remain untouched. No interpreter, search, storage or consumer production
 Java source changes in this bundle.
 
-Local tooling/configuration checks and review-fix verification pass. Complete remote baseline/candidate mutation
-runs, real shard calibration, runtime/resource improvements and manual acceptance remain **pending**.
+Local tooling/configuration checks and review-fix verification pass. The first remote run failed
+calibration; see the prerequisite integration record below. Fresh complete remote acceptance under the
+corrected harness, successful calibration, runtime/resource improvements and manual acceptance remain **pending**.
 Acceptance still uses full mode. This ledger makes no claim that local file fixtures or historical
 PIT reports establish a fresh census, a calibration result or a speedup.
 
@@ -194,6 +195,28 @@ pass. Main/fallback selection is also exercised with managed settings present. E
 `pr145-managed-final.log`, `pr145-managed-export-final.log` and
 `pr145-managed-provenance-validation.json`. No second CLI loop was needed for this localized
 configuration correction; the completed review's finding and its verification are recorded explicitly.
+
+## Integration after prerequisite PR #146
+
+Sam merged [PR #146](https://github.com/SamuelIVX/interleave/pull/146) into main as
+`b12c888190c098170971993d7b0ca98f4832945f`. The Spec 102 branch incorporates that main revision
+without changing its harness or child-JVM probes. The single spec conflict retained both the local
+implementation evidence and the failed first-run evidence; no executable conflict required resolution.
+
+The [prerequisite record](bytecode-mutation-progress.md) preserves the failed old-profile calibration
+and timing-sensitive inherited kill, including raw counts and the preservation argument. These are
+not acceptance under the corrected profile. Both baseline and candidate must now run fresh complete
+checks with identical corrected harness bytes. Pushing this integration requests the normal paired
+full acceptance and two calibration trials; full mode remains active pending reviewed evidence.
+
+Integration verification: the single final build/Javadoc check passed in58seconds, with2176 Java
+tests (zero failures/errors/skips),38 Python tests and strict private harness doclint; public Javadoc
+was up-to-date. The initial sandbox launch failed before build startup because Gradle could not open
+its file-lock socket; the permitted host run passed. Evidence: external
+`interleave-102-evidence/pr145-post146-integrated.log`. The earlier actual CodeRabbit reviews remain
+recorded above and in the prerequisite record. This integration adds no new executable
+logic; the mechanical merge and evidence update receive ordinary review, without another CLI run.
+No local PIT or browser rerun is used, and no CI watcher follows publication.
 
 ## Remote acceptance and calibration
 

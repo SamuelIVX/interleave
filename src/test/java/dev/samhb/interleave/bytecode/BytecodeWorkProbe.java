@@ -9,13 +9,28 @@ public final class BytecodeWorkProbe {
     /** Prevents construction of this child entry point. */
     private BytecodeWorkProbe() {}
     /** Runs a real fixture through internal search, reporting assertion failures separately from verdicts.
-     * @param arguments fixture class directory
+     * @param arguments fixture class directory and optional cancellation, budget or deadline probe mode
      */
     public static void main(String[] arguments) {
         try {
             var program=BytecodeLoader.load(Path.of(arguments[0]),"Fixture",BytecodeLimits.defaults());
             if(arguments.length>1 && arguments[1].equals("cancel")){cancelAfterCommit(program);System.out.println("CANCELLATION_OWNED");return;}
-            var result=new BytecodeExplorer(program,BytecodeScheduler.Mode.REFERENCE).explore(100000);
+            if(arguments.length>1 && (arguments[1].equals("zero") || arguments[1].equals("positive"))) {
+                var duration=arguments[1].equals("zero") ? java.time.Duration.ZERO : java.time.Duration.ofMillis(1);
+                var result=new BytecodeExplorer(program,BytecodeScheduler.Mode.REFERENCE,duration,false).explore(Long.MAX_VALUE);
+                boolean stopped=!result.traversalComplete() && result.metrics().states()==0 && result.witnesses().size()==1
+                    && result.witnesses().getFirst().outcome().kind()==BytecodeExplorer.Kind.INTERRUPTED
+                    && "MAX_TIME".equals(result.witnesses().getFirst().outcome().interruption());
+                System.out.println(stopped ? arguments[1].equals("zero") ? "ZERO_DEADLINE" : "POSITIVE_DEADLINE" : "DEADLINE_MISSED");return;
+            }
+            long states=arguments.length>1 && arguments[1].equals("unbounded") ? Long.MAX_VALUE
+                : arguments.length>1 && arguments[1].equals("state-zero") ? 0 : 100000;
+            var result=new BytecodeExplorer(program,BytecodeScheduler.Mode.REFERENCE).explore(states);
+            if(arguments.length>1 && arguments[1].equals("state-zero")) {
+                boolean stopped=!result.traversalComplete() && result.metrics().states()==0 && result.witnesses().size()==1
+                    && "MAX_STATES".equals(result.witnesses().getFirst().outcome().interruption());
+                System.out.println(stopped ? "STATE_LIMIT" : "STATE_LIMIT_MISSED");return;
+            }
             if(!result.exhaustive())throw new IllegalStateException("Probe traversal incomplete");
             var kinds=new TreeSet<String>();for(var witness:result.witnesses())kinds.add(witness.outcome().kind().toString());
             System.out.println("OUTCOMES "+kinds);
