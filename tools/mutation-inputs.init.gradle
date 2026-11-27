@@ -1,0 +1,127 @@
+// Export actual resolved PIT task inputs from either revision without overlaying its build scripts.
+import groovy.json.JsonOutput
+import java.security.MessageDigest
+import org.gradle.jvm.toolchain.JavaLanguageVersion
+
+gradle.projectsEvaluated {
+    def project = gradle.rootProject
+    def pit = project.tasks.named('pitest').get()
+    // Copy public fork options to a disabled scratch task; inspecting them must not mutate PIT.
+    def coordinatorOptions = project.tasks.register('_mutationCoordinatorOptions', org.gradle.api.tasks.JavaExec) {
+        enabled = false
+    }.get()
+    def extension = project.extensions.getByName('pitest')
+    def output = project.findProperty('mutationMetadata')
+    if (!output) throw new GradleException('mutationMetadata is required by the verification controller')
+    def digest = { File file -> MessageDigest.getInstance('SHA-256').digest(file.bytes).encodeHex().toString() }
+    def files = { collection ->
+        collection.files.findAll { it.isFile() }.collect { [name: it.name, sha256: digest(it)] }
+            .sort { a, b -> a.name <=> b.name ?: a.sha256 <=> b.sha256 }
+    }
+    def orderedClasspath = { collection ->
+        collection.files.collect { it.isFile() ? [name: it.name, sha256: digest(it)] :
+            project.relativePath(it).replace(File.separator, '/') }
+    }
+    def outcomes = [:]
+    // No configuration cache in the controller: task execution states are required evidence.
+    gradle.taskGraph.afterTask { task, state ->
+        if (task.project == project && task.name in ['build', 'javadoc', 'test']) {
+            outcomes[task.name] = state.failure ? 'FAILED' : state.noSource ? 'NO-SOURCE' :
+                state.upToDate ? 'UP-TO-DATE' : state.skipped ? 'SKIPPED' : 'EXECUTED'
+            def destination = project.findProperty('mutationTaskOutcomes')
+            if (destination) {
+                def file = new File(destination.toString())
+                file.parentFile.mkdirs()
+                file.text = JsonOutput.toJson(outcomes)
+            }
+        }
+    }
+    def exporter = project.tasks.register('exportMutationInputs') {
+        dependsOn(project.tasks.named('testClasses'), project.tasks.named('jar'), project.tasks.named('mutationHarnessJar'))
+        doLast {
+            def launcher = project.extensions.getByType(org.gradle.jvm.toolchain.JavaToolchainService)
+                .launcherFor { languageVersion = JavaLanguageVersion.of(26) }.get().metadata
+            def settings = [:]
+            ['targetTests', 'mutators', 'excludedMethods', 'excludedClasses', 'excludedTestClasses',
+             'includedGroups', 'excludedGroups', 'includedTestMethods', 'avoidCallsTo', 'pluginConfiguration',
+             'timeoutFactor', 'timeoutConstInMillis', 'detectInlinedCode', 'fullMutationMatrix',
+             'skipFailingTests', 'mutationEngine', 'failWhenNoMutations'].each { key ->
+                def property = pit."${key}"
+                def value = property.isPresent() ? property.get() : null
+                settings[key] = value instanceof Set ? value.toList().sort() : value?.toString()
+            }
+            // Match PitestTask.taskArgumentMap: the CLI override takes precedence when nonempty.
+            if (pit.overriddenTargetTests) settings.targetTests = pit.overriddenTargetTests.toList()
+            def runtimeArtifacts = [:]
+            def childArgs = pit.childProcessJvmArgs.getOrElse([]).collect {
+                if (it.startsWith('-javaagent:')) {
+                    runtimeArtifacts.harness = project.relativePath(it.substring('-javaagent:'.length())).replace(File.separator, '/')
+                } else if (it.startsWith('-Dinterleave.releaseJar=')) {
+                    runtimeArtifacts.release = project.relativePath(it.substring('-Dinterleave.releaseJar='.length())).replace(File.separator, '/')
+                }
+                it.startsWith('-javaagent:') ? '-javaagent:mutation-harness' :
+                it.startsWith('-Dinterleave.releaseJar=') ? '-Dinterleave.releaseJar=release-jar' : it
+            }
+            // JavaExec resolves its default executable lazily; inspect its actual launcher provider.
+            def coordinatorJava = pit.executable ?: pit.javaLauncher.get().executablePath.asFile.absolutePath
+            def actualJava = pit.jvmPath.isPresent() ? pit.jvmPath.get().asFile.absolutePath : coordinatorJava
+            def runtimeIdentity = { executable ->
+                def probe = new ProcessBuilder(executable, '-XshowSettings:properties', '-version')
+                    .redirectErrorStream(true).start()
+                if (!probe.waitFor(15, java.util.concurrent.TimeUnit.SECONDS)) {
+                    probe.destroyForcibly().waitFor()
+                    throw new GradleException('Actual PIT Java runtime probe timed out')
+                }
+                if (probe.exitValue() != 0) throw new GradleException('Actual PIT Java runtime probe failed')
+                def properties = new String(probe.inputStream.readNBytes(32768), 'UTF-8')
+                def identity = [:]
+                ['java.runtime.version', 'java.vendor', 'java.specification.version'].each { key ->
+                    def match = properties =~ /(?m)^\s*${java.util.regex.Pattern.quote(key)} = (.+)$/
+                    if (!match.find()) throw new GradleException('Missing actual Java identity: ' + key)
+                    identity[key] = match.group(1).trim()
+                }
+                if (identity['java.specification.version'] != '26') throw new GradleException('Actual PIT runtime must be JDK26')
+                identity
+            }
+            def coordinatorRuntime = runtimeIdentity(coordinatorJava)
+            def runtime = actualJava == coordinatorJava ? coordinatorRuntime : runtimeIdentity(actualJava)
+            coordinatorOptions.jvmArgumentProviders.clear()
+            pit.copyTo(coordinatorOptions)
+            coordinatorOptions.jvmArgs = pit.mainProcessJvmArgs.getOrNull() ?: pit.jvmArgs ?: []
+            def coordinatorArgs = coordinatorOptions.allJvmArgs.toList()
+            def value = [protocol: [gradle: gradle.gradleVersion, java: launcher.javaRuntimeVersion,
+                vendor: launcher.vendor, javaMajor: launcher.languageVersion.asInt(),
+                pit: extension.pitestVersion.get(), junit: extension.junit5PluginVersion.get(),
+                settings: settings, features: pit.features.getOrElse([]).toList() + (pit.additionalFeatures ?: []),
+                childArgs: childArgs, coordinatorArgs: coordinatorArgs,
+                launchJars: orderedClasspath(pit.launchClasspath),
+                buildPlugins: files(project.buildscript.configurations.classpath),
+                mutablePaths: pit.mutableCodePaths.files.collect { project.relativePath(it).replace(File.separator, '/') }.sort(),
+                runtime: runtime, coordinatorRuntime: coordinatorRuntime],
+                targets: pit.targetClasses.get().toList().sort(), threads: pit.threads.get(),
+                history: pit.enableDefaultIncrementalAnalysis.getOrElse(false) ||
+                    pit.historyInputLocation.isPresent() || pit.historyOutputLocation.isPresent(),
+                dependencies: files(pit.additionalClasspath),
+                classpathOrder: orderedClasspath(pit.additionalClasspath),
+                runtimeArtifacts: runtimeArtifacts,
+                // Include declared NO-SOURCE directories: absent and later populated are different inputs.
+                classpathDirectories: (pit.additionalClasspath.files + pit.launchClasspath.files).findAll { !it.isFile() }
+                    .collect { project.relativePath(it).replace(File.separator, '/') }.unique().sort(),
+                javaExecutable: actualJava]
+            def destination = new File(output.toString())
+            destination.parentFile.mkdirs()
+            destination.text = JsonOutput.prettyPrint(JsonOutput.toJson(value))
+            if (project.findProperty('mutationExpected')) {
+                def check = new ProcessBuilder(project.property('mutationPython').toString(),
+                    project.property('mutationController').toString(), 'verify-inputs',
+                    '--checkout', project.projectDir.absolutePath, '--resolved', destination.absolutePath,
+                    '--expected', project.property('mutationExpected').toString()).inheritIO().start()
+                if (check.waitFor() != 0) throw new GradleException('Resolved inputs differ; PIT was not started')
+            }
+        }
+    }
+    pit.dependsOn(exporter)
+    // Acceptance evidence must come from an executed engine, never cached PIT task output/history.
+    pit.outputs.upToDateWhen { false }
+    pit.outputs.cacheIf { false }
+}

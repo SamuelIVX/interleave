@@ -1,4 +1,4 @@
-<!-- Verification infrastructure specification; no tooling, CI or production implementation in this PR. -->
+<!-- Verification infrastructure: local/controller implementation; remote calibration and adoption pending. -->
 # Spec 102: CI-first mutation verification
 
 ## Objective
@@ -7,8 +7,9 @@ Reduce local testing load and feedback time while preserving Interleave's mutati
 and acceptance requirements. Move complete affected mutation analyses to CI, introduce calibrated
 class sharding, and retain focused local verification.
 
-**Type: delta/refactor. Status: specified; implementation, calibration and acceleration measurements
-pending.** This is a separately selected infrastructure workstream. Spec 97 remains incomplete;
+**Type: delta/refactor. Status: implementation PR in progress; remote calibration, adoption and
+acceleration measurements pending.** See the [implementation ledger](../../measurements/102-ci-first-mutation-verification.md).
+This is a separately selected infrastructure workstream. Spec 97 remains incomplete;
 this spec neither implements its remaining behavior nor activates Specs 98–101. A specification
 merge alone does not enable the new gate or establish a speedup.
 
@@ -16,6 +17,7 @@ merge alone does not enable the new gate or establish a speedup.
 
 - Package/module: Interleave verification tooling and GitHub Actions.
 - Create during implementation: `tools/mutation.py`, `tools/test_mutation.py`,
+  the shared `tools/mutation_evidence.py` and `tools/mutation-inputs.init.gradle` adapters,
   `.github/workflows/affected-mutation.yml` and
   `docs/measurements/102-ci-first-mutation-verification.md`.
 - Modify during implementation: `build.gradle.kts`, `AGENTS.md`, `.github/workflows/build.yml`,
@@ -163,9 +165,11 @@ remain untouched while this infrastructure is authored and implemented separatel
 
 - `local --classes <comma-separated selectors>`: scoped feedback with locking and both Gradle flags.
 - `plan --base <sha> --candidate <sha> --base-classes <directory> --candidate-classes <directory>
-  --output <manifest>`: plan assignments from separately compiled revision inventories.
-- `validate --manifest <file> --reports <directory>`: validate execution evidence and aggregate it.
-- `compare --baseline <directory> --candidate <directory>`: compare validated populations/keys.
+  --base-record <baseline-build/record.json> --candidate-record <candidate-build/record.json>
+  --output <manifest>`: plan assignments from separately compiled revision inventories and the
+  records produced by their corresponding successful build preflights.
+- `validate --manifest <file> --reports <directory> --output <directory>`: validate execution evidence and aggregate it.
+- `compare --baseline <directory> --candidate <directory> --output <file>`: compare validated populations/keys.
 
 Use an OS-backed lock under the canonical Git common directory, shared by the repository's
 worktrees. This serializes cooperating wrapper invocations; it is not a system-wide scheduler and
@@ -250,6 +254,9 @@ class lists, resolved class/test selectors, toolchain/operator/harness/dependenc
 compiled-class fingerprints. Record completion status, PIT summary, XML and logs per job. The
 controller creates the plan; validation compares worker observations with the plan and each other.
 Unknown manifest versions, absent fields and unexpected revision/protocol mismatches fail closed.
+Completion is committed only after artifact collection and validation succeed; a zero Gradle exit
+alone cannot mark the execution complete. Build evidence records observed build/Javadoc/test task
+outcomes, rejecting skipped, no-source, missing or failed checks.
 
 Begin with an empty report directory. Require successful Gradle completion, PIT's completed summary,
 the expected resolved selectors and closed XML whose generated/status totals agree with that summary.
@@ -268,16 +275,40 @@ Whole-class replacement reports may replace all rows of a class only under those
 never selected favorable rows. A test edit requires a fresh complete affected population; focused
 replacements after test edits remain diagnostic and are excluded from acceptance aggregates. Baseline
 and candidate may differ in test inputs, but each must have its own internally consistent census.
+Record effective PIT features in their actual order, both coordinator and minion JDK identities,
+the complete effective ordered coordinator JVM arguments (including managed heap limits, system
+properties and argument providers after selecting main/fallback arguments) and ordered launch/test classpaths, including
+directory/file interleaving. Resolve a nonempty task-level test override before the configured test
+selector; validate what PIT actually receives. Default evidence requires the full ratchet's explicit
+`RESULT: PASS`, which scoped runs omit even when given the exact default target globs. Bind the actual harness
+agent and release JAR's logical entry contents (including manifests), ignoring only ZIP timestamps
+and entry order. Input comparison includes declared empty classpath directories.
 
 Deepen the existing compiled-method comparison rather than copy its current parser unchanged. Retain
 descriptors, executable instructions, constant values/member references and handlers; normalize only
 actual constant-pool operand indexes, `ldc` widths and branch/handler BCIs to instruction positions.
-Ignore debug metadata. Never apply global `#digits` replacement to resolved string contents: `"#12"`
+Ignore debug values in method-body comparison. Never apply global `#digits` replacement to resolved string contents: `"#12"`
 and `"#34"` must remain different constants. A pool-index relocation with unchanged contents must
 remain comparable. Compare the union of both compiled class/method inventories, including candidate-only
 classes/methods and synthetic methods. Added, changed, removed or moved methods are unmatched, reported
 with their available mutation counts and require R7's human disposition, including zero-mutant methods.
 Only methods present and understood in both revisions can establish inherited-kill preservation.
+
+Method-body correspondence alone does not prove PIT coordinate correspondence. Raw PIT indexes can
+count ASM line/frame/label nodes, so moved debug nodes can change identities without changing the
+executable instructions. Establish coordinate stability separately before claiming a lost or preserved
+kill. The initial adapter proves raw coordinates only for identical defining class bytes under the
+same PIT protocol. Pool relocations still compare equal at the normalized body level, but without a
+proved coordinate mapping their mutant correspondence remains explicitly `unresolved-coordinates`,
+requiring human disposition. Do not guess correspondence by matching raw indexes across changed
+classes. Javap may omit literal trailing whitespace; rendered constants alone cannot prove equality.
+The shared comparator requires explicit caller-verified protocol equality before matching raw
+mutants. The historical four-argument diagnostic has no such manifests, reports `unresolved-protocol`
+and cannot infer lost or preserved kills. Its raw default identity/status comparison is diagnostic too.
+
+Retain declaration modifiers such as `synchronized`, static/native flags and access changes in the
+comparison. A javap NaN rendering does not expose its raw constant-pool payload; treat that method as
+unmatched rather than infer equality from the rendered text.
 
 If the chosen disassembly omits behavior-relevant bootstrap/constant-dynamic data or a construct cannot
 be resolved safely, classify the method as unmatched with a reason. Do not infer equality from identical
@@ -321,12 +352,15 @@ use measured expensive paths; it is not bundled into this infrastructure impleme
   requires neither an invented `mutationUnitSize` property nor a version change.
 - [verified] The original and Spec 97 worktrees contain uncommitted work and remain preserved.
 - [verified] Existing domain vocabulary belongs to `CONTEXT.md`.
+- [verified] Local implementation includes the supported controller/wrapper, common resolved-input
+  exporter, shared historical/CI comparator and Python checks; workflow syntax validation passes.
 - [verified] PR145's first paired CI run has identical base/candidate inputs but failed both
   calibration trials on an unlimited-budget pop-removal timeout. Its full comparison also exposes
   one timing-sensitive deadline-boundary kill. The prerequisite record above preserves that evidence.
 - [unverified] Four shards' performance, balance and status stability on GitHub runners.
 - [unverified] Whether fixture compilation or individual integration tests dominate mutant execution.
-- [unverified] Any acceleration, reduced memory consumption or successful implementation/calibration.
+- [unverified] Remote execution, complete CI acceptance, acceleration, reduced memory consumption and
+  successful calibration. Local parser/process fixtures do not establish these results.
 - [deferred] Incremental-history acceptance, fixture caching and commercial acceleration.
 
 ## Tests

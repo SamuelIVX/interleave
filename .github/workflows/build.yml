@@ -83,8 +83,19 @@ jobs:
           java-version: "26"
           cache: gradle
 
-      - name: Build and Test
-        run: ./gradlew build --no-daemon
+      - name: Build, strict Javadoc and Test
+        env:
+          REVISION: ${{ github.sha }}
+        run: python3 tools/mutation.py ci-run --checkout . --revision "$REVISION" --label candidate --scope build --output evidence/candidate-build
+
+      - name: Export exact candidate build evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mutation-candidate-build
+          path: evidence/candidate-build/
+          retention-days: 30
+          if-no-files-found: error
 
   mutation:
     # Was named "Mutation (scoped)", which was never true: this job passes no
@@ -110,8 +121,19 @@ jobs:
           java-version: "26"
           cache: gradle
 
-      - name: Run PIT (full scope)
-        run: ./gradlew pitest --console=plain --no-daemon
+      - name: Run PIT (full default scope)
+        env:
+          REVISION: ${{ github.sha }}
+        run: python3 tools/mutation.py ci-run --checkout . --revision "$REVISION" --label candidate --scope default --output evidence/candidate-default
+
+      - name: Export exact candidate default evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mutation-candidate-default
+          path: evidence/candidate-default/
+          retention-days: 30
+          if-no-files-found: error
 
       # Narrower than it looks, and it does NOT suppress the ratchet's own missing-report
       # error. `pitest.finalizedBy(mutationRatchet)` runs the ratchet even when PIT dies
@@ -141,3 +163,15 @@ jobs:
           name: pitest-report
           path: build/reports/pitest/
           if-no-files-found: error
+
+  affected:
+    name: Paired affected mutation
+    needs: [build, mutation]
+    if: github.event_name == 'pull_request'
+    uses: ./.github/workflows/affected-mutation.yml
+    with:
+      base: ${{ github.event.pull_request.base.sha }}
+      candidate: ${{ github.sha }}
+      head: ${{ github.event.pull_request.head.sha }}
+      # Bootstrap calibration collects two sharded trials; acceptance still uses full mode.
+      calibrate: true

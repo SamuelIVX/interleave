@@ -175,10 +175,12 @@ milestones (94A–94C, 95–101). #11 and deferred/conditional work remain unsel
 Sam selected [Spec 102 — CI-first mutation verification](../specs/active/102-ci-first-mutation-verification.md)
 as a separate infrastructure workstream before resuming the unfinished Spec 97 implementation.
 It specifies focused local feedback, fresh pinned-base/candidate CI analyses and calibrated class
-sharding while preserving existing tests, operators and acceptance floors. Publish the specification
-first, then implement the infrastructure in a separate PR. The original checkout and Spec 97 worktree
-changes remain preserved; neither new tooling nor acceleration is claimed by this specification.
-See the [authoring review record](ci-first-mutation-review.md). Specs 98–101 wait for complete Spec 97;
+sharding while preserving existing tests, operators and acceptance floors. Specification PR #144
+merged at `5555177`. The separate infrastructure implementation PR has local tooling and full-mode
+workflow wiring; real CI acceptance, calibration and prospective policy adoption remain pending.
+The original checkout and Spec 97 changes remain preserved; no acceleration is claimed. See the
+[authoring record](ci-first-mutation-review.md) and [implementation ledger](../measurements/102-ci-first-mutation-verification.md).
+Specs 98–101 wait for complete Spec 97;
 #11 and deferred/conditional work remain parked.
 
 ## Deferred
