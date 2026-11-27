@@ -112,12 +112,15 @@ final class OpcodeExecutor {
      * @param op selected verified operation
      * @return whether local transport must remain separately schedulable */
     private static boolean losesReferenceRoot(BytecodeFrame frame,BytecodeMethod.Op op) {
-        if(op.instruction() instanceof StoreInstruction store && frame.locals.get(store.slot()) instanceof Ref old && !old.equals(NULL))return true;
+        if(op.instruction() instanceof StoreInstruction store) {
+            if(frame.locals.get(store.slot()) instanceof Ref old && !old.equals(NULL))return true;
+            if((store.typeKind()==TypeKind.LONG || store.typeKind()==TypeKind.DOUBLE) && frame.locals.get(store.slot()+1) instanceof Ref old && !old.equals(NULL))return true;
+        }
         return switch(op.instruction().opcode()) {
             case IFNULL,IFNONNULL,IF_ACMPEQ,IF_ACMPNE,ARRAYLENGTH,INSTANCEOF,CHECKCAST -> true;
             case INVOKESPECIAL -> ((InvokeInstruction)op.instruction()).owner().asInternalName().equals("java/lang/Object");
             case POP -> frame.stack.getLast() instanceof Ref reference && !reference.equals(NULL);
-            case POP2 -> frame.stack.subList(frame.stack.size()-2,frame.stack.size()).stream().anyMatch(value->value instanceof Ref reference && !reference.equals(NULL));
+            case POP2 -> frame.stack.subList(frame.stack.size()-(BytecodeFrame.width(frame.stack.getLast())==2 ? 1 : 2),frame.stack.size()).stream().anyMatch(value->value instanceof Ref reference && !reference.equals(NULL));
             default -> false;
         };
     }
@@ -243,7 +246,7 @@ final class OpcodeExecutor {
     }
 
     /**
-     * Implements admitted category-one opcode semantics.
+     * Implements admitted opcode semantics on logical primitive/reference values.
      * @param program metadata
      * @param state owned scratch
      * @param execution selected resource owner
@@ -256,10 +259,10 @@ final class OpcodeExecutor {
                                    BytecodeFrame frame,BytecodeMethod.Op op,int owner) {
         Instruction instruction=op.instruction(); Opcode code=instruction.opcode();
         if(instruction instanceof ConstantInstruction constant) {
-            frame.push(code==Opcode.ACONST_NULL ? NULL : constant.constantValue() instanceof String text ? program.strings.get(text) : new Int((Integer)constant.constantValue())); return true;
+            frame.push(code==Opcode.ACONST_NULL ? NULL : constant.constantValue() instanceof String text ? program.strings.get(text) : frame.method.constants.get(op.bci())); return true;
         }
         if(instruction instanceof LoadInstruction load) { frame.push(frame.locals.get(load.slot())); return true; }
-        if(instruction instanceof StoreInstruction store) { frame.locals.put(store.slot(),frame.pop()); return true; }
+        if(instruction instanceof StoreInstruction store) { frame.store(store.slot(),frame.pop()); return true; }
         if(instruction instanceof IncrementInstruction increment) {
             frame.locals.put(increment.slot(),new Int(((Int)frame.locals.get(increment.slot())).value()+increment.constant())); return true;
         }
@@ -276,7 +279,7 @@ final class OpcodeExecutor {
         }
         if(instruction instanceof ReturnInstruction returned) {
             execution.returned=returned.typeKind()==TypeKind.VOID ? null : frame.pop();
-            if(frame.method.id.descriptor().endsWith(")Z")) execution.returned=new Int(integer(execution.returned)&1);
+            if(execution.returned!=null)execution.returned=BytecodePrimitives.narrow(frame.method.id.descriptor().substring(frame.method.id.descriptor().indexOf(')')+1),execution.returned);
             execution.eventLocation=frame.method.location(frame.bci); execution.phase=Phase.RETURNING; return false;
         }
         if(instruction instanceof FieldInstruction field) {
@@ -328,21 +331,10 @@ final class OpcodeExecutor {
             if(!isStatic)arguments.add(frame.pop());Collections.reverse(arguments);
             execution.frames.add(new BytecodeFrame(Objects.requireNonNull(program.methods.get(id),"Unvalidated dispatch target"),arguments));return false;
         }
+        if(BytecodePrimitives.OPCODES.contains(code)){BytecodePrimitives.execute(frame,code);return true;}
         switch(code) {
             case NOP -> { }
-            case POP -> frame.pop();
-            case POP2 -> { frame.pop(); frame.pop(); }
-            case DUP -> { Value a=frame.pop(); push(frame,a,a); }
-            case DUP_X1 -> { Value a=frame.pop(),b=frame.pop(); push(frame,a,b,a); }
-            case DUP_X2 -> { Value a=frame.pop(),b=frame.pop(),c=frame.pop(); push(frame,a,c,b,a); }
-            case DUP2 -> { Value a=frame.pop(),b=frame.pop(); push(frame,b,a,b,a); }
-            case DUP2_X1 -> { Value a=frame.pop(),b=frame.pop(),c=frame.pop(); push(frame,b,a,c,b,a); }
-            case DUP2_X2 -> { Value a=frame.pop(),b=frame.pop(),c=frame.pop(),d=frame.pop(); push(frame,b,a,d,c,b,a); }
-            case SWAP -> { Value a=frame.pop(),b=frame.pop(); push(frame,a,b); }
-            case INEG -> frame.push(new Int(-integer(frame.pop())));
-            case I2B -> frame.push(new Int((byte)integer(frame.pop())));
-            case I2C -> frame.push(new Int((char)integer(frame.pop())));
-            case I2S -> frame.push(new Int((short)integer(frame.pop())));
+            case POP,POP2,DUP,DUP_X1,DUP_X2,DUP2,DUP2_X1,DUP2_X2,SWAP -> BytecodeStack.apply(frame.stack,code,BytecodeFrame::width);
             case MONITORENTER -> { if(!acquire(state,(Ref)frame.pop(),owner)) throw new IllegalStateException("Enabledness changed"); }
             case MONITOREXIT -> release(state,(Ref)frame.pop(),owner);
             case ATHROW -> {
@@ -355,18 +347,7 @@ final class OpcodeExecutor {
                 var trap=new Trap(target.type,origin instanceof Thrown thrown ? thrown.fault() : null);
                 trap.reference=reference;throw trap;
             }
-            default -> {
-                int right=integer(frame.pop()),left=integer(frame.pop());
-                if((code==Opcode.IDIV || code==Opcode.IREM) && right==0) throw new Trap("java/lang/ArithmeticException",null);
-                int result=switch(code) {
-                    case IADD -> left+right; case ISUB -> left-right; case IMUL -> left*right;
-                    case IDIV -> left/right; case IREM -> left%right; case ISHL -> left<<right;
-                    case ISHR -> left>>right; case IUSHR -> left>>>right; case IAND -> left&right;
-                    case IOR -> left|right; case IXOR -> left^right;
-                    default -> throw new IllegalStateException("Unvalidated opcode "+code);
-                };
-                frame.push(new Int(result));
-            }
+            default -> throw new IllegalStateException("Unvalidated opcode "+code);
         }
         return true;
     }
@@ -522,13 +503,13 @@ final class OpcodeExecutor {
         execution.cutoff=new Cutoff(reason,execution.eventLocation,limit,required,remaining,owner); execution.phase=Phase.CUTOFF_PENDING;
     }
     /**
-     * Applies JVM boolean field narrowing while retaining other values.
+     * Applies JVM narrow integral field storage while retaining wide/reference values.
      * @param field declared JVM field
      * @param value popped value
-     * @return boolean-narrowed or unchanged value
+     * @return narrowed or unchanged value
      */
     private static Value narrow(BytecodeProgram.FieldId field,Value value) {
-        return field.descriptor().equals("Z") ? new Int(integer(value)&1) : value;
+        return BytecodePrimitives.narrow(field.descriptor(),value);
     }
     /**
      * Reads the raw value of a verifier-proven int operand.
@@ -536,10 +517,4 @@ final class OpcodeExecutor {
      * @return raw JVM int
      */
     private static int integer(Value value) { return ((Int)value).value(); }
-    /**
-     * Appends operands in bottom-to-top order.
-     * @param frame operand stack
-     * @param values values in bottom-to-top order
-     */
-    private static void push(BytecodeFrame frame,Value...values) { Collections.addAll(frame.stack,values); }
 }

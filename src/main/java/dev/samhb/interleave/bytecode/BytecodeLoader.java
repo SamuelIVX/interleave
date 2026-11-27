@@ -45,6 +45,8 @@ final class BytecodeLoader {
      * Exact bytes for identity, never returned to callers.
      */
     private final Map<String,byte[]> bytes=new TreeMap<>();
+    /** Raw numeric lookup over the same privately owned bytes. */
+    private final Map<String,BytecodeInput.RawConstants> constants=new HashMap<>();
     /**
      * Resolved field declarations.
      */
@@ -192,7 +194,7 @@ final class BytecodeLoader {
                     String type=handler.catchType().orElseThrow().asInternalName();read(type);
                     if(!hierarchy().assignable(type,"java/lang/Throwable"))throw problem("MALFORMED","Catch type must extend Throwable",null);
                 }
-                var decoded=methods.computeIfAbsent(work.method(),ignored -> new BytecodeMethod(work.method().owner(),method));
+                var decoded=methods.computeIfAbsent(work.method(),ignored -> new BytecodeMethod(work.method().owner(),method,constants.get(work.method().owner())));
                 BytecodeVerifier.validate(decoded,work.role());
                 if (work.role()==Role.CHECK && (decoded.flags & ACC_SYNCHRONIZED)!=0)
                     throw problem("PURITY","Checks cannot synchronize",decoded.location(0));
@@ -437,7 +439,7 @@ final class BytecodeLoader {
         int major=(Byte.toUnsignedInt(input[6])<<8)|Byte.toUnsignedInt(input[7]);
         if (major<61 || major>70 || input[4]!=0 || input[5]!=0)
             throw problem("UNSUPPORTED","Expected non-preview Java17–26 class file",null);
-        BytecodeInput.validate(input);
+        constants.put(name,BytecodeInput.validate(input));
         ClassModel type=ClassFile.of().parse(input);
         if (!type.thisClass().asInternalName().equals(name)) throw problem("MALFORMED","Class name/path mismatch",null);
         if ((type.flags().flagsMask() & (ACC_ANNOTATION|ACC_ENUM|ACC_MODULE))!=0)
@@ -454,11 +456,11 @@ final class BytecodeLoader {
             annotationPlacement(field,Set.of());
             String descriptor=field.fieldType().stringValue(); fieldType(field.fieldTypeSymbol());
             var id=new BytecodeProgram.FieldId(name,field.fieldName().stringValue(),descriptor);
-            BytecodeState.Value initial=descriptor.equals("I") || descriptor.equals("Z") ? new BytecodeState.Int(0) : BytecodeState.NULL;
+            BytecodeState.Value initial=BytecodePrimitives.zero(descriptor);
             var constant=field.findAttribute(Attributes.constantValue());
             if (constant.isPresent() && (field.flags().flagsMask() & ACC_STATIC)!=0) {
                 Object value=constant.get().constant().constantValue();
-                if(value instanceof Integer number)initial=new BytecodeState.Int(descriptor.equals("Z") ? number & 1 : number);
+                if(value instanceof Number)initial=BytecodePrimitives.narrow(descriptor,constants.get(name).numeric(constant.get().constant().index()));
                 else if(value instanceof String text && descriptor.equals("Ljava/lang/String;"))initial=new BytecodeState.Literal(text);
                 else throw problem("UNSUPPORTED","Unsupported executable ConstantValue type",null);
             }
@@ -472,7 +474,7 @@ final class BytecodeLoader {
             annotationPlacement(method,name.equals(model) ? Set.of("Actor","Check") : Set.of());
             if (method.methodName().equalsString("<clinit>")) {
                 if (method.code().isEmpty()) throw problem("MALFORMED","Initializer missing code",null);
-                var code=new BytecodeMethod(name,method);
+                var code=new BytecodeMethod(name,method,constants.get(name));
                 if (code.ops.size()!=1 || code.ops.firstEntry().getValue().instruction().opcode()!=Opcode.RETURN || !code.code.exceptionHandlers().isEmpty())
                     throw problem("UNSUPPORTED","Executable application <clinit>",code.location(0));
             }
@@ -528,8 +530,8 @@ final class BytecodeLoader {
             if(type.isPrimitive())return;
             fieldType(type);return;
         }
-        if (descriptor.equals("I") || descriptor.equals("Z")) return;
-        if (!type.isClassOrInterface()) throw problem("UNSUPPORTED","Only int/boolean/reference computation is supported",null);
+        if (type.isPrimitive() && !descriptor.equals("V")) return;
+        if (!type.isClassOrInterface()) throw problem("UNSUPPORTED","Invalid computation type",null);
         String owner=descriptor.substring(1,descriptor.length()-1);
         if (!owner.equals("java/lang/Object")) read(owner);
     }

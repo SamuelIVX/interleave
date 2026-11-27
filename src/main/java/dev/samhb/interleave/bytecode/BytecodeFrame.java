@@ -18,7 +18,7 @@ final class BytecodeFrame {
      */
     final NavigableMap<Integer,BytecodeState.Value> locals = new TreeMap<>();
     /**
-     * Category-one operand values for the initial profile.
+     * Operand values; a category-two operand remains one value on this list.
      */
     final ArrayList<BytecodeState.Value> stack = new ArrayList<>();
     /**
@@ -44,7 +44,8 @@ final class BytecodeFrame {
     BytecodeFrame(BytecodeMethod method, List<BytecodeState.Value> arguments) {
         this.method = method;
         constructorReceiver=method.id.name().equals("<init>") ? (BytecodeState.Ref)arguments.getFirst() : null;
-        for (int i = 0; i < arguments.size(); i++) locals.put(i,arguments.get(i));
+        int slot=0;
+        for (var argument:arguments) { store(slot,argument);slot+=width(argument); }
         entered = (method.flags & java.lang.classfile.ClassFile.ACC_SYNCHRONIZED) == 0;
     }
 
@@ -74,4 +75,22 @@ final class BytecodeFrame {
      * @param value next operand
      */
     void push(BytecodeState.Value value) { stack.add(value); }
+
+    /** Returns JVM slot width without converting the value.
+     * @param value operand or local
+     * @return one or two JVM slots */
+    static int width(BytecodeState.Value value) { return value instanceof BytecodeState.LongValue || value instanceof BytecodeState.DoubleBits ? 2 : 1; }
+
+    /** Stores a local, invalidating either overlapping half of an earlier wide value.
+     * @param slot first destination slot
+     * @param value value to store */
+    void store(int slot,BytecodeState.Value value) {
+        if(locals.get(slot)==BytecodeState.Top.SLOT)locals.remove(slot-1);
+        if(width(locals.get(slot))==2)locals.remove(slot+1);
+        locals.put(slot,value);
+        if(width(value)==2) {
+            if(width(locals.get(slot+1))==2)locals.remove(slot+2);
+            locals.put(slot+1,BytecodeState.Top.SLOT);
+        }
+    }
 }

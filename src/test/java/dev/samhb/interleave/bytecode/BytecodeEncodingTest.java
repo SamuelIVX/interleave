@@ -20,7 +20,7 @@ class BytecodeEncodingTest {
             """);
         var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());
         try(var in=new DataInputStream(new ByteArrayInputStream(program.initialState().canonicalBytes()))) {
-            assertEquals(3,in.readInt()); assertEquals(3,in.readInt());
+            assertEquals(4,in.readInt()); assertEquals(3,in.readInt());
             reference(in,-2,0); text(in,"java/lang/Class"); objectHeader(in); assertEquals(0,in.readInt()); assertFalse(in.readBoolean());
             reference(in,-1,0); text(in,"Fixture"); objectHeader(in); assertEquals(2,in.readInt());
             field(in,"lock","Ljava/lang/Object;"); reference(in,-1,1);

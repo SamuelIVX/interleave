@@ -63,7 +63,7 @@ final class BytecodeArrays {
             Ref reference=(Ref)value;
             if(!reference.equals(NULL) && !program.hierarchy.assignable(object(state,reference).type,BytecodeHierarchy.referenceType(array.type.substring(1))))
                 throw new Trap("java/lang/ArrayStoreException",null);
-        } else {
+        } else if(value instanceof Int) {
             int integer=((Int)value).value();value=new Int(switch(array.type) {
                 case "[Z"->integer & 1;case "[B"->(byte)integer;case "[C"->(char)integer;case "[S"->(short)integer;default->integer;
             });
@@ -88,10 +88,7 @@ final class BytecodeArrays {
         }
         if(!reserve(program,execution,frame,owner,1+length))return null;
         var reference=new Ref(owner,execution.nextSequence++);var array=new ObjectValue(type);array.initialized=true;array.shared=owner==SETUP;
-        Value initial=switch(type.substring(1)) {
-            case "J"->new WideZero("LONG");case "F"->new WideZero("FLOAT");case "D"->new WideZero("DOUBLE");
-            case "Z","B","C","S","I"->new Int(0);default->NULL;
-        };
+        Value initial=BytecodePrimitives.zero(type.substring(1));
         array.elements=new ArrayList<>(Collections.nCopies(length,initial));state.heap.put(reference,array);
         execution.allocations++;execution.cells+=1+length;
         if(depth+1<lengths.length)for(int i=0;i<length;i++) {

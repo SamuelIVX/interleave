@@ -20,11 +20,12 @@ class BytecodeAdmissionTest {
         List<String> bodies=List.of(
             "@Actor(id=0) public void actor() { if(value==0) System.nanoTime(); }",
             "@Actor(id=0) public void actor() { helper(); } static void helper() { System.nanoTime(); }",
+            "@Actor(id=0) public void actor() { helper(); } static java.time.Instant helper() { return null; }",
             "@Actor(id=0) public void actor() {} @Check public boolean check() { return ++value==0; }",
             "@Actor(id=0) public void actor() {} @Check public boolean check() { helper(); return true; } static void helper() { value=2; }",
             "@Actor(id=0) public void actor() {} @Check public synchronized boolean check() { return true; }",
             "@Actor(id=0) public void actor() {} @Check public boolean check(){return helper();} static synchronized boolean helper(){return true;}",
-            "@Actor(id=0) public void actor() { double x=value; value=(int)x; }"
+            "@Actor(id=0) public void actor() { double x=Math.sin(value); value=(int)x; }"
         );
         for(int i=0;i<bodies.size();i++) {
             Path classes=BytecodeFixtures.compile(directory.resolve("case"+i),26,
@@ -274,11 +275,11 @@ class BytecodeAdmissionTest {
     }
 
 
-    /** Narrow descriptors remain outside94A even though explicit integer narrowing opcodes are supported.
+    /** Narrow declarations and helper signatures now execute with their JVM computational int representation.
      *
      * @param directory compiler workspace
      * @throws Exception for fixture failures */
-    @Test void rejectsNarrowDescriptors(@TempDir Path directory) throws Exception {
+    @Test void narrowDescriptorsAreAdmitted(@TempDir Path directory) throws Exception {
         List<String> bodies=List.of("byte value;", "char value;", "short value;",
             "static byte helper(){return 1;} @Check public boolean check(){return helper()==1;}",
             "static char helper(){return 1;} @Check public boolean check(){return helper()==1;}",
@@ -287,8 +288,11 @@ class BytecodeAdmissionTest {
             String constructor="public Fixture(){}";
             var classes=BytecodeFixtures.compile(directory.resolve("case"+index),26,
                 "@Model public class Fixture {"+constructor+" @Actor(id=0) public void actor(){} "+bodies.get(index)+"}");
-            assertEquals("UNSUPPORTED",assertThrows(BytecodeLoadException.class,
-                ()->BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults())).category);
+            var program=BytecodeLoader.load(classes,"Fixture",BytecodeLimits.defaults());
+            assertEquals(BytecodeState.Phase.TERMINATED,BytecodeFixtures.run(program,program.initialState(),0).executions.get(0).phase);
+            var result=new BytecodeExplorer(program,BytecodeScheduler.Mode.BATCHED).explore(1000);
+            assertTrue(result.traversalComplete());assertEquals(1,result.witnesses().size());
+            assertEquals(BytecodeExplorer.Kind.COMPLETED,result.witnesses().getFirst().outcome().kind());
         }
     }
 

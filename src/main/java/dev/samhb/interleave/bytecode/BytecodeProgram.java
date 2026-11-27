@@ -114,7 +114,7 @@ public final class BytecodeProgram {
     public String artifactDigest() { return digest; }
 
     /** Version of the admitted language, intrinsic costs and sequentially consistent execution profile. */
-    static final String PROFILE_VERSION="BYTECODE-SC-3";
+    static final String PROFILE_VERSION="BYTECODE-SC-4";
 
     /** Returns the frozen execution-profile version used to authenticate evidence.
      * @return bounded sequentially consistent profile identifier */

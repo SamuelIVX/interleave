@@ -17,13 +17,11 @@ final class BytecodeVerifier {
      */
     private BytecodeVerifier() {}
     /**
-     * Category-one operations whose semantics are implemented by OpcodeExecutor.
+     * Stack, monitor and array operations implemented by the owned executor.
      */
     private static final Set<Opcode> SIMPLE=EnumSet.of(Opcode.NOP,Opcode.POP,Opcode.POP2,Opcode.DUP,
         Opcode.DUP_X1,Opcode.DUP_X2,Opcode.DUP2,Opcode.DUP2_X1,Opcode.DUP2_X2,Opcode.SWAP,
-        Opcode.IADD,Opcode.ISUB,Opcode.IMUL,Opcode.IDIV,Opcode.IREM,Opcode.INEG,
-        Opcode.ISHL,Opcode.ISHR,Opcode.IUSHR,Opcode.IAND,Opcode.IOR,Opcode.IXOR,
-        Opcode.I2B,Opcode.I2C,Opcode.I2S,Opcode.ARRAYLENGTH,Opcode.MONITORENTER,Opcode.MONITOREXIT,Opcode.ATHROW);
+        Opcode.ARRAYLENGTH,Opcode.MONITORENTER,Opcode.MONITOREXIT,Opcode.ATHROW);
     /**
      * Supported conditional and unconditional branches.
      */
@@ -45,7 +43,7 @@ final class BytecodeVerifier {
                 case LoadInstruction load -> category(load.typeKind());
                 case StoreInstruction store -> category(store.typeKind());
                 case IncrementInstruction ignored -> true;
-                case ConstantInstruction constant -> code==Opcode.ACONST_NULL || constant.constantValue() instanceof Integer || constant.constantValue() instanceof String;
+                case ConstantInstruction constant -> code==Opcode.ACONST_NULL || constant.constantValue() instanceof Integer || constant.constantValue() instanceof Long || constant.constantValue() instanceof Float || constant.constantValue() instanceof Double || constant.constantValue() instanceof String;
                 case ReturnInstruction returned -> returned.typeKind()==TypeKind.VOID || category(returned.typeKind());
                 case BranchInstruction ignored -> BRANCHES.contains(code);
                 case LookupSwitchInstruction ignored -> true;
@@ -57,9 +55,9 @@ final class BytecodeVerifier {
                 case NewReferenceArrayInstruction ignored -> true;
                 case NewMultiArrayInstruction ignored -> true;
                 case TypeCheckInstruction ignored -> true;
-                case ArrayLoadInstruction load -> load.typeKind()!=TypeKind.LONG && load.typeKind()!=TypeKind.FLOAT && load.typeKind()!=TypeKind.DOUBLE;
-                case ArrayStoreInstruction store -> store.typeKind()!=TypeKind.LONG && store.typeKind()!=TypeKind.FLOAT && store.typeKind()!=TypeKind.DOUBLE;
-                default -> SIMPLE.contains(code);
+                case ArrayLoadInstruction ignored -> true;
+                case ArrayStoreInstruction ignored -> true;
+                default -> SIMPLE.contains(code) || BytecodePrimitives.OPCODES.contains(code);
             };
             if (!allowed)
                 throw problem("UNSUPPORTED","Unsupported reachable opcode "+code,method.location(op.bci()));
@@ -74,11 +72,11 @@ final class BytecodeVerifier {
     }
 
     /**
-     * Admits only the heap profile's category-one load and store types.
+     * Admits computational primitive and reference transport; VOID is handled by returns.
      * @param kind verifier type kind
-     * @return whether one-slot int/reference transport is supported
+     * @return whether the executor implements this load/store type
      */
-    private static boolean category(TypeKind kind) { return kind==TypeKind.INT || kind==TypeKind.REFERENCE; }
+    private static boolean category(TypeKind kind) { return kind==TypeKind.INT || kind==TypeKind.LONG || kind==TypeKind.FLOAT || kind==TypeKind.DOUBLE || kind==TypeKind.REFERENCE; }
 
     /** Validates handler region and target positions before full operand verification.
      * @param method decoded method
@@ -118,7 +116,7 @@ final class BytecodeVerifier {
                 || instruction instanceof ArrayLoadInstruction || instruction instanceof ArrayStoreInstruction || instruction instanceof TypeCheckInstruction
                 || instruction instanceof NewObjectInstruction || instruction instanceof NewPrimitiveArrayInstruction || instruction instanceof NewReferenceArrayInstruction
                 || instruction instanceof NewMultiArrayInstruction || code==Opcode.ARRAYLENGTH
-                || code==Opcode.IDIV || code==Opcode.IREM || code==Opcode.MONITORENTER || code==Opcode.ATHROW;
+                || code==Opcode.IDIV || code==Opcode.IREM || code==Opcode.LDIV || code==Opcode.LREM || code==Opcode.MONITORENTER || code==Opcode.ATHROW;
             var exceptional=new LinkedHashSet<Integer>();
             if(canThrow || protectedStarts.contains(bci)) {
                 var covering=method.coveringHandlers(bci);
@@ -127,7 +125,8 @@ final class BytecodeVerifier {
             // Seed even nonthrowing compiler regions, so unreachable cleanup cannot forge a lock proof.
             if(protectedStarts.contains(bci))for(int selected:exceptional)
                 if(selected>=0)merge(method,states,queue,selected,before);
-            if (instruction instanceof StoreInstruction store && locks.contains(store.slot())
+            if (instruction instanceof StoreInstruction store && (locks.contains(store.slot())
+                    || (store.typeKind()==TypeKind.LONG || store.typeKind()==TypeKind.DOUBLE) && locks.contains(store.slot()+1))
                 || instruction instanceof IncrementInstruction increment && locks.contains(increment.slot()))
                 throw problem("MALFORMED","Active monitor slot overwritten",method.location(bci));
             if (code==Opcode.MONITORENTER) {

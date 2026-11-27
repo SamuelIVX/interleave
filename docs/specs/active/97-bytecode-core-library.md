@@ -1,12 +1,23 @@
-<!-- Roadmap #12 / 97: implementation milestone specification; no production implementation in this PR. -->
+<!-- Roadmap #12 / 97: authoritative milestone specification; primitive delivery precedes library delivery. -->
 # Spec 97: Primitive and descriptor-level core library
 
 ## Objective
 
 Deliver primitive and descriptor-level core library as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: specified, not implemented or measured.** The
+**Type: delta. Status: primitive execution PR in progress; complete library milestone remains open.**
+Actual completed and pending evidence is recorded in the [97 ledger](../../measurements/97-bytecode-core-library.md). The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 97 only.
+
+## Delivery split
+
+The plan permits a split for a distinct reviewable behavior or correctness argument.97 now uses
+that allowance: the first implementation PR owns R1 plus its R5 callers/consumers, including raw
+floating constants, category-two verification/execution, exact keys, faults, batching and replay.
+The next sequential PR owns R2–R4 and their remaining R5 acceptance: finite descriptors, costs,
+caches, identity hashing, builder nonescape, clone safety and concat. Primitive/slot preservation
+and library effect/proof admission are separate correctness arguments. This split does not mark97
+complete, change its descriptor table, activate98 or defer any approved97 behavior outside97.
 
 ## Scope
 
@@ -35,7 +46,9 @@ complete implementation and consumers merge.
 
 1. **R1 — Primitives.** WHEN admitted opcodes execute, THE SYSTEM SHALL implement byte/short/char/int/
 long/float/double/boolean conversions, category-2 stack/local rules, overflow/shifts, comparisons,
-NaNs/infinities/signed-zero and narrowing per JVM semantics. Floating arithmetic SHALL preserve SC
+NaNs/infinities/signed-zero and narrowing per JVM semantics. Arithmetic/FP-width NaN results use
+profile-canonical quiet bits for deterministic replay; raw transport preserves input payloads and
+FNEG/DNEG flips their sign bits. Floating arithmetic SHALL preserve SC
 visibility and lossless raw-bit snapshots, not JavaScript rounded representations.
 2. **R2 — Finite intrinsics.** WHEN a platform call occurs, THE SYSTEM SHALL admit only the exact
 owner/name/descriptors below, with explicit atomicity, effects, fault, fuel and payload accounting.
@@ -258,6 +271,7 @@ publication; record completed/quota/error status through agent-setup without inv
 - 94B/95/96/97: review the batching preservation argument for every newly admitted behavior; 99/100/101:
 review reduction admission/resource/product obligations in addition to runtime tests.
 
-The specification-only PR runs document/link/structure validation, reader review and required actual
-CodeRabbit invocations. It does not run Java/PIT/browser feature checks for code that does not exist.
+The original specification-only PR ran document/link/structure validation, reader review and required actual
+CodeRabbit invocations without claiming Java/PIT/browser feature evidence. Each implementation PR now
+runs the applicable Java/PIT/browser gates and records actual evidence in the97 ledger.
 After publishing this milestone's implementation PR, report its link and stop; do not watch CI.

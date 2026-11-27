@@ -126,7 +126,7 @@ class BytecodeExceptionTest {
         var result=dev.samhb.interleave.InterleaveRunner.builder().build().runBytecode(program);
         assertTrue(result.hasViolation());assertFalse(result.hasIncomplete());
         var trace=result.failingTraces().getFirst();assertEquals(2,trace.bytecodeEvidence().version());
-        assertEquals("BYTECODE-SC-3",trace.bytecodeEvidence().identity().profileVersion());
+        assertEquals("BYTECODE-SC-4",trace.bytecodeEvidence().identity().profileVersion());
         assertTrue(trace.bytecodeEvidence().transitions().stream().flatMap(t->t.operations().stream()).anyMatch(op->op.event().equals("INTRINSIC_BODY")));
         assertTrue(trace.bytecodeEvidence().transitions().stream().flatMap(t->t.operations().stream()).anyMatch(op->op.event().equals("MONITOR_EXIT")));
         java.nio.file.Files.writeString(Path.of("build/bytecode-exception.json"),result.toJson());

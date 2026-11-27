@@ -32,20 +32,28 @@ final class BytecodeState {
     /**
      * Operand/local value families admitted by this profile.
      */
-    sealed interface Value permits Int, Ref, Thrown, WideZero, Unavailable, Literal {}
+    sealed interface Value permits Int, LongValue, FloatBits, DoubleBits, Top, Ref, Thrown, Unavailable, Literal {}
     /**
      * Models a JVM int, including the boolean operand representation.
      * @param value JVM int (also boolean representation)
      */
     record Int(int value) implements Value {}
+    /** Raw JVM signed long, occupying two local slots.
+     * @param value signed 64-bit value */
+    record LongValue(long value) implements Value {}
+    /** Raw IEEE binary32 payload, including noncanonical NaNs.
+     * @param bits raw bits */
+    record FloatBits(int bits) implements Value {}
+    /** Raw IEEE binary64 payload, including noncanonical NaNs.
+     * @param bits raw bits */
+    record DoubleBits(long bits) implements Value {}
+    /** Unusable second local slot of a category-two value. */
+    enum Top implements Value { /** Wide local padding. */ SLOT }
     /** Internal unknown VM message; never returned as a target-language value. */
     enum Unavailable implements Value { /** Implicit VM message that admission proves cannot be inspected. */ MESSAGE }
     /** Frozen input literal, resolved to an interned identity before execution.
      * @param text exact UTF-16 class-file contents */
     record Literal(String text) implements Value {}
-    /** Default-only wide array slot; computations remain excluded until97.
-     * @param type LONG, FLOAT or DOUBLE tag */
-    record WideZero(String type) implements Value {}
     /**
      * Names a permanent object identity in a setup, actor or constant namespace.
      * @param owner setup/actor/constant namespace
@@ -324,7 +332,7 @@ final class BytecodeState {
     byte[] canonicalBytes() {
         try {
             var bytes = new ByteArrayOutputStream(); var out = new DataOutputStream(bytes);
-            out.writeInt(3); out.writeInt(heap.size());
+            out.writeInt(4); out.writeInt(heap.size());
             for (var entry : heap.entrySet()) {
                 value(out,entry.getKey()); var object=entry.getValue(); text(out,object.type);
                 out.writeBoolean(object.shared); out.writeBoolean(object.initialized);
@@ -380,7 +388,10 @@ final class BytecodeState {
             case Int number -> { out.writeByte(1); out.writeInt(number.value()); }
             case Literal literal -> {out.writeByte(6);text(out,literal.text());}
             case Unavailable ignored -> out.writeByte(5);
-            case WideZero wide -> {out.writeByte(4);text(out,wide.type());}
+            case LongValue wide -> {out.writeByte(7);out.writeLong(wide.value());}
+            case Top ignored -> out.writeByte(8);
+            case FloatBits number -> {out.writeByte(9);out.writeInt(number.bits());}
+            case DoubleBits number -> {out.writeByte(10);out.writeLong(number.bits());}
             case Ref reference -> { out.writeByte(2); out.writeInt(reference.owner()); out.writeLong(reference.sequence()); }
             case Thrown thrown -> { out.writeByte(3); fault(out,thrown.fault()); }
         }

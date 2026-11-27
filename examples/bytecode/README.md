@@ -31,16 +31,27 @@ line tables; replay remains based on exact artifact bytes and real BCIs.
 Use fixture-constructor fields for locks. A declaration such as `static final Object LOCK=new Object()`
 requires executable `<clinit>` and rejects, as do ordinary static arrays, enum initialization and
 compiler-generated assertion-status setup. Use declared `@Check` methods instead of Java `assert`.
-Wider primitive computation/core libraries,
+Core-library computation,
 CBS/DPOR/bitstate and atomics belong to later selected phases. Weak memory remains unselected. Compiler-generated synchronized
 cleanup is supported; runtime null/division faults remain modeled behavior rather than loader errors.
 
-The current profile (`BYTECODE-SC-3`) also interprets actor-created application objects, inherited/hidden
+The current profile (`BYTECODE-SC-4`) also interprets actor-created application objects, inherited/hidden
 fields, constructor chaining, closed virtual/interface dispatch and private nest access. Arrays retain
-exact rank/component types, reference aliases and per-dimension allocation charges; int/boolean/byte/
-char/short array operations are supported. Long/float/double arrays may be allocated with zero defaults;
-their element load/store/computation opcodes remain rejected until97. Array cloning remains in97.
+exact rank/component types, reference aliases and per-dimension allocation charges; all primitive and reference array loads/stores are supported. Long and double occupy two local slots
+and one logical operand. Long/double shared accesses are single SC accesses in this profile; no
+Java Memory Model tearing or weak-memory behavior is claimed. Array cloning remains in97 library work.
 Null, bounds, negative-size, array-store and cast faults are modeled, including monitor cleanup.
+
+`WidePrimitives.java` exercises wide arguments/arrays, a long overflow result, negative zero and
+runtime IEEE infinity. Its declared FINAL check passes. Compile it with the same explicit classpath
+and select `--bytecode examples.bytecode.WidePrimitives`. All primitive arithmetic, shifts,
+comparisons and conversions follow JVM computation rules. Integer division/remainder by zero faults;
+floating division produces IEEE values. Primitive field/return narrowing follows the declared type;
+invocation arguments retain their computational values. Raw constant-pool floating bits survive
+transport without conversion through potentially NaN-collapsing Class-File API numeric accessors.
+Arithmetic/FP-width conversion NaNs use profile-canonical positive quiet bits for replay across
+hosts; FNEG/DNEG flip sign bits directly. Transport never canonicalizes payloads. General String/wrapper/Math/builder/concat
+operations remain rejected until the next97 PR completes their descriptors, costs and proofs.
 
 `HeapPublication.java` demonstrates a published cycle with an aliased array and interface check:
 
@@ -93,7 +104,7 @@ Throwable `initCause`, cause-only platform constructors and application `fillInS
 reject because they can invoke callbacks outside this narrow intrinsic contract. Error/LinkageError
 metadata supports VM-fault ancestry and catches; it does not admit their arbitrary construction.
 
-Current evidence uses schema2/profileSC3/canonical state3. SC1/SC2 schema1 evidence remains displayable,
+Current evidence uses schema2/profileSC4/canonical state4. SC1/SC2 schema1 and SC3 schema2 evidence remain displayable,
 but current strict replay rejects older semantic identities. New cutoffs record the executing actor
 and the charged budget owner separately; legacy absent ownership is never guessed. The source/JSON
 model routes retain their existing semantics. [The96 ledger](../../docs/measurements/96-bytecode-exceptions.md)
@@ -124,7 +135,7 @@ var replayed = new TraceReplayer().replayBytecode(program, TraceRecord.fromJson(
 BYTECODE schema and does not authenticate target execution; strict replay performs that check.
 It rejects duplicate keys, conflicting fields, unknown schemas and scalar coercions, with limits of
 16 Mi UTF-16 code units of JSON text, 64 nesting levels and one million JSON nodes. Tagged wide numeric values
-are strings/raw bits, reserved for later execution coverage. Native Java streams are build-specific:
+are decimal strings or fixed-width lowercase raw-bit hex, including noncanonical NaNs and signed zero. Native Java streams are build-specific:
 the current BYTECODE payload is versioned. The previous cutoff record remains readable with an absent
 legacy budget owner; strict replay still requires the current artifact/profile/limits. Incompatible
 older record shapes reject.
