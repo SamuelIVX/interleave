@@ -291,6 +291,15 @@ residual identities, calibration outcomes and resource/performance observations.
 
 ### Measurements and rollout
 
+The first implementation calibration exposed a PIT-only prerequisite documented in
+[bytecode mutation stability](../../measurements/bytecode-mutation-progress.md). Its DFS assertion
+must use states actually admitted at each prefix, so an unlimited caller budget cannot disable the
+9S frame-work bound. Its zero-duration deadline input must expose equality deterministically while
+preserving the immediate zero-state interruption and the original comparison. Production execution,
+limits and timeout gates stay unchanged. Merge the harness correction into main first, then compare
+fresh baseline/candidate runs under that same new harness. Failed old-profile calibration and a
+timing-sensitive inherited kill remain visible; they cannot be waived as acceptance.
+
 Perform one unsharded reference and two fresh sharded executions on one exact revision using the same
 protocol and no PIT history. Compare semantic identities/statuses exactly. Record elapsed time,
 aggregate runner time, peak resident memory where supported, runner/JDK conditions, shard duration
@@ -312,6 +321,9 @@ use measured expensive paths; it is not bundled into this infrastructure impleme
   requires neither an invented `mutationUnitSize` property nor a version change.
 - [verified] The original and Spec 97 worktrees contain uncommitted work and remain preserved.
 - [verified] Existing domain vocabulary belongs to `CONTEXT.md`.
+- [verified] PR145's first paired CI run has identical base/candidate inputs but failed both
+  calibration trials on an unlimited-budget pop-removal timeout. Its full comparison also exposes
+  one timing-sensitive deadline-boundary kill. The prerequisite record above preserves that evidence.
 - [unverified] Four shards' performance, balance and status stability on GitHub runners.
 - [unverified] Whether fixture compilation or individual integration tests dominate mutant execution.
 - [unverified] Any acceleration, reduced memory consumption or successful implementation/calibration.

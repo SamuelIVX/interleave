@@ -253,6 +253,10 @@ condition/size removal. They are not kills. The existing test-only instrumentati
 `BytecodeWorkBudget`, which derives9S maximum DFS loop visits for at mostS admitted frames (8 actor
 selections +1 pop per frame), saturating at Long.MAX_VALUE. Each pure observer gets at most2N+2 loop
 visits for N opcode work, helper-return events and final/cutoff views; the allowance resets per check.
+The later [mutation-stability prerequisite](bytecode-mutation-progress.md) tightens the DFS assertion
+to actual admissions at every prefix and documents zero-deadline test-input normalization after
+Spec102 calibration exposed unlimited-budget/test-order and clock-boundary gaps. The historical
+counts and completion evidence in this94B ledger remain observations of their original profile.
 These counters do not change production code, target fuel or flags and never ship in the library.
 Real-definition child-JVM tests preserve original outcomes, reject binding/checkpoint drift and turn
 actual stalled mutations into AssertionErrors. The refreshed whole-bytecode-package census passed with1718 KILLED +194 SURVIVED +102 NO_COVERAGE
