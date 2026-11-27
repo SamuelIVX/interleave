@@ -1,4 +1,4 @@
-<!-- Verification infrastructure: local/controller implementation; remote calibration and adoption pending. -->
+<!-- Verification infrastructure implemented and calibrated; full mode remains active pending reviewed adoption. -->
 # Spec 102: CI-first mutation verification
 
 ## Objective
@@ -7,8 +7,10 @@ Reduce local testing load and feedback time while preserving Interleave's mutati
 and acceptance requirements. Move complete affected mutation analyses to CI, introduce calibrated
 class sharding, and retain focused local verification.
 
-**Type: delta/refactor. Status: implementation PR in progress; remote calibration, adoption and
-acceleration measurements pending.** See the [implementation ledger](../../measurements/102-ci-first-mutation-verification.md).
+**Type: delta/refactor. Status: implementation merged; paired acceptance and two exact calibration
+trials verified. Sharding and prospective baseline-policy adoption await Sam's review.** See the
+[implementation ledger](../../measurements/102-ci-first-mutation-verification.md) and
+[final calibration audit](../../measurements/102-final-calibration-audit.md).
 This is a separately selected infrastructure workstream. Spec 97 remains incomplete;
 this spec neither implements its remaining behavior nor activates Specs 98–101. A specification
 merge alone does not enable the new gate or establish a speedup.
@@ -357,10 +359,11 @@ use measured expensive paths; it is not bundled into this infrastructure impleme
 - [verified] PR145's first paired CI run has identical base/candidate inputs but failed both
   calibration trials on an unlimited-budget pop-removal timeout. Its full comparison also exposes
   one timing-sensitive deadline-boundary kill. The prerequisite record above preserves that evidence.
-- [unverified] Four shards' performance, balance and status stability on GitHub runners.
+- [verified] Final PR145 run45942608351 passes paired acceptance and both exact shard trials.
+  The final audit records measured timing variability, partition imbalance and manual dispositions.
 - [unverified] Whether fixture compilation or individual integration tests dominate mutant execution.
-- [unverified] Remote execution, complete CI acceptance, acceleration, reduced memory consumption and
-  successful calibration. Local parser/process fixtures do not establish these results.
+- [unverified] Delivered end-to-end PR acceleration and reduced memory consumption. Peak process-tree
+  RSS is not measured; successful calibration does not itself adopt sharded acceptance.
 - [deferred] Incremental-history acceptance, fixture caching and commercial acceleration.
 
 ## Tests

@@ -1,4 +1,4 @@
-<!-- Spec102 implementation evidence; remote execution/calibration remain separate pending gates. -->
+<!-- Spec102 implementation and final CI evidence; full mode remains active pending reviewed adoption. -->
 # 102 — CI-first mutation verification
 
 ## Status and baseline
@@ -9,11 +9,12 @@ The implementation starts from freshly verified remote main
 unfinished Spec 97 worktree remain untouched. No interpreter, search, storage or consumer production
 Java source changes in this bundle.
 
-Local tooling/configuration checks and review-fix verification pass. The first remote run failed
-calibration; see the prerequisite integration record below. Fresh complete remote acceptance under the
-corrected harness, successful calibration, runtime/resource improvements and manual acceptance remain **pending**.
-Acceptance still uses full mode. This ledger makes no claim that local file fixtures or historical
-PIT reports establish a fresh census, a calibration result or a speedup.
+PR #145 merged as `e3a9afeea7b4898acd77545af61e43e3be6dd8ea`. Local tooling/configuration
+checks and final remote paired acceptance pass. The [final calibration audit](102-final-calibration-audit.md)
+records both exact successful trials, complete counts, manual bootstrap/constant dispositions,
+observed timing imbalance and limitations. Earlier failed calibration remains historical evidence.
+Acceptance still uses full mode; sharding and prospective baseline-policy adoption await Sam's review.
+No memory saving or delivered PR speedup is claimed.
 
 ## Delivery and gate ownership
 
@@ -146,7 +147,7 @@ Final source AST checks,80 relative documentation links and `git diff --check` p
 has zero errors and one pre-existing unrelated portability warning. Applicable review evidence is
 recorded through agent-setup. Independent review used sequential passes; no additional agents were
 spawned for implementation or review. Browser and local mutation reruns were omitted because no Java
-or viewer source changed, and complete mutation evidence belongs to this PR's pending CI gate.
+or viewer source changed, and complete mutation evidence was then pending CI; see the final audit above.
 
 ## PR145 feedback correction
 
@@ -177,7 +178,8 @@ Raw results: `pr145-fixes-integrated.log`, `pr145-*.json` and
 Three bounded fault injections into disposable copies of the Python tools confirm the strengthened
 tests detect omitted feature comparison, omitted input comparison and omitted calibration-status
 equality. These are tool-test checks, not PIT results or fresh mutation acceptance. Full remote
-mutation/calibration evidence remains pending; full mode and all existing gates remain in force.
+mutation/calibration evidence was pending at that feedback checkpoint; the final audit above records
+the subsequent successful run. Full mode and all existing gates remain in force.
 
 The targeted actual CodeRabbit0.8.1 feedback review completed all7 changed files with1 major finding:
 coordinator extra arguments alone omit Gradle-managed JVM settings. This was valid. The exporter now
@@ -205,9 +207,10 @@ implementation evidence and the failed first-run evidence; no executable conflic
 
 The [prerequisite record](bytecode-mutation-progress.md) preserves the failed old-profile calibration
 and timing-sensitive inherited kill, including raw counts and the preservation argument. These are
-not acceptance under the corrected profile. Both baseline and candidate must now run fresh complete
-checks with identical corrected harness bytes. Pushing this integration requests the normal paired
-full acceptance and two calibration trials; full mode remains active pending reviewed evidence.
+not acceptance under the corrected profile. This integration required fresh complete baseline/candidate
+checks with identical corrected harness bytes. Its push requested normal paired full acceptance
+and two calibration trials. They subsequently passed as recorded in the final audit;
+full mode remains active pending reviewed adoption.
 
 Integration verification: the single final build/Javadoc check passed in58seconds, with2176 Java
 tests (zero failures/errors/skips),38 Python tests and strict private harness doclint; public Javadoc
@@ -245,7 +248,8 @@ The written coordinate argument is deliberately narrow: identical defining class
 identical PIT protocol preserve ClassReader input, ASM node order, mutation generators and raw
 coordinates. A normalized executable body alone proves none of that node ordering. Changed class
 bytes therefore cannot establish an automated lost/preserved kill; they produce a visible human
-obligation. Bootstrap/NaN behavior remains unresolved even for identical class bytes. The comparison
+obligation. The automated comparator leaves bootstrap/NaN behavior unresolved even for identical
+class bytes; the final audit records the independent human disposition for this specific pair. The comparison
 includes reported mutant methods omitted from a disassembly inventory so omissions cannot hide kills.
 
 CI records elapsed seconds per execution and retains coverage/timing logs. `peakRssBytes` is explicitly
@@ -258,7 +262,7 @@ Enable sharded acceptance only after Sam reviews all calibration evidence: chang
 workflow plan mode to `sharded` and disable repeated bootstrap calibration. Until then `full` remains
 the gate. A mismatch keeps full mode and visible failure; later fallback requires its own fresh
 successful full run and explicit reason. The new baseline-timing policy is not retroactive: Spec 97's
-original deviation remains recorded, and prospective adoption awaits implementation/calibration.
+original deviation remains recorded, and prospective adoption awaits Sam's review.
 
 After publishing this draft implementation PR, report its link and stop. Sam supplies CI/review/merge
 results. No CI watcher, Spec 97 resumption or later milestone starts automatically.
