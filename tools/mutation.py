@@ -35,6 +35,7 @@ FAMILY_WEIGHTS = {
     'dev.samhb.interleave.ResultJson': 27,
     'dev.samhb.interleave.TestResult': 172,
     'dev.samhb.interleave.TraceRecord': 108,
+    'dev.samhb.interleave.bytecode.Actor': 12,
     'dev.samhb.interleave.bytecode.BytecodeAccessVerifier': 281,
     'dev.samhb.interleave.bytecode.BytecodeArrays': 117,
     'dev.samhb.interleave.bytecode.BytecodeChecks': 42,
@@ -49,16 +50,20 @@ FAMILY_WEIGHTS = {
     'dev.samhb.interleave.bytecode.BytecodeMethod': 114,
     'dev.samhb.interleave.bytecode.BytecodeObservations': 79,
     'dev.samhb.interleave.bytecode.BytecodePlatform': 81,
+    'dev.samhb.interleave.bytecode.BytecodePrimitives': 165,
     'dev.samhb.interleave.bytecode.BytecodeProgram': 31,
     'dev.samhb.interleave.bytecode.BytecodeReplay': 126,
     'dev.samhb.interleave.bytecode.BytecodeRuntime': 185,
     'dev.samhb.interleave.bytecode.BytecodeScheduler': 98,
     'dev.samhb.interleave.bytecode.BytecodeSharing': 106,
     'dev.samhb.interleave.bytecode.BytecodeSnapshots': 178,
+    'dev.samhb.interleave.bytecode.BytecodeStack': 45,
     'dev.samhb.interleave.bytecode.BytecodeState': 229,
     'dev.samhb.interleave.bytecode.BytecodeStrings': 69,
     'dev.samhb.interleave.bytecode.BytecodeThrowables': 302,
     'dev.samhb.interleave.bytecode.BytecodeVerifier': 322,
+    'dev.samhb.interleave.bytecode.Check': 18,
+    'dev.samhb.interleave.bytecode.Model': 6,
     'dev.samhb.interleave.bytecode.OpcodeExecutor': 485,
     'dev.samhb.interleave.cli.Main': 453,
     'dev.samhb.interleave.core.BytecodeEvidence': 269,
@@ -116,12 +121,6 @@ def class_inventory(directory: Path | str) -> dict:
               if name.endswith('.class')}
     require(values, 'Missing compiled production inventory')
     return values
-
-
-def shard_for(name: str) -> int:
-    """Assign a binary-name family from its first eight SHA256 bytes, not Python's random hash."""
-    family = name.split('$', 1)[0]
-    return int.from_bytes(hashlib.sha256(family.encode()).digest()[:8], 'big') % 4
 
 
 def partition(names: dict | list) -> list[list[str]]:

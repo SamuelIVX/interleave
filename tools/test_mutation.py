@@ -272,14 +272,31 @@ class PlanningTest(unittest.TestCase):
     """Assign every compiled class while binding its revision and test inputs."""
 
     def test_partition_is_complete_and_nested_classes_share_a_shard(self):
-        """OpenSSL independently gives example.A hash prefix 031c99d5aa636041: shard one."""
-        self.assertEqual(1, mutation.shard_for('example.A'))
-        self.assertEqual(1, mutation.shard_for('example.A$Nested'))
+        """Nested classes are co-located in the same shard as their enclosing class."""
         names = ['dev.samhb.interleave.bytecode.A', 'dev.samhb.interleave.bytecode.A$Nested',
                  'dev.samhb.interleave.report.ReportWriter', 'outside.Ignored']
         groups = mutation.partition(names)
         self.assertEqual(sorted(names[:-1]), sorted(x for group in groups for x in group))
         self.assertEqual(3, sum(len(group) for group in groups))
+        nested_shards = [i for i, group in enumerate(groups) if 'dev.samhb.interleave.bytecode.A' in group]
+        self.assertEqual(1, len(nested_shards))
+        self.assertIn('dev.samhb.interleave.bytecode.A$Nested', groups[nested_shards[0]])
+
+    def test_all_in_scope_bytecode_classes_have_weights(self):
+        """All production class families in dev.samhb.interleave.bytecode have explicit weights."""
+        expected_bytecode_families = {
+            'Actor', 'BytecodeAccessVerifier', 'BytecodeArrays', 'BytecodeChecks',
+            'BytecodeExplorer', 'BytecodeFrame', 'BytecodeHierarchy', 'BytecodeInput',
+            'BytecodeLimits', 'BytecodeLoadException', 'BytecodeLoader', 'BytecodeLocation',
+            'BytecodeMethod', 'BytecodeObservations', 'BytecodePlatform', 'BytecodePrimitives',
+            'BytecodeProgram', 'BytecodeReplay', 'BytecodeRuntime', 'BytecodeScheduler',
+            'BytecodeSharing', 'BytecodeSnapshots', 'BytecodeStack', 'BytecodeState',
+            'BytecodeStrings', 'BytecodeThrowables', 'BytecodeVerifier', 'Check',
+            'Model', 'OpcodeExecutor'
+        }
+        for name in expected_bytecode_families:
+            family = f'dev.samhb.interleave.bytecode.{name}'
+            self.assertIn(family, mutation.FAMILY_WEIGHTS)
 
     def test_partition_balances_known_class_families(self):
         """Heavy class families like BytecodeLoader and Main are distributed across different shards."""
