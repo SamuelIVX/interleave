@@ -507,6 +507,59 @@ class CompletionTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Incomplete'):
                 mutation.completed_rows(output, record)
 
+    def test_gradle_failure_preserves_exit_code_and_collects_diagnostics(self):
+        """A failing Gradle run records its exit code and collects any existing diagnostic report."""
+        with tempfile.TemporaryDirectory() as directory:
+            root, output = Path(directory) / 'repo', Path(directory) / 'evidence'
+            root.mkdir()
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            script = ('#!' + sys.executable + '\nimport pathlib,sys\n'
+                'pathlib.Path("build/reports/pitest").mkdir(parents=True, exist_ok=True)\n'
+                'pathlib.Path("build/reports/pitest/mutations.xml").write_text("<mutations/>")\n'
+                'print("PIT execution failed")\n'
+                'sys.exit(1)\n')
+            (root / 'gradlew').write_text(script)
+            (root / 'gradlew').chmod(0o755)
+            subprocess.run(['git', '-C', str(root), 'add', 'gradlew'], check=True)
+            subprocess.run(['git', '-C', str(root), '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                            'commit', '-qm', 'fixture'], check=True)
+            revision = mutation.git(root, 'rev-parse', 'HEAD')
+            result = subprocess.run([sys.executable, '-B', str(Path(mutation.__file__)), 'ci-run',
+                '--checkout', str(root), '--revision', revision, '--label', 'candidate', '--scope', 'default',
+                '--output', str(output)], env=dict(os.environ, GITHUB_ACTIONS='true'), capture_output=True, text=True)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn('default Gradle execution failed', result.stderr)
+            record = mutation.load_json(output / 'record.json')
+            self.assertEqual(1, record['exit'])
+            self.assertFalse(record['complete'])
+            self.assertTrue((output / 'mutations.xml').exists())
+            self.assertEqual(mutation.fingerprint(output / 'mutations.xml'), record['reportHash'])
+
+    def test_gradle_failure_before_metadata_raises_cleanly(self):
+        """A Gradle failure before writing metadata fails closed without crashing on missing JSON."""
+        with tempfile.TemporaryDirectory() as directory:
+            root, output = Path(directory) / 'repo', Path(directory) / 'evidence'
+            root.mkdir()
+            subprocess.run(['git', 'init', '-q', str(root)], check=True)
+            script = ('#!' + sys.executable + '\nimport sys\n'
+                'print("Compilation error")\n'
+                'sys.exit(2)\n')
+            (root / 'gradlew').write_text(script)
+            (root / 'gradlew').chmod(0o755)
+            subprocess.run(['git', '-C', str(root), 'add', 'gradlew'], check=True)
+            subprocess.run(['git', '-C', str(root), '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                            'commit', '-qm', 'fixture'], check=True)
+            revision = mutation.git(root, 'rev-parse', 'HEAD')
+            result = subprocess.run([sys.executable, '-B', str(Path(mutation.__file__)), 'ci-run',
+                '--checkout', str(root), '--revision', revision, '--label', 'candidate', '--scope', 'build',
+                '--output', str(output)], env=dict(os.environ, GITHUB_ACTIONS='true'), capture_output=True, text=True)
+            self.assertNotEqual(0, result.returncode)
+            self.assertIn('build Gradle execution failed', result.stderr)
+            record = mutation.load_json(output / 'record.json')
+            self.assertEqual(2, record['exit'])
+            self.assertFalse(record['complete'])
+            self.assertFalse((output / 'resolved.json').exists())
+
 
 class AggregateTest(unittest.TestCase):
     """Exercise complete paired evidence, including intentional corruption, through the validator."""
@@ -653,56 +706,37 @@ class AggregateTest(unittest.TestCase):
             with self.subTest(change=change), self.assertRaises(ValueError):
                 mutation.candidate_reuse(directory, 'b' * 40, 'c' * 40, 'build')
 
-    def test_baseline_reuse_requires_full_revision_controller_inputs_and_checks(self):
-        """A cached baseline build is reusable only at its exact immutable execution identity."""
+    def test_candidate_reuse_rejects_baseline_record(self):
+        """Baseline evidence cannot be reused as candidate evidence."""
         directory = self.reports / 'baseline-build'
+        with self.assertRaisesRegex(ValueError, 'Candidate evidence identity/completion differs'):
+            mutation.candidate_reuse(directory, 'a' * 40, 'c' * 40, 'build')
+
+    def test_candidate_reuse_rejects_mismatched_runtime_protocol(self):
+        """Candidate reuse rejects cached records when runtime protocol differs."""
+        directory = self.reports / 'candidate-build'
+        controller = mutation.git(Path(mutation.__file__).parent, 'rev-parse', 'HEAD')
         original = mutation.load_json(directory / 'record.json')
-        self.assertEqual(original, mutation.candidate_reuse(directory, 'a' * 40, 'c' * 40, 'build', label='baseline'))
-        for change in ({'revision': 'd' * 40}, {'controller': 'd' * 40}, {'checks': ['test']}, {'exit': 1},
-                       {'complete': False}, {'checks': {'build': 'EXECUTED', 'test': 'EXECUTED', 'javadoc': 'SKIPPED'}}):
-            mutation.save_json(directory / 'record.json', dict(original, **change))
-            with self.subTest(change=change), self.assertRaises(ValueError):
-                mutation.candidate_reuse(directory, 'a' * 40, 'c' * 40, 'build', label='baseline')
-        mutation.save_json(directory / 'record.json', original)
+        mutation.save_json(directory / 'record.json', dict(original, controller=controller))
+        self.assertEqual(controller, mutation.candidate_reuse(directory, 'b' * 40, controller, 'build')['controller'])
         resolved_path = directory / 'resolved.json'
         resolved = mutation.load_json(resolved_path)
-        changed_resolved = copy.deepcopy(resolved)
-        changed_resolved['protocol']['runtime']['java.runtime.version'] = 'different-runtime'
-        mutation.save_json(resolved_path, changed_resolved)
-        with self.assertRaisesRegex(ValueError, 'protocol'):
-            mutation.candidate_reuse(directory, 'a' * 40, 'c' * 40, 'build', label='baseline')
-        mutation.save_json(resolved_path, resolved)
+        changed = copy.deepcopy(resolved)
+        changed['protocol']['runtime']['java.runtime.version'] = 'different-runtime'
+        mutation.save_json(resolved_path, changed)
+        try:
+            with self.assertRaisesRegex(ValueError, 'Resolved protocol differs'):
+                mutation.candidate_reuse(directory, 'b' * 40, controller, 'build')
+        finally:
+            mutation.save_json(resolved_path, resolved)
+            mutation.save_json(directory / 'record.json', original)
 
-    def test_ensure_baseline_checks_rejects_mismatched_candidate_protocol_and_regenerates(self):
-        """Cached baseline is rejected if its protocol differs from candidate build."""
-        with tempfile.TemporaryDirectory() as temp:
-            evidence = Path(temp) / 'evidence'
-            evidence.mkdir()
-            base_dir = evidence / 'baseline-build'
-            shutil.copytree(self.reports / 'baseline-build', base_dir)
-            cand_dir = evidence / 'candidate-build'
-            shutil.copytree(self.reports / 'candidate-build', cand_dir)
-
-            cand_record = mutation.load_json(cand_dir / 'record.json')
-            cand_record['protocol']['runtime']['java.runtime.version'] = 'different-runtime'
-            mutation.save_json(cand_dir / 'record.json', cand_record)
-
-            ran = False
-            orig_ci_run = mutation.ci_run
-            try:
-                def mock_ci_run(root, revision, label, scope, output, *args, **kwargs):
-                    nonlocal ran
-                    ran = True
-                    rec = copy.deepcopy(mutation.load_json(self.reports / f'{label}-build/record.json'))
-                    rec['scope'] = scope
-                    rec['protocol'] = copy.deepcopy(cand_record['protocol'])
-                    return rec
-                mutation.ci_run = mock_ci_run
-                mutation.ensure_baseline_checks('/tmp', 'a' * 40, evidence)
-                self.assertTrue(ran)
-                self.assertTrue((evidence.parent / 'rejected-reuse/baseline-build').exists())
-            finally:
-                mutation.ci_run = orig_ci_run
+    def test_sharded_acceptance_rejected_pending_reviewed_calibration(self):
+        """Creating an acceptance plan with mode='sharded' is rejected until reviewed calibration."""
+        with self.assertRaisesRegex(ValueError, 'Sharded acceptance remains disabled pending reviewed calibration'):
+            mutation.make_plan('a' * 40, 'b' * 40, self.reports / 'baseline-build/classes',
+                               self.reports / 'candidate-build/classes', self.records['baseline'],
+                               self.records['candidate'], mode='sharded')
 
     def test_calibration_requires_two_complete_equal_trials(self):
         """Missing trials cannot enable calibration merely because acceptance passed."""

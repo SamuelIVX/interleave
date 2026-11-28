@@ -154,8 +154,7 @@ def check_provenance(expected: dict, observed: dict) -> None:
 def make_plan(base: str, candidate: str, base_classes: Path | str, candidate_classes: Path | str,
               base_record: dict, candidate_record: dict, mode: str = 'full', calibrate: bool = False) -> dict:
     """Plan an exact pair from successful preflights; no source files are overlaid on either revision."""
-    require(mode in ('full', 'sharded'), 'Unknown analysis mode')
-    require(not calibrate or mode == 'full', 'Calibration requires full reference mode')
+    require(mode == 'full', 'Sharded acceptance remains disabled pending reviewed calibration')
     result = {'version': 1, 'mode': mode, 'calibrate': calibrate, 'scope': list(SCOPE), 'revisions': {}}
     for label, revision, directory, record in (
             ('baseline', base, base_classes, base_record),
@@ -530,6 +529,15 @@ def ci_run(root: Path | str, revision: str, label: str, scope: str, output: Path
         with (output / 'run.log').open('w') as log:
             result = subprocess.run(command + tasks, cwd=root, stdout=log, stderr=subprocess.STDOUT)
         record['exit'] = result.returncode
+        if scope != 'build':
+            report = report_dir / 'mutations.xml'
+            if report.exists():
+                shutil.copy2(report, output / 'mutations.xml')
+                record['reportHash'] = fingerprint(report)
+        classes_dir = root / 'build/classes/java/main'
+        if classes_dir.exists():
+            shutil.copytree(classes_dir, output / 'classes')
+        require(result.returncode == 0, f'{scope} Gradle execution failed; inspect {output / "run.log"}')
         metadata = load_json(output / 'resolved.json')
         check_metadata(metadata)
         record.update(protocol=metadata['protocol'], inputs=snapshot_inputs(root, metadata),
@@ -538,13 +546,6 @@ def ci_run(root: Path | str, revision: str, label: str, scope: str, output: Path
         if scope == 'build':
             record['checks'] = load_json(output / 'tasks.json')
             check_build(record)
-        else:
-            report = report_dir / 'mutations.xml'
-            if report.exists():
-                shutil.copy2(report, output / 'mutations.xml')
-                record['reportHash'] = fingerprint(report)
-        shutil.copytree(root / 'build/classes/java/main', output / 'classes')
-        require(result.returncode == 0, f'{scope} Gradle execution failed; inspect {output / "run.log"}')
         # Commit completion only after every required artifact/guard succeeds, independently of Gradle's exit.
         if scope != 'build':
             completed_rows(output, dict(record, complete=True))
@@ -561,14 +562,14 @@ def ci_run(root: Path | str, revision: str, label: str, scope: str, output: Path
 
 
 def candidate_reuse(directory: Path | str, revision: str, controller: str, scope: str,
-                    expected: dict | None = None, label: str = 'candidate') -> dict:
+                    expected: dict | None = None) -> dict:
     """Validate one existing check without executing Gradle or trusting a filename."""
     directory = Path(directory)
     record = load_json(directory / 'record.json')
     require(type(record['version']) is int and record['version'] == 1 and record['revision'] == revision and record['controller'] == controller
-            and record['scope'] == scope and record['label'] == label and record['exit'] == 0
+            and record['scope'] == scope and record['label'] == 'candidate' and record['exit'] == 0
             and record.get('complete') is True,
-            f'{label.capitalize()} evidence identity/completion differs')
+            'Candidate evidence identity/completion differs')
     metadata = load_json(directory / 'resolved.json')
     check_metadata(metadata)
     protocol = dict(metadata['protocol'], harness=record['inputs']['harness'])
@@ -584,48 +585,25 @@ def candidate_reuse(directory: Path | str, revision: str, controller: str, scope
     return record
 
 
-def ensure_revision_checks(root: Path | str, revision: str, label: str, evidence: Path | str,
-                           expected_protocol: dict | None = None) -> None:
-    """Reuse only successful exact revision evidence; rerun absent/incompatible checks once."""
+def ensure_candidate_checks(root: Path | str, revision: str, evidence: Path | str) -> None:
+    """Reuse only successful exact candidate evidence; rerun absent/incompatible checks once."""
     evidence = Path(evidence).resolve()
     controller = git(Path(__file__).parent, 'rev-parse', 'HEAD')
     expected = None
     for scope in ('build', 'default'):
-        directory = evidence / (f'{label}-' + scope)
+        directory = evidence / ('candidate-' + scope)
         try:
-            record = candidate_reuse(directory, revision, controller, scope, expected, label=label)
-            if expected_protocol is not None:
-                require(record['protocol'] == expected_protocol, f'{label.capitalize()} protocol differs from expected protocol')
+            record = candidate_reuse(directory, revision, controller, scope, expected)
         except (ValueError, OSError, KeyError, TypeError, ET.ParseError) as error:
-            print(f'Rerunning {label} {scope}: {error}', flush=True)
+            print(f'Rerunning candidate {scope}: {error}', flush=True)
             if directory.exists():
                 rejected = evidence.parent / 'rejected-reuse' / directory.name
                 require(not rejected.exists(), 'Previous rejected reuse diagnostics already exist')
                 rejected.parent.mkdir(parents=True, exist_ok=True)
                 directory.rename(rejected)
-            record = ci_run(root, revision, label, scope, directory)
-            if expected_protocol is not None and scope == 'build':
-                require(record['protocol'] == expected_protocol, f'Fresh {label} protocol differs from expected protocol')
+            record = ci_run(root, revision, 'candidate', scope, directory)
         if scope == 'build':
             expected = record
-
-
-def ensure_candidate_checks(root: Path | str, revision: str, evidence: Path | str) -> None:
-    """Reuse only successful exact candidate evidence; rerun absent/incompatible checks once."""
-    ensure_revision_checks(root, revision, 'candidate', evidence)
-
-
-def ensure_baseline_checks(root: Path | str, revision: str, evidence: Path | str) -> None:
-    """Reuse only successful exact baseline evidence; rerun absent/incompatible checks once."""
-    evidence = Path(evidence).resolve()
-    candidate_record = evidence / 'candidate-build/record.json'
-    expected_protocol = None
-    if candidate_record.exists():
-        try:
-            expected_protocol = load_json(candidate_record).get('protocol')
-        except (ValueError, OSError):
-            pass
-    ensure_revision_checks(root, revision, 'baseline', evidence, expected_protocol=expected_protocol)
 
 
 def select_revisions(root: Path | str, base: str, candidate: str, head: str | None = None,
@@ -705,10 +683,6 @@ def main() -> int:
     reuse.add_argument('--checkout', type=Path, required=True)
     reuse.add_argument('--revision', required=True)
     reuse.add_argument('--evidence', type=Path, required=True)
-    base_reuse = commands.add_parser('baseline-checks', help='Validate reuse or execute missing baseline preflights')
-    base_reuse.add_argument('--checkout', type=Path, required=True)
-    base_reuse.add_argument('--revision', required=True)
-    base_reuse.add_argument('--evidence', type=Path, required=True)
     verify = commands.add_parser('verify-inputs', help='Fail before PIT if resolved worker inputs differ')
     verify.add_argument('--checkout', type=Path, required=True)
     verify.add_argument('--resolved', type=Path, required=True)
@@ -736,9 +710,6 @@ def main() -> int:
         return 0
     if args.command == 'candidate-checks':
         ensure_candidate_checks(args.checkout, args.revision, args.evidence)
-        return 0
-    if args.command == 'baseline-checks':
-        ensure_baseline_checks(args.checkout, args.revision, args.evidence)
         return 0
     if args.command == 'verify-inputs':
         metadata = load_json(args.resolved)

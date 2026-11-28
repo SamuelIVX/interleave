@@ -69,12 +69,12 @@ Data recorded during audited run [45942608351](https://github.com/SamuelIVX/inte
 - Default `calibrate: false` for routine PRs, while preserving `calibrate: true` as an explicit input for manual dispatch and scheduled calibration audits.
 - **Immediate Impact:** Eliminates 8 out of 10 affected matrix jobs per PR run, freeing concurrency slots immediately.
 
-### 2. Prospective Baseline Cryptographic Evidence Caching
-- **Workflow & Tooling:** `tools/mutation.py` & `.github/workflows/affected-mutation.yml`
-- Extend candidate evidence reuse into symmetric `baseline-checks` that validates pre-existing baseline artifacts.
-- Store baseline preflight evidence using GitHub Actions Cache (`actions/cache`) indexed by `mutation-baseline-${{ inputs.base }}-${{ runner.os }}-temurin-26-${{ controller_sha }}-${{ tool_hash }}`.
+### 2. Prospective Baseline Cryptographic Evidence Caching (Future Milestone Proposal)
+- **Workflow & Tooling (Prospective):** `tools/mutation.py` & `.github/workflows/affected-mutation.yml`
+- Under Spec 102 R4, routine PR acceptance requires fresh baseline build, strict Javadoc, tests, and default PIT checks.
+- As a future reviewed milestone (Pillar 2), prospective baseline evidence caching proposes storing baseline preflight evidence using GitHub Actions Cache (`actions/cache`) indexed by `mutation-baseline-${{ inputs.base }}-${{ runner.os }}-${{ steps.setup-java.outputs.version }}-${{ controller_sha }}-${{ tool_hash }}`.
 - If verified: Baseline preflight execution latency drops by approximately 13.94 minutes down to ~30 seconds.
-- If miss or incompatible: Falls back to executing baseline preflight checks fresh and populates the cache.
+- In current routine PR verification, persistent baseline restoration remains disabled to preserve R4 fresh execution invariants until formal adoption.
 
 ### 3. Deterministic LPT-Balanced Partitioning
 - **Tooling:** `tools/mutation.py`
@@ -83,8 +83,9 @@ Data recorded during audited run [45942608351](https://github.com/SamuelIVX/inte
 - Deterministically assign families using Longest Processing Time (LPT) bin-packing, tie-broken by family name.
 - **Projected Result:** Balanced mutant distribution (~1,773 mutants per shard across all 4 shards) eliminating the 7.67x skew, with projected shard runtimes estimated at ~25–30 minutes (pending empirical calibration measurements).
 
-### 4. Calibrated Sharded Acceptance
-- Shift acceptance mode from `full` to `sharded` in `.github/workflows/affected-mutation.yml` once two new calibration trials match the full reference under LPT partitioning.
+### 4. Calibrated Sharded Acceptance (Pending Reviewed Calibration)
+- Non-full acceptance remains strictly disabled until two new calibration trials match the full reference under LPT partitioning and receive formal review.
+- Shift acceptance mode from `full` to `sharded` in `.github/workflows/affected-mutation.yml` only after calibration verification is completed.
 - Run candidate shards in parallel on isolated GitHub-hosted runner VMs with single-threaded minions (`-PpitestThreads=1`).
 - Eliminates multi-threaded timing jitter or CPU contention on 2-vCPU VMs while achieving true horizontal scaling.
 
@@ -92,14 +93,14 @@ Data recorded during audited run [45942608351](https://github.com/SamuelIVX/inte
 
 ## Projected Performance Matrix
 
-| Metric | Current State (`full` + `calibrate: true`) | Phase 1 + 2 (Calibration Decoupled + Baseline Preflight Cached) | Phase 3 + 4 (4 Balanced Shards, Paired Sharded) | Phase 3 + 4 (With Baseline Affected Artifact Reuse) |
+| Metric | Current State (`full` + `calibrate: true`) | Phase 1 + 2 (Calibration Decoupled + Baseline Preflight Cached) | Phase 3 + 4 (4 Balanced Shards, Paired Sharded, `max-parallel: 4`) | Phase 3 + 4 (With Baseline Affected Artifact Reuse) |
 |---|---|---|---|---|
-| **Routine Matrix Jobs** | 10 affected jobs (2 full + 8 calibration) | 2 affected jobs (1 base, 1 cand full) | 8 affected jobs (4 base, 4 cand) | 4 candidate shards (baseline reused) |
+| **Routine Matrix Jobs** | 10 affected jobs (2 full + 8 calibration) | 2 affected jobs (1 base, 1 cand full) | 8 affected jobs (4 base, 4 cand in 2 waves) | 4 candidate shards (baseline reused) |
 | **Baseline Preflight Time** | 13.94 min (836s) | **~30s** (cache hit) | **~30s** (cache hit) | **~30s** (cache hit) |
 | **Baseline Affected Time** | 124.30 min (7,458s) | 124.30 min (runs parallel with cand) | **~28 min** (4 balanced shards) | **0 min** (artifact reuse) |
 | **Candidate Affected Time** | 140.68 min (8,440s) | 140.68 min | **~28 min** (4 balanced shards) | **~28 min** |
 | **Prepare Job Duration** | ~15 min | ~2 min | ~2 min | ~2 min |
 | **Summary & Validation** | ~2 min | ~2 min | ~2 min | ~2 min |
-| **Total Wall Clock Time** | **~171 min (2h 51m)** | **~144 min** | **~32 min** | **~32 min** |
+| **Total Wall Clock Time** | **~171 min (2h 51m)** | **~144 min** | **~60 min** (or **~32 min** with `max-parallel: 8`) | **~32 min** |
 | **Total Runner Compute** | **~600 runner-min** | **~270 runner-min** | **~230 runner-min** | **~120 runner-min** |
-| **Overall Speedup** | Baseline (1.0x) | 1.19x | **5.3x faster** | **5.3x faster (78% compute cut)** |
+| **Overall Speedup** | Baseline (1.0x) | 1.19x | **2.85x faster** (or **5.3x** at 8 concurrency) | **5.3x faster (78% compute cut)** |
