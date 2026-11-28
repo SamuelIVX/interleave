@@ -29,45 +29,6 @@ SCOPE = ('dev.samhb.interleave.bytecode.*', 'dev.samhb.interleave.BytecodeTraceJ
          'dev.samhb.interleave.report.ReportWriter*', 'dev.samhb.interleave.report.SoundnessAttestation*',
          'dev.samhb.interleave.cli.Main*')
 DEFAULT_SCOPE = ('dev.samhb.interleave.state.*', 'dev.samhb.interleave.cb.*')
-FAMILY_WEIGHTS = {
-    'dev.samhb.interleave.BytecodeTraceJson': 131,
-    'dev.samhb.interleave.InterleaveRunner': 274,
-    'dev.samhb.interleave.ResultJson': 27,
-    'dev.samhb.interleave.TestResult': 172,
-    'dev.samhb.interleave.TraceRecord': 108,
-    'dev.samhb.interleave.bytecode.BytecodeAccessVerifier': 281,
-    'dev.samhb.interleave.bytecode.BytecodeArrays': 117,
-    'dev.samhb.interleave.bytecode.BytecodeChecks': 42,
-    'dev.samhb.interleave.bytecode.BytecodeExplorer': 165,
-    'dev.samhb.interleave.bytecode.BytecodeFrame': 19,
-    'dev.samhb.interleave.bytecode.BytecodeHierarchy': 330,
-    'dev.samhb.interleave.bytecode.BytecodeInput': 134,
-    'dev.samhb.interleave.bytecode.BytecodeLimits': 7,
-    'dev.samhb.interleave.bytecode.BytecodeLoadException': 4,
-    'dev.samhb.interleave.bytecode.BytecodeLoader': 1024,
-    'dev.samhb.interleave.bytecode.BytecodeLocation': 11,
-    'dev.samhb.interleave.bytecode.BytecodeMethod': 114,
-    'dev.samhb.interleave.bytecode.BytecodeObservations': 79,
-    'dev.samhb.interleave.bytecode.BytecodePlatform': 81,
-    'dev.samhb.interleave.bytecode.BytecodeProgram': 31,
-    'dev.samhb.interleave.bytecode.BytecodeReplay': 126,
-    'dev.samhb.interleave.bytecode.BytecodeRuntime': 185,
-    'dev.samhb.interleave.bytecode.BytecodeScheduler': 98,
-    'dev.samhb.interleave.bytecode.BytecodeSharing': 106,
-    'dev.samhb.interleave.bytecode.BytecodeSnapshots': 178,
-    'dev.samhb.interleave.bytecode.BytecodeState': 229,
-    'dev.samhb.interleave.bytecode.BytecodeStrings': 69,
-    'dev.samhb.interleave.bytecode.BytecodeThrowables': 302,
-    'dev.samhb.interleave.bytecode.BytecodeVerifier': 322,
-    'dev.samhb.interleave.bytecode.OpcodeExecutor': 485,
-    'dev.samhb.interleave.cli.Main': 453,
-    'dev.samhb.interleave.core.BytecodeEvidence': 269,
-    'dev.samhb.interleave.report.BenchmarkHarness': 315,
-    'dev.samhb.interleave.report.BenchmarkResult': 77,
-    'dev.samhb.interleave.report.ReportWriter': 259,
-    'dev.samhb.interleave.report.SoundnessAttestation': 233,
-    'dev.samhb.interleave.search.TraceReplayer': 237,
-}
 
 
 def load_json(path: Path | str) -> dict:
@@ -118,14 +79,21 @@ def class_inventory(directory: Path | str) -> dict:
     return values
 
 
-def shard_for(name: str) -> int:
-    """Assign a binary-name family from its first eight SHA256 bytes, not Python's random hash."""
-    family = name.split('$', 1)[0]
-    return int.from_bytes(hashlib.sha256(family.encode()).digest()[:8], 'big') % 4
+def class_sizes(directory: Path | str) -> dict[str, int]:
+    """Return binary class names and exact compiled byte sizes from a production directory."""
+    directory = Path(directory)
+    values = {}
+    for path in sorted(directory.rglob('*.class')):
+        require(not path.is_symlink(), f'Symlink input unsupported: {path}')
+        if path.is_file():
+            name = path.relative_to(directory).as_posix()[:-6].replace('/', '.')
+            values[name] = path.stat().st_size
+    require(values, 'Missing compiled production classes for sizing')
+    return values
 
 
-def partition(names: dict | list) -> list[list[str]]:
-    """Select the frozen population and assign every selected class family deterministically via LPT bin-packing."""
+def partition(names: dict | list, sizes: dict | None = None) -> list[list[str]]:
+    """Select the frozen population and assign every selected class family deterministically via dynamic byte size LPT."""
     families = {}
     for name in sorted(names):
         if any(fnmatch.fnmatchcase(name, pattern) for pattern in SCOPE):
@@ -133,10 +101,11 @@ def partition(names: dict | list) -> list[list[str]]:
             families.setdefault(family, []).append(name)
     shards = [[] for _ in range(4)]
     weights = [0] * 4
-    for family in sorted(families.keys(), key=lambda f: (-FAMILY_WEIGHTS.get(f, len(families[f])), f)):
+    sizes = sizes or {}
+    for family in sorted(families.keys(), key=lambda f: (-sum(sizes.get(n, 1) for n in families[f]), f)):
         idx = weights.index(min(weights))
         shards[idx].extend(families[family])
-        weights[idx] += FAMILY_WEIGHTS.get(family, len(families[family]))
+        weights[idx] += sum(sizes.get(n, 1) for n in families[family])
     return [sorted(shard) for shard in shards]
 
 
@@ -166,10 +135,12 @@ def make_plan(base: str, candidate: str, base_classes: Path | str, candidate_cla
         check_build(record)
         inventory = class_inventory(directory)
         require(inventory == record['inputs']['production'], 'Preflight class hashes differ')
-        groups = partition(inventory)
+        sizes = class_sizes(directory)
+        groups = partition(inventory, sizes)
         require(any(groups), 'Empty affected population')
         result['revisions'][label] = {key: record[key] for key in ('revision', 'protocol', 'inputs', 'controller')}
         result['revisions'][label]['shards'] = groups
+        result['revisions'][label]['sizes'] = sizes
     require(base_record['protocol'] == candidate_record['protocol'], 'Baseline/candidate protocols differ')
     require(base_record['controller'] == candidate_record['controller'], 'Controllers differ')
     return result
@@ -184,7 +155,8 @@ def expected_jobs(plan: dict) -> list[dict]:
     jobs = []
     for label, entry in plan['revisions'].items():
         groups = entry['shards']
-        require(len(groups) == 4 and groups == partition(entry['inputs']['production']), 'Invalid shard assignments')
+        require(len(groups) == 4 and groups == partition(entry['inputs']['production'], entry.get('sizes')),
+                'Invalid shard assignments')
         for shard in (['all'] if plan['mode'] == 'full' else ['0', '1', '2', '3']):
             classes = sorted(x for group in groups for x in group) if shard == 'all' else groups[int(shard)]
             jobs.append({'label': label, 'shard': shard, 'classes': classes, 'trial': 'acceptance'})
