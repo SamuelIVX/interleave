@@ -272,24 +272,60 @@ class PlanningTest(unittest.TestCase):
     """Assign every compiled class while binding its revision and test inputs."""
 
     def test_partition_is_complete_and_nested_classes_share_a_shard(self):
-        """OpenSSL independently gives example.A hash prefix 031c99d5aa636041: shard one."""
-        self.assertEqual(1, mutation.shard_for('example.A'))
-        self.assertEqual(1, mutation.shard_for('example.A$Nested'))
+        """Nested classes are co-located in the same shard as their enclosing class."""
         names = ['dev.samhb.interleave.bytecode.A', 'dev.samhb.interleave.bytecode.A$Nested',
                  'dev.samhb.interleave.report.ReportWriter', 'outside.Ignored']
         groups = mutation.partition(names)
         self.assertEqual(sorted(names[:-1]), sorted(x for group in groups for x in group))
         self.assertEqual(3, sum(len(group) for group in groups))
+        nested_shards = [i for i, group in enumerate(groups) if 'dev.samhb.interleave.bytecode.A' in group]
+        self.assertEqual(1, len(nested_shards))
+        self.assertIn('dev.samhb.interleave.bytecode.A$Nested', groups[nested_shards[0]])
+
+    def test_class_sizes_measures_regular_class_files_and_rejects_symlinks(self):
+        """Class byte sizes are accurately measured and symlink inputs rejected."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cls_a = root / 'pkg' / 'A.class'
+            cls_b = root / 'pkg' / 'B.class'
+            cls_a.parent.mkdir(parents=True)
+            cls_a.write_bytes(b'abc')
+            cls_b.write_bytes(b'12345')
+            sizes = mutation.class_sizes(root)
+            self.assertEqual({'pkg.A': 3, 'pkg.B': 5}, sizes)
+
+            sym = root / 'pkg' / 'Sym.class'
+            sym.symlink_to(cls_a)
+            with self.assertRaisesRegex(ValueError, 'Symlink input unsupported'):
+                mutation.class_sizes(root)
+
+    def test_partition_falls_back_cleanly_when_sizes_omitted(self):
+        """Partitioning without explicit sizes uses family member count fallback."""
+        names = ['dev.samhb.interleave.bytecode.A', 'dev.samhb.interleave.bytecode.B',
+                 'dev.samhb.interleave.bytecode.C', 'dev.samhb.interleave.bytecode.D']
+        groups = mutation.partition(names)
+        self.assertEqual(4, sum(1 for g in groups if g))
 
     def test_partition_balances_known_class_families(self):
-        """Heavy class families like BytecodeLoader and Main are distributed across different shards."""
-        names = ['dev.samhb.interleave.bytecode.BytecodeLoader',
-                 'dev.samhb.interleave.cli.Main',
-                 'dev.samhb.interleave.bytecode.OpcodeExecutor',
-                 'dev.samhb.interleave.bytecode.BytecodeVerifier']
-        groups = mutation.partition(names)
-        assigned_shards = [i for i, group in enumerate(groups) if group]
-        self.assertEqual(4, len(assigned_shards))
+        """Dynamic sizes place families on least-loaded shards in descending size order."""
+        names = ['dev.samhb.interleave.bytecode.A',
+                 'dev.samhb.interleave.bytecode.B',
+                 'dev.samhb.interleave.bytecode.C',
+                 'dev.samhb.interleave.bytecode.D',
+                 'dev.samhb.interleave.bytecode.E']
+        sizes = {'dev.samhb.interleave.bytecode.A': 6,
+                 'dev.samhb.interleave.bytecode.B': 9,
+                 'dev.samhb.interleave.bytecode.C': 5,
+                 'dev.samhb.interleave.bytecode.D': 8,
+                 'dev.samhb.interleave.bytecode.E': 7}
+        groups = mutation.partition(names, sizes)
+        expected = [
+            ['dev.samhb.interleave.bytecode.B'],
+            ['dev.samhb.interleave.bytecode.D'],
+            ['dev.samhb.interleave.bytecode.E'],
+            ['dev.samhb.interleave.bytecode.A', 'dev.samhb.interleave.bytecode.C']
+        ]
+        self.assertEqual(expected, groups)
 
     def test_changed_tests_cannot_reuse_another_class_old_kills(self):
         """Even a class's unchanged production bytes do not make an old test result fresh."""
