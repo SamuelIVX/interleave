@@ -584,7 +584,8 @@ def candidate_reuse(directory: Path | str, revision: str, controller: str, scope
     return record
 
 
-def ensure_revision_checks(root: Path | str, revision: str, label: str, evidence: Path | str) -> None:
+def ensure_revision_checks(root: Path | str, revision: str, label: str, evidence: Path | str,
+                           expected_protocol: dict | None = None) -> None:
     """Reuse only successful exact revision evidence; rerun absent/incompatible checks once."""
     evidence = Path(evidence).resolve()
     controller = git(Path(__file__).parent, 'rev-parse', 'HEAD')
@@ -593,6 +594,8 @@ def ensure_revision_checks(root: Path | str, revision: str, label: str, evidence
         directory = evidence / (f'{label}-' + scope)
         try:
             record = candidate_reuse(directory, revision, controller, scope, expected, label=label)
+            if expected_protocol is not None:
+                require(record['protocol'] == expected_protocol, f'{label.capitalize()} protocol differs from expected protocol')
         except (ValueError, OSError, KeyError, TypeError, ET.ParseError) as error:
             print(f'Rerunning {label} {scope}: {error}', flush=True)
             if directory.exists():
@@ -601,6 +604,8 @@ def ensure_revision_checks(root: Path | str, revision: str, label: str, evidence
                 rejected.parent.mkdir(parents=True, exist_ok=True)
                 directory.rename(rejected)
             record = ci_run(root, revision, label, scope, directory)
+            if expected_protocol is not None and scope == 'build':
+                require(record['protocol'] == expected_protocol, f'Fresh {label} protocol differs from expected protocol')
         if scope == 'build':
             expected = record
 
@@ -612,7 +617,15 @@ def ensure_candidate_checks(root: Path | str, revision: str, evidence: Path | st
 
 def ensure_baseline_checks(root: Path | str, revision: str, evidence: Path | str) -> None:
     """Reuse only successful exact baseline evidence; rerun absent/incompatible checks once."""
-    ensure_revision_checks(root, revision, 'baseline', evidence)
+    evidence = Path(evidence).resolve()
+    candidate_record = evidence / 'candidate-build/record.json'
+    expected_protocol = None
+    if candidate_record.exists():
+        try:
+            expected_protocol = load_json(candidate_record).get('protocol')
+        except (ValueError, OSError):
+            pass
+    ensure_revision_checks(root, revision, 'baseline', evidence, expected_protocol=expected_protocol)
 
 
 def select_revisions(root: Path | str, base: str, candidate: str, head: str | None = None,

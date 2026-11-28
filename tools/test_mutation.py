@@ -673,6 +673,37 @@ class AggregateTest(unittest.TestCase):
             mutation.candidate_reuse(directory, 'a' * 40, 'c' * 40, 'build', label='baseline')
         mutation.save_json(resolved_path, resolved)
 
+    def test_ensure_baseline_checks_rejects_mismatched_candidate_protocol_and_regenerates(self):
+        """Cached baseline is rejected if its protocol differs from candidate build."""
+        with tempfile.TemporaryDirectory() as temp:
+            evidence = Path(temp) / 'evidence'
+            evidence.mkdir()
+            base_dir = evidence / 'baseline-build'
+            shutil.copytree(self.reports / 'baseline-build', base_dir)
+            cand_dir = evidence / 'candidate-build'
+            shutil.copytree(self.reports / 'candidate-build', cand_dir)
+
+            cand_record = mutation.load_json(cand_dir / 'record.json')
+            cand_record['protocol']['runtime']['java.runtime.version'] = 'different-runtime'
+            mutation.save_json(cand_dir / 'record.json', cand_record)
+
+            ran = False
+            orig_ci_run = mutation.ci_run
+            try:
+                def mock_ci_run(root, revision, label, scope, output, *args, **kwargs):
+                    nonlocal ran
+                    ran = True
+                    rec = copy.deepcopy(mutation.load_json(self.reports / f'{label}-build/record.json'))
+                    rec['scope'] = scope
+                    rec['protocol'] = copy.deepcopy(cand_record['protocol'])
+                    return rec
+                mutation.ci_run = mock_ci_run
+                mutation.ensure_baseline_checks('/tmp', 'a' * 40, evidence)
+                self.assertTrue(ran)
+                self.assertTrue((evidence.parent / 'rejected-reuse/baseline-build').exists())
+            finally:
+                mutation.ci_run = orig_ci_run
+
     def test_calibration_requires_two_complete_equal_trials(self):
         """Missing trials cannot enable calibration merely because acceptance passed."""
         self.plan['calibrate'] = True
