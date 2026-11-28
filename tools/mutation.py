@@ -29,6 +29,45 @@ SCOPE = ('dev.samhb.interleave.bytecode.*', 'dev.samhb.interleave.BytecodeTraceJ
          'dev.samhb.interleave.report.ReportWriter*', 'dev.samhb.interleave.report.SoundnessAttestation*',
          'dev.samhb.interleave.cli.Main*')
 DEFAULT_SCOPE = ('dev.samhb.interleave.state.*', 'dev.samhb.interleave.cb.*')
+FAMILY_WEIGHTS = {
+    'dev.samhb.interleave.BytecodeTraceJson': 131,
+    'dev.samhb.interleave.InterleaveRunner': 274,
+    'dev.samhb.interleave.ResultJson': 27,
+    'dev.samhb.interleave.TestResult': 172,
+    'dev.samhb.interleave.TraceRecord': 108,
+    'dev.samhb.interleave.bytecode.BytecodeAccessVerifier': 281,
+    'dev.samhb.interleave.bytecode.BytecodeArrays': 117,
+    'dev.samhb.interleave.bytecode.BytecodeChecks': 42,
+    'dev.samhb.interleave.bytecode.BytecodeExplorer': 165,
+    'dev.samhb.interleave.bytecode.BytecodeFrame': 19,
+    'dev.samhb.interleave.bytecode.BytecodeHierarchy': 330,
+    'dev.samhb.interleave.bytecode.BytecodeInput': 134,
+    'dev.samhb.interleave.bytecode.BytecodeLimits': 7,
+    'dev.samhb.interleave.bytecode.BytecodeLoadException': 4,
+    'dev.samhb.interleave.bytecode.BytecodeLoader': 1024,
+    'dev.samhb.interleave.bytecode.BytecodeLocation': 11,
+    'dev.samhb.interleave.bytecode.BytecodeMethod': 114,
+    'dev.samhb.interleave.bytecode.BytecodeObservations': 79,
+    'dev.samhb.interleave.bytecode.BytecodePlatform': 81,
+    'dev.samhb.interleave.bytecode.BytecodeProgram': 31,
+    'dev.samhb.interleave.bytecode.BytecodeReplay': 126,
+    'dev.samhb.interleave.bytecode.BytecodeRuntime': 185,
+    'dev.samhb.interleave.bytecode.BytecodeScheduler': 98,
+    'dev.samhb.interleave.bytecode.BytecodeSharing': 106,
+    'dev.samhb.interleave.bytecode.BytecodeSnapshots': 178,
+    'dev.samhb.interleave.bytecode.BytecodeState': 229,
+    'dev.samhb.interleave.bytecode.BytecodeStrings': 69,
+    'dev.samhb.interleave.bytecode.BytecodeThrowables': 302,
+    'dev.samhb.interleave.bytecode.BytecodeVerifier': 322,
+    'dev.samhb.interleave.bytecode.OpcodeExecutor': 485,
+    'dev.samhb.interleave.cli.Main': 453,
+    'dev.samhb.interleave.core.BytecodeEvidence': 269,
+    'dev.samhb.interleave.report.BenchmarkHarness': 315,
+    'dev.samhb.interleave.report.BenchmarkResult': 77,
+    'dev.samhb.interleave.report.ReportWriter': 259,
+    'dev.samhb.interleave.report.SoundnessAttestation': 233,
+    'dev.samhb.interleave.search.TraceReplayer': 237,
+}
 
 
 def load_json(path: Path | str) -> dict:
@@ -86,12 +125,19 @@ def shard_for(name: str) -> int:
 
 
 def partition(names: dict | list) -> list[list[str]]:
-    """Select the frozen population and assign every selected class exactly once."""
-    result = [[] for _ in range(4)]
+    """Select the frozen population and assign every selected class family deterministically via LPT bin-packing."""
+    families = {}
     for name in sorted(names):
         if any(fnmatch.fnmatchcase(name, pattern) for pattern in SCOPE):
-            result[shard_for(name)].append(name)
-    return result
+            family = name.split('$', 1)[0]
+            families.setdefault(family, []).append(name)
+    shards = [[] for _ in range(4)]
+    weights = [0] * 4
+    for family in sorted(families.keys(), key=lambda f: (-FAMILY_WEIGHTS.get(f, len(families[f])), f)):
+        idx = weights.index(min(weights))
+        shards[idx].extend(families[family])
+        weights[idx] += FAMILY_WEIGHTS.get(family, len(families[family]))
+    return [sorted(shard) for shard in shards]
 
 
 def check_provenance(expected: dict, observed: dict) -> None:
@@ -515,14 +561,14 @@ def ci_run(root: Path | str, revision: str, label: str, scope: str, output: Path
 
 
 def candidate_reuse(directory: Path | str, revision: str, controller: str, scope: str,
-                    expected: dict | None = None) -> dict:
-    """Validate one existing candidate check without executing Gradle or trusting a filename."""
+                    expected: dict | None = None, label: str = 'candidate') -> dict:
+    """Validate one existing check without executing Gradle or trusting a filename."""
     directory = Path(directory)
     record = load_json(directory / 'record.json')
     require(type(record['version']) is int and record['version'] == 1 and record['revision'] == revision and record['controller'] == controller
-            and record['scope'] == scope and record['label'] == 'candidate' and record['exit'] == 0
+            and record['scope'] == scope and record['label'] == label and record['exit'] == 0
             and record.get('complete') is True,
-            'Candidate evidence identity/completion differs')
+            f'{label.capitalize()} evidence identity/completion differs')
     metadata = load_json(directory / 'resolved.json')
     check_metadata(metadata)
     protocol = dict(metadata['protocol'], harness=record['inputs']['harness'])
@@ -538,25 +584,35 @@ def candidate_reuse(directory: Path | str, revision: str, controller: str, scope
     return record
 
 
-def ensure_candidate_checks(root: Path | str, revision: str, evidence: Path | str) -> None:
-    """Reuse only successful exact candidate evidence; rerun absent/incompatible checks once."""
+def ensure_revision_checks(root: Path | str, revision: str, label: str, evidence: Path | str) -> None:
+    """Reuse only successful exact revision evidence; rerun absent/incompatible checks once."""
     evidence = Path(evidence).resolve()
     controller = git(Path(__file__).parent, 'rev-parse', 'HEAD')
     expected = None
     for scope in ('build', 'default'):
-        directory = evidence / ('candidate-' + scope)
+        directory = evidence / (f'{label}-' + scope)
         try:
-            record = candidate_reuse(directory, revision, controller, scope, expected)
+            record = candidate_reuse(directory, revision, controller, scope, expected, label=label)
         except (ValueError, OSError, KeyError, TypeError, ET.ParseError) as error:
-            print(f'Rerunning candidate {scope}: {error}', flush=True)
+            print(f'Rerunning {label} {scope}: {error}', flush=True)
             if directory.exists():
                 rejected = evidence.parent / 'rejected-reuse' / directory.name
                 require(not rejected.exists(), 'Previous rejected reuse diagnostics already exist')
                 rejected.parent.mkdir(parents=True, exist_ok=True)
                 directory.rename(rejected)
-            record = ci_run(root, revision, 'candidate', scope, directory)
+            record = ci_run(root, revision, label, scope, directory)
         if scope == 'build':
             expected = record
+
+
+def ensure_candidate_checks(root: Path | str, revision: str, evidence: Path | str) -> None:
+    """Reuse only successful exact candidate evidence; rerun absent/incompatible checks once."""
+    ensure_revision_checks(root, revision, 'candidate', evidence)
+
+
+def ensure_baseline_checks(root: Path | str, revision: str, evidence: Path | str) -> None:
+    """Reuse only successful exact baseline evidence; rerun absent/incompatible checks once."""
+    ensure_revision_checks(root, revision, 'baseline', evidence)
 
 
 def select_revisions(root: Path | str, base: str, candidate: str, head: str | None = None,
@@ -636,6 +692,10 @@ def main() -> int:
     reuse.add_argument('--checkout', type=Path, required=True)
     reuse.add_argument('--revision', required=True)
     reuse.add_argument('--evidence', type=Path, required=True)
+    base_reuse = commands.add_parser('baseline-checks', help='Validate reuse or execute missing baseline preflights')
+    base_reuse.add_argument('--checkout', type=Path, required=True)
+    base_reuse.add_argument('--revision', required=True)
+    base_reuse.add_argument('--evidence', type=Path, required=True)
     verify = commands.add_parser('verify-inputs', help='Fail before PIT if resolved worker inputs differ')
     verify.add_argument('--checkout', type=Path, required=True)
     verify.add_argument('--resolved', type=Path, required=True)
@@ -663,6 +723,9 @@ def main() -> int:
         return 0
     if args.command == 'candidate-checks':
         ensure_candidate_checks(args.checkout, args.revision, args.evidence)
+        return 0
+    if args.command == 'baseline-checks':
+        ensure_baseline_checks(args.checkout, args.revision, args.evidence)
         return 0
     if args.command == 'verify-inputs':
         metadata = load_json(args.resolved)

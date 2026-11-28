@@ -15,6 +15,9 @@ on:
       calibrate:
         type: boolean
         default: false
+      mode:
+        type: string
+        default: full
   workflow_dispatch:
     inputs:
       base:
@@ -28,7 +31,11 @@ on:
       calibrate:
         description: Compare one full reference with two four-shard trials
         type: boolean
-        default: true
+        default: false
+      mode:
+        description: Acceptance mode (full or sharded)
+        type: string
+        default: full
 permissions:
   contents: read
 jobs:
@@ -99,13 +106,20 @@ jobs:
           ref: ${{ inputs.candidate }}
           path: candidate
           persist-credentials: false
-      - name: Fresh baseline build, strict Javadoc, tests and default PIT
+      - name: Cache baseline evidence
+        if: steps.select.outputs.required == 'true'
+        uses: actions/cache@13aacd865c20de90d75de1680f9a0543e5222218 # v4.0.0
+        with:
+          path: |
+            evidence/baseline-build
+            evidence/baseline-default
+          key: mutation-baseline-${{ inputs.base }}-${{ runner.os }}-temurin-26-${{ github.event_name == 'workflow_dispatch' && github.sha || inputs.candidate }}-${{ hashFiles('controller/tools/**', 'controller/build.gradle.kts') }}
+      - name: Validate baseline checks or execute missing checks
         if: steps.select.outputs.required == 'true'
         env:
           BASE: ${{ inputs.base }}
         run: |
-          python3 controller/tools/mutation.py ci-run --checkout baseline --revision "$BASE" --label baseline --scope build --output evidence/baseline-build
-          python3 controller/tools/mutation.py ci-run --checkout baseline --revision "$BASE" --label baseline --scope default --output evidence/baseline-default
+          python3 controller/tools/mutation.py baseline-checks --checkout baseline --revision "$BASE" --evidence evidence
       - name: Validate candidate checks or execute missing checks
         if: steps.select.outputs.required == 'true'
         env:
@@ -119,10 +133,11 @@ jobs:
           BASE: ${{ inputs.base }}
           CANDIDATE: ${{ inputs.candidate }}
           CALIBRATE: ${{ inputs.calibrate }}
+          MODE: ${{ inputs.mode || 'full' }}
         run: |
           args=()
           if [ "$CALIBRATE" = true ]; then args+=(--calibrate); fi
-          python3 controller/tools/mutation.py plan --base "$BASE" --candidate "$CANDIDATE" --base-classes evidence/baseline-build/classes --candidate-classes evidence/candidate-build/classes --base-record evidence/baseline-build/record.json --candidate-record evidence/candidate-build/record.json --mode full "${args[@]}" --output evidence/plan.json
+          python3 controller/tools/mutation.py plan --base "$BASE" --candidate "$CANDIDATE" --base-classes evidence/baseline-build/classes --candidate-classes evidence/candidate-build/classes --base-record evidence/baseline-build/record.json --candidate-record evidence/candidate-build/record.json --mode "$MODE" "${args[@]}" --output evidence/plan.json
       - name: Upload preparation and failure evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

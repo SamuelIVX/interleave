@@ -281,6 +281,16 @@ class PlanningTest(unittest.TestCase):
         self.assertEqual(sorted(names[:-1]), sorted(x for group in groups for x in group))
         self.assertEqual(3, sum(len(group) for group in groups))
 
+    def test_partition_balances_known_class_families(self):
+        """Heavy class families like BytecodeLoader and Main are distributed across different shards."""
+        names = ['dev.samhb.interleave.bytecode.BytecodeLoader',
+                 'dev.samhb.interleave.cli.Main',
+                 'dev.samhb.interleave.bytecode.OpcodeExecutor',
+                 'dev.samhb.interleave.bytecode.BytecodeVerifier']
+        groups = mutation.partition(names)
+        assigned_shards = [i for i, group in enumerate(groups) if group]
+        self.assertEqual(4, len(assigned_shards))
+
     def test_changed_tests_cannot_reuse_another_class_old_kills(self):
         """Even a class's unchanged production bytes do not make an old test result fresh."""
         expected = {'revision': 'a' * 40, 'protocol': {'tests': ['dev.samhb.interleave.*']},
@@ -642,6 +652,26 @@ class AggregateTest(unittest.TestCase):
             mutation.save_json(directory / 'record.json', dict(original, **change))
             with self.subTest(change=change), self.assertRaises(ValueError):
                 mutation.candidate_reuse(directory, 'b' * 40, 'c' * 40, 'build')
+
+    def test_baseline_reuse_requires_full_revision_controller_inputs_and_checks(self):
+        """A cached baseline build is reusable only at its exact immutable execution identity."""
+        directory = self.reports / 'baseline-build'
+        original = mutation.load_json(directory / 'record.json')
+        self.assertEqual(original, mutation.candidate_reuse(directory, 'a' * 40, 'c' * 40, 'build', label='baseline'))
+        for change in ({'revision': 'd' * 40}, {'controller': 'd' * 40}, {'checks': ['test']}, {'exit': 1},
+                       {'complete': False}, {'checks': {'build': 'EXECUTED', 'test': 'EXECUTED', 'javadoc': 'SKIPPED'}}):
+            mutation.save_json(directory / 'record.json', dict(original, **change))
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                mutation.candidate_reuse(directory, 'a' * 40, 'c' * 40, 'build', label='baseline')
+        mutation.save_json(directory / 'record.json', original)
+        resolved_path = directory / 'resolved.json'
+        resolved = mutation.load_json(resolved_path)
+        changed_resolved = copy.deepcopy(resolved)
+        changed_resolved['protocol']['runtime']['java.runtime.version'] = 'different-runtime'
+        mutation.save_json(resolved_path, changed_resolved)
+        with self.assertRaisesRegex(ValueError, 'protocol'):
+            mutation.candidate_reuse(directory, 'a' * 40, 'c' * 40, 'build', label='baseline')
+        mutation.save_json(resolved_path, resolved)
 
     def test_calibration_requires_two_complete_equal_trials(self):
         """Missing trials cannot enable calibration merely because acceptance passed."""
