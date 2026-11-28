@@ -19,7 +19,7 @@ public record BytecodeEvidence(int version,Identity identity,List<Transition> tr
     public BytecodeEvidence {
         if(version!=1 && version!=2)throw new IllegalArgumentException("Unsupported bytecode evidence version");
         Objects.requireNonNull(identity);Objects.requireNonNull(terminal);
-        if((version==2)!=identity.profileVersion().equals("BYTECODE-SC-3")
+        if((version==2)!=Set.of("BYTECODE-SC-3","BYTECODE-SC-4").contains(identity.profileVersion())
             || version==1 && !Set.of("BYTECODE-SC-1","BYTECODE-SC-2").contains(identity.profileVersion()))
             throw new IllegalArgumentException("Unsupported schema/profile pairing");
         if(version==2) {

@@ -3,7 +3,7 @@
 
 ## Objective and status
 
-**Selected; 94A/94B/94C/95 merged; 96 exceptions implemented with local acceptance complete; review/merge pending.** Approved scope: controlled interpretation of compiled Java for fixed
+**Selected; 94A/94B/94C/95/96 merged;97 primitive execution PR in progress;97 library work remains open.** Approved scope: controlled interpretation of compiled Java for fixed
 actors under bounded sequential consistency (SC). The first public release must find a real lost update
 and a two-lock deadlock through loading, search, evidence, strict replay, library/CLI, reports and viewer.
 No target-code host-JVM fallback is permitted. This is not unrestricted Java or full Java Memory Model coverage.
@@ -20,7 +20,7 @@ owns common behavior, interface seams, verification and phase boundaries.
 
 ## Sequential delivery and ownership
 
-One specification PR followed by **ten implementation PRs**, sequentially into main. Split further
+One specification PR followed by a target of **ten implementation PRs**, sequentially into main. Split further
 only for a distinct reviewable behavior or correctness argument. Each phase owns its affected callers,
 tests, fixtures, documentation and consumers. A spec merge enables no capability.
 
@@ -36,6 +36,10 @@ tests, fixtures, documentation and consumers. A spec merge enables no capability
 | 99 | [Restricted DPOR](../specs/active/99-bytecode-dpor.md) | Admission/resource analysis, dependency/observation summaries, preservation argument, fallback and measured reduction |
 | 100 | [Narrow atomics](../specs/active/100-bytecode-atomics.md) | Integer/Boolean/Reference construction, get/set and strong CAS; cyclic retry fallback |
 | 101 | [Bitstate and completion](../specs/active/101-bytecode-bitstate.md) | One-filter approximate DFS/CBS/DPOR, full consumers, compiler/JPF evidence and scope closure |
+
+97 uses the permitted split: primitive/slot execution with all consumers first, then finite-library
+semantics, concat and escape/clone proofs. Both remain owned by97;98 waits for the complete97 stage.
+[The97 ledger](../measurements/97-bytecode-core-library.md) separates completed observations from pending gates.
 
 Do not expose public bytecode selectors before 94C. Internal 94A/B remain testable without installing
 public partial entry points. Do not implement a synthetic list of fuel-limit steps or append cutoff

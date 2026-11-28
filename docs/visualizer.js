@@ -198,7 +198,7 @@ function normalizeBytecode(raw){
   const method = x => object(x) && ['owner','name','descriptor'].every(k=>text(x[k]));
   const location = x => method(x) && integer(x.bci);
   const identity = x => {
-    if(!object(x) || !digest(x.artifactDigest) || !['BYTECODE-SC-1','BYTECODE-SC-2','BYTECODE-SC-3'].includes(x.profileVersion) || !text(x.modelClass) || x.mode!=='BATCHED' ||
+    if(!object(x) || !digest(x.artifactDigest) || !['BYTECODE-SC-1','BYTECODE-SC-2','BYTECODE-SC-3','BYTECODE-SC-4'].includes(x.profileVersion) || !text(x.modelClass) || x.mode!=='BATCHED' ||
       x.requestedStrategy!=='DFS' || x.effectiveStrategy!=='DFS' || x.fallbackReason!=null || !Array.isArray(x.actors) ||
       x.actors.length<1 || x.actors.length>8 || !Array.isArray(x.checks) || x.checks.length>65536) fail();
     x.actors.forEach((a,i)=>{if(!object(a) || a.id!==i || !method(a.method) || a.method.descriptor!=='()V')fail();});
@@ -230,7 +230,8 @@ function normalizeBytecode(raw){
     return outcomes[t.kind];
   };
   const opcodes=new Set('NOP POP POP2 DUP DUP_X1 DUP_X2 DUP2 DUP2_X1 DUP2_X2 SWAP IADD ISUB IMUL IDIV IREM INEG ISHL ISHR IUSHR IAND IOR IXOR I2B I2C I2S MONITORENTER MONITOREXIT ATHROW IFEQ IFNE IFLT IFGE IFGT IFLE IF_ICMPEQ IF_ICMPNE IF_ICMPLT IF_ICMPGE IF_ICMPGT IF_ICMPLE IF_ACMPEQ IF_ACMPNE IFNULL IFNONNULL GOTO GOTO_W ACONST_NULL ICONST_M1 ICONST_0 ICONST_1 ICONST_2 ICONST_3 ICONST_4 ICONST_5 BIPUSH SIPUSH LDC LDC_W ILOAD ALOAD ISTORE ASTORE ILOAD_W ALOAD_W ISTORE_W ASTORE_W IINC IINC_W IRETURN ARETURN RETURN LOOKUPSWITCH TABLESWITCH GETFIELD PUTFIELD GETSTATIC PUTSTATIC INVOKESTATIC INVOKESPECIAL INVOKEVIRTUAL INVOKEINTERFACE NEW NEWARRAY ANEWARRAY MULTIANEWARRAY ARRAYLENGTH IALOAD BALOAD CALOAD SALOAD AALOAD IASTORE BASTORE CASTORE SASTORE AASTORE CHECKCAST INSTANCEOF'.split(' '));
-  for(const prefix of ['ILOAD','ALOAD','ISTORE','ASTORE'])for(let i=0;i<4;i++)opcodes.add(prefix+'_'+i);
+  for(const prefix of ['ILOAD','ALOAD','ISTORE','ASTORE','LLOAD','FLOAD','DLOAD','LSTORE','FSTORE','DSTORE'])for(let i=0;i<4;i++)opcodes.add(prefix+'_'+i);
+  for(const opcode of 'LADD LSUB LMUL LDIV LREM LNEG LSHL LSHR LUSHR LAND LOR LXOR LCMP FADD FSUB FMUL FDIV FREM FNEG FCMPL FCMPG DADD DSUB DMUL DDIV DREM DNEG DCMPL DCMPG I2L I2F I2D L2I L2F L2D F2I F2L F2D D2I D2L D2F LCONST_0 LCONST_1 FCONST_0 FCONST_1 FCONST_2 DCONST_0 DCONST_1 LDC2_W LLOAD FLOAD DLOAD LSTORE FSTORE DSTORE LLOAD_W FLOAD_W DLOAD_W LSTORE_W FSTORE_W DSTORE_W LRETURN FRETURN DRETURN LALOAD FALOAD DALOAD LASTORE FASTORE DASTORE'.split(' '))opcodes.add(opcode);
   const typed = v => {
     if(!object(v) || typeof v.raw!=='string' || v.raw.length>65536)fail();
     switch(v.type){
@@ -249,7 +250,7 @@ function normalizeBytecode(raw){
     if(!object(t) || t.programKind!=='BYTECODE' || ['sourceDigest','executedSteps','failure','cutoff'].some(k=>Object.hasOwn(t,k)))fail();
     const d=t.bytecodeEvidence;
     if(!object(d) || ![1,2].includes(d.version))fail();identity(d.identity);
-    if((d.version===2)!==(d.identity.profileVersion==='BYTECODE-SC-3'))fail();
+    if((d.version===2)!==(['BYTECODE-SC-3','BYTECODE-SC-4'].includes(d.identity.profileVersion)))fail();
     if(d.version===2){
       for(const end of [d.terminal,d.replayObservation].filter(x=>x!=null)){
         if(end.cutoff && (end.cutoff.budgetOwner==null || end.cutoff.budgetOwner===-4 || end.cutoff.budgetOwner>=d.identity.actors.length))fail();

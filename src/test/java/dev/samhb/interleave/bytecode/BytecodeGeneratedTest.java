@@ -101,6 +101,72 @@ class BytecodeGeneratedTest {
         }
     }
 
+    /** Wide primitive generators retain independent JVM checks, deletion shrinking and saved seeds.
+     * @param directory compiler/oracle workspace
+     * @throws Exception for fixture or saved-regression failures */
+    @Test void generatedPrimitivesMatchJvmWithShrinking(@TempDir Path directory) throws Exception {
+        long seed=0x972026L;var random=new Random(seed);
+        for(int sample=0;sample<12;sample++) {
+            int initial=random.nextInt();var operations=new ArrayList<String>();
+            for(int index=0;index<6;index++) {
+                long n=random.nextLong();int distance=random.nextInt(129)-64;
+                operations.add(switch(random.nextInt(6)) {
+                    case 0->"x=(int)(((long)x+"+n+"L)>>>"+distance+");";
+                    case 1->"{long a=x;a=(a*"+n+"L)^(-a);x=(int)(a>>"+distance+");}";
+                    case 2->"{float a=x;a=(a*1.5f)/3.0f;x=(int)(a%127.0f);}";
+                    case 3->"{double a=x;a=(a-0.5)*1.25;x=(int)(a/-3.0);}";
+                    case 4->"{double a=x;if(a<0.0)x=(int)(long)(float)a;else x=(int)(a%31.0);}";
+                    default->"{long a=x;a/="+(n|1)+"L;x=(int)(a+(double)x);}";
+                });
+            }
+            int release=new int[]{17,21,26}[sample%3];
+            if(!primitiveMatches(directory.resolve("primitives"+sample),release,source(initial,operations))) {
+                int selected=sample;int[] attempt={0};
+                Path regression=Path.of("build/bytecode-regressions/primitive-seed-"+seed+"-case-"+sample+"/Fixture.java");
+                savePrimitiveRegression(regression,initial,operations,candidate->{try{return !primitiveMatches(directory.resolve("primitive-shrink"+selected+"-"+attempt[0]++),release,source(initial,candidate));}
+                    catch(Exception failure){throw new IllegalStateException(failure);}});
+                fail("Primitive differential mismatch; saved "+regression);
+            }
+        }
+    }
+
+    /** Checks sequential JVM results and both scheduling modes against the instruction enumerator.
+     * @param directory isolated compiler workspace
+     * @param release target class-file release
+     * @param source generated bounded program
+     * @return whether the independent JVM result matches
+     * @throws Exception for fixture/oracle failures */
+    private static boolean primitiveMatches(Path directory,int release,String source) throws Exception {
+        boolean matches=matches(directory,release,source);
+        var limits=new BytecodeLimits(4096,128,8192,32,64,256,4096,128,8192,1024);
+        var program=BytecodeLoader.load(directory.resolve("classes"),"Fixture",limits);
+        var expected=BytecodeInstructionOracle.enumerate(program);
+        for(var mode:BytecodeScheduler.Mode.values()) {
+            var result=new BytecodeExplorer(program,mode).explore(100000);assertTrue(result.traversalComplete());
+            if(!expected.equals(BytecodeBatchingOracleTest.independentProjection(result)))return false;
+        }
+        return matches;
+    }
+
+    /** A comparison mismatch reaches the shrink/save path before the test reports failure.
+     * @param directory saved regression workspace
+     * @throws Exception for file failures */
+    @Test void primitiveMismatchIsShrunkAndSaved(@TempDir Path directory) throws Exception {
+        Path regression=directory.resolve("seed-9904166/case0/Fixture.java");
+        savePrimitiveRegression(regression,3,List.of("x+=1;","x=7;","x*=2;"),candidate->candidate.contains("x=7;"));
+        assertEquals(source(3,List.of("x=7;")),Files.readString(regression));
+    }
+
+    /** Saves the minimal primitive mismatch without swallowing setup/compiler failures.
+     * @param file deterministic source regression location
+     * @param initial original seed input
+     * @param operations original generated statements
+     * @param stillFails independently evaluated mismatch predicate
+     * @throws java.io.IOException for output failures */
+    private static void savePrimitiveRegression(Path file,int initial,List<String> operations,Predicate<List<String>> stillFails) throws java.io.IOException {
+        var minimal=shrink(operations,stillFails);Files.createDirectories(file.getParent());Files.writeString(file,source(initial,minimal));
+    }
+
     /** Adds a bounded application hierarchy around independently generated actor statements.
      * @param initial initial JVM int
      * @param operations bounded statements

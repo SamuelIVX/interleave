@@ -131,7 +131,7 @@ class BytecodeOpcodeTest {
      * @param body test-owned bytecode generator
      *
      * @throws Exception for fixture failures */
-    private static void replace(Path classes,String name,Consumer<CodeBuilder> body) throws Exception {
+    static void replace(Path classes,String name,Consumer<CodeBuilder> body) throws Exception {
         Path file=classes.resolve("Fixture.class"); var parser=ClassFile.of();
         byte[] result=parser.transformClass(parser.parse(Files.readAllBytes(file)),(builder,element)-> {
             if(element instanceof MethodModel method && method.methodName().equalsString(name))

@@ -42,27 +42,33 @@ final class BytecodeMethod {
      * Real byte indices, in execution order.
      */
     final NavigableMap<Integer, Op> ops;
+    /** Numeric constants frozen by BCI, preserving raw floating constant-pool bits. */
+    final Map<Integer,BytecodeState.Value> constants;
 
     /**
      * Decodes a validated application method without executing it.
      * @param owner internal class name
      * @param model method metadata
+     * @param raw raw numeric constant lookup from validated frozen owner bytes
      */
-    BytecodeMethod(String owner, MethodModel model) {
+    BytecodeMethod(String owner, MethodModel model,BytecodeInput.RawConstants raw) {
         id = new Id(owner, model.methodName().stringValue(), model.methodType().stringValue());
         flags = model.flags().flagsMask();
         code = (CodeAttribute) model.code().orElseThrow();
-        var decoded = new TreeMap<Integer, Op>();
+        var decoded = new TreeMap<Integer, Op>();var numeric=new HashMap<Integer,BytecodeState.Value>();
         int bci = 0;
         for (CodeElement element : code) {
             if (element instanceof Instruction instruction) {
                 int next = bci + instruction.sizeInBytes();
                 decoded.put(bci, new Op(bci, instruction, next));
+                if(instruction instanceof ConstantInstruction constant && constant.constantValue() instanceof Number)
+                    numeric.put(bci,constant instanceof ConstantInstruction.LoadConstantInstruction loaded
+                        ? raw.numeric(loaded.constantEntry().index()) : BytecodePrimitives.constant(constant.constantValue()));
                 bci = next;
             }
         }
         if (bci != code.codeLength() || decoded.isEmpty()) throw new IllegalArgumentException("Invalid code length");
-        ops = Collections.unmodifiableNavigableMap(decoded);
+        ops = Collections.unmodifiableNavigableMap(decoded);constants=Map.copyOf(numeric);
     }
 
     /**

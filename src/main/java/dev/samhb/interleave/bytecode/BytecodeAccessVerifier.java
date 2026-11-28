@@ -1,4 +1,4 @@
-/** Additional cross-package protected-receiver checks over JDK-verified category-one bytecode. */
+/** Additional cross-package protected-receiver checks over JDK-verified bytecode. */
 package dev.samhb.interleave.bytecode;
 
 import java.lang.classfile.*;
@@ -30,13 +30,15 @@ final class BytecodeAccessVerifier {
         method.code.findAttribute(Attributes.stackMapTable()).ifPresent(table->table.entries().forEach(frame->frames.put(method.target(frame.target()),frame)));
         var locals=new HashMap<Integer,String>();var stack=new ArrayList<String>();int slot=0;
         if((method.flags & ACC_STATIC)==0)locals.put(slot++,method.id.owner());
-        for(var parameter:java.lang.constant.MethodTypeDesc.ofDescriptor(method.id.descriptor()).parameterList())locals.put(slot++,type(parameter.descriptorString()));
+        for(var parameter:java.lang.constant.MethodTypeDesc.ofDescriptor(method.id.descriptor()).parameterList()) {
+            String token=type(parameter.descriptorString());locals.put(slot,token);slot+=width(token);
+        }
         boolean active=true;
         for(var op:method.ops.values()) {
             var seed=frames.get(op.bci());
             if(seed!=null) {
                 locals.clear();stack.clear();int index=0;
-                for(var local:seed.locals())locals.put(index++,verificationType(local,method));
+                for(var local:seed.locals()){String token=verificationType(local,method);locals.put(index,token);index+=width(token);}
                 for(var operand:seed.stack())stack.add(verificationType(operand,method));active=true;
             }
             if(!active)continue;
@@ -63,13 +65,13 @@ final class BytecodeAccessVerifier {
             if(instruction instanceof LoadInstruction load){stack.add(locals.get(load.slot()));continue;}
             if(instruction instanceof StoreInstruction store){locals.put(store.slot(),pop(stack));continue;}
             if(instruction instanceof IncrementInstruction)continue;
-            if(instruction instanceof ConstantInstruction constant){stack.add(code==Opcode.ACONST_NULL ? NULL : constant.constantValue() instanceof String ? "java/lang/String" : "I");continue;}
+            if(instruction instanceof ConstantInstruction constant){stack.add(code==Opcode.ACONST_NULL ? NULL : constant.constantValue() instanceof String ? "java/lang/String" : constant.constantValue() instanceof Long ? "<long>" : constant.constantValue() instanceof Float ? "<float>" : constant.constantValue() instanceof Double ? "<double>" : "<int>");continue;}
             if(instruction instanceof NewObjectInstruction allocation){stack.add("!"+allocation.className().asInternalName());continue;}
             if(instruction instanceof NewPrimitiveArrayInstruction){pop(stack);stack.add("[I");continue;}
             if(instruction instanceof NewReferenceArrayInstruction array){pop(stack);stack.add("["+array.componentType().asSymbol().descriptorString());continue;}
             if(instruction instanceof NewMultiArrayInstruction array){for(int i=0;i<array.dimensions();i++)pop(stack);stack.add(array.arrayType().asInternalName());continue;}
-            if(instruction instanceof TypeCheckInstruction check){pop(stack);stack.add(code==Opcode.INSTANCEOF ? "I" : check.type().asInternalName());continue;}
-            if(instruction instanceof ArrayLoadInstruction){pop(stack);String array=pop(stack);stack.add(code==Opcode.AALOAD ? array.equals(NULL) ? NULL : type(array.substring(1)) : "I");continue;}
+            if(instruction instanceof TypeCheckInstruction check){pop(stack);stack.add(code==Opcode.INSTANCEOF ? "<int>" : check.type().asInternalName());continue;}
+            if(instruction instanceof ArrayLoadInstruction){pop(stack);String array=pop(stack);stack.add(code==Opcode.AALOAD ? array.equals(NULL) ? NULL : type(array.substring(1)) : code==Opcode.LALOAD ? "<long>" : code==Opcode.FALOAD ? "<float>" : code==Opcode.DALOAD ? "<double>" : "<int>");continue;}
             if(instruction instanceof ArrayStoreInstruction){pop(stack);pop(stack);pop(stack);continue;}
             if(instruction instanceof ReturnInstruction || code==Opcode.ATHROW){active=false;continue;}
             if(instruction instanceof BranchInstruction) {
@@ -79,18 +81,16 @@ final class BytecodeAccessVerifier {
             if(instruction instanceof LookupSwitchInstruction || instruction instanceof TableSwitchInstruction){active=false;continue;}
             switch(code) {
                 case NOP -> { }
+                case ARRAYLENGTH -> {pop(stack);stack.add("<int>");}
                 case MONITORENTER,MONITOREXIT,POP -> pop(stack);
-                case POP2 -> {pop(stack);pop(stack);}
-                case ARRAYLENGTH -> {pop(stack);stack.add("I");}
-                case DUP -> {String a=pop(stack);push(stack,a,a);}
-                case DUP_X1 -> {String a=pop(stack),b=pop(stack);push(stack,a,b,a);}
-                case DUP_X2 -> {String a=pop(stack),b=pop(stack),c=pop(stack);push(stack,a,c,b,a);}
-                case DUP2 -> {String a=pop(stack),b=pop(stack);push(stack,b,a,b,a);}
-                case DUP2_X1 -> {String a=pop(stack),b=pop(stack),c=pop(stack);push(stack,b,a,c,b,a);}
-                case DUP2_X2 -> {String a=pop(stack),b=pop(stack),c=pop(stack),d=pop(stack);push(stack,b,a,d,c,b,a);}
-                case SWAP -> {String a=pop(stack),b=pop(stack);push(stack,a,b);}
-                case INEG,I2B,I2C,I2S -> { }
-                default -> {pop(stack);pop(stack);stack.add("I");}
+                case POP2,DUP,DUP_X1,DUP_X2,DUP2,DUP2_X1,DUP2_X2,SWAP -> BytecodeStack.apply(stack,code,BytecodeAccessVerifier::width);
+                case INEG,LNEG,FNEG,DNEG,I2B,I2C,I2S -> { }
+                case I2L,F2L,D2L -> {pop(stack);stack.add("<long>");}
+                case I2F,L2F,D2F -> {pop(stack);stack.add("<float>");}
+                case I2D,L2D,F2D -> {pop(stack);stack.add("<double>");}
+                case L2I,F2I,D2I -> {pop(stack);stack.add("<int>");}
+                case LCMP,FCMPL,FCMPG,DCMPL,DCMPG -> {pop(stack);pop(stack);stack.add("<int>");}
+                default -> {pop(stack);String left=pop(stack);stack.add(left);}
             }
         }
     }
@@ -137,21 +137,25 @@ final class BytecodeAccessVerifier {
         if(info instanceof StackMapFrameInfo.ObjectVerificationTypeInfo object)return object.className().asInternalName();
         if(info instanceof StackMapFrameInfo.UninitializedVerificationTypeInfo uninitialized)
             return ((NewObjectInstruction)method.ops.get(method.target(uninitialized.newTarget())).instruction()).className().asInternalName();
-        return switch(info.tag()) {case 5->NULL;case 6->method.id.owner();default->"I";};
+        return switch(info.tag()) {case 0->"<top>";case 2->"<float>";case 3->"<double>";case 4->"<long>";case 5->NULL;case 6->method.id.owner();default->"<int>";};
     }
 
     /** Converts one declared JVM type to a static access-analysis token.
      * @param descriptor field/argument/result descriptor
-     * @return int or reference type */
-    private static String type(String descriptor){return descriptor.startsWith("[") ? descriptor : descriptor.startsWith("L") ? BytecodeHierarchy.referenceType(descriptor) : "I";}
-    /** Pops a verifier-proven category-one type.
+     * @return distinct computational primitive token or reference type */
+    private static String type(String descriptor) {
+        if(descriptor.startsWith("["))return descriptor;
+        if(descriptor.startsWith("L"))return BytecodeHierarchy.referenceType(descriptor);
+        return switch(descriptor){case "J"->"<long>";case "F"->"<float>";case "D"->"<double>";default->"<int>";};
+    }
+    /** Returns the verifier type's JVM local/operand width.
+     * @param token static primitive/reference token
+     * @return one or two slots */
+    private static int width(String token){return "<long>".equals(token) || "<double>".equals(token) ? 2 : 1;}
+    /** Pops a verifier-proven logical operand type, irrespective of slot width.
      * @param stack type stack
      * @return top type */
     private static String pop(ArrayList<String> stack){return stack.removeLast();}
-    /** Appends type tokens in bottom-to-top order.
-     * @param stack type stack
-     * @param types ordered type tokens */
-    private static void push(ArrayList<String> stack,String...types){Collections.addAll(stack,types);}
     /** Extracts the internal package of an application class.
      * @param name internal name
      * @return package prefix */

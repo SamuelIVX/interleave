@@ -125,7 +125,7 @@ class BytecodeEventTest {
     private static BytecodeProgram program(int flags,int fuel,Consumer<CodeBuilder> body) {
         var parser=ClassFile.of(); byte[] bytes=parser.build(ClassDesc.of("Fixture"),builder->builder
             .withMethodBody("actor",MethodTypeDesc.of(ConstantDescs.CD_void),ACC_PUBLIC|flags,body));
-        var method=new BytecodeMethod("Fixture",parser.parse(bytes).methods().getFirst());
+        var method=new BytecodeMethod("Fixture",parser.parse(bytes).methods().getFirst(),BytecodeInput.validate(bytes));
         var limits=new BytecodeLimits(fuel,128,8192,32,64,256,4096,128,8192,1024);
         return new BytecodeProgram("Fixture",Map.of(method.id,method),Map.of(),List.of(method.id),List.of(),List.of("Fixture"),limits,"test",null,new BytecodeHierarchy(Map.of("Fixture",parser.parse(bytes)),Map.of()),java.util.Set.of());
     }

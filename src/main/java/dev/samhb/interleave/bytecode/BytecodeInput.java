@@ -24,13 +24,15 @@ final class BytecodeInput {
      *
      * @param bytes already byte-capped class input with validated version header
      *
+     * @return bounded raw constant index over caller-owned frozen input
      * @throws BytecodeLoadException for malformed containers or excess annotation nesting
      */
-    static void validate(byte[] bytes) {
+    static RawConstants validate(byte[] bytes) {
         try {
             var in=ByteBuffer.wrap(bytes); skip(in,8);
-            String[] names=new String[u2(in)];
+            String[] names=new String[u2(in)];int[] offsets=new int[names.length];
             for(int index=1;index<names.length;index++) {
+                offsets[index]=in.position();
                 switch(u1(in)) {
                     case 1 -> {
                         int length=u2(in), offset=in.position()-2;skip(in,length);
@@ -47,8 +49,36 @@ final class BytecodeInput {
             skip(in,6); skip(in,u2(in)*2); members(in,names,false);members(in,names,true);
             attributes(in,names,false);
             if(in.hasRemaining())throw problem("MALFORMED","Trailing class bytes",null);
+            return new RawConstants(bytes,offsets);
         } catch(IOException | BufferUnderflowException | IndexOutOfBoundsException failure) {
             throw problem("MALFORMED","Truncated class metadata",null);
+        }
+    }
+
+    /** Raw floating payload lookup, supplementing the JDK API's potentially NaN-collapsing accessors.
+     * Input ownership stays with the loader; neither array is exposed or mutated after validation. */
+    static final class RawConstants {
+        /** Read-only view of already frozen and byte-capped input. */
+        private final ByteBuffer input;
+        /** One bounded offset per pool slot, including unusable long/double second slots. */
+        private final int[] offsets;
+        /** Retains private loader input without another class-sized copy.
+         * @param bytes privately owned frozen class
+         * @param offsets newly allocated pool index */
+        private RawConstants(byte[] bytes,int[] offsets){input=ByteBuffer.wrap(bytes).asReadOnlyBuffer();this.offsets=offsets;}
+        /** Reads a numeric pool payload without passing floating bits through a Java FP value.
+         * @param index JDK-validated constant-pool index
+         * @return exact numeric value
+         * @throws IllegalArgumentException for a nonnumeric pool entry */
+        BytecodeState.Value numeric(int index) {
+            int offset=offsets[index];
+            return switch(input.get(offset)) {
+                case 3->new BytecodeState.Int(input.getInt(offset+1));
+                case 4->new BytecodeState.FloatBits(input.getInt(offset+1));
+                case 5->new BytecodeState.LongValue(input.getLong(offset+1));
+                case 6->new BytecodeState.DoubleBits(input.getLong(offset+1));
+                default->throw new IllegalArgumentException("Not a numeric pool entry");
+            };
         }
     }
 

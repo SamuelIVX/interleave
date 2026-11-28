@@ -207,18 +207,24 @@ async function runTests() {
     assert(verdictIncomplete === 'INCOMPLETE', 'incomplete-only renders INCOMPLETE verdict');
 
     if(process.env.BYTECODE_DIR){
-      for(const [name,verdict] of Object.entries({'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',heap:'PASS','array-fault':'VIOLATION',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION',exception:'VIOLATION','exception-report':'VIOLATION','exception-cli':'VIOLATION','exception-owner':'INCOMPLETE','exception-completed':'PASS','exception-actor-owner':'INCOMPLETE'})){
+      for(const [name,verdict] of Object.entries({'lost-update':'VIOLATION',deadlock:'VIOLATION',fault:'VIOLATION',root:'VIOLATION',cutoff:'INCOMPLETE',observer:'INCOMPLETE','no-line':'PASS','long-label':'PASS',heap:'PASS','array-fault':'VIOLATION',interrupted:'INCOMPLETE',report:'VIOLATION',cli:'VIOLATION',exception:'VIOLATION','exception-report':'VIOLATION','exception-cli':'VIOLATION','exception-owner':'INCOMPLETE','exception-completed':'PASS','exception-actor-owner':'INCOMPLETE',primitives:'PASS','primitive-nan':'PASS'})){
         const payload=readFileSync(resolve(projectRoot,process.env.BYTECODE_DIR,`bytecode-${name}.json`),'utf8');
         await page.locator('#clearBtn').click();await page.locator('#paste').fill(payload);await page.locator('#loadPaste').click();
         assert(!(await page.locator('#error').getAttribute('class')).includes('show'),`${name}: fresh BYTECODE payload accepted`);
         assert(await page.locator('#verdictBadge').textContent()===verdict,`${name}: BYTECODE retains ${verdict}`);
         const meta=await page.locator('#meta').textContent();
-        assert(meta.includes('BYTECODE BYTECODE-SC-3') && meta.includes('artifact'),`${name}: artifact profile rendered`);
+        assert(meta.includes('BYTECODE BYTECODE-SC-4') && meta.includes('artifact'),`${name}: artifact profile rendered`);
         if(name==='deadlock'){
           assert(meta.includes('monitor wait') && meta.includes('waits for'), 'Concrete deadlock ownership rendered');
           assert((await page.locator('#stateStrip').textContent()).includes('owner actor 0; depth 1'),'Selected deadlock snapshot shows held monitor depth');
           await page.locator('#timeline tbody tr[data-idx="0"]').click();
           assert(!(await page.locator('#stateStrip').textContent()).includes('owner actor '),'Initial configuration shows unowned monitors');
+        }
+        if(name==='primitives' || name==='primitive-nan'){
+          await page.locator('#timeline tbody tr').last().click();
+          const state=await page.locator('#stateStrip').textContent();
+          for(const raw of name==='primitives' ? ['-9223372036854775808','80000000','7ff0000000000000'] : ['7fc12345','7ff823456789abcd'])
+            assert(state.includes(raw),`${name}: raw ${raw} rendered without numeric coercion`);
         }
         if(name==='heap')assert((await page.locator('#stateStrip').textContent()).includes('actor:0:0') && (await page.locator('#stateStrip').textContent()).includes('[0]'),'Heap aliases and array cells rendered');
         if(name==='array-fault')assert(meta.includes('ArrayStoreException') && (await page.locator('#stateStrip').textContent()).includes('double_bits'),'Dynamic array fault and lossless wide defaults rendered');

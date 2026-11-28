@@ -64,27 +64,33 @@ class BytecodeDispatchTest {
      * @param directory compiler workspace
      * @throws Exception for fixture/oracle failures */
     @Test void protectedReceiversAndInheritedPublicMembers(@TempDir Path directory) throws Exception {
-        for(boolean illegal:new boolean[]{false,true}) {
-            Path work=directory.resolve(illegal ? "invalid" : "valid"),sources=work.resolve("sources"),classes=work.resolve("classes");
+        for(boolean wide:new boolean[]{false,true})for(boolean illegal:new boolean[]{false,true}) {
+            Path work=directory.resolve((wide ? "wide-" : "int-")+(illegal ? "invalid" : "valid")),sources=work.resolve("sources"),classes=work.resolve("classes");
             Files.createDirectories(sources.resolve("a"));Files.createDirectories(sources.resolve("b"));Files.createDirectories(classes);
             Path base=sources.resolve("a/Box.java"),child=sources.resolve("b/Child.java"),fixture=sources.resolve("b/Fixture.java");
-            Files.writeString(base,"package a;public class Box{protected int secret=7;public int exposed=3;public Box(){}}");
-            Files.writeString(child,"package b;public class Child extends a.Box{public static int read("+(illegal ? "a.Box" : "Child")+" c){return c."+(illegal ? "exposed" : "secret")+";}}");
-            Files.writeString(fixture,"package b;import dev.samhb.interleave.bytecode.*;@Model public class Fixture extends Child{public int result;public Fixture(){}@Actor(id=0)public void actor(){result=read(this);}}");
+            String type=wide ? "long" : "int",pad=wide ? "long pad," : "",guard=wide ? "if(pad<0L)return 0L;" : "";
+            Files.writeString(base,"package a;public class Box{protected "+type+" secret=7;public "+type+" exposed=3;public Box(){}}");
+            Files.writeString(child,"package b;public class Child extends a.Box{public static "+type+" read("+pad+(illegal ? "a.Box" : "Child")+" c){"+guard+"return c."+(illegal ? "exposed" : "secret")+(wide ? "++" : "")+";}}");
+            Files.writeString(fixture,"package b;import dev.samhb.interleave.bytecode.*;@Model public class Fixture extends Child{public "+type+" result;public Fixture(){}@Actor(id=0)public void actor(){result=read("+(wide ? "0L," : "")+"this);}}");
             assertEquals(0,javax.tools.ToolProvider.getSystemJavaCompiler().run(null,null,null,"--release","26","-classpath",BytecodeFixtures.classpath(Model.class),"-d",classes.toString(),base.toString(),child.toString(),fixture.toString()));
             if(illegal) {
                 var parser=java.lang.classfile.ClassFile.of();Path target=classes.resolve("b/Child.class");
                 Files.write(target,parser.transformClass(parser.parse(Files.readAllBytes(target)),(builder,element)->{
                     if(element instanceof java.lang.classfile.MethodModel method && method.methodName().equalsString("read"))
                         builder.transformMethod(method,java.lang.classfile.MethodTransform.transformingCode((code,item)->{
-                            if(item instanceof java.lang.classfile.instruction.FieldInstruction field)code.getfield(field.owner().asSymbol(),"secret",java.lang.constant.ConstantDescs.CD_int);
-                            else code.with(item);
+                            if(item instanceof java.lang.classfile.instruction.FieldInstruction field) {
+                                var descriptor=wide ? java.lang.constant.ConstantDescs.CD_long : java.lang.constant.ConstantDescs.CD_int;
+                                if(field.opcode()==java.lang.classfile.Opcode.PUTFIELD)code.putfield(field.owner().asSymbol(),"secret",descriptor);
+                                else code.getfield(field.owner().asSymbol(),"secret",descriptor);
+                            } else code.with(item);
                         }));else builder.with(element);
                 }));
                 assertEquals("LINKAGE",assertThrows(BytecodeLoadException.class,()->BytecodeLoader.load(classes,"b.Fixture",BytecodeLimits.defaults())).category);
             } else {
                 var program=BytecodeLoader.load(classes,"b.Fixture",BytecodeLimits.defaults());
-                assertEquals(new Int(7),BytecodeFixtures.run(program,program.initialState(),0).fixtureField("result"));
+                var state=BytecodeFixtures.run(program,program.initialState(),0);
+                assertEquals(wide ? new LongValue(7) : new Int(7),state.fixtureField("result"));
+                if(wide)assertEquals(new LongValue(8),state.fixtureField("secret"));
                 assertEquals("7",BytecodeFixtures.oracle(work,classes,"b.Fixture f=new b.Fixture();f.actor();System.out.print(f.result);"));
             }
         }

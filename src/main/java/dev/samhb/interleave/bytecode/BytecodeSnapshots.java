@@ -83,16 +83,19 @@ final class BytecodeSnapshots {
         return (reference.owner()==SETUP ? "setup:" : reference.owner()== -2 ? "class:" : reference.owner()==8 ? "constant:" : "actor:"+reference.owner()+":")+reference.sequence();
     }
 
-    /** Converts category-one slots and default-only wide array cells without numeric coercion.
+    /** Converts primitive bits and reference slots without numeric coercion.
      * @param slot immutable VM slot, or null for an uninitialized diagnostic slot
      * @return immutable lossless tagged value */
     private static BytecodeEvidence.Value value(Value slot) {
         return switch(slot) {
             case null -> new BytecodeEvidence.Value("NULL","");
             case Int integer -> number(integer.value());
+            case LongValue wide -> new BytecodeEvidence.Value("LONG",Long.toString(wide.value()));
+            case Top ignored -> text("unusable wide local slot");
             case Literal literal -> new BytecodeEvidence.Value("TEXT",literal.text());
             case Unavailable ignored -> new BytecodeEvidence.Value("TEXT","unavailable VM message");
-            case WideZero wide -> new BytecodeEvidence.Value(wide.type().equals("LONG") ? "LONG" : wide.type()+"_BITS",wide.type().equals("LONG") ? "0" : wide.type().equals("FLOAT") ? "00000000" : "0000000000000000");
+            case FloatBits number -> new BytecodeEvidence.Value("FLOAT_BITS",HexFormat.of().toHexDigits(number.bits()));
+            case DoubleBits number -> new BytecodeEvidence.Value("DOUBLE_BITS",HexFormat.of().toHexDigits(number.bits()));
             case Ref reference -> reference.equals(NULL) ? new BytecodeEvidence.Value("NULL","") : new BytecodeEvidence.Value("REFERENCE",identity(reference));
             case Thrown thrown -> new BytecodeEvidence.Value("FAULT",thrown.fault().toString());
         };

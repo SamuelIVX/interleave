@@ -55,7 +55,7 @@ class BytecodeReleaseTest {
         assertTrue(json.get("fallbackReason").isJsonNull());assertFalse(json.get("limitExceeded").getAsBoolean());
         var identity=json.getAsJsonObject("bytecodeIdentity");
         assertEquals(program.artifactDigest(),identity.get("artifactDigest").getAsString());
-        assertEquals("BYTECODE-SC-3",identity.get("profileVersion").getAsString());
+        assertEquals("BYTECODE-SC-4",identity.get("profileVersion").getAsString());
         assertEquals("Fixture",identity.get("modelClass").getAsString());assertEquals("BATCHED",identity.get("mode").getAsString());
         assertEquals(256,identity.getAsJsonObject("limits").get("actorInstructions").getAsInt());
         assertEquals(2,identity.getAsJsonArray("actors").size());assertEquals(1,identity.getAsJsonArray("checks").size());
@@ -170,6 +170,7 @@ class BytecodeReleaseTest {
             "heap", "public Object[] saved;@Actor(id=0)public void a(){Object[] a=new Object[1];a[0]=a;saved=a;}",
             "array-fault", "public Object saved;@Actor(id=0)public void a(){saved=new double[1];Object[] a=new Fixture[1];a[0]=new Object();}",
             "long-label", "public int "+"x".repeat(600)+";@Actor(id=0)public void a(){"+"x".repeat(600)+"=1;}"));
+        cases.put("primitives","public long value;public float zero;public double infinity;static long shift(long x,int n){return x<<n;}static double divide(double a,double b){return a/b;}@Actor(id=0)public void a(){value=shift(4611686018427387904L,1);zero=-0.0f;infinity=divide(1.0,0.0);}");
         cases.put("exception-completed","public int x;@Actor(id=0)public void a(){try{throw new RuntimeException(\"caught\");}catch(RuntimeException e){x=1;}}@Check public boolean ok(){return x==1;}");
         java.nio.file.Files.createDirectories(Path.of("build"));
         for(var entry:cases.entrySet()) {
@@ -194,10 +195,10 @@ class BytecodeReleaseTest {
         var classes=directory.resolve("classes");java.nio.file.Files.createDirectories(classes);
         var compiler=javax.tools.ToolProvider.getSystemJavaCompiler();
         assertEquals(0,compiler.run(null,null,null,"--release","17","-g","-cp",jar.toString(),"-d",classes.toString(),
-            "examples/bytecode/LostUpdate.java","examples/bytecode/TwoLockDeadlock.java","examples/bytecode/HeapPublication.java","examples/bytecode/ResourceCleanup.java"));
+            "examples/bytecode/LostUpdate.java","examples/bytecode/TwoLockDeadlock.java","examples/bytecode/HeapPublication.java","examples/bytecode/ResourceCleanup.java","examples/bytecode/WidePrimitives.java"));
         assertEquals("true:false:false",BytecodeFixtures.oracle(directory.resolve("cleanup-oracle"),classes,
             "examples.bytecode.ResourceCleanup f=new examples.bytecode.ResourceCleanup();f.actor();boolean original=f.valid();f.primary=null;boolean missing=f.valid();f.primary=new RuntimeException(\"body\");System.out.print(original+\":\"+missing+\":\"+f.valid());"));
-        for(var name:java.util.List.of("LostUpdate","TwoLockDeadlock","HeapPublication","ResourceCleanup")) {
+        for(var name:java.util.List.of("LostUpdate","TwoLockDeadlock","HeapPublication","ResourceCleanup","WidePrimitives")) {
             var cliOutput=directory.resolve(name+"-cli.json");
             var cliProcess=new ProcessBuilder(Path.of(System.getProperty("java.home"),"bin","java").toString(),"-cp",
                 jar+java.io.File.pathSeparator+BytecodeFixtures.classpath(com.google.gson.Gson.class),"dev.samhb.interleave.cli.Main",
@@ -219,7 +220,7 @@ class BytecodeReleaseTest {
             import java.nio.file.Path;
             public class Consumer {public static void main(String[] args)throws Exception {
               var runner=InterleaveRunner.builder().build();var replay=new TraceReplayer();
-              for(String name:new String[]{"LostUpdate","TwoLockDeadlock","HeapPublication","ResourceCleanup"}) {
+              for(String name:new String[]{"LostUpdate","TwoLockDeadlock","HeapPublication","ResourceCleanup","WidePrimitives"}) {
                 var program=BytecodeProgramLoader.load(Path.of(args[0]),"examples.bytecode."+name);
                 var result=runner.runBytecode(program);
                 var traces=name.equals("LostUpdate")?result.failingTraces():name.equals("TwoLockDeadlock")?result.deadlockedTraces():result.completedTraces();
@@ -243,7 +244,7 @@ class BytecodeReleaseTest {
             "Consumer",classes.toString()).redirectErrorStream(true).redirectOutput(output.toFile()).start();
         try {
             assertTrue(process.waitFor(15,java.util.concurrent.TimeUnit.SECONDS));var text=java.nio.file.Files.readString(output);
-            assertEquals(0,process.exitValue(),text);assertEquals(java.util.List.of("LostUpdate:CHECK_FALSE","TwoLockDeadlock:DEADLOCK","HeapPublication:COMPLETED","ResourceCleanup:COMPLETED"),text.lines().toList());
+            assertEquals(0,process.exitValue(),text);assertEquals(java.util.List.of("LostUpdate:CHECK_FALSE","TwoLockDeadlock:DEADLOCK","HeapPublication:COMPLETED","ResourceCleanup:COMPLETED","WidePrimitives:COMPLETED"),text.lines().toList());
         } finally {if(process.isAlive())process.destroyForcibly();}
     }
     /** Unsupported routes reject without invoking caller callbacks or changing legacy settings.

@@ -4,7 +4,7 @@
 ## Objective
 
 Deliver general supported exceptions as one coherent stage of bounded Java bytecode checking.
-**Type: delta. Status: implemented locally; runtime, consumer, review and mutation gates pass; CI/manual review and merge pending.**
+**Type: delta. Status: complete; merged in PR143 at `cccd741`.**
 Actual completed and pending evidence is recorded in the [96 ledger](../../measurements/96-bytecode-exceptions.md). The
 [shared #12 contract](../../plans/bytecode-contract.md) is normative for common semantics, limits,
 interface signatures, profile exclusions, phase ownership and verification. This spec owns 96 only.
