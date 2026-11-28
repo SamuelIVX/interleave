@@ -29,6 +29,45 @@ SCOPE = ('dev.samhb.interleave.bytecode.*', 'dev.samhb.interleave.BytecodeTraceJ
          'dev.samhb.interleave.report.ReportWriter*', 'dev.samhb.interleave.report.SoundnessAttestation*',
          'dev.samhb.interleave.cli.Main*')
 DEFAULT_SCOPE = ('dev.samhb.interleave.state.*', 'dev.samhb.interleave.cb.*')
+FAMILY_WEIGHTS = {
+    'dev.samhb.interleave.BytecodeTraceJson': 131,
+    'dev.samhb.interleave.InterleaveRunner': 274,
+    'dev.samhb.interleave.ResultJson': 27,
+    'dev.samhb.interleave.TestResult': 172,
+    'dev.samhb.interleave.TraceRecord': 108,
+    'dev.samhb.interleave.bytecode.BytecodeAccessVerifier': 281,
+    'dev.samhb.interleave.bytecode.BytecodeArrays': 117,
+    'dev.samhb.interleave.bytecode.BytecodeChecks': 42,
+    'dev.samhb.interleave.bytecode.BytecodeExplorer': 165,
+    'dev.samhb.interleave.bytecode.BytecodeFrame': 19,
+    'dev.samhb.interleave.bytecode.BytecodeHierarchy': 330,
+    'dev.samhb.interleave.bytecode.BytecodeInput': 134,
+    'dev.samhb.interleave.bytecode.BytecodeLimits': 7,
+    'dev.samhb.interleave.bytecode.BytecodeLoadException': 4,
+    'dev.samhb.interleave.bytecode.BytecodeLoader': 1024,
+    'dev.samhb.interleave.bytecode.BytecodeLocation': 11,
+    'dev.samhb.interleave.bytecode.BytecodeMethod': 114,
+    'dev.samhb.interleave.bytecode.BytecodeObservations': 79,
+    'dev.samhb.interleave.bytecode.BytecodePlatform': 81,
+    'dev.samhb.interleave.bytecode.BytecodeProgram': 31,
+    'dev.samhb.interleave.bytecode.BytecodeReplay': 126,
+    'dev.samhb.interleave.bytecode.BytecodeRuntime': 185,
+    'dev.samhb.interleave.bytecode.BytecodeScheduler': 98,
+    'dev.samhb.interleave.bytecode.BytecodeSharing': 106,
+    'dev.samhb.interleave.bytecode.BytecodeSnapshots': 178,
+    'dev.samhb.interleave.bytecode.BytecodeState': 229,
+    'dev.samhb.interleave.bytecode.BytecodeStrings': 69,
+    'dev.samhb.interleave.bytecode.BytecodeThrowables': 302,
+    'dev.samhb.interleave.bytecode.BytecodeVerifier': 322,
+    'dev.samhb.interleave.bytecode.OpcodeExecutor': 485,
+    'dev.samhb.interleave.cli.Main': 453,
+    'dev.samhb.interleave.core.BytecodeEvidence': 269,
+    'dev.samhb.interleave.report.BenchmarkHarness': 315,
+    'dev.samhb.interleave.report.BenchmarkResult': 77,
+    'dev.samhb.interleave.report.ReportWriter': 259,
+    'dev.samhb.interleave.report.SoundnessAttestation': 233,
+    'dev.samhb.interleave.search.TraceReplayer': 237,
+}
 
 
 def load_json(path: Path | str) -> dict:
@@ -86,12 +125,19 @@ def shard_for(name: str) -> int:
 
 
 def partition(names: dict | list) -> list[list[str]]:
-    """Select the frozen population and assign every selected class exactly once."""
-    result = [[] for _ in range(4)]
+    """Select the frozen population and assign every selected class family deterministically via LPT bin-packing."""
+    families = {}
     for name in sorted(names):
         if any(fnmatch.fnmatchcase(name, pattern) for pattern in SCOPE):
-            result[shard_for(name)].append(name)
-    return result
+            family = name.split('$', 1)[0]
+            families.setdefault(family, []).append(name)
+    shards = [[] for _ in range(4)]
+    weights = [0] * 4
+    for family in sorted(families.keys(), key=lambda f: (-FAMILY_WEIGHTS.get(f, len(families[f])), f)):
+        idx = weights.index(min(weights))
+        shards[idx].extend(families[family])
+        weights[idx] += FAMILY_WEIGHTS.get(family, len(families[family]))
+    return [sorted(shard) for shard in shards]
 
 
 def check_provenance(expected: dict, observed: dict) -> None:
@@ -108,8 +154,7 @@ def check_provenance(expected: dict, observed: dict) -> None:
 def make_plan(base: str, candidate: str, base_classes: Path | str, candidate_classes: Path | str,
               base_record: dict, candidate_record: dict, mode: str = 'full', calibrate: bool = False) -> dict:
     """Plan an exact pair from successful preflights; no source files are overlaid on either revision."""
-    require(mode in ('full', 'sharded'), 'Unknown analysis mode')
-    require(not calibrate or mode == 'full', 'Calibration requires full reference mode')
+    require(mode == 'full', 'Sharded acceptance remains disabled pending reviewed calibration')
     result = {'version': 1, 'mode': mode, 'calibrate': calibrate, 'scope': list(SCOPE), 'revisions': {}}
     for label, revision, directory, record in (
             ('baseline', base, base_classes, base_record),
@@ -484,6 +529,15 @@ def ci_run(root: Path | str, revision: str, label: str, scope: str, output: Path
         with (output / 'run.log').open('w') as log:
             result = subprocess.run(command + tasks, cwd=root, stdout=log, stderr=subprocess.STDOUT)
         record['exit'] = result.returncode
+        if scope != 'build':
+            report = report_dir / 'mutations.xml'
+            if report.exists():
+                shutil.copy2(report, output / 'mutations.xml')
+                record['reportHash'] = fingerprint(report)
+        classes_dir = root / 'build/classes/java/main'
+        if classes_dir.exists():
+            shutil.copytree(classes_dir, output / 'classes')
+        require(result.returncode == 0, f'{scope} Gradle execution failed; inspect {output / "run.log"}')
         metadata = load_json(output / 'resolved.json')
         check_metadata(metadata)
         record.update(protocol=metadata['protocol'], inputs=snapshot_inputs(root, metadata),
@@ -492,13 +546,6 @@ def ci_run(root: Path | str, revision: str, label: str, scope: str, output: Path
         if scope == 'build':
             record['checks'] = load_json(output / 'tasks.json')
             check_build(record)
-        else:
-            report = report_dir / 'mutations.xml'
-            if report.exists():
-                shutil.copy2(report, output / 'mutations.xml')
-                record['reportHash'] = fingerprint(report)
-        shutil.copytree(root / 'build/classes/java/main', output / 'classes')
-        require(result.returncode == 0, f'{scope} Gradle execution failed; inspect {output / "run.log"}')
         # Commit completion only after every required artifact/guard succeeds, independently of Gradle's exit.
         if scope != 'build':
             completed_rows(output, dict(record, complete=True))
@@ -516,7 +563,7 @@ def ci_run(root: Path | str, revision: str, label: str, scope: str, output: Path
 
 def candidate_reuse(directory: Path | str, revision: str, controller: str, scope: str,
                     expected: dict | None = None) -> dict:
-    """Validate one existing candidate check without executing Gradle or trusting a filename."""
+    """Validate one existing check without executing Gradle or trusting a filename."""
     directory = Path(directory)
     record = load_json(directory / 'record.json')
     require(type(record['version']) is int and record['version'] == 1 and record['revision'] == revision and record['controller'] == controller

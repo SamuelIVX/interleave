@@ -28,7 +28,7 @@ on:
       calibrate:
         description: Compare one full reference with two four-shard trials
         type: boolean
-        default: true
+        default: false
 permissions:
   contents: read
 jobs:
@@ -64,6 +64,7 @@ jobs:
           if [ "$MANUAL" = true ]; then args+=(--manual); else args+=(--head "$HEAD"); fi
           python3 controller/tools/mutation.py select --repo controller --base "$BASE" --candidate "$CANDIDATE" --head-repository "$HEAD_REPOSITORY" "${args[@]}" --output evidence/selection.json
       - name: Set up Java
+        id: setup-java
         if: steps.select.outputs.required == 'true'
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
@@ -120,9 +121,9 @@ jobs:
           CANDIDATE: ${{ inputs.candidate }}
           CALIBRATE: ${{ inputs.calibrate }}
         run: |
-          args=()
+          args=(--base "$BASE" --candidate "$CANDIDATE" --base-classes evidence/baseline-build/classes --candidate-classes evidence/candidate-build/classes --base-record evidence/baseline-build/record.json --candidate-record evidence/candidate-build/record.json --output evidence/plan.json)
           if [ "$CALIBRATE" = true ]; then args+=(--calibrate); fi
-          python3 controller/tools/mutation.py plan --base "$BASE" --candidate "$CANDIDATE" --base-classes evidence/baseline-build/classes --candidate-classes evidence/candidate-build/classes --base-record evidence/baseline-build/record.json --candidate-record evidence/candidate-build/record.json --mode full "${args[@]}" --output evidence/plan.json
+          python3 controller/tools/mutation.py plan "${args[@]}"
       - name: Upload preparation and failure evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

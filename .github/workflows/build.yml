@@ -173,5 +173,5 @@ jobs:
       base: ${{ github.event.pull_request.base.sha }}
       candidate: ${{ github.sha }}
       head: ${{ github.event.pull_request.head.sha }}
-      # Bootstrap calibration collects two sharded trials; acceptance still uses full mode.
-      calibrate: true
+      # Calibration trials remain available via workflow dispatch; routine PR acceptance defaults to false.
+      calibrate: false
